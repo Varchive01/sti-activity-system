@@ -1,0 +1,251 @@
+    /* ── Floor Plan Drawing Tool ── */
+    .fp-wrap {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--border, #dee2e6);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    /* Left palette */
+    .fp-palette {
+      width: 72px;
+      flex-shrink: 0;
+      background: #1e2a3a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 0;
+      gap: 4px;
+    }
+
+    .fp-palette-sep {
+      width: 40px;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.12);
+      margin: 4px 0;
+    }
+
+    .fp-tool-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      border: 1.5px solid transparent;
+      background: transparent;
+      color: #a0aec0;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      gap: 2px;
+      transition: background .15s, color .15s, border-color .15s;
+      position: relative;
+    }
+
+    .fp-tool-btn span.fp-label {
+      font-size: 9px;
+      font-family: Inter, sans-serif;
+      letter-spacing: .3px;
+      line-height: 1;
+    }
+
+    .fp-tool-btn:hover {
+      background: rgba(255, 255, 255, .08);
+      color: #e2e8f0;
+    }
+
+    .fp-tool-btn.active {
+      background: rgba(255, 255, 255, .15);
+      color: #fff;
+      border-color: rgba(255, 255, 255, .3);
+    }
+
+    /* Canvas area */
+    .fp-canvas-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .fp-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      background: #f8f9fa;
+      border-bottom: 1px solid var(--border, #dee2e6);
+      flex-wrap: wrap;
+    }
+
+    .fp-toolbar label {
+      font-size: .78rem;
+      color: #6c757d;
+      white-space: nowrap;
+    }
+
+    .fp-color-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      cursor: pointer;
+      outline: 2px solid transparent;
+      transition: outline .15s;
+      flex-shrink: 0;
+    }
+
+    .fp-color-btn.selected {
+      outline-color: #1e2a3a;
+    }
+
+    .fp-color-input {
+      width: 28px;
+      height: 28px;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      background: none;
+      border-radius: 4px;
+    }
+
+    .fp-stroke-select {
+      font-size: .78rem;
+      padding: 2px 6px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      background: #fff;
+    }
+
+    .fp-toolbar-sep {
+      width: 1px;
+      height: 20px;
+      background: #dee2e6;
+    }
+
+    .fp-action-btn {
+      font-size: .75rem;
+      padding: 3px 10px;
+      border-radius: 4px;
+      border: 1px solid #dee2e6;
+      background: #fff;
+      cursor: pointer;
+      color: #495057;
+      transition: background .12s;
+      white-space: nowrap;
+    }
+
+    .fp-action-btn:hover {
+      background: #e9ecef;
+    }
+
+    .fp-action-btn.danger {
+      color: #dc3545;
+      border-color: #f5c6cb;
+    }
+
+    .fp-action-btn.danger:hover {
+      background: #fff5f5;
+    }
+
+    #fpStage {
+      display: block;
+      cursor: crosshair;
+    }
+
+    /* Right props panel */
+    .fp-props {
+      width: 180px;
+      flex-shrink: 0;
+      background: #f8f9fa;
+      border-left: 1px solid var(--border, #dee2e6);
+      padding: 12px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: .78rem;
+    }
+
+    .fp-props h4 {
+      font-size: .8rem;
+      font-weight: 600;
+      color: #495057;
+      margin: 0 0 4px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .fp-prop-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .fp-prop-row label {
+      color: #6c757d;
+      font-size: .72rem;
+    }
+
+    .fp-prop-row input[type=text],
+    .fp-prop-row input[type=number],
+    .fp-prop-row select {
+      font-size: .78rem;
+      padding: 3px 6px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      width: 100%;
+    }
+
+    .fp-snap-hint {
+      font-size: .7rem;
+      color: #adb5bd;
+      line-height: 1.4;
+      margin-top: auto;
+    }
+
+    /* Legend chips */
+    .fp-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 12px;
+      border-top: 1px solid #dee2e6;
+      background: #f8f9fa;
+    }
+
+    .fp-legend-chip {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: .72rem;
+      color: #6c757d;
+    }
+
+    .fp-legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    /* Status bar */
+    .fp-statusbar {
+      padding: 4px 12px;
+      font-size: .72rem;
+      color: #adb5bd;
+      background: #fff;
+      border-top: 1px solid #dee2e6;
+    }
+
+    /* Hidden input to carry canvas data */
+    #fp-canvas-data {
+      display: none;
+    }
+
+    .fp-canvas-invalid .fp-wrap {
+      outline: 2px solid #dc3545;
+      border-radius: 8px;
+    }
