@@ -93,7 +93,7 @@ function timeAgo($datetime)
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Faculty Dashboard – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.4">
   <style>
                         /* ── Bell ── */
     .notif-bell-btn {
@@ -696,7 +696,7 @@ function timeAgo($datetime)
 
       <!-- Stats -->
       <div class="stat-grid">
-        <div class="stat-card">
+        <a href="<?= BASE_URL ?>/faculty/activities.php" class="stat-card">
           <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg></div>
@@ -704,8 +704,8 @@ function timeAgo($datetime)
             <div class="stat-val"><?= $s['total'] ?></div>
             <div class="stat-label">Total Activities</div>
           </div>
-        </div>
-        <div class="stat-card">
+        </a>
+        <a href="<?= BASE_URL ?>/faculty/pending.php" class="stat-card">
           <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg></div>
@@ -713,8 +713,8 @@ function timeAgo($datetime)
             <div class="stat-val"><?= $s['pending'] ?></div>
             <div class="stat-label">Pending Review</div>
           </div>
-        </div>
-        <div class="stat-card">
+        </a>
+        <a href="<?= BASE_URL ?>/faculty/approved.php" class="stat-card">
           <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg></div>
@@ -722,8 +722,8 @@ function timeAgo($datetime)
             <div class="stat-val"><?= $s['approved'] ?></div>
             <div class="stat-label">Approved</div>
           </div>
-        </div>
-        <div class="stat-card">
+        </a>
+        <a href="<?= BASE_URL ?>/faculty/returned.php" class="stat-card">
           <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg></div>
@@ -731,8 +731,8 @@ function timeAgo($datetime)
             <div class="stat-val"><?= $s['revisions'] ?></div>
             <div class="stat-label">For Revision</div>
           </div>
-        </div>
-        <div class="stat-card">
+        </a>
+        <a href="<?= BASE_URL ?>/faculty/activities.php?status=completed" class="stat-card">
           <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
             </svg></div>
@@ -740,7 +740,7 @@ function timeAgo($datetime)
             <div class="stat-val"><?= $s['completed'] ?></div>
             <div class="stat-label">Completed</div>
           </div>
-        </div>
+        </a>
       </div>
 
       <!-- Quick Actions -->

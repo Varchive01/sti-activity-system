@@ -143,6 +143,19 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     .reviewer-comment-banner .rc-label { font-weight: 700; display: block; margin-bottom: 3px; }
   </style>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/floorplan.css">
+  <style>
+    .proposal-layout-grid {
+      display: grid;
+      grid-template-columns: 1.8fr 1.2fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 1200px) {
+      .proposal-layout-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 
 <body class="theme-faculty">
@@ -198,8 +211,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         </div>
       </div>
 
-      <form method="POST" action="<?= BASE_URL ?>/api/proposal-update.php" enctype="multipart/form-data">
+            <form method="POST" id="proposalForm" action="<?= BASE_URL ?>/api/proposal-update.php" enctype="multipart/form-data">
         <input type="hidden" name="activity_id" value="<?= $id ?>">
+        <div class="proposal-layout-grid">
+          <div class="proposal-wizard-container">
 
         <!-- STEP 1 -->
         <div class="wizard-panel active" id="panel-1">
@@ -805,10 +820,113 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           </div>
         </div>
 
+      </div> <!-- Close proposal-wizard-container -->
+                <div class="proposal-eval-side-panel">
+            <style>
+              .eval-question-card {
+                background: #ffffff;
+                border: 1px solid var(--border-color, #e2e8f0);
+                border-radius: 8px;
+                padding: 12px;
+                transition: all 0.2s ease;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                margin-bottom: 10px;
+              }
+              .eval-question-card:hover {
+                box-shadow: 0 3px 8px rgba(0,0,0,0.04);
+                border-color: #0284c7;
+              }
+              .eval-question-card.editing {
+                border-color: #0284c7;
+                box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1);
+              }
+              .badge-type-rating {
+                background: #e0f2fe;
+                color: #0369a1;
+              }
+              .badge-type-text {
+                background: #f3f4f6;
+                color: #4b5563;
+              }
+              .eval-action-link {
+                cursor: pointer;
+                transition: color 0.15s ease;
+              }
+              .eval-action-link:hover {
+                text-decoration: underline !important;
+              }
+              .btn-xs {
+                padding: 2px 8px;
+                font-size: 0.75rem;
+                border-radius: 4px;
+              }
+              .proposal-eval-side-panel .card-body {
+                max-height: calc(100vh - 220px);
+                overflow-y: auto;
+              }
+            </style>
+            <div class="card" style="box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-radius: 12px; border: 1px solid var(--border-color, #e5e7eb); overflow: hidden;">
+              <div class="card-header" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="font-size: 0.95rem; font-weight: 700; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 8px;">
+                  🤖 AI-Generated Evaluation Tool
+                </h2>
+                <span id="evalStatusBadge" style="font-size: 0.7rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 12px; display: flex; align-items: center; gap: 4px;">
+                  <span id="evalStatusIndicator" style="width: 6px; height: 6px; background: #64748b; border-radius: 50%;"></span> <span id="evalStatusText">Empty</span>
+                </span>
+              </div>
+              <div class="card-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+                
+                <!-- Needs Update Notice -->
+                <div id="evalChangeNotice" class="alert alert-warning" style="display:none; flex-direction:column; gap:8px; font-size:0.75rem; padding:10px 12px; margin-bottom:4px; border-radius:6px; border-left: 4px solid #d97706; background: #fffbeb;">
+                  <div>⚠️ <strong>Your activity details have changed.</strong> The evaluation questions may need to be updated.</div>
+                  <div style="display:flex; gap:8px; margin-top:4px;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="dismissEvalChangeNotice()" style="padding: 2px 8px; font-size: 0.7rem; height:auto; line-height:1.2; background:#fff; border:1px solid #d97706; color:#d97706;">Keep Current</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="regenerateEvaluationWithAi(true)" style="padding: 2px 8px; font-size: 0.7rem; height:auto; line-height:1.2; background: #d97706; border: none; color: white;">Regenerate with AI</button>
+                  </div>
+                </div>
+                
+                <div class="step-error-banner" id="err-banner-eval-side" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; background:#f8d7da; color:#842029; border:1px solid #f5c2c7; font-size:.75rem;">⚠️ Please review and fix evaluation questions.</div>
+                
+                <!-- AI Generation Loading & Status -->
+                <div id="evalGenStatus" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; font-size:.775rem;"></div>
+
+                <div class="info-alert" style="font-size: 0.775rem; padding: 10px 12px; background: #f0f9ff; border: 1px solid #e0f2fe; color: #0369a1; border-radius: 6px; line-height: 1.45; margin-bottom: 4px;">
+                  These evaluation questions are automatically generated based on your activity objectives and KPIs. Review them and make changes if needed.
+                </div>
+
+                <!-- Hidden JSON field -->
+                <input type="hidden" name="evaluation_questions" id="f10_evaluation_questions">
+
+                <!-- Questions list container -->
+                <div id="eval-questions-list" style="display: flex; flex-direction: column; gap: 4px;">
+                  <!-- Dynamically populated -->
+                </div>
+
+                <button type="button" class="btn btn-outline btn-sm" onclick="addManualQuestion()" style="border: 1px dashed var(--border-color, #cbd5e1); font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; background: #fafafa; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height:auto;">
+                  + Add Question
+                </button>
+                
+                <div class="footer-actions" style="margin-top: 10px; padding-top: 12px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; gap: 8px;">
+                  <button type="button" class="btn btn-outline btn-sm" id="btn-regenerate-eval" onclick="regenerateEvaluationWithAi(true)" style="font-size: 0.75rem; padding: 6px 10px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
+                    ↻ Regenerate
+                  </button>
+                  <button type="button" class="btn btn-outline btn-sm" onclick="openPreviewModal()" style="font-size: 0.75rem; padding: 6px 10px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
+                    👁 Preview Tool
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div> <!-- Close proposal-eval-side-panel -->
+      </div> <!-- Close proposal-layout-grid -->
+
       </form>
     </div>
   </div>
-  <script>
+    <script>
+    let questionsList = <?= !empty($activity['evaluation_questions']) ? $activity['evaluation_questions'] : '[]' ?>;
     let currentStep = 1;
     const totalSteps = 9;
     const flaggedSteps = <?= json_encode($flaggedSteps) ?>;
@@ -854,9 +972,496 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       const tr = btn.closest('tr');
       if (tr.parentElement.querySelectorAll('tr').length > 1) tr.remove();
     }
+
+    // ── Evaluation Tool ──────────────────────────────────────────────
+    let questionsList = []; // Array of { question: "...", type: "rating"|"open_ended", category: "..." }
+    let isEvaluationEdited = false;
+    let isGeneratingEval = false;
+    let lastEvaluationState = '';
+    let autoUpdateTimer = null;
+    let editingIndex = -1;
+
+    function getObjectivesAndKpisState() {
+      const title = (document.querySelector('[name="title"]')?.value || '').trim();
+      const rationale = (document.querySelector('[name="rationale"]')?.value || '').trim();
+      const genObj = (document.querySelector('[name="general_objectives"]')?.value || '').trim();
+      const specObj = (document.querySelector('[name="specific_objectives"]')?.value || '').trim();
+      
+      const kpis = [];
+      const criteriaInputs = document.querySelectorAll('input[name="kpi_criteria[]"], input[name="kpi_indicator[]"]');
+      criteriaInputs.forEach(input => {
+        if (input.value.trim()) {
+          kpis.push(input.value.trim());
+        }
+      });
+      return JSON.stringify({ title, rationale, genObj, specObj, kpis });
+    }
+
+    function checkAndTriggerEvaluationAutoUpdate() {
+      if (typeof currentStep !== 'undefined' && currentStep === 1) {
+        return; // Do not auto-generate while on Step 1
+      }
+      
+      const currentState = getObjectivesAndKpisState();
+      const isListEmpty = questionsList.length === 0;
+      
+      const parsed = JSON.parse(currentState);
+      const hasMinData = parsed.title && (parsed.genObj || parsed.specObj || parsed.kpis.length > 0);
+      
+      if (!hasMinData) {
+        setEvaluationState('EMPTY');
+        return;
+      }
+      
+      if (isListEmpty) {
+        // Initial auto-generation: silent
+        lastEvaluationState = currentState;
+        regenerateEvaluationWithAi(false);
+      } else {
+        // Subsequent check
+        if (currentState !== lastEvaluationState) {
+          setEvaluationState('NEEDS_UPDATE');
+        }
+      }
+    }
+
+    function queueEvaluationAutoUpdate() {
+      if (autoUpdateTimer) clearTimeout(autoUpdateTimer);
+      autoUpdateTimer = setTimeout(() => {
+        checkAndTriggerEvaluationAutoUpdate();
+      }, 3000);
+    }
+
+    function dismissEvalChangeNotice() {
+      const noticeEl = document.getElementById('evalChangeNotice');
+      if (noticeEl) noticeEl.style.display = 'none';
+      lastEvaluationState = getObjectivesAndKpisState();
+      setEvaluationState('READY');
+    }
+
+    async function regenerateEvaluationWithAi(forced = false) {
+      if (isGeneratingEval) return;
+
+      if (forced && isEvaluationEdited && questionsList.length > 0) {
+        if (!confirm("Regenerating will replace your current evaluation questions, including manual changes. Continue?")) {
+          return;
+        }
+      }
+
+      setEvaluationState('GENERATING');
+      isGeneratingEval = true;
+
+      // Gather KPIs
+      const kpis = [];
+      const criteriaInputs = document.querySelectorAll('input[name="kpi_criteria[]"], input[name="kpi_indicator[]"]');
+      const ratingSelects = document.querySelectorAll('select[name="kpi_rating[]"], input[name="kpi_target[]"]');
+      criteriaInputs.forEach((input, index) => {
+        if (input.value.trim()) {
+          kpis.push({
+            criteria: input.value.trim(),
+            rating: ratingSelects[index]?.value || '3'
+          });
+        }
+      });
+
+      const payload = {
+        title: (document.querySelector('[name="title"]')?.value || '').trim(),
+        source: (document.querySelector('[name="source"]')?.value || '').trim(),
+        target_participants: (document.querySelector('[name="target_participants"]')?.value || '').trim(),
+        theme: (document.querySelector('[name="theme"]')?.value || '').trim(),
+        event_date: (document.querySelector('[name="event_date"]')?.value || '').trim(),
+        start_time: (document.querySelector('[name="start_time"]')?.value || '').trim(),
+        end_time: (document.querySelector('[name="end_time"]')?.value || '').trim(),
+        venue: (document.querySelector('[name="venue"]')?.value || '').trim(),
+        venue_address: (document.querySelector('[name="venue_address"]')?.value || '').trim(),
+        involved_subjects: (document.querySelector('[name="involved_subjects"]')?.value || '').trim(),
+        rationale: (document.querySelector('[name="rationale"]')?.value || '').trim(),
+        general_objectives: (document.querySelector('[name="general_objectives"]')?.value || '').trim(),
+        specific_objectives: (document.querySelector('[name="specific_objectives"]')?.value || '').trim(),
+        kpis: kpis
+      };
+
+      try {
+        const res = await fetch('<?= BASE_URL ?>/api/generate-evaluation.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        const data = await res.json();
+        
+        if (res.status === 429 || (data && data.error && (data.error.includes('429') || data.error.includes('RESOURCE_EXHAUSTED') || data.error.includes('limit')))) {
+          throw new Error("RATE_LIMIT");
+        } else if (!res.ok || (data && data.error)) {
+          throw new Error(data.error || `API Error: HTTP ${res.status}`);
+        }
+
+        if (data.success && Array.isArray(data.questions)) {
+          questionsList = data.questions;
+          isEvaluationEdited = false;
+          editingIndex = -1;
+          
+          renderQuestions();
+          serializeEvaluationQuestions();
+          
+          setEvaluationState('READY');
+          lastEvaluationState = getObjectivesAndKpisState();
+        } else {
+          throw new Error(data.error || 'Empty response from AI.');
+        }
+      } catch (err) {
+        console.warn('generateEvaluation error:', err);
+        let errMsg = err.message || 'Unknown error';
+        if (errMsg === 'RATE_LIMIT') {
+          errMsg = 'AI service rate limit reached. Please try again.';
+        }
+        setEvaluationState('ERROR', errMsg);
+      } finally {
+        isGeneratingEval = false;
+      }
+    }
+
+    function renderQuestions() {
+      const container = document.getElementById('eval-questions-list');
+      if (!container) return;
+      container.innerHTML = '';
+      
+      if (questionsList.length === 0) {
+        container.innerHTML = '<div class="text-muted" style="text-align:center;font-size:0.8rem;padding:20px 0;">No evaluation questions generated yet.</div>';
+        return;
+      }
+      
+      questionsList.forEach((q, index) => {
+        const card = document.createElement('div');
+        card.className = 'eval-question-card';
+        card.dataset.index = index;
+        
+        const isTextType = q.type === 'open_ended' || q.type === 'text';
+        const typeLabel = isTextType ? 'Open-ended' : 'Rating Scale';
+        const badgeClass = isTextType ? 'badge-type-text' : 'badge-type-rating';
+        
+        if (editingIndex === index) {
+          card.classList.add('editing');
+          card.innerHTML = `
+            <div class="form-group" style="margin-bottom:8px; width: 100%;">
+              <textarea class="form-control eval-question-input" rows="2" style="font-size: 0.85rem; width: 100%; box-sizing: border-box; resize: vertical;" placeholder="Question Text">${escapeHtml(q.question)}</textarea>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; width: 100%;">
+              <select class="form-control form-control-sm eval-type-select" style="width:120px; font-size:0.75rem; padding: 2px 4px; height: auto;">
+                <option value="rating" ${!isTextType ? 'selected' : ''}>Rating Scale</option>
+                <option value="open_ended" ${isTextType ? 'selected' : ''}>Open-ended</option>
+              </select>
+              <div style="display:flex; gap:6px;">
+                <button type="button" class="btn btn-outline btn-xs" onclick="cancelEdit(${index})" style="padding:2px 8px; font-size:0.75rem; border-radius:4px; height:auto; line-height:1.2;">Cancel</button>
+                <button type="button" class="btn btn-primary btn-xs" onclick="saveEdit(${index})" style="padding:2px 8px; font-size:0.75rem; border-radius:4px; height:auto; line-height:1.2; background:var(--sti-red, #e30613); border:none; color:white;">Save</button>
+              </div>
+            </div>
+          `;
+        } else {
+          card.innerHTML = `
+            <div class="eval-card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+              <span class="eval-question-num" style="font-weight:600; font-size:0.8rem; color:var(--text-muted, #64748b);">Question ${index + 1}</span>
+              <span class="badge ${badgeClass}" style="font-size:0.7rem; padding: 2px 6px; border-radius:4px; font-weight:600;">${typeLabel}</span>
+            </div>
+            <div class="eval-question-body" style="font-size:0.85rem; line-height:1.45; color:var(--text, #1e293b); margin-bottom: 8px; font-weight:500; word-break: break-word;">
+              ${escapeHtml(q.question)}
+            </div>
+            <div class="eval-card-actions" style="display:flex; gap:12px; font-size:0.75rem; border-top: 1px dashed #f1f5f9; padding-top:6px;">
+              <a href="javascript:void(0)" class="eval-action-link" onclick="startEdit(${index})" style="color:var(--primary, #0284c7); text-decoration:none; font-weight:600;">Edit</a>
+              <a href="javascript:void(0)" class="eval-action-link" onclick="confirmDeleteQuestion(${index})" style="color:#dc3545; text-decoration:none; font-weight:600;">Delete</a>
+            </div>
+          `;
+        }
+        container.appendChild(card);
+      });
+    }
+
+    function setEvaluationState(state, errorMsg = '') {
+      const badge = document.getElementById('evalStatusBadge');
+      const indicator = document.getElementById('evalStatusIndicator');
+      const text = document.getElementById('evalStatusText');
+      const statusEl = document.getElementById('evalGenStatus');
+      const noticeEl = document.getElementById('evalChangeNotice');
+      
+      if (!badge || !indicator || !text) return;
+      
+      if (statusEl) statusEl.style.display = 'none';
+      if (noticeEl && state !== 'NEEDS_UPDATE') noticeEl.style.display = 'none';
+      
+      switch(state) {
+        case 'EMPTY':
+          text.innerText = 'Empty';
+          badge.style.background = '#f1f5f9';
+          badge.style.color = '#64748b';
+          indicator.style.background = '#64748b';
+          if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#f0f9ff; color:#0369a1; border:1px solid #e0f2fe; margin-bottom:10px;';
+            statusEl.innerText = 'Complete your activity objectives to generate evaluation questions.';
+          }
+          break;
+        case 'GENERATING':
+          text.innerText = 'Generating...';
+          badge.style.background = '#eff6ff';
+          badge.style.color = '#1d4ed8';
+          indicator.style.background = '#1d4ed8';
+          if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; margin-bottom:10px;';
+            statusEl.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;">' +
+              '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="animation:spin 1s linear infinite;">' +
+              '<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>' +
+              '🤖 Generating evaluation questions...' +
+              '</span>';
+          }
+          break;
+        case 'READY':
+          text.innerText = isEvaluationEdited ? 'Custom' : 'Auto-generated';
+          badge.style.background = '#dcfce7';
+          badge.style.color = '#16a34a';
+          indicator.style.background = '#16a34a';
+          break;
+        case 'NEEDS_UPDATE':
+          text.innerText = 'Needs Update';
+          badge.style.background = '#fef3c7';
+          badge.style.color = '#d97706';
+          indicator.style.background = '#d97706';
+          if (noticeEl) {
+            noticeEl.style.display = 'flex';
+          }
+          break;
+        case 'ERROR':
+          text.innerText = 'Error';
+          badge.style.background = '#fee2e2';
+          badge.style.color = '#dc2626';
+          indicator.style.background = '#dc2626';
+          if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; margin-bottom:10px;';
+            statusEl.innerHTML = `⚠️ <span>Unable to generate evaluation questions right now.</span> <br> <span style="font-size:0.7rem; opacity:0.85;">${escapeHtml(errorMsg || 'Network error')}</span>` +
+              `<div style="margin-top:6px;"><button type="button" class="btn btn-outline btn-xs" style="background:#fff; border:1px solid #fca5a5; padding:2px 8px; font-size:0.7rem; height:auto; line-height:1.2;" onclick="regenerateEvaluationWithAi(false)">Retry</button></div>`;
+          }
+          break;
+      }
+    }
+
+    function startEdit(index) {
+      editingIndex = index;
+      renderQuestions();
+    }
+
+    function cancelEdit(index) {
+      if (questionsList[index] && !questionsList[index].question.trim()) {
+        questionsList.splice(index, 1);
+      }
+      editingIndex = -1;
+      renderQuestions();
+    }
+
+    function saveEdit(index) {
+      const card = document.querySelector(`.eval-question-card[data-index="${index}"]`);
+      if (!card) return;
+      
+      const textVal = card.querySelector('.eval-question-input')?.value.trim();
+      const typeVal = card.querySelector('.eval-type-select')?.value || 'rating';
+      
+      if (!textVal) {
+        card.querySelector('.eval-question-input')?.classList.add('is-invalid');
+        return;
+      }
+      
+      questionsList[index] = {
+        id: questionsList[index]?.id || `q_${Date.now()}_${index}`,
+        question: textVal,
+        type: typeVal,
+        required: questionsList[index]?.required ?? true,
+        category: 'Overall Activity'
+      };
+      
+      editingIndex = -1;
+      isEvaluationEdited = true;
+      renderQuestions();
+      serializeEvaluationQuestions();
+      setEvaluationState('READY');
+    }
+
+    function confirmDeleteQuestion(index) {
+      if (confirm("Are you sure you want to delete this question?")) {
+        questionsList.splice(index, 1);
+        isEvaluationEdited = true;
+        renderQuestions();
+        serializeEvaluationQuestions();
+        setEvaluationState('READY');
+      }
+    }
+
+    function addManualQuestion() {
+      if (editingIndex !== -1) {
+        alert("Please save or cancel your current edit before adding a new question.");
+        return;
+      }
+      
+      questionsList.push({
+        id: `q_${Date.now()}_${questionsList.length}`,
+        question: '',
+        type: 'rating',
+        required: true,
+        category: 'Overall Activity'
+      });
+      
+      editingIndex = questionsList.length - 1;
+      renderQuestions();
+      
+      const cardBody = document.querySelector('.proposal-eval-side-panel .card-body');
+      if (cardBody) {
+        setTimeout(() => {
+          cardBody.scrollTop = cardBody.scrollHeight;
+        }, 50);
+      }
+    }
+
+    function serializeEvaluationQuestions() {
+      const hiddenInput = document.getElementById('f10_evaluation_questions');
+      if (hiddenInput) {
+        hiddenInput.value = JSON.stringify(questionsList);
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function setupEvaluationAutoUpdateListeners() {
+      const fields = [
+        '[name="title"]',
+        '[name="rationale"]',
+        '[name="general_objectives"]',
+        '[name="specific_objectives"]'
+      ];
+      
+      fields.forEach(sel => {
+        const el = document.querySelector(sel);
+        if (el) {
+          el.addEventListener('input', queueEvaluationAutoUpdate);
+          el.addEventListener('change', queueEvaluationAutoUpdate);
+        }
+      });
+      
+      const kpiContainer = document.getElementById('kpi-criteria') || document.getElementById('kpi-body');
+      if (kpiContainer) {
+        kpiContainer.addEventListener('input', e => {
+          if (e.target.classList.contains('kpi-field') || e.target.name === 'kpi_criteria[]' || e.target.name === 'kpi_indicator[]') {
+            queueEvaluationAutoUpdate();
+          }
+        });
+      }
+    }
+
+    // Modal preview controls
+    function openPreviewModal() {
+      const modal = document.getElementById('previewModal');
+      if (!modal) return;
+      modal.style.display = 'block';
+      modal.classList.add('show');
+      
+      const title = (document.querySelector('[name="title"]')?.value || 'Activity Proposal').trim();
+      const previewTitle = document.getElementById('previewModalActivityTitle');
+      if (previewTitle) previewTitle.innerText = title;
+
+      const list = document.getElementById('preview-questions-list');
+      if (!list) return;
+      list.innerHTML = '';
+      
+      if (questionsList.length === 0) {
+        list.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b; font-size:0.9rem;">No evaluation questions generated to preview.</div>';
+        return;
+      }
+
+      questionsList.forEach((q, idx) => {
+        let qHtml = '';
+        const isText = q.type === 'open_ended' || q.type === 'text';
+        if (!isText) {
+          qHtml = `
+            <div style="margin-bottom: 16px; padding: 14px; background: #fafafa; border: 1px solid #f1f5f9; border-radius: 8px;">
+              <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 8px; color: #1e293b;">Question ${idx+1}: ${escapeHtml(q.question)}</div>
+              <div style="display: flex; gap: 14px; font-size: 0.8rem; color: #475569; flex-wrap: wrap;">
+                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="radio" name="pq_${idx}" disabled> 4 – Excellent</label>
+                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="radio" name="pq_${idx}" disabled> 3 – Very Satisfactory</label>
+                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="radio" name="pq_${idx}" disabled> 2 – Satisfactory</label>
+                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="radio" name="pq_${idx}" disabled> 1 – Needs Improvement</label>
+              </div>
+            </div>
+          `;
+        } else {
+          qHtml = `
+            <div style="margin-bottom: 16px; padding: 14px; background: #fafafa; border: 1px solid #f1f5f9; border-radius: 8px;">
+              <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 8px; color: #1e293b;">Question ${idx+1}: ${escapeHtml(q.question)}</div>
+              <textarea class="form-control" rows="2" style="font-size: 0.8rem; background:#fff;" placeholder="Type your answer here..." disabled></textarea>
+            </div>
+          `;
+        }
+        list.innerHTML += qHtml;
+      });
+    }
+
+    function closePreviewModal() {
+      const modal = document.getElementById('previewModal');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+      }
+    }
+
+    // Override init for edit page
+    setTimeout(() => {
+      setupEvaluationAutoUpdateListeners();
+      serializeEvaluationQuestions();
+      renderQuestions();
+      if (questionsList.length > 0) {
+        setEvaluationState('READY');
+      } else {
+        setEvaluationState('EMPTY');
+      }
+      // Set last state to prevent instant warning trigger on edit load
+      lastEvaluationState = getObjectivesAndKpisState();
+    }, 100);
+    
   </script>
 <script src="https://unpkg.com/konva@9/konva.min.js"></script>
   <script src="<?= BASE_URL ?>/assets/js/floorplan.js"></script>
+  <!-- AI Evaluation Preview Modal -->
+  <div id="previewModal" class="modal fade" tabindex="-1" style="display: none;">
+    <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 600px;">
+      <div class="modal-content" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: none;">
+        <div class="modal-header" style="border-bottom: 1px solid #e2e8f0; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;">
+          <h5 class="modal-title" style="font-size: 1rem; font-weight: 700; color: #1e293b; margin: 0;">👁 Preview Evaluation Tool</h5>
+          <button type="button" class="btn-close" onclick="closePreviewModal()" style="background: none; border: none; font-size: 1.25rem; cursor: pointer; color: #64748b;">✕</button>
+        </div>
+        <div class="modal-body" style="padding: 20px; max-height: calc(100vh - 200px); overflow-y: auto;">
+          <div style="margin-bottom: 16px; font-size: 0.85rem; color: #64748b; line-height: 1.45;">
+            This is how the participant evaluation questionnaire (Evaluation Form) will be displayed to students scanning the QR code post-event.
+          </div>
+          <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-bottom: 16px; background:#fff;">
+            <h4 id="previewModalActivityTitle" style="margin:0 0 8px 0; font-size:1.05rem; font-weight:700; color: #0f172a;">Activity Title</h4>
+            <div style="font-size:0.8rem; color:#64748b;">Please take a moment to evaluate the activity you attended. Your feedback helps us improve future events.</div>
+          </div>
+          <div id="preview-questions-list" style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top: 1px solid #e2e8f0; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; width:100%;">
+          <span style="font-size:0.75rem; color:#94a3b8; font-style:italic;">* Submitting from preview is disabled</span>
+          <button type="button" class="btn btn-outline" onclick="closePreviewModal()" style="font-size: 0.8rem; padding: 6px 14px; height:auto; line-height:1.2;">Close Preview</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 
 </html>

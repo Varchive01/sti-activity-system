@@ -81,7 +81,7 @@ $actions = $recent_actions->fetchAll();
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sir Ian Dashboard – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.4">
 <style>
 .action-badge { padding: 3px 10px; border-radius: 6px; font-size: .7rem; font-weight: 700; }
 .act-approved { background: #DCFCE7; color: #15803D; }
@@ -692,22 +692,22 @@ $actions = $recent_actions->fetchAll();
 
     <!-- Stats -->
     <div class="stat-grid">
-      <div class="stat-card">
+      <a href="<?= BASE_URL ?>/admin2/pending.php" class="stat-card">
         <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg></div>
         <div><div class="stat-val"><?= $stats['pending'] ?? 0 ?></div><div class="stat-label">Awaiting Review</div></div>
-      </div>
-      <div class="stat-card">
+      </a>
+      <a href="<?= BASE_URL ?>/admin2/approved.php" class="stat-card">
         <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
         <div><div class="stat-val"><?= $stats['approved'] ?? 0 ?></div><div class="stat-label">Approved Activities</div></div>
-      </div>
-      <div class="stat-card">
+      </a>
+      <a href="<?= BASE_URL ?>/admin2/activities.php?status=completed" class="stat-card">
         <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg></div>
         <div><div class="stat-val"><?= $stats['completed'] ?? 0 ?></div><div class="stat-label">Completed Events</div></div>
-      </div>
-      <div class="stat-card">
+      </a>
+      <a href="<?= BASE_URL ?>/admin2/kpi-overview.php" class="stat-card">
         <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></div>
         <div><div class="stat-val"><?= $kpi['avg_rating'] ? number_format($kpi['avg_rating'],1) : '—' ?></div><div class="stat-label">Avg KPI Rating (/ 4.0)</div></div>
-      </div>
+      </a>
     </div>
 
     <?php if (!empty($kpi['avg_rating'])): ?>

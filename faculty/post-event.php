@@ -19,7 +19,7 @@ $eligibleActivities = $approved->fetchAll();
 
 // Already submitted reports
 $submitted = $db->prepare("
-    SELECT a.title, a.event_date
+    SELECT a.title, a.event_date, pe.actual_attendance, pe.target_attendance, pe.satisfaction_score
     FROM post_event pe
     JOIN activities a ON pe.activity_id=a.id
     WHERE a.faculty_id=?
@@ -153,8 +153,8 @@ if ($selectedId) {
                           <strong><?= htmlspecialchars($r['title']) ?></strong><br>
                           <span class="text-sm text-muted"><?= $r['event_date'] ? date('M j, Y', strtotime($r['event_date'])) : '—' ?></span>
                         </td>
-                        <td><?= $r['actual_attendance'] ?>/<?= $r['target_attendance'] ?></td>
-                        <td><span class="badge badge-success"><?= number_format($r['satisfaction_score'], 1) ?>/5</span></td>
+                        <td><?= isset($r['actual_attendance']) ? htmlspecialchars($r['actual_attendance']) : '0' ?>/<?= isset($r['target_attendance']) ? htmlspecialchars($r['target_attendance']) : '0' ?></td>
+                        <td><span class="badge badge-success"><?= isset($r['satisfaction_score']) ? number_format($r['satisfaction_score'], 1) : '0.0' ?>/5</span></td>
                       </tr>
                     <?php endforeach; ?>
                   </tbody>

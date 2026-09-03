@@ -13,7 +13,8 @@ $action = $_POST['action'] ?? 'draft';
 // Verify ownership
 $check = $db->prepare("SELECT * FROM activities WHERE id=? AND faculty_id=?");
 $check->execute([$id, $user['id']]);
-if (!$check->fetch()) { header('Location: '.BASE_URL.'/faculty/activities.php'); exit; }
+$activity = $check->fetch();
+if (!$activity) { header('Location: '.BASE_URL.'/faculty/activities.php'); exit; }
 
 // Fetch current status to prevent losing returned_for_revision state
 $curr = $db->prepare("SELECT status FROM activities WHERE id=?");
@@ -30,6 +31,7 @@ if ($action === 'submit') {
 }
 
 $source = sanitize($_POST['source'] ?? 'faculty');
+$evalQuestions = isset($_POST['evaluation_questions']) ? $_POST['evaluation_questions'] : $activity['evaluation_questions'];
 
 try {
     $db->beginTransaction();
@@ -39,7 +41,7 @@ try {
             title=?,theme=?,venue=?,venue_address=?,event_date=?,start_time=?,end_time=?,
             target_participants=?,general_objectives=?,specific_objectives=?,
             involved_subjects=?,rationale=?,evaluation_method=?,source=?,
-            status=?,revision_notes=NULL,revision_sections=NULL,submitted_at=?,updated_at=NOW()
+            status=?,evaluation_questions=?,revision_notes=NULL,revision_sections=NULL,submitted_at=?,updated_at=NOW()
             WHERE id=?")->execute([
             sanitize($_POST['title']??''), sanitize($_POST['theme']??''), sanitize($_POST['venue']??''), sanitize($_POST['venue_address']??''),
             $_POST['event_date']??null, $_POST['start_time']??null, $_POST['end_time']??null,
@@ -48,6 +50,7 @@ try {
             sanitize($_POST['involved_subjects']??''), sanitize($_POST['rationale']??''),
             sanitize($_POST['evaluation_method']??''),
             $source, $newStatus,
+            $evalQuestions,
             date('Y-m-d H:i:s'), $id
         ]);
     } else {
@@ -55,7 +58,7 @@ try {
             title=?,theme=?,venue=?,venue_address=?,event_date=?,start_time=?,end_time=?,
             target_participants=?,general_objectives=?,specific_objectives=?,
             involved_subjects=?,rationale=?,evaluation_method=?,source=?,
-            status=?,updated_at=NOW()
+            status=?,evaluation_questions=?,updated_at=NOW()
             WHERE id=?")->execute([
             sanitize($_POST['title']??''), sanitize($_POST['theme']??''), sanitize($_POST['venue']??''), sanitize($_POST['venue_address']??''),
             $_POST['event_date']??null, $_POST['start_time']??null, $_POST['end_time']??null,
@@ -63,7 +66,9 @@ try {
             sanitize($_POST['general_objectives']??''), sanitize($_POST['specific_objectives']??''),
             sanitize($_POST['involved_subjects']??''), sanitize($_POST['rationale']??''),
             sanitize($_POST['evaluation_method']??''),
-            $source, $newStatus, $id
+            $source, $newStatus,
+            $evalQuestions,
+            $id
         ]);
     }
 

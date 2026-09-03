@@ -78,9 +78,10 @@ $by_source = $db->query("
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dean Dashboard – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.4">
 <style>
 .big-metric { text-align:center; padding:24px 16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .big-metric .val { font-family:'Syne',sans-serif; font-size:2.8rem; font-weight:800; color:var(--accent); }
 .big-metric .lbl { font-size:.78rem; color:var(--text-muted); font-weight:600; margin-top:4px; }
 .source-bar { display:flex; gap:0; height:14px; border-radius:999px; overflow:hidden; margin:12px 0; }
@@ -88,9 +89,22 @@ $by_source = $db->query("
 .source-bar .seg-fac { background:#0284C7; }
 .legend-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:5px; }
 .stat-row-sm { display:grid; grid-template-columns: repeat(5,1fr); gap:12px; margin-bottom:22px; }
-.stat-sm { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:16px; text-align:center; }
-.stat-sm .n { font-family:'Syne',sans-serif; font-size:1.6rem; font-weight:800; }
-.stat-sm .l { font-size:.7rem; color:var(--text-muted); font-weight:600; }
+.stat-sm {
+  background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:16px; text-align:center;
+  text-decoration:none !important; color:inherit !important; cursor:pointer;
+  transition:transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+.stat-sm *, .stat-sm:hover * {
+  text-decoration:none !important;
+}
+.stat-sm:hover {
+  transform:translateY(-2px);
+  box-shadow:0 6px 16px rgba(0,0,0,0.06);
+  background:var(--bg-base);
+  text-decoration:none !important;
+}
+.stat-sm .n { font-family:'Syne',sans-serif; font-size:1.6rem; font-weight:800; color: #000000 !important; text-decoration:none !important; }
+.stat-sm .l { font-size:.7rem; color:var(--text-muted) !important; font-weight:600; text-decoration:none !important; }
 
                     /* ── Bell ── */
     .notif-bell-btn {
@@ -689,11 +703,11 @@ $by_source = $db->query("
 
     <!-- Top Stats -->
     <div class="stat-row-sm">
-      <div class="stat-sm"><div class="n"><?= $overview['total'] ?></div><div class="l">Total Activities</div></div>
-      <div class="stat-sm"><div class="n" style="color:var(--info)"><?= $overview['in_progress'] ?></div><div class="l">In Progress</div></div>
-      <div class="stat-sm"><div class="n" style="color:var(--success)"><?= $overview['approved'] ?></div><div class="l">Approved</div></div>
-      <div class="stat-sm"><div class="n" style="color:#7C3AED"><?= $overview['completed'] ?></div><div class="l">Completed</div></div>
-      <div class="stat-sm"><div class="n" style="color:var(--danger)"><?= $overview['rejected'] ?></div><div class="l">Rejected</div></div>
+      <a href="<?= BASE_URL ?>/dean/activities.php" class="stat-sm"><div class="n"><?= $overview['total'] ?></div><div class="l">Total Activities</div></a>
+      <a href="<?= BASE_URL ?>/dean/pending.php" class="stat-sm"><div class="n" style="color:var(--info)"><?= $overview['in_progress'] ?></div><div class="l">In Progress</div></a>
+      <a href="<?= BASE_URL ?>/dean/approved.php" class="stat-sm"><div class="n" style="color:var(--success)"><?= $overview['approved'] ?></div><div class="l">Approved</div></a>
+      <a href="<?= BASE_URL ?>/dean/activities.php?status=completed" class="stat-sm"><div class="n" style="color:#7C3AED"><?= $overview['completed'] ?></div><div class="l">Completed</div></a>
+      <a href="<?= BASE_URL ?>/dean/activities.php?status=rejected" class="stat-sm"><div class="n" style="color:var(--danger)"><?= $overview['rejected'] ?></div><div class="l">Rejected</div></a>
     </div>
 
     <!-- Metrics Row -->
@@ -718,6 +732,23 @@ $by_source = $db->query("
           <div class="val"><?= $rate ?>%</div>
           <div class="lbl">Overall Attendance Rate</div>
         </div>
+      </div>
+    </div>
+
+    <!-- AI Dashboard Insights -->
+    <div class="card" id="ai-insights-card" style="margin-bottom:22px;">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>🤖 AI KPI & Institutional Analytics</h2>
+        <button id="update-insights-btn" class="btn btn-outline btn-sm" style="display:none;">Update AI Insights</button>
+      </div>
+      <div class="card-body" id="ai-insights-body">
+        <div style="text-align:center; padding:20px;">
+          <div style="font-size:1.5rem; margin-bottom:8px;">🤖</div>
+          <div>Loading institutional insights...</div>
+        </div>
+      </div>
+      <div style="font-size:0.75rem; color:var(--text-muted); text-align:center; padding-bottom:12px; font-style:italic;">
+        * AI-generated insights are advisory only and should be reviewed by authorized administrators before making decisions.
       </div>
     </div>
 
@@ -935,12 +966,142 @@ $by_source = $db->query("
     });
   });
 
-  function formatDate(str) {
-    const d = new Date(str);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' +
-           d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  }
-})();
-</script>
+    // --- AI Institutional Insights Integration ---
+    const insightsBody = document.getElementById('ai-insights-body');
+    const updateBtn = document.getElementById('update-insights-btn');
+
+    function loadAiInsights(action = 'check') {
+      if (!insightsBody) return;
+      
+      if (action === 'analyze') {
+        updateBtn.style.display = 'none';
+        let step = 0;
+        const steps = [
+          '🤖 Analyzing KPI performance...',
+          '📊 Reviewing activity results...',
+          '💡 Preparing insights...'
+        ];
+        insightsBody.innerHTML = `<div style="text-align:center; padding:30px;">
+          <div class="spinner" style="margin: 0 auto 12px; width:24px; height:24px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite;"></div>
+          <div id="ai-loading-step" style="font-weight:600; color:var(--text-muted);">${steps[0]}</div>
+        </div>`;
+        
+        const interval = setInterval(() => {
+          step++;
+          const el = document.getElementById('ai-loading-step');
+          if (el && steps[step]) {
+            el.textContent = steps[step];
+          } else {
+            clearInterval(interval);
+          }
+        }, 2000);
+      }
+
+      const currentYear = new Date().getFullYear();
+      const params = new URLSearchParams({
+        year: currentYear,
+        period: 'all',
+        action: action
+      });
+
+      fetch(BASE_URL + '/api/generate-institutional-analytics.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString()
+      })
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(d => {
+        if (d.status === 'empty') {
+          updateBtn.style.display = 'none';
+          insightsBody.innerHTML = `<div class="text-muted text-sm" style="text-align:center; padding:20px;">
+            ${d.message}
+          </div>`;
+        } else if (d.status === 'not_generated') {
+          updateBtn.style.display = 'none';
+          insightsBody.innerHTML = `<div style="text-align:center; padding:20px;">
+            <p class="text-muted text-sm" style="margin-bottom:12px;">Institutional KPI insights have not been generated for this period.</p>
+            <button id="generate-insights-btn" class="btn btn-primary btn-sm">Generate AI Insights</button>
+          </div>`;
+          document.getElementById('generate-insights-btn')?.addEventListener('click', () => loadAiInsights('analyze'));
+        } else if (d.status === 'generated' || d.status === 'success') {
+          const insights = d.analytics;
+          if (d.is_outdated) {
+            updateBtn.style.display = 'inline-block';
+            updateBtn.textContent = 'New Data Available - Update Insights';
+          } else {
+            updateBtn.style.display = 'none';
+          }
+
+          let strengthsList = insights.strengths.map(s => `<li>✓ ${escapeHtml(s)}</li>`).join('');
+          let attentionList = insights.areas_of_attention.map(a => `<li>⚠ ${escapeHtml(a)}</li>`).join('');
+          let recsList = insights.recommendations.map((r, i) => `<li>${i+1}. ${escapeHtml(r)}</li>`).join('');
+
+          insightsBody.innerHTML = `
+            <div style="margin-bottom:16px;">
+              <strong style="display:block; margin-bottom:6px; font-size:0.9rem; color:var(--text);">AI-GENERATED INSIGHT</strong>
+              <p style="font-size:0.85rem; line-height:1.5; color:var(--text-muted); margin:0;">${escapeHtml(insights.overall_insight)}</p>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+              <div>
+                <strong style="display:block; margin-bottom:6px; font-size:0.85rem; color:#16A34A;">STRENGTHS</strong>
+                <ul style="list-style:none; padding:0; margin:0; font-size:0.8rem; line-height:1.4; color:var(--text-muted); display:flex; flex-direction:column; gap:6px;">
+                  ${strengthsList || '<li>No significant strengths observed.</li>'}
+                </ul>
+              </div>
+              <div>
+                <strong style="display:block; margin-bottom:6px; font-size:0.85rem; color:#D97706;">AREAS NEEDING ATTENTION</strong>
+                <ul style="list-style:none; padding:0; margin:0; font-size:0.8rem; line-height:1.4; color:var(--text-muted); display:flex; flex-direction:column; gap:6px;">
+                  ${attentionList || '<li>No areas requiring urgent attention.</li>'}
+                </ul>
+              </div>
+            </div>
+            <div>
+              <strong style="display:block; margin-bottom:6px; font-size:0.85rem; color:var(--accent);">STRATEGIC RECOMMENDATIONS</strong>
+              <ul style="list-style:none; padding:0; margin:0; font-size:0.8rem; line-height:1.4; color:var(--text-muted); display:flex; flex-direction:column; gap:6px;">
+                ${recsList || '<li>No recommendations generated.</li>'}
+              </ul>
+            </div>
+            <div style="margin-top:12px; font-size:0.75rem; color:var(--text-muted); border-top:1px solid var(--border); padding-top:8px;">
+              <strong>Confidence:</strong> ${escapeHtml(insights.confidence_note)} (Last updated: ${d.last_updated || 'Just now'})
+            </div>
+          `;
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        updateBtn.style.display = 'none';
+        insightsBody.innerHTML = `<div style="text-align:center; padding:20px; color:var(--danger);">
+          <p class="text-sm" style="margin-bottom:8px;">AI insights are temporarily unavailable.</p>
+          <button id="retry-insights-btn" class="btn btn-outline btn-sm">Retry</button>
+        </div>`;
+        document.getElementById('retry-insights-btn')?.addEventListener('click', () => loadAiInsights('check'));
+      });
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return text.toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    updateBtn?.addEventListener('click', () => loadAiInsights('analyze'));
+    
+    // Initial load
+    loadAiInsights('check');
+
+    function formatDate(str) {
+      const d = new Date(str);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' +
+             d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    }
+  })();
+  </script>
 </body>
 </html>

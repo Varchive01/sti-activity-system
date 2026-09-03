@@ -1,7 +1,7 @@
 <?php
 function sanitize(string $val): string
 {
-    return htmlspecialchars(strip_tags(trim($val)), ENT_QUOTES, 'UTF-8');
+    return strip_tags(trim(htmlspecialchars_decode($val, ENT_QUOTES)));
 }
 
 function jsonResponse(mixed $data, int $code = 200): void
@@ -68,4 +68,39 @@ function getNotifications(int $userId): array
     $stmt = $db->prepare('SELECT * FROM notifications WHERE user_id = ? AND is_read = 0 ORDER BY created_at DESC LIMIT 10');
     $stmt->execute([$userId]);
     return $stmt->fetchAll();
+}
+
+function renderAiEvaluationQuestions($jsonStr) {
+    if (empty($jsonStr)) {
+        return '<p class="text-muted" style="font-size:0.85rem; padding: 4px 0;">No evaluation questions generated yet.</p>';
+    }
+    
+    $questions = json_decode($jsonStr, true);
+    if (json_last_error() !== JSON_ERROR_NONE || !is_array($questions)) {
+        return '<p class="text-muted" style="font-size:0.85rem; padding: 4px 0;">Error: Invalid or malformed evaluation questions.</p>';
+    }
+    
+    if (empty($questions)) {
+        return '<p class="text-muted" style="font-size:0.85rem; padding: 4px 0;">No evaluation questions generated yet.</p>';
+    }
+    
+    $html = '<div class="ai-questions-list" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">';
+    foreach ($questions as $idx => $q) {
+        if (!is_array($q)) continue;
+        $questionText = htmlspecialchars($q['question'] ?? '');
+        $type = htmlspecialchars($q['type'] ?? 'rating');
+        $typeLabel = ($type === 'open_ended' || $type === 'text') ? 'Open-ended' : 'Rating Scale';
+        $badgeClass = ($type === 'open_ended' || $type === 'text') ? 'badge-secondary' : 'badge-info';
+        
+        $html .= '<div class="ai-question-item" style="padding: 12px; background: var(--bg-subtle, #f8f9fa); border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.01);">';
+        $html .= '  <div style="display: flex; justify-content: space-between; align-items: center;">';
+        $html .= '    <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted, #64748b);">Question ' . ($idx + 1) . '</span>';
+        $html .= '    <span class="badge ' . $badgeClass . '" style="font-size: 0.65rem; padding: 3px 6px; font-weight: 600; border-radius: 4px; display: inline-block;">' . $typeLabel . '</span>';
+        $html .= '  </div>';
+        $html .= '  <div style="font-size: 0.825rem; font-weight: 500; color: var(--text, #1e293b); line-height: 1.4; word-break: break-word;">' . $questionText . '</div>';
+        $html .= '</div>';
+    }
+    $html .= '</div>';
+    
+    return $html;
 }

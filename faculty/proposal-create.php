@@ -23,6 +23,93 @@ $user = currentUser();
       display: block;
     }
 
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .spinner-border {
+      display: inline-block;
+      width: 1rem;
+      height: 1rem;
+      vertical-align: text-bottom;
+      border: 0.2em solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+
+    /* Modal styling overrides to support Bootstrap 5 Modals without full Bootstrap CSS */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1055;
+      display: none;
+      width: 100%;
+      height: 100%;
+      overflow-x: hidden;
+      overflow-y: auto;
+      outline: 0;
+      background: rgba(0, 0, 0, 0.5);
+    }
+    .modal.fade {
+      transition: opacity 0.15s linear;
+    }
+    .modal.show {
+      display: block !important;
+    }
+    .modal-dialog {
+      position: relative;
+      width: auto;
+      margin: 0.5rem;
+      pointer-events: none;
+    }
+    .modal-dialog-centered {
+      display: flex;
+      align-items: center;
+      min-height: calc(100% - 1rem);
+    }
+    @media (min-width: 576px) {
+      .modal-dialog {
+        max-width: 500px;
+        margin: 1.75rem auto;
+      }
+      .modal-dialog-centered {
+        min-height: calc(100% - 3.5rem);
+      }
+    }
+    @media (min-width: 992px) {
+      .modal-lg {
+        max-width: 800px;
+      }
+    }
+    .modal-content {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      pointer-events: auto;
+      background-color: #fff;
+      background-clip: padding-box;
+      border: 1px solid rgba(0,0,0,.2);
+      border-radius: 0.5rem;
+      outline: 0;
+    }
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1050;
+      width: 100vw;
+      height: 100vh;
+      background-color: #000;
+    }
+    .modal-backdrop.fade {
+      opacity: 0;
+    }
+    .modal-backdrop.show {
+      opacity: 0.5;
+    }
+
     .nav-btns {
       display: flex;
       justify-content: space-between;
@@ -109,6 +196,125 @@ $user = currentUser();
       margin-top: 16px;
     }
 
+    /* ── Evaluation Tool styles ── */
+    .eval-question-row {
+      display: grid;
+      grid-template-areas:
+        "qtext qtext"
+        "qtype qcat"
+        "qdel qdel";
+      grid-template-columns: 130px 1fr;
+      gap: 10px;
+      align-items: center;
+      background: var(--bg-base, #ffffff);
+      padding: 12px;
+      border: 1px solid var(--border, #dee2e6);
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+    .eval-question-row:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      border-color: #0284c7;
+    }
+    .eval-question-row .eval-question-text {
+      grid-area: qtext;
+      width: 100%;
+    }
+    .eval-question-row .eval-question-type {
+      grid-area: qtype;
+      width: 100%;
+      min-width: 110px;
+    }
+    .eval-question-row .eval-question-category {
+      grid-area: qcat;
+      width: 100%;
+      min-width: 140px;
+    }
+    .eval-question-row .form-control:focus {
+      border-color: #0284c7 !important;
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
+    }
+    .eval-question-row .form-control.is-invalid {
+      border-color: #dc3545 !important;
+      box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.15) !important;
+    }
+    .eval-question-row .eval-question-delete {
+      grid-area: qdel;
+      display: flex;
+      justify-content: flex-end;
+      width: 100%;
+    }
+    .eval-delete-btn {
+      color: #dc3545;
+      background: none;
+      border: 1px solid #ffcccc;
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 6px 12px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 0.2s, border-color 0.2s;
+    }
+    .eval-delete-btn:hover {
+      background-color: #ffe8e8;
+      border-color: #ffb3b3;
+    }
+    .eval-delete-btn .delete-icon {
+      font-size: 1rem;
+    }
+    .eval-delete-btn .delete-text {
+      display: inline;
+    }
+
+    .proposal-layout-grid {
+      display: grid;
+      grid-template-columns: 1.8fr 1.2fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (min-width: 1400px) {
+      .eval-question-row {
+        grid-template-areas: "qtext qtype qcat qdel";
+        grid-template-columns: 1fr 120px 240px auto;
+      }
+      .eval-question-row .eval-question-delete {
+        width: auto;
+      }
+      .eval-delete-btn {
+        padding: 6px 8px;
+        border: none;
+      }
+      .eval-delete-btn:hover {
+        background-color: #ffe8e8;
+      }
+      .eval-delete-btn .delete-text {
+        display: none;
+      }
+    }
+    @media (max-width: 1200px) {
+      .proposal-layout-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .proposal-eval-side-panel {
+      position: sticky;
+      top: 90px;
+      max-height: calc(100vh - 120px);
+      display: flex;
+      flex-direction: column;
+    }
+    .proposal-eval-side-panel .card {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .proposal-eval-side-panel .card-body {
+      overflow-y: auto;
+      flex: 1;
+    }
     </style>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/floorplan.css">
 </head>
@@ -123,6 +329,11 @@ $user = currentUser();
       </div>
     </header>
     <div class="content">
+      <?php if (isset($_GET['error']) && $_GET['error'] === 'conflict'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Schedule Conflict:</strong> The selected venue is already booked for an approved activity at this date and time. Please check and try again.
+        </div>
+      <?php endif; ?>
 
       <!-- Wizard Steps -->
       <div class="wizard-steps" id="wizardSteps">
@@ -159,6 +370,9 @@ $user = currentUser();
         <input type="hidden" name="faculty_id" value="<?= $user['id'] ?>">
         <!-- tracks the highest step the user has validly reached -->
         <input type="hidden" id="maxUnlockedStep" value="1">
+
+        <div class="proposal-layout-grid">
+          <div class="proposal-wizard-container">
 
         <!-- ── STEP 1: Event Details ── -->
         <div class="wizard-panel active" id="panel-1">
@@ -234,7 +448,6 @@ $user = currentUser();
                   <span class="field-error" id="e_poster_file">Event poster is required.</span>
                   <small style="color: var(--text-muted);">Upload a poster for this event.</small>
                 </div>
-
                 </div>
             </div>
           </div>
@@ -252,27 +465,33 @@ $user = currentUser();
             </div>
             <div class="card-body">
               <div class="step-error-banner" id="err-banner-2">⚠️ Please fill in all required fields before continuing.</div>
+
+              <!-- AI Generation Status -->
+              <div id="objGenStatus" style="display:none;margin-bottom:16px;padding:12px 16px;border-radius:8px;font-size:.875rem;border:1px solid transparent;"></div>
+
               <div class="form-grid">
                 <div class="form-group col-span-2">
                   <label class="form-label">General Objectives <span class="text-danger">*</span></label>
-                  <textarea name="general_objectives" id="f2_general_objectives" class="form-control" placeholder="State the broad goals of this activity..."></textarea>
+                  <textarea name="general_objectives" id="f2_general_objectives" class="form-control" rows="4" placeholder="State the broad goals of this activity..."></textarea>
                   <span class="field-error" id="e_general_objectives">General objectives are required.</span>
                 </div>
 
                 <div class="form-group col-span-2">
                   <label class="form-label">Specific Objectives <span class="text-danger">*</span></label>
-                  <textarea name="specific_objectives" id="f2_specific_objectives" class="form-control" placeholder="List measurable specific goals..."></textarea>
+                  <textarea name="specific_objectives" id="f2_specific_objectives" class="form-control" rows="6" placeholder="List measurable specific goals..."></textarea>
                   <span class="field-error" id="e_specific_objectives">Specific objectives are required.</span>
                 </div>
 
                 <div class="form-group col-span-2">
-                  <label class="form-label">Involved Subjects (Optional)</label>
+                  <label class="form-label">Involved Subjects <span class="text-danger">*</span></label>
                   <input type="text" name="involved_subjects" id="f2_involved_subjects" class="form-control" placeholder="e.g. ITE314, GE102">
+                  <span class="field-error" id="e_involved_subjects">Involved subjects are required.</span>
                 </div>
 
                 <div class="form-group col-span-2">
-                  <label class="form-label">Rationale (Optional)</label>
-                  <textarea name="rationale" id="f2_rationale" class="form-control" placeholder="Why is this activity necessary?"></textarea>
+                  <label class="form-label">Rationale <span class="text-danger">*</span></label>
+                  <textarea name="rationale" id="f2_rationale" class="form-control" rows="3" placeholder="Why is this activity necessary?"></textarea>
+                  <span class="field-error" id="e_rationale">Rationale is required.</span>
                 </div>
               </div>
             </div>
@@ -282,6 +501,8 @@ $user = currentUser();
             <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Materials →</button>
           </div>
         </div>
+
+
 
         <!-- ── STEP 3: Materials ── -->
         <div class="wizard-panel" id="panel-3">
@@ -589,16 +810,133 @@ $user = currentUser();
                 <span class="field-error" id="e_eval_form_link">A valid evaluation form link is required.</span>
                 <small style="color:var(--text-muted);font-size:.75rem;margin-top:4px;display:block;">Students will scan a QR code or use this link to submit their evaluation after the event.</small>
               </div>
+
+              <!-- ── SCHEDULE CONFLICT BANNER (Step 9 review) ── -->
+              <div id="scheduleConflictBannerStep9" style="display:none; margin-top:16px; padding:16px 20px; border-radius:10px; background:linear-gradient(135deg,#fff5f5 0%,#fed7d7 100%); border:1px solid #feb2b2; border-left:6px solid #e53e3e; color:#742a2a;">
+                <div class="scu-heading" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"></div>
+                <p class="scu-msg" style="font-size:.875rem;margin-bottom:10px;line-height:1.4;font-weight:500;"></p>
+                <div class="scu-alt-wrap" style="display:none;margin-bottom:10px;">
+                  <div style="font-size:.85rem;font-weight:700;margin-bottom:8px;color:#9b2c2c;">&#x1F916; AI-Suggested Alternative Slots:</div>
+                  <div class="scu-alt-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+                </div>
+                <div class="scu-advisory-wrap" style="display:none;margin-bottom:10px;"></div>
+                <div class="scu-debug-wrap" style="display:none;"></div>
+                <div class="scu-footer" style="font-size:.75rem;font-style:italic;color:inherit;border-top:1px dashed rgba(0,0,0,.15);padding-top:8px;">* Submission is blocked only when a real venue conflict is detected.</div>
+              </div>
+
             </div>
           </div>
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
             <div class="flex gap-2">
-              <button type="submit" name="action" value="draft" class="btn btn-outline" formnovalidate>💾 Save as Draft</button>
-              <button type="submit" name="action" value="submit" class="btn btn-primary" id="submitBtn">🚀 Submit for Approval</button>
+              <button type="submit" name="action" value="draft" class="btn btn-outline" formnovalidate onclick="serializeEvaluationQuestions()">💾 Save as Draft</button>
+              <button type="submit" name="action" value="submit" class="btn btn-primary" id="submitBtn" onclick="serializeEvaluationQuestions()">🚀 Submit for Approval</button>
             </div>
           </div>
         </div>
+
+          </div> <!-- Close proposal-wizard-container -->
+          
+          <div class="proposal-eval-side-panel">
+            <style>
+              .eval-question-card {
+                background: #ffffff;
+                border: 1px solid var(--border-color, #e2e8f0);
+                border-radius: 8px;
+                padding: 12px;
+                transition: all 0.2s ease;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                margin-bottom: 10px;
+              }
+              .eval-question-card:hover {
+                box-shadow: 0 3px 8px rgba(0,0,0,0.04);
+                border-color: #0284c7;
+              }
+              .eval-question-card.editing {
+                border-color: #0284c7;
+                box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1);
+              }
+              .badge-type-rating {
+                background: #e0f2fe;
+                color: #0369a1;
+              }
+              .badge-type-text {
+                background: #f3f4f6;
+                color: #4b5563;
+              }
+              .eval-action-link {
+                cursor: pointer;
+                transition: color 0.15s ease;
+              }
+              .eval-action-link:hover {
+                text-decoration: underline !important;
+              }
+              .btn-xs {
+                padding: 2px 8px;
+                font-size: 0.75rem;
+                border-radius: 4px;
+              }
+              .proposal-eval-side-panel .card-body {
+                max-height: calc(100vh - 220px);
+                overflow-y: auto;
+              }
+            </style>
+            <div class="card" style="box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-radius: 12px; border: 1px solid var(--border-color, #e5e7eb); overflow: hidden;">
+              <div class="card-header" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="font-size: 0.95rem; font-weight: 700; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 8px;">
+                  🤖 AI-Generated Evaluation Tool
+                </h2>
+                <span id="evalStatusBadge" style="font-size: 0.7rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 12px; display: flex; align-items: center; gap: 4px;">
+                  <span id="evalStatusIndicator" style="width: 6px; height: 6px; background: #64748b; border-radius: 50%;"></span> <span id="evalStatusText">Empty</span>
+                </span>
+              </div>
+              <div class="card-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+                
+                <!-- Needs Update Notice -->
+                <div id="evalChangeNotice" class="alert alert-warning" style="display:none; flex-direction:column; gap:8px; font-size:0.75rem; padding:10px 12px; margin-bottom:4px; border-radius:6px; border-left: 4px solid #d97706; background: #fffbeb;">
+                  <div>⚠️ <strong>Your activity details have changed.</strong> The evaluation questions may need to be updated.</div>
+                  <div style="display:flex; gap:8px; margin-top:4px;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="dismissEvalChangeNotice()" style="padding: 2px 8px; font-size: 0.7rem; height:auto; line-height:1.2; background:#fff; border:1px solid #d97706; color:#d97706;">Keep Current</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="regenerateEvaluationWithAi(true)" style="padding: 2px 8px; font-size: 0.7rem; height:auto; line-height:1.2; background: #d97706; border: none; color: white;">Regenerate with AI</button>
+                  </div>
+                </div>
+                
+                <div class="step-error-banner" id="err-banner-eval-side" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; background:#f8d7da; color:#842029; border:1px solid #f5c2c7; font-size:.75rem;">⚠️ Please review and fix evaluation questions.</div>
+                
+                <!-- AI Generation Loading & Status -->
+                <div id="evalGenStatus" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; font-size:.775rem;"></div>
+
+                <div class="info-alert" style="font-size: 0.775rem; padding: 10px 12px; background: #f0f9ff; border: 1px solid #e0f2fe; color: #0369a1; border-radius: 6px; line-height: 1.45; margin-bottom: 4px;">
+                  These evaluation questions are automatically generated based on your activity objectives and KPIs. Review them and make changes if needed.
+                </div>
+
+                <!-- Hidden JSON field -->
+                <input type="hidden" name="evaluation_questions" id="f10_evaluation_questions">
+
+                <!-- Questions list container -->
+                <div id="eval-questions-list" style="display: flex; flex-direction: column; gap: 4px;">
+                  <!-- Dynamically populated -->
+                </div>
+
+                <button type="button" class="btn btn-outline btn-sm" onclick="addManualQuestion()" style="border: 1px dashed var(--border-color, #cbd5e1); font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; background: #fafafa; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height:auto;">
+                  + Add Question
+                </button>
+                
+                <div class="footer-actions" style="margin-top: 10px; padding-top: 12px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; gap: 8px;">
+                  <button type="button" class="btn btn-outline btn-sm" id="btn-regenerate-eval" onclick="regenerateEvaluationWithAi(true)" style="font-size: 0.75rem; padding: 6px 10px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
+                    ↻ Regenerate
+                  </button>
+                  <button type="button" class="btn btn-outline btn-sm" onclick="openPreviewModal()" style="font-size: 0.75rem; padding: 6px 10px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
+                    👁 Preview Tool
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div> <!-- Close proposal-eval-side-panel -->
+        </div> <!-- Close proposal-layout-grid -->
 
       </form>
     </div>
@@ -623,6 +961,9 @@ $user = currentUser();
         top: 0,
         behavior: 'smooth'
       });
+      if (n >= 2 && typeof checkAndTriggerEvaluationAutoUpdate === 'function') {
+        checkAndTriggerEvaluationAutoUpdate();
+      }
     }
 
     function nextStep() {
@@ -633,12 +974,96 @@ $user = currentUser();
         if (nextIndicator) nextIndicator.classList.remove('locked');
         if (currentStep + 1 > maxUnlocked) maxUnlocked = currentStep + 1;
       }
-      if (currentStep < totalSteps) showStep(currentStep + 1);
+      if (currentStep < totalSteps) {
+        const goingTo = currentStep + 1;
+        showStep(goingTo);
+        // Auto-generate objectives when advancing from Step 1 to Step 2
+        if (goingTo === 2) generateObjectives(false);
+      }
     }
 
     function prevStep() {
       if (currentStep > 1) showStep(currentStep - 1);
     }
+
+    // ── AI Objectives Generation ───────────────────────────────────────
+    /**
+     * Calls /api/generate-objectives.php with Step 1 field values and
+     * auto-fills the General & Specific Objectives textareas.
+     *
+     * @param {boolean} forced  When true (Re-generate button), always overwrites.
+     *                          When false (auto on Step 1 → 2), skips if both
+     *                          fields already have content (e.g. back-nav).
+     */
+    async function generateObjectives(forced = false) {
+      const genEl   = document.getElementById('f2_general_objectives');
+      const specEl  = document.getElementById('f2_specific_objectives');
+      const statusEl = document.getElementById('objGenStatus');
+
+      // Skip auto-generation if fields already have content (back-navigation scenario)
+      if (!forced && genEl.value.trim() && specEl.value.trim()) return;
+
+      // Collect Step 1 inputs
+      const payload = {
+        title:               (document.getElementById('f1_title')?.value || '').trim(),
+        source:              (document.getElementById('f1_source')?.value || '').trim(),
+        target_participants: (document.getElementById('f1_target_participants')?.value || '').trim(),
+        theme:               (document.getElementById('f1_theme')?.value || '').trim(),
+        involved_subjects:   (document.getElementById('f2_involved_subjects')?.value || '').trim(),
+        rationale:           (document.getElementById('f2_rationale')?.value || '').trim()
+      };
+
+      if (!payload.title) return; // safety guard
+
+      // Show loading state
+      statusEl.style.cssText = 'display:block;margin-bottom:16px;padding:12px 16px;border-radius:8px;font-size:.875rem;background:#e7f1ff;color:#084298;border:1px solid #b6d4fe;';
+      statusEl.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;">' +
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite;">' +
+        '<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>' +
+        '&#x2728; Generating objectives with AI for <strong>"' + payload.title.replace(/</g,'&lt;') + '"</strong>…' +
+        '</span>';
+
+      // Disable textareas while generating
+      genEl.disabled  = true;
+      specEl.disabled = true;
+
+      try {
+        const res  = await fetch('<?= BASE_URL ?>/api/generate-objectives.php', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (data.success && data.general_objective && data.specific_objectives) {
+          genEl.value  = data.general_objective;
+          specEl.value = data.specific_objectives;
+          if (typeof queueEvaluationAutoUpdate === 'function') queueEvaluationAutoUpdate();
+
+          statusEl.style.cssText = 'display:block;margin-bottom:16px;padding:12px 16px;border-radius:8px;font-size:.875rem;background:#d1e7dd;color:#0f5132;border:1px solid #a3cfbb;';
+          statusEl.innerHTML = '&#x2705; <strong>Objectives generated.</strong> Review and edit them below as needed.';
+
+          // Auto-hide success notice after 6 seconds
+          setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 6000);
+        } else {
+          throw new Error(data.error || 'Empty response from AI.');
+        }
+      } catch (err) {
+        console.warn('generateObjectives error:', err);
+        statusEl.style.cssText = 'display:block;margin-bottom:16px;padding:12px 16px;border-radius:8px;font-size:.875rem;background:#fff3cd;color:#664d03;border:1px solid #ffecb5;';
+        statusEl.innerHTML = '&#x26A0;&#xFE0F; Could not auto-generate objectives (' + (err.message || 'network error') + '). Please fill them in manually.';
+      } finally {
+        genEl.disabled  = false;
+        specEl.disabled = false;
+      }
+    }
+
+    // ── CSS for spinner ────────────────────────────────────────────────
+    (function() {
+      const s = document.createElement('style');
+      s.textContent = '@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
+      document.head.appendChild(s);
+    })();
 
     // Clicking a step indicator: only allowed if already unlocked
     document.querySelectorAll('.wizard-step').forEach(s => {
@@ -709,6 +1134,14 @@ $user = currentUser();
           {
             id: 'f2_specific_objectives',
             err: 'e_specific_objectives'
+          },
+          {
+            id: 'f2_involved_subjects',
+            err: 'e_involved_subjects'
+          },
+          {
+            id: 'f2_rationale',
+            err: 'e_rationale'
           }
         ];
         fields.forEach(f => {
@@ -842,6 +1275,21 @@ $user = currentUser();
           evalLink.classList.remove('is-invalid');
           hideError('e_eval_form_link');
         }
+      } else if (step === 10) {
+        // All evaluation question text inputs
+        const questionInputs = document.querySelectorAll('#eval-questions-list input[type="text"]');
+        if (questionInputs.length === 0) {
+          valid = false;
+        } else {
+          questionInputs.forEach(inp => {
+            if (!inp.value.trim()) {
+              inp.classList.add('is-invalid');
+              valid = false;
+            } else {
+              inp.classList.remove('is-invalid');
+            }
+          });
+        }
       }
 
       if (!valid) showBanner(step);
@@ -904,10 +1352,40 @@ $user = currentUser();
       }
     });
 
+    function validateEvaluationSidePanel() {
+      let valid = true;
+      const questionInputs = document.querySelectorAll('#eval-questions-list .eval-question-input');
+      const banner = document.getElementById('err-banner-eval-side');
+      
+      questionInputs.forEach(inp => {
+        if (!inp.value.trim()) {
+          inp.classList.add('is-invalid');
+          valid = false;
+        } else {
+          inp.classList.remove('is-invalid');
+        }
+      });
+      
+      if (!valid) {
+        if (banner) banner.style.display = 'block';
+      } else {
+        if (banner) banner.style.display = 'none';
+      }
+      return valid;
+    }
+
     // ── Form submit validation ────────────────────────────────────────
     document.getElementById('proposalForm').addEventListener('submit', function(e) {
-      if (!validateStep(9)) {
+      serializeEvaluationQuestions();
+      
+      const stepValid = validateStep(currentStep);
+      const evalValid = validateEvaluationSidePanel();
+      
+      if (!stepValid || !evalValid) {
         e.preventDefault();
+        if (stepValid && !evalValid) {
+          alert('⚠️ Please review the AI-Generated Evaluation Tool questions in the right-side panel before submitting.');
+        }
       }
     });
 
@@ -1027,6 +1505,452 @@ $user = currentUser();
           </select>
         </div>`;
       container.appendChild(div);
+      queueEvaluationAutoUpdate();
+    }
+
+    // ── Evaluation Tool ──────────────────────────────────────────────
+    let questionsList = []; // Array of { question: "...", type: "rating"|"open_ended", category: "..." }
+    let isEvaluationEdited = false;
+    let isGeneratingEval = false;
+    let lastEvaluationState = '';
+    let autoUpdateTimer = null;
+    let editingIndex = -1;
+
+    function getObjectivesAndKpisState() {
+      const title = (document.querySelector('[name="title"]')?.value || '').trim();
+      const rationale = (document.querySelector('[name="rationale"]')?.value || '').trim();
+      const genObj = (document.querySelector('[name="general_objectives"]')?.value || '').trim();
+      const specObj = (document.querySelector('[name="specific_objectives"]')?.value || '').trim();
+      
+      const kpis = [];
+      const criteriaInputs = document.querySelectorAll('input[name="kpi_criteria[]"], input[name="kpi_indicator[]"]');
+      criteriaInputs.forEach(input => {
+        if (input.value.trim()) {
+          kpis.push(input.value.trim());
+        }
+      });
+      return JSON.stringify({ title, rationale, genObj, specObj, kpis });
+    }
+
+    function checkAndTriggerEvaluationAutoUpdate() {
+      if (typeof currentStep !== 'undefined' && currentStep === 1) {
+        return; // Do not auto-generate while on Step 1
+      }
+      
+      const currentState = getObjectivesAndKpisState();
+      const isListEmpty = questionsList.length === 0;
+      
+      const parsed = JSON.parse(currentState);
+      const hasMinData = parsed.title && (parsed.genObj || parsed.specObj || parsed.kpis.length > 0);
+      
+      if (!hasMinData) {
+        setEvaluationState('EMPTY');
+        return;
+      }
+      
+      if (isListEmpty) {
+        // Initial auto-generation: silent
+        lastEvaluationState = currentState;
+        regenerateEvaluationWithAi(false);
+      } else {
+        // Subsequent check
+        if (currentState !== lastEvaluationState) {
+          setEvaluationState('NEEDS_UPDATE');
+        }
+      }
+    }
+
+    function queueEvaluationAutoUpdate() {
+      if (autoUpdateTimer) clearTimeout(autoUpdateTimer);
+      autoUpdateTimer = setTimeout(() => {
+        checkAndTriggerEvaluationAutoUpdate();
+      }, 3000);
+    }
+
+    function dismissEvalChangeNotice() {
+      const noticeEl = document.getElementById('evalChangeNotice');
+      if (noticeEl) noticeEl.style.display = 'none';
+      lastEvaluationState = getObjectivesAndKpisState();
+      setEvaluationState('READY');
+    }
+
+    async function regenerateEvaluationWithAi(forced = false) {
+      if (isGeneratingEval) return;
+
+      if (forced && isEvaluationEdited && questionsList.length > 0) {
+        if (!confirm("Regenerating will replace your current evaluation questions, including manual changes. Continue?")) {
+          return;
+        }
+      }
+
+      setEvaluationState('GENERATING');
+      isGeneratingEval = true;
+
+      // Gather KPIs
+      const kpis = [];
+      const criteriaInputs = document.querySelectorAll('input[name="kpi_criteria[]"], input[name="kpi_indicator[]"]');
+      const ratingSelects = document.querySelectorAll('select[name="kpi_rating[]"], input[name="kpi_target[]"]');
+      criteriaInputs.forEach((input, index) => {
+        if (input.value.trim()) {
+          kpis.push({
+            criteria: input.value.trim(),
+            rating: ratingSelects[index]?.value || '3'
+          });
+        }
+      });
+
+      const payload = {
+        title: (document.querySelector('[name="title"]')?.value || '').trim(),
+        source: (document.querySelector('[name="source"]')?.value || '').trim(),
+        target_participants: (document.querySelector('[name="target_participants"]')?.value || '').trim(),
+        theme: (document.querySelector('[name="theme"]')?.value || '').trim(),
+        event_date: (document.querySelector('[name="event_date"]')?.value || '').trim(),
+        start_time: (document.querySelector('[name="start_time"]')?.value || '').trim(),
+        end_time: (document.querySelector('[name="end_time"]')?.value || '').trim(),
+        venue: (document.querySelector('[name="venue"]')?.value || '').trim(),
+        venue_address: (document.querySelector('[name="venue_address"]')?.value || '').trim(),
+        involved_subjects: (document.querySelector('[name="involved_subjects"]')?.value || '').trim(),
+        rationale: (document.querySelector('[name="rationale"]')?.value || '').trim(),
+        general_objectives: (document.querySelector('[name="general_objectives"]')?.value || '').trim(),
+        specific_objectives: (document.querySelector('[name="specific_objectives"]')?.value || '').trim(),
+        kpis: kpis
+      };
+
+      try {
+        const res = await fetch('<?= BASE_URL ?>/api/generate-evaluation.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        const data = await res.json();
+        
+        if (res.status === 429 || (data && data.error && (data.error.includes('429') || data.error.includes('RESOURCE_EXHAUSTED') || data.error.includes('limit')))) {
+          throw new Error("RATE_LIMIT");
+        } else if (!res.ok || (data && data.error)) {
+          throw new Error(data.error || `API Error: HTTP ${res.status}`);
+        }
+
+        if (data.success && Array.isArray(data.questions)) {
+          questionsList = data.questions;
+          isEvaluationEdited = false;
+          editingIndex = -1;
+          
+          renderQuestions();
+          serializeEvaluationQuestions();
+          
+          setEvaluationState('READY');
+          lastEvaluationState = getObjectivesAndKpisState();
+        } else {
+          throw new Error(data.error || 'Empty response from AI.');
+        }
+      } catch (err) {
+        console.warn('generateEvaluation error:', err);
+        let errMsg = err.message || 'Unknown error';
+        if (errMsg === 'RATE_LIMIT') {
+          errMsg = 'AI service rate limit reached. Please try again.';
+        }
+        setEvaluationState('ERROR', errMsg);
+      } finally {
+        isGeneratingEval = false;
+      }
+    }
+
+    function renderQuestions() {
+      const container = document.getElementById('eval-questions-list');
+      if (!container) return;
+      container.innerHTML = '';
+      
+      if (questionsList.length === 0) {
+        container.innerHTML = '<div class="text-muted" style="text-align:center;font-size:0.8rem;padding:20px 0;">No evaluation questions generated yet.</div>';
+        return;
+      }
+      
+      questionsList.forEach((q, index) => {
+        const card = document.createElement('div');
+        card.className = 'eval-question-card';
+        card.dataset.index = index;
+        
+        const isTextType = q.type === 'open_ended' || q.type === 'text';
+        const typeLabel = isTextType ? 'Open-ended' : 'Rating Scale';
+        const badgeClass = isTextType ? 'badge-type-text' : 'badge-type-rating';
+        
+        if (editingIndex === index) {
+          card.classList.add('editing');
+          card.innerHTML = `
+            <div class="form-group" style="margin-bottom:8px; width: 100%;">
+              <textarea class="form-control eval-question-input" rows="2" style="font-size: 0.85rem; width: 100%; box-sizing: border-box; resize: vertical;" placeholder="Question Text">${escapeHtml(q.question)}</textarea>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; width: 100%;">
+              <select class="form-control form-control-sm eval-type-select" style="width:120px; font-size:0.75rem; padding: 2px 4px; height: auto;">
+                <option value="rating" ${!isTextType ? 'selected' : ''}>Rating Scale</option>
+                <option value="open_ended" ${isTextType ? 'selected' : ''}>Open-ended</option>
+              </select>
+              <div style="display:flex; gap:6px;">
+                <button type="button" class="btn btn-outline btn-xs" onclick="cancelEdit(${index})" style="padding:2px 8px; font-size:0.75rem; border-radius:4px; height:auto; line-height:1.2;">Cancel</button>
+                <button type="button" class="btn btn-primary btn-xs" onclick="saveEdit(${index})" style="padding:2px 8px; font-size:0.75rem; border-radius:4px; height:auto; line-height:1.2; background:var(--sti-red, #e30613); border:none; color:white;">Save</button>
+              </div>
+            </div>
+          `;
+        } else {
+          card.innerHTML = `
+            <div class="eval-card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+              <span class="eval-question-num" style="font-weight:600; font-size:0.8rem; color:var(--text-muted, #64748b);">Question ${index + 1}</span>
+              <span class="badge ${badgeClass}" style="font-size:0.7rem; padding: 2px 6px; border-radius:4px; font-weight:600;">${typeLabel}</span>
+            </div>
+            <div class="eval-question-body" style="font-size:0.85rem; line-height:1.45; color:var(--text, #1e293b); margin-bottom: 8px; font-weight:500; word-break: break-word;">
+              ${escapeHtml(q.question)}
+            </div>
+            <div class="eval-card-actions" style="display:flex; gap:12px; font-size:0.75rem; border-top: 1px dashed #f1f5f9; padding-top:6px;">
+              <a href="javascript:void(0)" class="eval-action-link" onclick="startEdit(${index})" style="color:var(--primary, #0284c7); text-decoration:none; font-weight:600;">Edit</a>
+              <a href="javascript:void(0)" class="eval-action-link" onclick="confirmDeleteQuestion(${index})" style="color:#dc3545; text-decoration:none; font-weight:600;">Delete</a>
+            </div>
+          `;
+        }
+        container.appendChild(card);
+      });
+    }
+
+    function setEvaluationState(state, errorMsg = '') {
+      const badge = document.getElementById('evalStatusBadge');
+      const indicator = document.getElementById('evalStatusIndicator');
+      const text = document.getElementById('evalStatusText');
+      const statusEl = document.getElementById('evalGenStatus');
+      const noticeEl = document.getElementById('evalChangeNotice');
+      
+      if (!badge || !indicator || !text) return;
+      
+      if (statusEl) statusEl.style.display = 'none';
+      if (noticeEl && state !== 'NEEDS_UPDATE') noticeEl.style.display = 'none';
+      
+      switch(state) {
+        case 'EMPTY':
+          text.innerText = 'Empty';
+          badge.style.background = '#f1f5f9';
+          badge.style.color = '#64748b';
+          indicator.style.background = '#64748b';
+          if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#f0f9ff; color:#0369a1; border:1px solid #e0f2fe; margin-bottom:10px;';
+            statusEl.innerText = 'Complete your activity objectives to generate evaluation questions.';
+          }
+          break;
+        case 'GENERATING':
+          text.innerText = 'Generating...';
+          badge.style.background = '#eff6ff';
+          badge.style.color = '#1d4ed8';
+          indicator.style.background = '#1d4ed8';
+          if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; margin-bottom:10px;';
+            statusEl.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;">' +
+              '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="animation:spin 1s linear infinite;">' +
+              '<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>' +
+              '🤖 Generating evaluation questions...' +
+              '</span>';
+          }
+          break;
+        case 'READY':
+          text.innerText = isEvaluationEdited ? 'Custom' : 'Auto-generated';
+          badge.style.background = '#dcfce7';
+          badge.style.color = '#16a34a';
+          indicator.style.background = '#16a34a';
+          break;
+        case 'NEEDS_UPDATE':
+          text.innerText = 'Needs Update';
+          badge.style.background = '#fef3c7';
+          badge.style.color = '#d97706';
+          indicator.style.background = '#d97706';
+          if (noticeEl) {
+            noticeEl.style.display = 'flex';
+          }
+          break;
+        case 'ERROR':
+          text.innerText = 'Error';
+          badge.style.background = '#fee2e2';
+          badge.style.color = '#dc2626';
+          indicator.style.background = '#dc2626';
+          if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; margin-bottom:10px;';
+            statusEl.innerHTML = `⚠️ <span>Unable to generate evaluation questions right now.</span> <br> <span style="font-size:0.7rem; opacity:0.85;">${escapeHtml(errorMsg || 'Network error')}</span>` +
+              `<div style="margin-top:6px;"><button type="button" class="btn btn-outline btn-xs" style="background:#fff; border:1px solid #fca5a5; padding:2px 8px; font-size:0.7rem; height:auto; line-height:1.2;" onclick="regenerateEvaluationWithAi(false)">Retry</button></div>`;
+          }
+          break;
+      }
+    }
+
+    function startEdit(index) {
+      editingIndex = index;
+      renderQuestions();
+    }
+
+    function cancelEdit(index) {
+      if (questionsList[index] && !questionsList[index].question.trim()) {
+        questionsList.splice(index, 1);
+      }
+      editingIndex = -1;
+      renderQuestions();
+    }
+
+    function saveEdit(index) {
+      const card = document.querySelector(`.eval-question-card[data-index="${index}"]`);
+      if (!card) return;
+      
+      const textVal = card.querySelector('.eval-question-input')?.value.trim();
+      const typeVal = card.querySelector('.eval-type-select')?.value || 'rating';
+      
+      if (!textVal) {
+        card.querySelector('.eval-question-input')?.classList.add('is-invalid');
+        return;
+      }
+      
+      questionsList[index] = {
+        id: questionsList[index]?.id || `q_${Date.now()}_${index}`,
+        question: textVal,
+        type: typeVal,
+        required: questionsList[index]?.required ?? true,
+        category: 'Overall Activity'
+      };
+      
+      editingIndex = -1;
+      isEvaluationEdited = true;
+      renderQuestions();
+      serializeEvaluationQuestions();
+      setEvaluationState('READY');
+    }
+
+    function confirmDeleteQuestion(index) {
+      if (confirm("Are you sure you want to delete this question?")) {
+        questionsList.splice(index, 1);
+        isEvaluationEdited = true;
+        renderQuestions();
+        serializeEvaluationQuestions();
+        setEvaluationState('READY');
+      }
+    }
+
+    function addManualQuestion() {
+      if (editingIndex !== -1) {
+        alert("Please save or cancel your current edit before adding a new question.");
+        return;
+      }
+      
+      questionsList.push({
+        id: `q_${Date.now()}_${questionsList.length}`,
+        question: '',
+        type: 'rating',
+        required: true,
+        category: 'Overall Activity'
+      });
+      
+      editingIndex = questionsList.length - 1;
+      renderQuestions();
+      
+      const cardBody = document.querySelector('.proposal-eval-side-panel .card-body');
+      if (cardBody) {
+        setTimeout(() => {
+          cardBody.scrollTop = cardBody.scrollHeight;
+        }, 50);
+      }
+    }
+
+    function serializeEvaluationQuestions() {
+      const hiddenInput = document.getElementById('f10_evaluation_questions');
+      if (hiddenInput) {
+        hiddenInput.value = JSON.stringify(questionsList);
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function setupEvaluationAutoUpdateListeners() {
+      const fields = [
+        '[name="title"]',
+        '[name="rationale"]',
+        '[name="general_objectives"]',
+        '[name="specific_objectives"]'
+      ];
+      
+      fields.forEach(sel => {
+        const el = document.querySelector(sel);
+        if (el) {
+          el.addEventListener('input', queueEvaluationAutoUpdate);
+          el.addEventListener('change', queueEvaluationAutoUpdate);
+        }
+      });
+      
+      const kpiContainer = document.getElementById('kpi-criteria') || document.getElementById('kpi-body');
+      if (kpiContainer) {
+        kpiContainer.addEventListener('input', e => {
+          if (e.target.classList.contains('kpi-field') || e.target.name === 'kpi_criteria[]' || e.target.name === 'kpi_indicator[]') {
+            queueEvaluationAutoUpdate();
+          }
+        });
+      }
+    }
+
+    // Modal preview controls
+    function openPreviewModal() {
+      const modal = document.getElementById('previewModal');
+      if (!modal) return;
+      modal.style.display = 'block';
+      modal.classList.add('show');
+      
+      const title = (document.querySelector('[name="title"]')?.value || 'Activity Proposal').trim();
+      const previewTitle = document.getElementById('previewModalActivityTitle');
+      if (previewTitle) previewTitle.innerText = title;
+
+      const list = document.getElementById('preview-questions-list');
+      if (!list) return;
+      list.innerHTML = '';
+      
+      if (questionsList.length === 0) {
+        list.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b; font-size:0.9rem;">No evaluation questions generated to preview.</div>';
+        return;
+      }
+
+      questionsList.forEach((q, idx) => {
+        let qHtml = '';
+        const isText = q.type === 'open_ended' || q.type === 'text';
+        if (!isText) {
+          qHtml = `
+            <div style="margin-bottom: 16px; padding: 14px; background: #fafafa; border: 1px solid #f1f5f9; border-radius: 8px;">
+              <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 8px; color: #1e293b;">Question ${idx+1}: ${escapeHtml(q.question)}</div>
+              <div style="display: flex; gap: 14px; font-size: 0.8rem; color: #475569; flex-wrap: wrap;">
+                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="radio" name="pq_${idx}" disabled> 4 – Excellent</label>
+                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="radio" name="pq_${idx}" disabled> 3 – Very Satisfactory</label>
+                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="radio" name="pq_${idx}" disabled> 2 – Satisfactory</label>
+                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="radio" name="pq_${idx}" disabled> 1 – Needs Improvement</label>
+              </div>
+            </div>
+          `;
+        } else {
+          qHtml = `
+            <div style="margin-bottom: 16px; padding: 14px; background: #fafafa; border: 1px solid #f1f5f9; border-radius: 8px;">
+              <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 8px; color: #1e293b;">Question ${idx+1}: ${escapeHtml(q.question)}</div>
+              <textarea class="form-control" rows="2" style="font-size: 0.8rem; background:#fff;" placeholder="Type your answer here..." disabled></textarea>
+            </div>
+          `;
+        }
+        list.innerHTML += qHtml;
+      });
+    }
+
+    function closePreviewModal() {
+      const modal = document.getElementById('previewModal');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+      }
     }
   </script>
 
@@ -1721,6 +2645,139 @@ $user = currentUser();
 
     })();
   </script>
+  <!-- ── Schedule Conflict Modal ── -->
+  <div class="modal fade" id="scheduleConflictModal" tabindex="-1" aria-labelledby="scheduleConflictModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" style="margin: 1.75rem auto; max-width: 750px;">
+      <div class="modal-content" style="border-radius:10px; overflow:hidden; border:none; box-shadow:0 8px 24px rgba(0,0,0,0.15);">
+        <div class="modal-header bg-danger text-white" style="border-bottom:none; padding: 12px 20px;">
+          <h5 class="modal-title d-flex align-items-center gap-2 fw-bold" id="scheduleConflictModalLabel" style="font-size:1.1rem; margin:0; line-height:1.2;">
+            ⚠️ Schedule Conflict Detected
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="background-color: transparent; border: none; font-size: 1.3rem; color: #fff; line-height: 1; cursor: pointer; padding: 0;">&times;</button>
+        </div>
+        <div class="modal-body" style="background:#f8f9fa; padding: 16px 20px; max-height: 380px; overflow-y: auto;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <!-- Existing Activity -->
+            <div style="background: #fff; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #dc3545; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+              <div style="font-size: 0.7rem; text-transform: uppercase; font-weight: 700; color: #dc3545; margin-bottom: 4px;">Existing Approved Activity</div>
+              <div id="scuConfTitle" style="font-weight: 700; font-size: 0.9rem; color: #2d3748; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">Leadership Seminar</div>
+              <div style="font-size: 0.8rem; color: #4a5568; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
+                <span>📅 <span id="scuConfDate">August 20, 2026</span></span>
+                <span>⏰ <span id="scuConfTime">1:00 PM – 3:00 PM</span></span>
+                <span>📍 <span id="scuConfVenue">AVR</span></span>
+              </div>
+            </div>
+            <!-- Your Proposed Activity -->
+            <div style="background: #fff; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #718096; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+              <div style="font-size: 0.7rem; text-transform: uppercase; font-weight: 700; color: #718096; margin-bottom: 4px;">Your Proposed Activity</div>
+              <div style="font-weight: 700; font-size: 0.9rem; color: #4a5568;">(Proposed Slot)</div>
+              <div style="font-size: 0.8rem; color: #4a5568; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
+                <span>📅 <span id="scuPropDate">August 20, 2026</span></span>
+                <span>⏰ <span id="scuPropTime">2:00 PM – 4:00 PM</span></span>
+                <span>📍 <span id="scuPropVenue">AVR</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI Recommendation -->
+          <div style="background: #fff; padding: 12px 16px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h6 class="text-primary fw-bold d-flex align-items-center gap-2" style="font-size:0.85rem; color: #0d6efd; margin: 0 0 10px 0; display: flex; align-items: center; gap: 6px;">
+              🤖 AI Recommendation
+            </h6>
+            <div id="scuAiLoading" class="text-center py-2" style="text-align: center; padding: 10px 0;">
+              <div class="spinner-border text-primary spinner-border-sm" role="status" style="display: inline-block; width: 0.9rem; height: 0.9rem; border: 0.15em solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .75s linear infinite;"></div>
+              <span class="ms-2 text-muted" style="font-size:0.8rem; margin-left: 6px; color: #6c757d;">Finding alternative available dates and times...</span>
+            </div>
+            <div id="scuAiRecommendationList" class="d-flex flex-column gap-2" style="display:none; flex-direction: column; gap: 6px;">
+              <!-- Alternative items -->
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer bg-light" style="border-top:none; display: flex; justify-content: flex-end; gap: 8px; background: #f8f9fa; padding: 10px 20px;">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="padding: 5px 12px; font-size: 0.8rem; border-radius: 6px;">Edit Schedule</button>
+          <button type="button" class="btn btn-primary btn-sm" id="scuUseBtn" disabled style="padding: 5px 12px; font-size: 0.8rem; border-radius: 6px;">Use Suggested Schedule</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── AI Proposal Validation Modal ── -->
+  <div class="modal fade" id="aiProposalValidationModal" tabindex="-1" aria-labelledby="aiProposalValidationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="margin: 1.75rem auto; max-width: 1050px;">
+      <div class="modal-content" style="border-radius:16px; overflow:hidden; border:none; box-shadow:0 12px 36px rgba(99, 102, 241, 0.25); font-family: 'Inter', sans-serif; background: #f8fafc;" id="aiProposalValidationContent">
+        <!-- Inner content is rendered dynamically by proposal-ai-validator.js -->
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="<?= BASE_URL ?>/assets/js/schedule-conflict-ui.js?v=<?= time() ?>"></script>
+  <script src="<?= BASE_URL ?>/assets/js/proposal-ai-validator.js?v=<?= time() ?>"></script>
+  <script>
+    if (typeof ScheduleConflictUI !== 'undefined') {
+      ScheduleConflictUI.init({
+        baseUrl:          '<?= BASE_URL ?>',
+        activityId:       0,
+        venueId:          'f1_venue',
+        dateId:           'f1_event_date',
+        startId:          'f1_start_time',
+        endId:            'f1_end_time',
+        formId:           'proposalForm',
+        successMessageId: 'scheduleSuccessMessage'
+      });
+    }
+
+    if (typeof ProposalAIValidator !== 'undefined') {
+      ProposalAIValidator.init({
+        baseUrl:       '<?= BASE_URL ?>',
+        formSelector:  '#proposalForm',
+        modalSelector: '#aiProposalValidationModal'
+      });
+    }
+
+    // Dynamic auto-updates for AI Evaluation questions
+    document.getElementById('f2_general_objectives')?.addEventListener('blur', queueEvaluationAutoUpdate);
+    document.getElementById('f2_general_objectives')?.addEventListener('input', queueEvaluationAutoUpdate);
+    document.getElementById('f2_specific_objectives')?.addEventListener('blur', queueEvaluationAutoUpdate);
+    document.getElementById('f2_specific_objectives')?.addEventListener('input', queueEvaluationAutoUpdate);
+
+    const kpiContainer = document.getElementById('kpi-criteria');
+    if (kpiContainer) {
+      kpiContainer.addEventListener('input', queueEvaluationAutoUpdate);
+      kpiContainer.addEventListener('change', queueEvaluationAutoUpdate);
+    }
+
+    // Initialize baseline evaluation state and check for initial auto-generation
+    lastEvaluationState = getObjectivesAndKpisState();
+    checkAndTriggerEvaluationAutoUpdate();
+  </script>
+  <!-- AI Evaluation Preview Modal -->
+  <div id="previewModal" class="modal fade" tabindex="-1" style="display: none;">
+    <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 600px;">
+      <div class="modal-content" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: none;">
+        <div class="modal-header" style="border-bottom: 1px solid #e2e8f0; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;">
+          <h5 class="modal-title" style="font-size: 1rem; font-weight: 700; color: #1e293b; margin: 0;">👁 Preview Evaluation Tool</h5>
+          <button type="button" class="btn-close" onclick="closePreviewModal()" style="background: none; border: none; font-size: 1.25rem; cursor: pointer; color: #64748b;">✕</button>
+        </div>
+        <div class="modal-body" style="padding: 20px; max-height: calc(100vh - 200px); overflow-y: auto;">
+          <div style="margin-bottom: 16px; font-size: 0.85rem; color: #64748b; line-height: 1.45;">
+            This is how the participant evaluation questionnaire (Evaluation Form) will be displayed to students scanning the QR code post-event.
+          </div>
+          <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-bottom: 16px; background:#fff;">
+            <h4 id="previewModalActivityTitle" style="margin:0 0 8px 0; font-size:1.05rem; font-weight:700; color: #0f172a;">Activity Title</h4>
+            <div style="font-size:0.8rem; color:#64748b;">Please take a moment to evaluate the activity you attended. Your feedback helps us improve future events.</div>
+          </div>
+          <div id="preview-questions-list" style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top: 1px solid #e2e8f0; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; width:100%;">
+          <span style="font-size:0.75rem; color:#94a3b8; font-style:italic;">* Submitting from preview is disabled</span>
+          <button type="button" class="btn btn-outline" onclick="closePreviewModal()" style="font-size: 0.8rem; padding: 6px 14px; height:auto; line-height:1.2;">Close Preview</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 
 </html>

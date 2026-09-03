@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/EmailService.php';
 requireRole('faculty');
 
 $user = currentUser();
@@ -51,7 +52,7 @@ try {
     $db->prepare("UPDATE activities SET status='completed' WHERE id=?")->execute([$id]);
 
     // Notify Sir Ian
-    $ian = $db->query("SELECT id FROM users WHERE role='admin2' LIMIT 1")->fetch();
+    $ian = $db->query("SELECT id, email, name FROM users WHERE role='admin2' LIMIT 1")->fetch();
     if ($ian) {
         $titleStmt = $db->prepare("SELECT title FROM activities WHERE id=? LIMIT 1");
         $titleStmt->execute([$id]);
@@ -59,13 +60,29 @@ try {
 
         $db->prepare("INSERT INTO notifications(user_id,activity_id,message) VALUES(?,?,?)")
             ->execute([$ian['id'], $id, "Post-event report uploaded for: {$title}. Ready for KPI review and evaluation."]);
+            
+        $emailService = new EmailService();
+        $emailService->sendNotification(
+            $ian['email'],
+            $ian['name'],
+            "Post-Event Evaluation Available: " . sanitize($title),
+            sanitize($title),
+            "Completed",
+            "A Post-Event evaluation has been uploaded and is ready for KPI review.",
+            BASE_URL . "/admin2/view-activity.php?id=" . $id,
+            $id,
+            "post_event_available"
+        );
     }
 
     $db->commit();
     header("Location: " . BASE_URL . "/faculty/post-event.php?saved=1");
     exit;
 } catch (Exception $e) {
-    $db->rollBack();
+    error_log("Post Event Save Error: " . $e->getMessage());
+    if ($db->inTransaction()) {
+        $db->rollBack();
+    }
     header("Location: " . BASE_URL . "/faculty/post-event.php?activity_id={$id}&error=1");
     exit;
 }

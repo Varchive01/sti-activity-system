@@ -240,10 +240,14 @@ CREATE TABLE `root_cause_analysis` (
 CREATE TABLE `schedules` (
   `id` int(11) NOT NULL,
   `activity_id` int(11) NOT NULL,
+  `venue_id` int(11) DEFAULT NULL,
   `sched_date` date DEFAULT NULL,
+  `start_datetime` datetime DEFAULT NULL,
+  `end_datetime` datetime DEFAULT NULL,
   `event_name` varchar(200) DEFAULT NULL,
   `venue` varchar(200) DEFAULT NULL,
-  `organizer` varchar(150) DEFAULT NULL
+  `organizer` varchar(150) DEFAULT NULL,
+  `status` varchar(50) DEFAULT 'approved'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -568,6 +572,25 @@ ALTER TABLE `root_cause_analysis`
 --
 ALTER TABLE `schedules`
   ADD CONSTRAINT `schedules_ibfk_1` FOREIGN KEY (`activity_id`) REFERENCES `activities` (`id`) ON DELETE CASCADE;
+
+--
+-- Table structure for table `proposal_ai_validation`
+--
+
+CREATE TABLE IF NOT EXISTS `proposal_ai_validation` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `proposal_id` int(11) NOT NULL,
+  `is_complete` tinyint(1) NOT NULL DEFAULT 0,
+  `is_aligned` tinyint(1) NOT NULL DEFAULT 0,
+  `issues` text DEFAULT NULL,
+  `suggestions` text DEFAULT NULL,
+  `reviewed_by_human` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_proposal_id` (`proposal_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

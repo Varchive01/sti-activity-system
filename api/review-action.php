@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/EmailService.php';
 requireRole('admin1', 'admin2', 'dean');
 
 $user   = currentUser();
@@ -104,6 +105,13 @@ try {
            ->execute([$actId, $user['id']]);
     }
 
+    // Get faculty info for email
+    $facultyStmt = $db->prepare("SELECT email, name FROM users WHERE id = ?");
+    $facultyStmt->execute([$act['faculty_id']]);
+    $facultyUser = $facultyStmt->fetch();
+
+    $emailService = new EmailService();
+
     // Notify faculty
     $notifMsg = match($logAction) {
         'forwarded' => "Your proposal '{$act['title']}' has been forwarded to the next reviewer.",
@@ -115,29 +123,70 @@ try {
     $db->prepare("INSERT INTO notifications (user_id,activity_id,message) VALUES (?,?,?)")
        ->execute([$act['faculty_id'], $actId, $notifMsg]);
 
+    if ($facultyUser) {
+        $emailService->sendNotification(
+            $facultyUser['email'],
+            $facultyUser['name'],
+            "Proposal Status Update: " . sanitize($act['title']),
+            sanitize($act['title']),
+            $newStatus,
+            $notifMsg,
+            BASE_URL . "/faculty/proposal-view.php?id=" . $actId,
+            $actId,
+            "proposal_" . $newStatus
+        );
+    }
+
     // If endorsed, notify Ian
     if ($newStatus === 'endorsed') {
-        $admins = $db->prepare("SELECT id FROM users WHERE role='admin2'");
+        $admins = $db->prepare("SELECT id, email, name FROM users WHERE role='admin2'");
         $admins->execute();
         $ns = $db->prepare("INSERT INTO notifications (user_id,activity_id,message) VALUES (?,?,?)");
         foreach ($admins->fetchAll() as $admin) {
             $ns->execute([$admin['id'], $actId, "New endorsed proposal forwarded by Sir Ar-jay: " . sanitize($act['title'])]);
+            
+            $emailService->sendNotification(
+                $admin['email'],
+                $admin['name'],
+                "Proposal Endorsed for Review: " . sanitize($act['title']),
+                sanitize($act['title']),
+                "Endorsed",
+                "A proposal has been endorsed and requires your review.",
+                BASE_URL . "/admin2/review.php?id=" . $actId,
+                $actId,
+                "proposal_endorsed"
+            );
         }
     }
 
     // If pending_final_approval, notify Dean
     if ($newStatus === 'pending_final_approval') {
-        $deans = $db->prepare("SELECT id FROM users WHERE role='dean'");
+        $deans = $db->prepare("SELECT id, email, name FROM users WHERE role='dean'");
         $deans->execute();
         $ns = $db->prepare("INSERT INTO notifications (user_id,activity_id,message) VALUES (?,?,?)");
         foreach ($deans->fetchAll() as $d) {
             $ns->execute([$d['id'], $actId, "New proposal requires final approval: " . sanitize($act['title'])]);
+            
+            $emailService->sendNotification(
+                $d['email'],
+                $d['name'],
+                "Proposal Pending Final Approval: " . sanitize($act['title']),
+                sanitize($act['title']),
+                "Pending Final Approval",
+                "A proposal is pending your final approval.",
+                BASE_URL . "/dean/review.php?id=" . $actId,
+                $actId,
+                "proposal_pending_final"
+            );
         }
     }
 
     $db->commit();
 } catch (Exception $e) {
-    $db->rollBack();
+    error_log("Review Action Error: " . $e->getMessage());
+    if ($db->inTransaction()) {
+        $db->rollBack();
+    }
 }
 
 $redirectMap = ['arjay' => 'admin1', 'ian' => 'admin2', 'dean' => 'dean'];

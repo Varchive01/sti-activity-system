@@ -17,8 +17,8 @@ try {
     $stmt = $db->prepare("INSERT INTO activities
         (faculty_id,title,description,theme,venue,venue_address,event_date,start_time,end_time,
          target_participants,general_objectives,specific_objectives,involved_subjects,rationale,
-         evaluation_method,source,status,submitted_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+         evaluation_method,source,status,submitted_at,evaluation_questions)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 
     $stmt->execute([
         $user['id'],
@@ -39,6 +39,7 @@ try {
         $_POST['source'] ?? 'faculty',
         $status,
         ($status === 'submitted') ? date('Y-m-d H:i:s') : null,
+        $_POST['evaluation_questions'] ?? null,
     ]);
     $actId = $db->lastInsertId();
 

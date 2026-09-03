@@ -193,6 +193,25 @@ $logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON a
       </div>
     </div>
 
+    <?php if (!empty($activity['evaluation_questions'])): ?>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header"><h2>📋 AI-Generated Evaluation Tool</h2></div>
+        <div class="card-body" style="padding: 16px;">
+          <div style="font-size: 0.8rem; color: var(--text-muted, #64748b); margin-bottom: 12px; line-height: 1.4;">
+            These evaluation questions are automatically generated based on the activity objectives and KPIs. Reviewers can scan them below.
+          </div>
+          <?= renderAiEvaluationQuestions($activity['evaluation_questions']) ?>
+        </div>
+      </div>
+    <?php endif; ?>
+
+    <?php if ($activity['status'] !== 'draft'): ?>
+      <?php
+      require_once __DIR__ . '/../includes/ai/proposal_validator.php';
+      renderAiValidationSection($id, false);
+      ?>
+    <?php endif; ?>
+
     <?php if (!empty($history)): ?>
     <div class="card">
       <div class="card-header"><h2>Approval History</h2></div>

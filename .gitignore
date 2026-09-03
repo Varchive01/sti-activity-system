@@ -1,0 +1,13 @@
+# Environment files (contains sensitive credentials and API keys)
+.env
+.env.*
+!.env.example
+
+# Firebase credentials
+firebase-credentials.json
+
+# Operating System & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

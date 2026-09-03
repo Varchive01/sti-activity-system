@@ -69,7 +69,7 @@ $actions = $recent_actions->fetchAll();
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sir Ar-jay Dashboard – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.4">
   <style>
     .action-badge {
       padding: 3px 10px;
@@ -706,22 +706,22 @@ $actions = $recent_actions->fetchAll();
   </div>
   <div class="content">
     <div class="stat-grid">
-      <div class="stat-card">
+      <a href="<?= BASE_URL ?>/admin1/pending.php" class="stat-card">
         <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg></div>
         <div><div class="stat-val"><?= $stats['pending'] ?? 0 ?></div><div class="stat-label">Pending Reviews</div></div>
-      </div>
-      <div class="stat-card">
+      </a>
+      <a href="<?= BASE_URL ?>/admin1/approved.php" class="stat-card">
         <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
         <div><div class="stat-val"><?= $stats['approved'] ?? 0 ?></div><div class="stat-label">Approved</div></div>
-      </div>
-      <div class="stat-card">
+      </a>
+      <a href="<?= BASE_URL ?>/admin1/returned.php" class="stat-card">
         <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></div>
         <div><div class="stat-val"><?= $stats['returned'] ?? 0 ?></div><div class="stat-label">Returned for Revision</div></div>
-      </div>
-      <div class="stat-card">
+      </a>
+      <a href="<?= BASE_URL ?>/admin1/activities.php?status=rejected" class="stat-card">
         <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
         <div><div class="stat-val"><?= $stats['rejected'] ?? 0 ?></div><div class="stat-label">Rejected</div></div>
-      </div>
+      </a>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr;gap:20px;">

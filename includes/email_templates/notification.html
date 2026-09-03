@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>STI Activity System Notification</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 30px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { background-color: #003366; color: #ffffff; padding: 20px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
+        .content { padding: 30px; color: #333333; line-height: 1.6; }
+        .content p { margin: 10px 0; }
+        .status-box { background-color: #f8f9fa; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0; border-radius: 4px; }
+        .status-box strong { color: #003366; }
+        .btn-container { text-align: center; margin: 30px 0; }
+        .btn { background-color: #ffcc00; color: #003366; text-decoration: none; padding: 12px 25px; border-radius: 4px; font-weight: bold; display: inline-block; }
+        .footer { background-color: #eeeeee; color: #666666; text-align: center; padding: 15px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>STI College Marikina</h1>
+        </div>
+        <div class="content">
+            <p>Dear <strong>{{RECIPIENT_NAME}}</strong>,</p>
+            
+            <p>{{MESSAGE}}</p>
+            
+            <div class="status-box">
+                <p><strong>Proposal Title:</strong> {{PROPOSAL_TITLE}}</p>
+                <p><strong>Current Status:</strong> <span style="text-transform: uppercase;">{{STATUS}}</span></p>
+                <p><strong>Date/Time:</strong> {{DATE_TIME}}</p>
+            </div>
+            
+            <div class="btn-container">
+                <a href="{{ACTION_LINK}}" class="btn">View Proposal Details</a>
+            </div>
+        </div>
+        <div class="footer">
+            This is an automated notification from the STI College Marikina Web-Based Activity Request, Monitoring, and Evaluation System. Please do not reply directly to this email.
+        </div>
+    </div>
+</body>
+</html>

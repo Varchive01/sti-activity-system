@@ -82,10 +82,112 @@ function sidebarIcon($name)
   return '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24">' . $path . '</svg>';
 }
 ?>
+<script>
+  // Apply persistent sidebar state immediately on page load to prevent layout jank
+  (function() {
+    try {
+      const collapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+      if (collapsed) {
+        document.documentElement.classList.add('sidebar-collapsed');
+        if (document.body) {
+          document.body.classList.add('sidebar-collapsed');
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to apply sidebar state early:", e);
+    }
+  })();
+</script>
+
+<style>
+/* Clean standalone square toggle button styling */
+.sidebar-logo {
+  min-height: 72px !important;
+}
+.sidebar-collapsed .sidebar-logo {
+  padding: 20px 0 !important;
+  min-height: 72px !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+.sidebar-toggle-container {
+  position: absolute !important;
+  top: 20px !important;
+  right: 18px !important;
+  z-index: 10 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  width: 32px !important;
+  height: 32px !important;
+}
+.sidebar-toggle {
+  background: transparent !important; /* no visible background container by default */
+  border: none !important; /* clean standalone icon style */
+  color: rgba(255, 255, 255, 0.75) !important;
+  cursor: pointer !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 6px !important; /* square with slightly rounded corners */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  outline: none !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+  box-shadow: none !important;
+}
+.sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.1) !important; /* subtle hover background */
+  color: #fff !important;
+}
+.sidebar-toggle:active {
+  transform: scale(0.95) !important;
+}
+.sidebar-toggle svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+.sidebar-collapsed .sidebar-toggle {
+  margin-top: 0 !important;
+}
+/* Tooltip styling */
+.sidebar-toggle-container .sidebar-tooltip {
+  left: 100% !important;
+  transform: translateY(-50%) translateX(6px) scale(0.95) !important;
+}
+.sidebar-toggle-container:hover .sidebar-tooltip {
+  transform: translateY(-50%) translateX(12px) scale(1) !important;
+}
+</style>
+
 <aside class="sidebar <?= $theme ?>">
   <div class="sidebar-logo">
-    <div class="brand">STI <span>Marikina</span></div>
-    <div class="sub">Activity Management System</div>
+    <div class="brand-container">
+      <div class="brand">STI <span>Marikina</span></div>
+      <div class="sub">Activity Management System</div>
+    </div>
+    <div class="sidebar-toggle-container">
+      <button type="button" id="sidebar-toggle-btn" class="sidebar-toggle">
+        <!-- Close icon (pointing left) - shown when sidebar is expanded -->
+        <svg class="icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="18" height="18" x="3" y="3" rx="2" />
+          <path d="M9 3v18" />
+          <path d="m16 15-3-3 3-3" />
+        </svg>
+        <!-- Open icon (pointing right) - shown when sidebar is collapsed -->
+        <svg class="icon-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="18" height="18" x="3" y="3" rx="2" />
+          <path d="M9 3v18" />
+          <path d="m14 9 3 3-3 3" />
+        </svg>
+      </button>
+      <span class="sidebar-tooltip tooltip-close">Close sidebar</span>
+      <span class="sidebar-tooltip tooltip-open">Open sidebar</span>
+    </div>
   </div>
   <div class="sidebar-user">
     <div class="avatar"><?= $initial ?></div>
@@ -115,3 +217,18 @@ function sidebarIcon($name)
     </a>
   </div>
 </aside>
+
+<script>
+  (function() {
+    const toggleBtn = document.getElementById('sidebar-toggle-btn');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        const isCollapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+        if (document.body) {
+          document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+        }
+        localStorage.setItem('sidebar-collapsed', isCollapsed ? 'true' : 'false');
+      });
+    }
+  })();
+</script>

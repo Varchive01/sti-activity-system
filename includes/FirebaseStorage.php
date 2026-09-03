@@ -60,7 +60,7 @@ class FirebaseStorage
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        @curl_close($ch);
 
         if ($httpCode !== 200) {
             throw new Exception("Failed to get Google OAuth2 access token: {$response}");
@@ -96,7 +96,7 @@ class FirebaseStorage
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        @curl_close($ch);
 
         if ($httpCode !== 200) {
             throw new Exception("Failed to upload file to Firebase Storage. HTTP {$httpCode}: {$response}");

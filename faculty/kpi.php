@@ -140,7 +140,7 @@ function attendanceClass($actual, $target) {
       <?php endif; ?>
 
       <!-- Narrative -->
-      <?php if ($r['observations']): ?>
+      <?php if (!empty($r['observations'])): ?>
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
         <div class="text-sm fw-bold" style="margin-bottom:6px;">Observations</div>
         <div class="text-sm text-muted"><?= nl2br(htmlspecialchars($r['observations'])) ?></div>

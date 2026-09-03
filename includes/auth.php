@@ -35,10 +35,11 @@ function requireRole(string ...$roles): void
 function currentUser(): array
 {
     return [
-        'id'   => $_SESSION['user_id']   ?? null,
-        'name' => $_SESSION['user_name'] ?? '',
-        'role' => $_SESSION['user_role'] ?? '',
-        'dept' => $_SESSION['user_dept'] ?? '',
+        'id'    => $_SESSION['user_id']   ?? null,
+        'name'  => $_SESSION['user_name'] ?? '',
+        'email' => $_SESSION['user_email'] ?? '',
+        'role'  => $_SESSION['user_role'] ?? '',
+        'dept'  => $_SESSION['user_dept'] ?? '',
     ];
 }
 
@@ -65,6 +66,7 @@ function login(string $email, string $password): array|false
     session_regenerate_id(true);
     $_SESSION['user_id']       = $user['id'];
     $_SESSION['user_name']     = $user['name'];
+    $_SESSION['user_email']    = $user['email'];
     $_SESSION['user_role']     = $user['role'];
     $_SESSION['user_dept']     = $user['department'];
     $_SESSION['last_activity'] = time();

@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/ai/proposal_validator.php';
 requireRole('admin2');
 $user = currentUser();
 $db   = getDB();
@@ -235,6 +236,13 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
       <?php if (!empty($activity['evaluation_method'])): ?>
         <div class="sl" style="margin-top:14px;">Google Form Link</div>
         <a href="<?= htmlspecialchars($activity['evaluation_method']) ?>" target="_blank"><?= htmlspecialchars($activity['evaluation_method']) ?></a>
+      <?php endif; ?>
+
+      <?php if (!empty($activity['evaluation_questions'])): ?>
+        <div style="margin-top:20px; border-top: 1px dashed var(--border); padding-top: 15px;">
+          <div class="sl" style="font-weight:700; margin-bottom:10px;">📋 AI-Generated Evaluation Tool</div>
+          <?= renderAiEvaluationQuestions($activity['evaluation_questions']) ?>
+        </div>
       <?php endif; ?>
     <?php renderSectionClose('kpi', $stagedComments, $id); ?>
 

@@ -1,0 +1,10 @@
+{
+    "require": {
+        "phpmailer/phpmailer": "*",
+        "league/oauth2-client": "^2.9",
+        "greew/oauth2-azure-provider": "^2.0"
+    },
+    "config": {
+        "disable-tls": true
+    }
+}
