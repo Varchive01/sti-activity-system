@@ -22,7 +22,13 @@ $acts = $acts->fetchAll();
 <body class="theme-ian">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 <div class="main-wrap">
-  <header class="topbar"><div class="page-title">Forwarded &amp; Approved</div></header>
+  <header class="topbar"><div class="page-title">Forwarded &amp; Approved</div>
+    <div class="topbar-right">
+      <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
+  </header>
   <div class="content">
     <div class="card"><div class="card-body" style="padding:0;"><div class="table-wrap">
     <table><thead><tr><th>Title</th><th>Faculty</th><th>Source</th><th>Date</th><th>Status</th><th></th></tr></thead>

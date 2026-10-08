@@ -16,32 +16,56 @@ $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JO
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Approved – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
+<script>
+  (function() {
+    try {
+      var savedTheme = localStorage.getItem('sti-theme');
+      if (savedTheme === 'dark') {
+        document.documentElement.dataset.theme = 'dark';
+      } else {
+        document.documentElement.dataset.theme = 'light';
+      }
+    } catch (e) {}
+  })();
+</script>
+<style>
+  body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge {
+    font-family: 'Plus Jakarta Sans', sans-serif !important;
+  }
+</style>
 </head>
 <body class="theme-dean">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 <div class="main-wrap">
   <header class="topbar">
     <div class="page-title">Approved</div>
+  
+    <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+      <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
   </header>
   <div class="content">
     <div class="card">
       <div class="card-header"><h2>Approved</h2></div>
       <div class="card-body" style="padding:0;">
         <div class="table-wrap">
-          <table>
-            <thead><tr><th>Title</th><th>Faculty</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+          <table class="activity-table">
+            <thead><tr><th>Title</th><th>Faculty</th><th style="width:130px;">Date</th><th style="width:125px;">Status</th><th style="width:100px;text-align:right;">Actions</th></tr></thead>
             <tbody>
             <?php if (empty($activities)): ?>
             <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">No records found.</td></tr>
             <?php else: foreach ($activities as $a): ?>
             <tr>
-              <td><strong><?= htmlspecialchars($a['title']) ?></strong></td>
+              <td><strong><a href="<?= BASE_URL ?>/dean/view-activity.php?id=<?= $a['id'] ?>" style="color:var(--text-main);text-decoration:none;"><?= htmlspecialchars($a['title']) ?></a></strong></td>
               <td><?= htmlspecialchars($a['faculty_name']) ?></td>
               <td><?= $a['event_date'] ? date('M j, Y', strtotime($a['event_date'])) : '—' ?></td>
               <td><?= getStatusBadge($a['status']) ?></td>
-              <td><a href="<?= BASE_URL ?>/dean/view-activity.php?id=<?= $a['id'] ?>" class="btn btn-outline btn-sm">View</a></td>
+              <td style="text-align:right;"><a href="<?= BASE_URL ?>/dean/view-activity.php?id=<?= $a['id'] ?>" class="btn btn-outline btn-sm">View</a></td>
             </tr>
             <?php endforeach; endif; ?>
             </tbody>

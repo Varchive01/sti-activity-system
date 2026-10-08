@@ -166,13 +166,41 @@ $generatedText = '';
 if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
     $generatedText = trim($result['candidates'][0]['content']['parts'][0]['text']);
     
-    // Strip markdown formatting if any
-    $generatedText = preg_replace('/```json\s*/i', '', $generatedText);
-    $generatedText = preg_replace('/```\s*/', '', $generatedText);
+    // 1. Direct or unfenced decode attempt
+    $unfenced = preg_replace('/```(?:json)?\s*/i', '', $generatedText);
+    $unfenced = trim(preg_replace('/\s*```/', '', $unfenced));
+    $decoded = json_decode($unfenced, true);
 
-    $decoded = json_decode($generatedText, true);
+    // 2. Outermost JSON extraction if direct decode failed
+    if (!$decoded || !is_array($decoded)) {
+        $firstBrace = strpos($generatedText, '{');
+        $lastBrace = strrpos($generatedText, '}');
+        if ($firstBrace !== false && $lastBrace !== false && $lastBrace > $firstBrace) {
+            $sub = substr($generatedText, $firstBrace, $lastBrace - $firstBrace + 1);
+            $decoded = json_decode($sub, true);
+            if (!$decoded) {
+                // Strip trailing commas before closing braces/brackets
+                $cleanSub = preg_replace('/,\s*([\]\}])/m', '$1', $sub);
+                $decoded = json_decode($cleanSub, true);
+            }
+        }
+    }
 
-    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+    // 3. Outermost array brackets extraction if Gemini returned [...] directly
+    if (!$decoded || !is_array($decoded)) {
+        $firstBracket = strpos($generatedText, '[');
+        $lastBracket = strrpos($generatedText, ']');
+        if ($firstBracket !== false && $lastBracket !== false && $lastBracket > $firstBracket) {
+            $subArr = substr($generatedText, $firstBracket, $lastBracket - $firstBracket + 1);
+            $decoded = json_decode($subArr, true);
+            if (!$decoded) {
+                $cleanSubArr = preg_replace('/,\s*([\]\}])/m', '$1', $subArr);
+                $decoded = json_decode($cleanSubArr, true);
+            }
+        }
+    }
+
+    if (is_array($decoded)) {
         $questions = null;
         if (isset($decoded['questions']) && is_array($decoded['questions'])) {
             $questions = $decoded['questions'];
@@ -180,7 +208,7 @@ if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
             $questions = $decoded;
         }
 
-        if (is_array($questions)) {
+        if (is_array($questions) && !empty($questions)) {
             echo json_encode([
                 'success' => true,
                 'questions' => $questions

@@ -1,0 +1,11 @@
+# Disable directory browsing
+Options -Indexes
+
+# Deny all direct web access to files within the uploads directory
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

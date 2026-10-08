@@ -21,6 +21,16 @@ function requireLogin(): void
         exit;
     }
     $_SESSION['last_activity'] = time();
+
+    // Forced first-login password change check
+    if (!empty($_SESSION['must_change_password'])) {
+        $currentScript = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? $_SERVER['PHP_SELF'] ?? '');
+        if (!str_ends_with($currentScript, '/auth/change-password.php') &&
+            !str_ends_with($currentScript, '/auth/logout.php')) {
+            header('Location: ' . BASE_URL . '/auth/change-password.php');
+            exit;
+        }
+    }
 }
 
 function requireRole(string ...$roles): void
@@ -35,11 +45,13 @@ function requireRole(string ...$roles): void
 function currentUser(): array
 {
     return [
-        'id'    => $_SESSION['user_id']   ?? null,
-        'name'  => $_SESSION['user_name'] ?? '',
-        'email' => $_SESSION['user_email'] ?? '',
-        'role'  => $_SESSION['user_role'] ?? '',
-        'dept'  => $_SESSION['user_dept'] ?? '',
+        'id'                   => $_SESSION['user_id']   ?? null,
+        'name'                 => $_SESSION['user_name'] ?? '',
+        'email'                => $_SESSION['user_email'] ?? '',
+        'role'                 => $_SESSION['user_role'] ?? '',
+        'dept'                 => $_SESSION['user_dept'] ?? '',
+        'must_change_password' => $_SESSION['must_change_password'] ?? 0,
+        'profile_picture'      => $_SESSION['user_profile_picture'] ?? null,
     ];
 }
 
@@ -64,12 +76,14 @@ function login(string $email, string $password): array|false
 
     startSession();
     session_regenerate_id(true);
-    $_SESSION['user_id']       = $user['id'];
-    $_SESSION['user_name']     = $user['name'];
-    $_SESSION['user_email']    = $user['email'];
-    $_SESSION['user_role']     = $user['role'];
-    $_SESSION['user_dept']     = $user['department'];
-    $_SESSION['last_activity'] = time();
+    $_SESSION['user_id']              = $user['id'];
+    $_SESSION['user_name']            = $user['name'];
+    $_SESSION['user_email']           = $user['email'];
+    $_SESSION['user_role']            = $user['role'];
+    $_SESSION['user_dept']            = $user['department'];
+    $_SESSION['must_change_password'] = (int)($user['must_change_password'] ?? 0);
+    $_SESSION['user_profile_picture'] = $user['profile_picture'] ?? null;
+    $_SESSION['last_activity']        = time();
     return $user;
 }
 
@@ -93,3 +107,31 @@ function logout(): void
     header('Location: ' . BASE_URL . '/auth/login.php');
     exit;
 }
+
+function generateCsrfToken(): string
+{
+    startSession();
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function validateCsrfToken(?string $token): bool
+{
+    startSession();
+    if (empty($_SESSION['csrf_token']) || empty($token)) {
+        return false;
+    }
+    return hash_equals($_SESSION['csrf_token'], $token);
+}
+
+function requireCsrfToken(): void
+{
+    $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
+    if (!validateCsrfToken($token)) {
+        http_response_code(403);
+        die('Invalid or missing CSRF token.');
+    }
+}
+

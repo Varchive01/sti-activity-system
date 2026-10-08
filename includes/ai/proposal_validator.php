@@ -25,20 +25,35 @@ function ensureProposalAiValidationTableExists(PDO $db): void
         `is_aligned` tinyint(1) NOT NULL DEFAULT 0,
         `issues` text DEFAULT NULL,
         `suggestions` text DEFAULT NULL,
+        `full_result` longtext DEFAULT NULL,
         `reviewed_by_human` tinyint(1) NOT NULL DEFAULT 0,
         `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
         `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
         PRIMARY KEY (`id`),
-        UNIQUE KEY `uq_proposal_id` (`proposal_id`)
+        UNIQUE KEY `uq_proposal_id` (`proposal_id`),
+        CONSTRAINT `fk_proposal_ai_validation_proposal` FOREIGN KEY (`proposal_id`) REFERENCES `activities` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
 
     $db->exec($sql);
 
-    // Dynamic schema update to preserve rich AI evaluation results
+    // Dynamic schema updates
     try {
         $stmt = $db->query("SHOW COLUMNS FROM `proposal_ai_validation` LIKE 'full_result'");
         if ($stmt->rowCount() === 0) {
             $db->exec("ALTER TABLE `proposal_ai_validation` ADD COLUMN `full_result` longtext DEFAULT NULL");
+        }
+
+        // Check foreign key
+        $fkCheck = $db->query("
+            SELECT CONSTRAINT_NAME 
+            FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+            WHERE TABLE_SCHEMA = DATABASE() 
+              AND TABLE_NAME = 'proposal_ai_validation' 
+              AND COLUMN_NAME = 'proposal_id' 
+              AND REFERENCED_TABLE_NAME = 'activities'
+        ")->fetch();
+        if (!$fkCheck) {
+            $db->exec("ALTER TABLE `proposal_ai_validation` ADD CONSTRAINT `fk_proposal_ai_validation_proposal` FOREIGN KEY (`proposal_id`) REFERENCES `activities` (`id`) ON DELETE CASCADE ON UPDATE CASCADE");
         }
     } catch (Exception $e) {
         error_log("AI Schema Update Error: " . $e->getMessage());
@@ -396,18 +411,18 @@ function renderAiValidationSection(int $proposalId, bool $showReviewButton = tru
     <div class="ai-validation-card" id="ai-validation-box-<?= $proposalId ?>" style="
         margin-bottom: 22px;
         border-radius: 12px;
-        border: 1.5px solid #6366F1;
-        background: linear-gradient(145deg, #EEF2FF 0%, #FFFFFF 100%);
-        box-shadow: 0 4px 16px rgba(99, 102, 241, 0.12);
+        border: 1.5px solid var(--border, #E2E8F4);
+        background: linear-gradient(145deg, var(--bg-base, #F4F6FB) 0%, #FFFFFF 100%);
+        box-shadow: var(--shadow, 0 4px 24px rgba(10, 22, 40, 0.08));
         overflow: hidden;
-        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-family: 'Plus Jakarta Sans', sans-serif;
     ">
         <div style="
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 14px 20px;
-            background: linear-gradient(90deg, #4F46E5 0%, #6366F1 100%);
+            background: linear-gradient(90deg, var(--sti-navy, #0A1628) 0%, var(--sti-slate, #1E2D45) 100%);
             color: #FFFFFF;
             flex-wrap: wrap;
             gap: 10px;
@@ -415,7 +430,7 @@ function renderAiValidationSection(int $proposalId, bool $showReviewButton = tru
             <div style="display: flex; align-items: center; gap: 8px;">
                 <span style="font-size: 1.15rem;">🤖</span>
                 <div>
-                    <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.3px;">AI Proposal Validation</h3>
+                    <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.3px; font-family: 'Syne', sans-serif;">AI Proposal Validation</h3>
                     <div style="font-size: 0.72rem; opacity: 0.92; font-weight: 500;">
                         AI-generated — please verify
                     </div>
@@ -517,8 +532,8 @@ function renderAiValidationSection(int $proposalId, bool $showReviewButton = tru
                         id="btn-mark-ai-reviewed-<?= $proposalId ?>"
                         onclick="markAiValidationReviewedAction(<?= $proposalId ?>, this)"
                         style="
-                            border: 1px solid <?= $isReviewed ? '#10B981' : '#6366F1' ?>;
-                            background: <?= $isReviewed ? '#D1FAE5' : '#6366F1' ?>;
+                            border: 1px solid <?= $isReviewed ? '#10B981' : 'var(--sti-blue, #0284C7)' ?>;
+                            background: <?= $isReviewed ? '#D1FAE5' : 'var(--sti-blue, #0284C7)' ?>;
                             color: <?= $isReviewed ? '#065F46' : '#FFFFFF' ?>;
                             font-weight: 600;
                             font-size: 0.8rem;

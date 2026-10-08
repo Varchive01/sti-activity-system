@@ -173,12 +173,16 @@ class GeminiKpiAnalyticsService
         $kpisText = "";
         
         // Attendance
-        $att = $activityData['kpis']['attendance'];
-        $kpisText .= "- KPI: {$att['indicator']} | Target: {$att['target']} | Actual: {$att['actual']} | Achievement: {$att['achievement']} | Status: {$att['status']}\n";
+        $att = $activityData['kpis']['attendance'] ?? null;
+        if (!empty($att)) {
+            $kpisText .= "- KPI: {$att['indicator']} | Target: {$att['target']} | Actual: {$att['actual']} | Achievement: {$att['achievement']} | Status: {$att['status']}\n";
+        }
         
         // Satisfaction
-        $sat = $activityData['kpis']['satisfaction'];
-        $kpisText .= "- KPI: {$sat['indicator']} | Target: {$sat['target']} | Actual: {$sat['actual']} | Achievement: {$sat['achievement']} | Status: {$sat['status']}\n";
+        $sat = $activityData['kpis']['satisfaction'] ?? null;
+        if (!empty($sat)) {
+            $kpisText .= "- KPI: {$sat['indicator']} | Target: {$sat['target']} | Actual: {$sat['actual']} | Achievement: {$sat['achievement']} | Status: {$sat['status']}\n";
+        }
         
         // Criteria metrics
         foreach ($activityData['kpis']['criteria'] as $cr) {
@@ -244,53 +248,88 @@ EXPECTED JSON SCHEMA:
 
     /**
      * Builds the prompt for aggregate/institutional analysis.
+     * Respects data privacy (zero PII, anonymized activity references) and handles sparse data (Phase 6).
      */
     private function buildInstitutionalPrompt(array $aggregateData): string
     {
+        $stats = $aggregateData['statistics'] ?? [];
+        $kpi = $aggregateData['kpi_performance'] ?? [];
+        
+        $totalActivities = $stats['total'] ?? ($aggregateData['total_activities'] ?? 0);
+        $completedWithKpi = $kpi['completed_with_kpi'] ?? ($aggregateData['completed_activities'] ?? 0);
+        $meetingTargets = $kpi['meeting_targets'] ?? ($aggregateData['meeting_targets'] ?? 0);
+        $nearTargets = $kpi['near_targets'] ?? 0;
+        $belowTargets = $kpi['below_targets'] ?? ($aggregateData['below_targets'] ?? 0);
+        $overallPerf = (isset($kpi['overall_performance']) && $kpi['overall_performance'] !== null) ? ($kpi['overall_performance'] . '%') : '—';
+        $avgKpiRating = $kpi['avg_kpi_rating'] ?? ($aggregateData['avg_kpi_rating'] ?? '—');
+        $avgSatisfaction = $kpi['avg_satisfaction'] ?? ($aggregateData['avg_satisfaction'] ?? '—');
+        $overallAttendanceRate = $kpi['attendance_rate'] ?? ($aggregateData['overall_attendance_rate'] ?? '—');
+
         $activitiesText = "";
-        foreach ($aggregateData['activities'] as $act) {
-            $activitiesText .= "- Activity: {$act['title']} | Date: {$act['event_date']} | KPI Avg: {$act['avg_kpi']} | Satisfaction: {$act['satisfaction_score']}/5 | Attendance Rate: {$act['attendance_rate']}%\n";
+        if (!empty($aggregateData['activities'])) {
+            foreach ($aggregateData['activities'] as $act) {
+                $ref = $act['activity_ref'] ?? 'Activity';
+                $activitiesText .= "- {$ref} | Date: {$act['event_date']} | KPI Avg: {$act['avg_kpi']} | Satisfaction: {$act['satisfaction_score']}/5 | Attendance Rate: {$act['attendance_rate']}% | Achievement: " . ($act['overall_performance'] ?? '—') . "\n";
+            }
+        } else {
+            $activitiesText = "No completed activity KPI entries available for this period.\n";
         }
 
-        return "You are an academic activity analytics assistant for STI College. Your task is to provide objective, institutional-level advisory interpretation of multiple completed activities for the reporting period.
+        // Phase 6: Insufficient Data Principle
+        $sparseDataGuideline = "";
+        if ($completedWithKpi <= 1) {
+            $sparseDataGuideline = "
+CRITICAL GUIDELINE ON SPARSE DATA (PHASE 6):
+There is only {$completedWithKpi} completed activity with evaluated KPI data for this reporting period.
+You MUST NOT make sweeping institutional claims or declare that institutional performance is 'declining' or 'improving' across the board.
+Instead, you MUST use cautious wording such as:
+'Insufficient activity data to identify a reliable institutional trend.'
+Confine conclusions strictly to the specific observed event and provide cautious, preliminary observations only.
+";
+        }
+
+        return "You are an academic activity analytics assistant for STI College. Your task is to provide objective, institutional-level advisory interpretation of aggregate KPI performance metrics for the reporting period.
 
 AGGREGATED METRICS FOR THE PERIOD:
 - Reporting Year: {$aggregateData['year']}
 - Reporting Period: {$aggregateData['period']}
-- Total Activities: {$aggregateData['total_activities']}
-- Completed Activities: {$aggregateData['completed_activities']}
-- Average KPI Rating: {$aggregateData['avg_kpi_rating']} / 4.0
-- Average Participant Satisfaction: {$aggregateData['avg_satisfaction']} / 5.0
-- Overall Attendance Rate: {$aggregateData['overall_attendance_rate']}%
-- Activities Meeting or Exceeding Targets: {$aggregateData['meeting_targets']}
-- Activities Below KPI Targets: {$aggregateData['below_targets']}
+- Total Activities in System: {$totalActivities}
+- Completed Activities with Evaluated KPI Data: {$completedWithKpi}
+- Overall Institutional KPI Achievement Score: {$overallPerf}
+- Activities Meeting or Exceeding Targets (>= 90%): {$meetingTargets}
+- Activities Near Targets (70% - 89.9%): {$nearTargets}
+- Activities Below Targets (< 70%): {$belowTargets}
+- Average KPI Rating: {$avgKpiRating} / 4.0
+- Average Participant Satisfaction: {$avgSatisfaction} / 5.0
+- Overall Attendance Rate: {$overallAttendanceRate}
 
-ACTIVITY DETAIL LIST:
+ANONYMIZED ACTIVITY METRICS SUMMARY:
 {$activitiesText}
-
+{$sparseDataGuideline}
 ANALYSIS INSTRUCTIONS & PRINCIPLES:
-1. Interpret institutional trends (e.g., whether student-org vs faculty-led events performed better, common patterns in attendance, satisfaction ranges).
-2. Distinguish strictly between FACT (metrics provided) and INFERENCE. DO NOT invent causes for high/low scores.
-3. Keep findings and recommendations centered on strategic improvements for the college (e.g., scheduling changes, promotional improvements, survey engagement).
-4. You MUST return your response as a valid, parsable JSON object matching the schema below. Do not include markdown code fences.
+1. Interpret institutional trends from the aggregated metrics and target achievements.
+2. Distinguish strictly between FACT (metrics provided) and INFERENCE. DO NOT invent external causes for scores.
+3. Keep findings and recommendations centered on strategic institutional improvements (e.g. attendance tracking, scheduling, survey response completeness).
+4. AI-generated insights are advisory only and support human decision-making.
+5. You MUST return your response as a valid, parsable JSON object matching the schema below. Do not include markdown code fences.
 
 EXPECTED JSON SCHEMA:
 {
   \"overall_insight\": \"A concise strategic overview of institutional activity performance and target achievement this period.\",
   \"performance_summary\": \"A short description summarizing average KPI rating, satisfaction, and attendance trends.\",
   \"strengths\": [
-    \"A major pattern of success identified across multiple activities.\"
+    \"A major pattern of success identified across evaluated activities.\"
   ],
   \"areas_of_attention\": [
-    \"A common weakness, scheduling bottleneck, or attendance gap requiring institutional review.\"
+    \"A weakness, scheduling gap, or attendance discrepancy requiring institutional review.\"
   ],
   \"key_findings\": [
-    \"A key quantitative aggregate finding (e.g., '80% of activities successfully met targets').\"
+    \"A key quantitative aggregate finding from the KPI outcomes.\"
   ],
   \"recommendations\": [
     \"A strategic recommendation to improve institutional event operations, coordination, or attendance.\"
   ],
-  \"confidence_note\": \"Brief statement on data quality and the list of activities analyzed.\"
+  \"confidence_note\": \"Brief statement on data quality and the count of activities analyzed.\"
 }";
     }
 }

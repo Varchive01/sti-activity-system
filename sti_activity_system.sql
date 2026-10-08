@@ -42,7 +42,7 @@ CREATE TABLE `activities` (
   `general_objectives` text DEFAULT NULL,
   `specific_objectives` text DEFAULT NULL,
   `source` enum('student_org','faculty') NOT NULL,
-  `status` enum('draft','submitted','under_review_arjay','under_review_ian','for_revision','resubmitted','approved','rejected','completed') DEFAULT 'draft',
+  `status` enum('draft','submitted','under_review','returned_for_revision','resubmitted','endorsed','pending_final_approval','pending_dean_approval','approved','rejected','completed') DEFAULT 'draft',
   `revision_notes` text DEFAULT NULL,
   `poster_path` varchar(500) DEFAULT NULL,
   `submitted_at` timestamp NULL DEFAULT NULL,
@@ -91,10 +91,19 @@ CREATE TABLE `documents` (
 CREATE TABLE `faculty_tasks` (
   `id` int(11) NOT NULL,
   `activity_id` int(11) NOT NULL,
+  `assigned_user_id` int(11) DEFAULT NULL,
   `faculty_name` varchar(150) DEFAULT NULL,
+  `committee` varchar(150) DEFAULT NULL,
   `assigned_task` varchar(200) DEFAULT NULL,
+  `task_title` varchar(200) DEFAULT NULL,
   `contribution_desc` text DEFAULT NULL,
-  `role_in_event` varchar(150) DEFAULT NULL
+  `task_description` text DEFAULT NULL,
+  `role_in_event` varchar(150) DEFAULT NULL,
+  `due_date` date DEFAULT NULL,
+  `status` enum('Not Started','In Progress','Completed','Delayed') NOT NULL DEFAULT 'Not Started',
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -263,6 +272,7 @@ CREATE TABLE `users` (
   `password` varchar(255) NOT NULL,
   `role` enum('faculty','admin1','admin2','dean') NOT NULL,
   `department` varchar(100) DEFAULT NULL,
+  `profile_picture` varchar(500) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -350,7 +360,8 @@ ALTER TABLE `materials`
 --
 ALTER TABLE `notifications`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD KEY `user_id` (`user_id`),
+  ADD KEY `activity_id` (`activity_id`);
 
 --
 -- Indexes for table `post_event`
@@ -546,7 +557,8 @@ ALTER TABLE `materials`
 -- Constraints for table `notifications`
 --
 ALTER TABLE `notifications`
-  ADD CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);
+  ADD CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
+  ADD CONSTRAINT `fk_notifications_activity` FOREIGN KEY (`activity_id`) REFERENCES `activities` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Constraints for table `post_event`
@@ -584,11 +596,27 @@ CREATE TABLE IF NOT EXISTS `proposal_ai_validation` (
   `is_aligned` tinyint(1) NOT NULL DEFAULT 0,
   `issues` text DEFAULT NULL,
   `suggestions` text DEFAULT NULL,
+  `full_result` longtext DEFAULT NULL,
   `reviewed_by_human` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_proposal_id` (`proposal_id`)
+  UNIQUE KEY `uq_proposal_id` (`proposal_id`),
+  CONSTRAINT `fk_proposal_ai_validation_proposal` FOREIGN KEY (`proposal_id`) REFERENCES `activities` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `task_reminder_logs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `task_id` int(11) NOT NULL,
+  `activity_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `reminder_type` varchar(32) NOT NULL,
+  `task_status` varchar(32) DEFAULT NULL,
+  `due_date` date DEFAULT NULL,
+  `completion_pct` int(11) DEFAULT NULL,
+  `sent_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_task_reminder` (`task_id`, `reminder_type`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 COMMIT;

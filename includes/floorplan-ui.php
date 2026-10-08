@@ -102,6 +102,24 @@
 
                   <!-- Right props panel -->
                   <div class="fp-props">
+                    <!-- FLOORS Section -->
+                    <div class="fp-floors-section" id="fpFloorsSection">
+                      <h4>Floors</h4>
+                      <div class="fp-floors-nav" id="fpFloorTabs">
+                        <!-- Populated dynamically: Ground Floor, 2nd Floor, 3rd Floor -->
+                      </div>
+                      <div class="fp-floors-actions">
+                        <button type="button" class="fp-add-floor-btn" id="fpAddFloorBtn" onclick="if(window.fpAddFloor)window.fpAddFloor();" title="Add another floor (max 3 floors)">
+                          ＋ Add 2nd Floor
+                        </button>
+                        <span class="fp-floor-max-badge" id="fpFloorMaxBadge" style="display:none;">
+                          Max 3 Floors
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="fp-prop-divider"></div>
+
                     <h4>Properties</h4>
                     <div class="fp-prop-row" id="propLabelRow">
                       <label>Label</label>

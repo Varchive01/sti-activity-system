@@ -18,15 +18,20 @@ require_once __DIR__ . '/../services/GeminiKpiAnalyticsService.php';
 header('Content-Type: application/json');
 
 // 1. Authorize role
-try {
-    requireRole('dean', 'admin1', 'admin2');
-} catch (Exception $e) {
+startSession();
+if (empty($_SESSION['user_id'])) {
     http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized access.']);
+    echo json_encode(['error' => 'Authentication required.']);
     exit;
 }
 
 $user = currentUser();
+if (!in_array($user['role'], ['dean', 'admin1', 'admin2', 'faculty'], true)) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Unauthorized access.']);
+    exit;
+}
+
 $db = getDB();
 
 $activityId = (int)($_POST['activity_id'] ?? $_GET['activity_id'] ?? 0);
@@ -44,6 +49,13 @@ $activity = $actStmt->fetch(PDO::FETCH_ASSOC);
 if (!$activity) {
     http_response_code(404);
     echo json_encode(['error' => 'Activity not found.']);
+    exit;
+}
+
+// Faculty can only access KPI results for their own activities
+if ($user['role'] === 'faculty' && (int)$activity['faculty_id'] !== (int)$user['id']) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Unauthorized. You can only view KPI analytics for your own activities.']);
     exit;
 }
 
@@ -134,6 +146,22 @@ if ($action === 'analyze') {
 
     // Persist fresh analysis JSON & signature hash
     try {
+        // Re-query current stored data_hash to protect against stale in-flight results overwriting newer analytics
+        $checkStmt = $db->prepare("SELECT data_hash FROM activity_kpi_analytics WHERE activity_id = ?");
+        $checkStmt->execute([$activityId]);
+        $storedHash = $checkStmt->fetchColumn();
+
+        if ($storedHash && $storedHash !== $currentHash) {
+            http_response_code(409);
+            echo json_encode([
+                'error' => 'KPI analytics have been updated with newer data while generation was in progress and cannot be overwritten.',
+                'kpis' => $kpiResults['kpis'],
+                'overall_performance' => $kpiResults['overall_performance'],
+                'overall_status' => $kpiResults['overall_status']
+            ]);
+            exit;
+        }
+
         $saveStmt = $db->prepare("
             INSERT INTO activity_kpi_analytics (activity_id, analytics_json, data_hash)
             VALUES (?, ?, ?)
@@ -148,6 +176,7 @@ if ($action === 'analyze') {
             $currentHash
         ]);
 
+        http_response_code(200);
         echo json_encode([
             'status' => 'success',
             'last_updated' => date('Y-m-d H:i:s'),

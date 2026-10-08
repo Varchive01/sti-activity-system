@@ -17,11 +17,17 @@ $total=$db->prepare("SELECT COUNT(*) FROM activities a WHERE $where"); $total->e
 $acts=$db->prepare("SELECT a.*,u.name as fn FROM activities a JOIN users u ON a.faculty_id=u.id WHERE $where ORDER BY a.updated_at DESC LIMIT $perPage OFFSET $offset"); $acts->execute($params); $activities=$acts->fetchAll();
 ?>
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>All Activities – STI</title><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
-<style>.filters{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;}</style></head>
+</head>
 <body class="theme-ian">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 <div class="main-wrap">
-  <header class="topbar"><div class="page-title">All Activities</div></header>
+  <header class="topbar"><div class="page-title">All Activities</div>
+    <div class="topbar-right">
+      <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
+  </header>
   <div class="content">
     <form method="GET" class="filters">
       <input type="text" name="q" class="form-control" placeholder="Search…" value="<?= htmlspecialchars($search) ?>" style="max-width:280px;">

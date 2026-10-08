@@ -61,6 +61,12 @@ function attendanceClass($actual, $target) {
 <div class="main-wrap">
   <header class="topbar">
     <div class="page-title">KPI Results</div>
+  
+    <div class="topbar-right">
+      <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
   </header>
   <div class="content">
     <?php if (empty($allReports)): ?>

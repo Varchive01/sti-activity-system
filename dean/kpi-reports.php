@@ -8,10 +8,10 @@ $db = getDB();
 $year = (int)($_GET['year'] ?? date('Y'));
 $bySource = $db->query("SELECT a.source, AVG(k.rating) as avg, COUNT(DISTINCT a.id) as cnt FROM activities a LEFT JOIN kpi_evaluations k ON a.id=k.activity_id WHERE YEAR(a.event_date)=$year GROUP BY a.source")->fetchAll();
 try {
-    $topPerf = $db->query("SELECT a.title, a.event_date, u.name as fn, AVG(k.rating) as avg_kpi, pe.satisfaction_score, pe.actual_attendance, pe.target_attendance FROM activities a JOIN users u ON a.faculty_id=u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id LEFT JOIN post_event pe ON a.id=pe.activity_id WHERE YEAR(a.event_date)=$year GROUP BY a.id HAVING avg_kpi IS NOT NULL ORDER BY avg_kpi DESC LIMIT 10")->fetchAll();
+    $topPerf = $db->query("SELECT a.title, a.event_date, u.name as fn, AVG(k.rating) as avg_kpi, pe.satisfaction_score, pe.actual_attendance, pe.target_attendance FROM activities a JOIN users u ON a.faculty_id=u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id LEFT JOIN post_event pe ON a.id=pe.activity_id WHERE YEAR(a.event_date)=$year AND a.status IN ('approved', 'completed') GROUP BY a.id HAVING avg_kpi IS NOT NULL ORDER BY avg_kpi DESC LIMIT 10")->fetchAll();
 } catch (PDOException $e) {
     // Legacy schema where post_event columns are removed
-    $topPerf = $db->query("SELECT a.title, a.event_date, u.name as fn, AVG(k.rating) as avg_kpi, NULL AS satisfaction_score, NULL AS actual_attendance, NULL AS target_attendance FROM activities a JOIN users u ON a.faculty_id=u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id LEFT JOIN post_event pe ON a.id=pe.activity_id WHERE YEAR(a.event_date)=$year GROUP BY a.id HAVING avg_kpi IS NOT NULL ORDER BY avg_kpi DESC LIMIT 10")->fetchAll();
+    $topPerf = $db->query("SELECT a.title, a.event_date, u.name as fn, AVG(k.rating) as avg_kpi, NULL AS satisfaction_score, NULL AS actual_attendance, NULL AS target_attendance FROM activities a JOIN users u ON a.faculty_id=u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id LEFT JOIN post_event pe ON a.id=pe.activity_id WHERE YEAR(a.event_date)=$year AND a.status IN ('approved', 'completed') GROUP BY a.id HAVING avg_kpi IS NOT NULL ORDER BY avg_kpi DESC LIMIT 10")->fetchAll();
 }
 $monthly = $db->query("SELECT MONTH(a.event_date) as m, COUNT(*) as cnt, AVG(k.rating) as avg_kpi FROM activities a LEFT JOIN kpi_evaluations k ON a.id=k.activity_id WHERE YEAR(a.event_date)=$year AND a.status IN ('approved','completed') GROUP BY MONTH(a.event_date) ORDER BY m")->fetchAll();
 ?>
@@ -20,9 +20,27 @@ $monthly = $db->query("SELECT MONTH(a.event_date) as m, COUNT(*) as cnt, AVG(k.r
 
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KPI Reports – STI</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
+  <script>
+    (function() {
+      try {
+        var savedTheme = localStorage.getItem('sti-theme');
+        if (savedTheme === 'dark') {
+          document.documentElement.dataset.theme = 'dark';
+        } else {
+          document.documentElement.dataset.theme = 'light';
+        }
+      } catch (e) {}
+    })();
+  </script>
   <style>
+    /* ── Typography Parity: Strict Plus Jakarta Sans ── */
+    body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge, .form-control, label, select {
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+    }
+
     .month-bar-wrap {
       display: flex;
       align-items: flex-end;
@@ -70,6 +88,7 @@ $monthly = $db->query("SELECT MONTH(a.event_date) as m, COUNT(*) as cnt, AVG(k.r
     <header class="topbar">
       <div class="page-title">KPI Reports</div>
       <div class="topbar-right">
+        <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <form method="GET" style="display:flex;gap:8px;align-items:center;">
           <select name="year" class="form-control" style="width:100px;">
             <?php foreach (range(date('Y'), date('Y') - 4) as $y): ?>
@@ -77,7 +96,9 @@ $monthly = $db->query("SELECT MONTH(a.event_date) as m, COUNT(*) as cnt, AVG(k.r
           </select>
           <button type="submit" class="btn btn-primary btn-sm">Apply</button>
         </form>
-      </div>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
     </header>
     <div class="content">
 
@@ -412,7 +433,7 @@ $monthly = $db->query("SELECT MONTH(a.event_date) as m, COUNT(*) as cnt, AVG(k.r
           <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-base); border-radius:10px; padding:16px 20px; margin-bottom:20px; border:1px solid var(--border);">
             <div>
               <div style="font-size:0.85rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Overall KPI Performance</div>
-              <div style="font-size:1.6rem; font-weight:800; font-family:'Syne',sans-serif; color:var(--accent); margin-top:2px;">${overallPerf}</div>
+              <div style="font-size:1.6rem; font-weight:800; font-family:'Plus Jakarta Sans',sans-serif; color:var(--accent); margin-top:2px;">${overallPerf}</div>
             </div>
             <div>
               <span class="badge ${overallClass}" style="font-size:0.85rem; padding:6px 12px;">${overallStatus}</span>

@@ -15,6 +15,31 @@ const ProposalAIValidator = (function () {
   let _aiValidationApproved = false;
   let _aiValidationStatus = '';
   let _isValRunning = false;
+  let _lastValidationFingerprint = '';
+  let _lastValidationData = null;
+
+  function computeFormFingerprint(form) {
+    if (!form) return '';
+    try {
+      const formData = new FormData(form);
+      const parts = [];
+      for (const [key, value] of formData.entries()) {
+        if (key === 'action' || key === 'ai_validation_hash' || key === 'schedule_conflict_checked') continue;
+        if (value instanceof File) {
+          if (value.name === '' || value.size === 0) {
+            parts.push(`${key}:empty`);
+          } else {
+            parts.push(`${key}:${value.name}:${value.size}:${value.lastModified}`);
+          }
+        } else {
+          parts.push(`${key}:${String(value).trim()}`);
+        }
+      }
+      return parts.sort().join('||');
+    } catch (e) {
+      return '';
+    }
+  }
 
   function init(options) {
     _baseUrl = options.baseUrl || '';
@@ -32,8 +57,17 @@ const ProposalAIValidator = (function () {
     }
   }
 
-  async function runAIValidation() {
+  async function runAIValidation(forceRefresh = false) {
     if (_isValRunning) return;
+
+    const currentFingerprint = computeFormFingerprint(_formEl);
+
+    // If unchanged and we already have cached validation data, reuse it without duplicate request
+    if (!forceRefresh && currentFingerprint && currentFingerprint === _lastValidationFingerprint && _lastValidationData) {
+      renderAIValidationModal(_lastValidationData.ai_validation);
+      return;
+    }
+
     _isValRunning = true;
     showLoadingOverlay(true);
 
@@ -62,6 +96,8 @@ const ProposalAIValidator = (function () {
         throw new Error(data.error || 'Failed to retrieve AI Proposal Validation report.');
       }
 
+      _lastValidationFingerprint = currentFingerprint;
+      _lastValidationData = data;
       _lastValidationHash = data.data_hash || '';
       renderAIValidationModal(data.ai_validation);
 
@@ -162,14 +198,14 @@ const ProposalAIValidator = (function () {
       completeness: {
         title: "Proposal Completeness",
         icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M9 14l2 2 4-4"></path></svg>`,
-        primaryColor: "#8B5CF6",
-        bgLight: "#F5F3FF"
+        primaryColor: "#0284C7",
+        bgLight: "#E0F2FE"
       },
       title_evaluation: {
         title: "Title Relevance & Quality",
         icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`,
-        primaryColor: "#EC4899",
-        bgLight: "#FDF2F8"
+        primaryColor: "#0284C7",
+        bgLight: "#E0F2FE"
       },
       objective_alignment: {
         title: "Objective Clarity & Alignment",
@@ -180,8 +216,8 @@ const ProposalAIValidator = (function () {
       kpi_alignment: {
         title: "KPI / Success Indicator Alignment",
         icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>`,
-        primaryColor: "#6366F1",
-        bgLight: "#EEF2FF"
+        primaryColor: "#1E2D45",
+        bgLight: "#F4F6FB"
       },
       description_completeness: {
         title: "Description Completeness & Quality",
@@ -192,8 +228,8 @@ const ProposalAIValidator = (function () {
       consistency_analysis: {
         title: "Consistency & Alignment",
         icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`,
-        primaryColor: "#2563EB",
-        bgLight: "#EFF6FF"
+        primaryColor: "#0284C7",
+        bgLight: "#E0F2FE"
       },
       grammar_clarity: {
         title: "Grammar & Clarity",
@@ -218,23 +254,20 @@ const ProposalAIValidator = (function () {
       let badgeStyle = '';
 
       if (status === 'error') {
-        statusText = 'Needs Review'; // Match style of Objectives in screenshot
-        if (key === 'completeness' || key === 'title_evaluation' || key === 'kpi_alignment' || key === 'description_completeness' || key === 'grammar_clarity') {
-          statusText = 'Critical / Missing'; // Match screenshot tags
-        }
+        statusText = 'Critical (Blocking)';
         statusClass = 'status-error';
-        badgeText = 'Critical';
-        badgeStyle = 'background: #FEE2E2; color: #EF4444;';
+        badgeText = 'Critical (Blocking)';
+        badgeStyle = 'background: #FEE2E2; color: #EF4444; font-weight: 700;';
       } else if (status === 'warning') {
-        statusText = 'Needs Review';
+        statusText = 'Advisory';
         statusClass = 'status-warning';
-        badgeText = 'Medium';
-        badgeStyle = 'background: #FEF3C7; color: #D97706;';
+        badgeText = 'Advisory';
+        badgeStyle = 'background: #FEF3C7; color: #D97706; font-weight: 700;';
       } else {
-        statusText = 'Good';
+        statusText = 'Passed';
         statusClass = 'status-good';
-        badgeText = 'Good';
-        badgeStyle = 'background: #D1FAE5; color: #059669;';
+        badgeText = 'Passed';
+        badgeStyle = 'background: #D1FAE5; color: #059669; font-weight: 700;';
       }
 
       // Open critical/warnings by default
@@ -300,9 +333,72 @@ const ProposalAIValidator = (function () {
     // 8. Dynamic CSS Injection
     const cssStyles = `
       <style>
+        #aiProposalValidationModal.modal {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          max-width: none !important;
+          max-height: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          border: none !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          overflow-x: hidden !important;
+          overflow-y: auto !important;
+          outline: 0 !important;
+          background: rgba(10, 22, 40, 0.6) !important;
+          backdrop-filter: blur(4px) !important;
+          -webkit-backdrop-filter: blur(4px) !important;
+          z-index: 1055 !important;
+          animation: none !important;
+        }
+
+        #aiProposalValidationModal .modal-dialog {
+          position: relative !important;
+          width: calc(100% - 3.5rem) !important;
+          max-width: 1050px !important;
+          margin: 1.75rem auto !important;
+          pointer-events: none !important;
+          display: flex !important;
+          align-items: center !important;
+          min-height: calc(100% - 3.5rem) !important;
+        }
+
+        #aiProposalValidationModal .modal-dialog-centered::before {
+          display: block !important;
+          height: calc(100vh - 3.5rem) !important;
+          height: min-content !important;
+          content: "" !important;
+        }
+
+        @media (max-width: 768px) {
+          #aiProposalValidationModal .modal-dialog {
+            width: calc(100% - 1.5rem) !important;
+            margin: 0.75rem auto !important;
+            min-height: calc(100% - 1.5rem) !important;
+          }
+          #aiProposalValidationModal .modal-dialog-centered::before {
+            height: calc(100vh - 1.5rem) !important;
+          }
+        }
+
+        #aiProposalValidationModal .modal-content,
         #aiProposalValidationContent {
-          background: #f8fafc;
-          font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+          position: relative !important;
+          display: flex !important;
+          flex-direction: column !important;
+          width: 100% !important;
+          pointer-events: auto !important;
+          border-radius: 16px !important;
+          border: 1px solid #E2E8F0 !important;
+          box-shadow: 0 20px 48px rgba(10, 22, 40, 0.25) !important;
+          background: #f8fafc !important;
+          overflow: hidden !important;
+          max-height: none !important;
+          font-family: 'Plus Jakarta Sans', sans-serif !important;
         }
         #aiProposalValidationContent ::-webkit-scrollbar {
           width: 6px;
@@ -335,8 +431,8 @@ const ProposalAIValidator = (function () {
           width: 44px;
           height: 44px;
           border-radius: 12px;
-          background: #EEF2FF;
-          color: #4F46E5;
+          background: #E0F2FE;
+          color: #0284C7;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -344,32 +440,33 @@ const ProposalAIValidator = (function () {
         }
         .ai-val-header-title {
           margin: 0;
+          font-family: 'Plus Jakarta Sans', sans-serif;
           font-size: 1.25rem;
           font-weight: 800;
-          color: #0F172A;
+          color: #1A2332;
           letter-spacing: -0.3px;
         }
         .ai-val-header-subtitle {
           margin: 2px 0 0 0;
           font-size: 0.85rem;
-          color: #64748B;
+          color: #6B7A99;
           font-weight: 500;
         }
         .ai-val-reviewed-badge {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          padding: 5px 12px;
-          border-radius: 99px;
-          background: #F3E8FF;
-          color: #7E22CE;
-          font-size: 0.75rem;
+          padding: 4px 12px;
+          border-radius: 999px;
+          background: #E0F2FE;
+          color: #0369A1;
+          font-size: 0.72rem;
           font-weight: 700;
           margin-bottom: 2px;
         }
         .ai-val-timestamp {
           font-size: 0.75rem;
-          color: #64748B;
+          color: #6B7A99;
           font-weight: 500;
         }
 
@@ -510,15 +607,15 @@ const ProposalAIValidator = (function () {
           gap: 12px;
           padding: 14px 18px;
           border-radius: 12px;
-          background: #EFF6FF;
-          border: 1px solid #DBEAFE;
-          color: #1E40AF;
+          background: #F0F9FF;
+          border: 1px solid #BAE6FD;
+          color: #0369A1;
           font-size: 0.8rem;
           line-height: 1.4;
           font-weight: 500;
         }
         .ai-val-info-icon {
-          color: #2563EB;
+          color: #0284C7;
           flex-shrink: 0;
           margin-top: 1px;
         }
@@ -536,9 +633,10 @@ const ProposalAIValidator = (function () {
           box-shadow: 0 2px 8px rgba(0,0,0,0.01);
         }
         .ai-val-panel-title {
+          font-family: 'Plus Jakarta Sans', sans-serif;
           font-size: 0.8rem;
           font-weight: 700;
-          color: #475569;
+          color: #6B7A99;
           margin-bottom: 10px;
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -585,8 +683,8 @@ const ProposalAIValidator = (function () {
           justify-content: center;
           line-height: 1;
         }
-        .ai-val-score-val { font-size: 1.25rem; font-weight: 800; color: #1E293B; }
-        .ai-val-score-total { font-size: 0.65rem; color: #64748B; font-weight: 600; margin-top: 1px; }
+        .ai-val-score-val { font-size: 1.25rem; font-weight: 800; color: #1A2332; }
+        .ai-val-score-total { font-size: 0.65rem; color: #6B7A99; font-weight: 600; margin-top: 1px; }
 
         .ai-val-score-legend {
           flex: 1;
@@ -607,25 +705,125 @@ const ProposalAIValidator = (function () {
         .legend-dot.critical { background: #EF4444; }
         .legend-dot.needs-review { background: #F59E0B; }
         .legend-dot.good { background: #10B981; }
-        .legend-val { color: #1E293B; font-weight: 700; }
+        .legend-val { color: #1A2332; font-weight: 700; }
 
-        .ai-val-recs-panel { background: #F5F3FF; border: 1px solid #EDE9FE; }
+        .ai-val-recs-panel { background: #F0F9FF; border: 1px solid #BAE6FD; }
         .ai-val-recs-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-        .ai-val-recs-sparkle { color: #8B5CF6; display: flex; align-items: center; }
-        .ai-val-recs-title { font-size: 0.82rem; font-weight: 700; color: #5B21B6; text-transform: uppercase; letter-spacing: 0.5px; }
-        .ai-val-recs-box { font-size: 0.8rem; color: #4C1D95; line-height: 1.45; font-weight: 500; }
-        .ai-val-recs-link { display: inline-flex; align-items: center; gap: 4px; color: #6D28D9; font-size: 0.78rem; font-weight: 700; text-decoration: none; margin-top: 8px; transition: opacity 0.2s ease; }
+        .ai-val-recs-sparkle { color: #0284C7; display: flex; align-items: center; }
+        .ai-val-recs-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.82rem; font-weight: 700; color: #1E2D45; text-transform: uppercase; letter-spacing: 0.5px; }
+        .ai-val-recs-box { font-size: 0.8rem; color: #1A2332; line-height: 1.45; font-weight: 500; }
+        .ai-val-recs-link { display: inline-flex; align-items: center; gap: 4px; color: #0284C7; font-size: 0.78rem; font-weight: 700; text-decoration: none; margin-top: 8px; transition: opacity 0.2s ease; }
         .ai-val-recs-link:hover { opacity: 0.8; text-decoration: underline; }
-        .ai-val-recs-list { margin: 8px 0 0 0; padding-left: 14px; list-style-type: decimal; font-size: 0.78rem; color: #4C1D95; }
+        .ai-val-recs-list { margin: 8px 0 0 0; padding-left: 14px; list-style-type: decimal; font-size: 0.78rem; color: #1A2332; }
         .ai-val-recs-list li { margin-bottom: 4px; }
 
         .ai-val-actions-wrap { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
-        .ai-val-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; font-size: 0.84rem; font-weight: 700; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; width: 100%; }
-        .ai-val-btn-edit { background: #ffffff; border: 1.5px solid #4F46E5; color: #4F46E5; }
-        .ai-val-btn-edit:hover { background: #F5F3FF; }
-        .ai-val-btn-proceed { background: #4F46E5; border: 1.5px solid #4F46E5; color: #ffffff; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.2); }
-        .ai-val-btn-proceed:hover { background: #4338CA; box-shadow: 0 6px 14px rgba(79, 70, 229, 0.3); }
-        .ai-val-actions-caption { font-size: 0.72rem; color: #64748B; text-align: center; line-height: 1.35; margin-top: 2px; font-weight: 500; }
+        .ai-val-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; font-size: 0.84rem; font-weight: 700; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; width: 100%; font-family: inherit; }
+        .ai-val-btn-edit { background: #ffffff; border: 1.5px solid #E2E8F4; color: #1A2332; }
+        .ai-val-btn-edit:hover { background: #F4F6FB; border-color: #0284C7; color: #0284C7; }
+        .ai-val-btn-proceed { background: #0284C7; border: 1.5px solid #0284C7; color: #ffffff; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.2); }
+        .ai-val-btn-proceed:hover { background: #1E2D45; border-color: #1E2D45; box-shadow: 0 6px 14px rgba(10, 22, 40, 0.2); }
+        .ai-val-actions-caption { font-size: 0.72rem; color: #6B7A99; text-align: center; line-height: 1.35; margin-top: 2px; font-weight: 500; }
+
+        /* Dark mode support */
+        [data-theme="dark"] #aiProposalValidationModal.modal {
+          background: rgba(5, 11, 20, 0.75) !important;
+        }
+        [data-theme="dark"] #aiProposalValidationContent {
+          background: #0B132B !important;
+          border-color: #1E2D45 !important;
+          color: #F8FAFC !important;
+        }
+        [data-theme="dark"] .ai-val-modal-header {
+          background: #0F1B2E !important;
+          border-bottom-color: #1E2D45 !important;
+        }
+        [data-theme="dark"] .ai-val-header-title {
+          color: #F8FAFC !important;
+        }
+        [data-theme="dark"] .ai-val-header-subtitle {
+          color: #8899B2 !important;
+        }
+        [data-theme="dark"] .ai-val-logo-container {
+          background: rgba(2, 132, 199, 0.18) !important;
+          color: #38BDF8 !important;
+        }
+        [data-theme="dark"] .ai-val-reviewed-badge {
+          background: rgba(2, 132, 199, 0.18) !important;
+          color: #38BDF8 !important;
+        }
+        [data-theme="dark"] .ai-val-timestamp {
+          color: #8899B2 !important;
+        }
+        [data-theme="dark"] .ai-val-body-grid {
+          background: #070E18 !important;
+        }
+        [data-theme="dark"] .ai-val-section-title {
+          color: #8899B2 !important;
+        }
+        [data-theme="dark"] .ai-val-card {
+          background: #0F1B2E !important;
+          border-color: #1E2D45 !important;
+        }
+        [data-theme="dark"] .ai-val-card:hover {
+          border-color: #2D4263 !important;
+        }
+        [data-theme="dark"] .ai-val-card-title {
+          color: #F8FAFC !important;
+        }
+        [data-theme="dark"] .ai-val-card-body {
+          color: #CBD5E1 !important;
+        }
+        [data-theme="dark"] .ai-val-info-card {
+          background: rgba(2, 132, 199, 0.12) !important;
+          border-color: rgba(2, 132, 199, 0.25) !important;
+          color: #38BDF8 !important;
+        }
+        [data-theme="dark"] .ai-val-panel {
+          background: #0F1B2E !important;
+          border-color: #1E2D45 !important;
+        }
+        [data-theme="dark"] .ai-val-panel-title {
+          color: #8899B2 !important;
+        }
+        [data-theme="dark"] .ai-val-score-val {
+          color: #F8FAFC !important;
+        }
+        [data-theme="dark"] .ai-val-score-total {
+          color: #8899B2 !important;
+        }
+        [data-theme="dark"] .legend-item {
+          color: #CBD5E1 !important;
+        }
+        [data-theme="dark"] .legend-val {
+          color: #F8FAFC !important;
+        }
+        [data-theme="dark"] .ai-val-recs-panel {
+          background: rgba(2, 132, 199, 0.12) !important;
+          border-color: rgba(2, 132, 199, 0.25) !important;
+        }
+        [data-theme="dark"] .ai-val-recs-title {
+          color: #38BDF8 !important;
+        }
+        [data-theme="dark"] .ai-val-recs-box {
+          color: #F8FAFC !important;
+        }
+        [data-theme="dark"] .ai-val-recs-list {
+          color: #F8FAFC !important;
+        }
+        [data-theme="dark"] .ai-val-btn-edit {
+          background: #0F1B2E !important;
+          border-color: #1E2D45 !important;
+          color: #F8FAFC !important;
+        }
+        [data-theme="dark"] .ai-val-btn-edit:hover {
+          background: #15243C !important;
+          border-color: #0284C7 !important;
+          color: #38BDF8 !important;
+        }
+        [data-theme="dark"] .ai-val-actions-caption {
+          color: #8899B2 !important;
+        }
       </style>
     `;
 
@@ -725,21 +923,21 @@ const ProposalAIValidator = (function () {
                 <div class="legend-item">
                   <span class="legend-label-wrap">
                     <span class="legend-dot critical"></span>
-                    Critical
+                    Critical (Blocking)
                   </span>
                   <span class="legend-val">${criticalCount}</span>
                 </div>
                 <div class="legend-item">
                   <span class="legend-label-wrap">
                     <span class="legend-dot needs-review"></span>
-                    Needs Review
+                    Advisory
                   </span>
                   <span class="legend-val">${warningCount}</span>
                 </div>
                 <div class="legend-item">
                   <span class="legend-label-wrap">
                     <span class="legend-dot good"></span>
-                    Good
+                    Passed
                   </span>
                   <span class="legend-val">${goodCount}</span>
                 </div>
@@ -764,11 +962,23 @@ const ProposalAIValidator = (function () {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
               Edit Proposal
             </button>
+            ${criticalCount > 0 ? `
+            <button type="button" class="ai-val-btn ai-val-btn-proceed" id="aiValBtnProceed" disabled style="background: #94A3B8; border-color: #94A3B8; cursor: not-allowed; opacity: 0.75; box-shadow: none;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+              Submission Blocked (Critical Issues)
+            </button>
+            <p class="ai-val-actions-caption" style="color: #DC2626; font-weight: 600;">
+              ⚠️ Critical completeness or alignment issues must be corrected before submitting. Click &ldquo;Edit Proposal&rdquo; to make changes.
+            </p>
+            ` : `
             <button type="button" class="ai-val-btn ai-val-btn-proceed" id="aiValBtnProceed">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(45deg);"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
               Proceed with Submission
             </button>
-            <p class="ai-val-actions-caption">You can still proceed, but the proposal may be returned for revision.</p>
+            <p class="ai-val-actions-caption">
+              ${warningCount > 0 ? 'Advisory recommendations only. You can proceed with submission, or edit your proposal to incorporate suggestions.' : '✓ All validation checks passed! Your proposal is complete and ready for submission.'}
+            </p>
+            `}
           </div>
         </div>
       </div>
@@ -792,22 +1002,34 @@ const ProposalAIValidator = (function () {
 
     const btnProceed = contentEl.querySelector('#aiValBtnProceed');
     if (btnProceed) {
-      btnProceed.onclick = function () {
-        _aiValidationApproved = true;
-        closeModal();
+      if (criticalCount > 0) {
+        btnProceed.onclick = function (e) {
+          e.preventDefault();
+          alert('⚠️ Submission Blocked\n\nPlease correct all critical completeness and alignment issues flagged before submitting.');
+        };
+      } else {
+        btnProceed.onclick = function () {
+          if (criticalCount > 0) {
+            alert('⚠️ Submission Blocked\n\nPlease correct all critical completeness and alignment issues flagged before submitting.');
+            return;
+          }
 
-        // Inject the valid data hash into a hidden form input
-        let aiHashInput = _formEl.querySelector('input[name="ai_validation_hash"]');
-        if (!aiHashInput) {
-          aiHashInput = document.createElement('input');
-          aiHashInput.type = 'hidden';
-          aiHashInput.name = 'ai_validation_hash';
-          _formEl.appendChild(aiHashInput);
-        }
-        aiHashInput.value = _lastValidationHash || '';
+          _aiValidationApproved = true;
+          closeModal();
 
-        proceedWithSubmission();
-      };
+          // Inject the valid data hash into a hidden form input
+          let aiHashInput = _formEl.querySelector('input[name="ai_validation_hash"]');
+          if (!aiHashInput) {
+            aiHashInput = document.createElement('input');
+            aiHashInput.type = 'hidden';
+            aiHashInput.name = 'ai_validation_hash';
+            _formEl.appendChild(aiHashInput);
+          }
+          aiHashInput.value = _lastValidationHash || '';
+
+          proceedWithSubmission();
+        };
+      }
     }
 
     // Show modal using Bootstrap 5 API or fallback selector classes

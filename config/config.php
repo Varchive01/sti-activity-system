@@ -1,8 +1,11 @@
 <?php
+date_default_timezone_set('Asia/Manila');
 define('BASE_URL', 'http://localhost/sti-activity-system');
 define('UPLOAD_PATH', __DIR__ . '/../uploads/');
 define('MAX_FILE_SIZE', 10 * 1024 * 1024); // 10 MB
-define('ALLOWED_EXTENSIONS', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif']);
+define('ALLOWED_EXTENSIONS', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif', 'webp']);
+define('ALLOWED_POSTER_EXTENSIONS', ['jpg', 'jpeg', 'png', 'webp', 'gif']);
+define('ALLOWED_POSTER_MIMES', ['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 define('APP_NAME', 'STI Marikina – Activity System');
 define('SESSION_TIMEOUT', 3600); // 1 hour
 // Load .env if it exists

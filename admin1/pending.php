@@ -29,15 +29,30 @@ $pending = $stmt->fetchAll();
 <head>
 <meta charset="UTF-8">
 <title>Pending Reviews – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    (function() {
+      try {
+        var savedTheme = localStorage.getItem('sti-theme');
+        if (savedTheme === 'dark') {
+          document.documentElement.dataset.theme = 'dark';
+        } else {
+          document.documentElement.dataset.theme = 'light';
+        }
+      } catch (e) {}
+    })();
+  </script>
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
 <style>
-.proposal-row{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:12px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;transition:box-shadow .2s;}
-.proposal-row:hover{box-shadow:var(--shadow);}
-.proposal-row .title{font-weight:700;font-size:.92rem;margin-bottom:4px;}
+.proposal-row{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-sm);padding:18px 20px;margin-bottom:12px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;transition:box-shadow .2s, border-color .15s;font-family:'Plus Jakarta Sans',sans-serif;}
+.proposal-row:hover{box-shadow:var(--shadow);border-color:var(--accent, var(--sti-blue));}
+.proposal-row .title{font-weight:700;font-size:.95rem;margin-bottom:4px;color:var(--text-main);}
 .proposal-row .meta{font-size:.76rem;color:var(--text-muted);display:flex;gap:14px;flex-wrap:wrap;}
 .meta-pill{display:flex;align-items:center;gap:4px;}
 .days-badge{background:#FEF3C7;color:#B45309;border-radius:6px;padding:4px 10px;font-size:.72rem;font-weight:700;}
 .days-badge.urgent{background:#FEE2E2;color:#B91C1C;}
+[data-theme="dark"] .days-badge{background:rgba(245, 158, 11, 0.18);color:#FBBF24;}
+[data-theme="dark"] .days-badge.urgent{background:rgba(239, 68, 68, 0.18);color:#F87171;}
 </style>
 </head>
 <body class="theme-arjay">
@@ -45,19 +60,20 @@ $pending = $stmt->fetchAll();
 <div class="main-wrap">
   <header class="topbar">
     <div class="page-title">Pending Review Queue</div>
-    <div class="topbar-right">
+    <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+        <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
       <span class="badge badge-warning" style="font-size:.8rem;padding:6px 12px;"><?= count($pending) ?> awaiting review</span>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
     </div>
   </header>
   <div class="content">
 
     <!-- Search -->
-    <form method="GET" style="margin-bottom:20px;">
-      <div style="display:flex;gap:10px;">
-        <input type="text" name="q" class="form-control" placeholder="Search by title or faculty name…" value="<?= htmlspecialchars($search) ?>" style="max-width:400px;">
-        <button type="submit" class="btn btn-primary">Search</button>
-        <?php if ($search): ?><a href="pending.php" class="btn btn-outline">Clear</a><?php endif; ?>
-      </div>
+    <form method="GET" class="filters">
+      <input type="text" name="q" class="form-control" placeholder="Search by title or faculty name…" value="<?= htmlspecialchars($search) ?>" style="max-width:380px;">
+      <button type="submit" class="btn btn-primary">Search</button>
+      <?php if ($search): ?><a href="pending.php" class="btn btn-outline">Clear</a><?php endif; ?>
     </form>
 
     <?php if (empty($pending)): ?>

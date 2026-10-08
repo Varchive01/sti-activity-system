@@ -9,6 +9,7 @@ window.ScheduleConflictUI = (function () {
   let modalInstance = null;
   let selectedAlternative = null;
   let successTimer = null;
+  let currentRequestId = 0;
 
   function init(opts) {
     settings = Object.assign({
@@ -57,7 +58,10 @@ window.ScheduleConflictUI = (function () {
     if (window.nextStep) {
       const originalNextStep = window.nextStep;
       window.nextStep = async function () {
-        if (window.currentStep === 1) {
+        const isStep1 = (typeof currentStep !== 'undefined' && currentStep === 1) ||
+                        (window.currentStep === 1) ||
+                        (document.getElementById('panel-1') && document.getElementById('panel-1').classList.contains('active'));
+        if (isStep1) {
           // Verify fields are valid locally first
           if (typeof validateStep === 'function' && !validateStep(1)) {
             return;
@@ -117,6 +121,14 @@ window.ScheduleConflictUI = (function () {
         }
       });
     }
+
+    // Bind Step 9 Conflict Review button if present
+    const step9Btn = document.getElementById('scuStep9ResolveBtn');
+    if (step9Btn) {
+      step9Btn.addEventListener('click', () => {
+        checkSchedule();
+      });
+    }
   }
 
   function showCheckingIndicator(show) {
@@ -153,6 +165,8 @@ window.ScheduleConflictUI = (function () {
       return false;
     }
 
+    const thisRequestId = ++currentRequestId;
+
     // Clear previous success message
     const successMsg = document.getElementById(settings.successMessageId);
     if (successMsg) {
@@ -181,6 +195,21 @@ window.ScheduleConflictUI = (function () {
 
       const data = await response.json();
 
+      // Discard stale responses: check request sequence ID
+      if (thisRequestId !== currentRequestId) {
+        return false;
+      }
+
+      // Verify that current DOM values still match the values used by this request
+      const currentVenue = document.getElementById(settings.venueId)?.value || '';
+      const currentDate = document.getElementById(settings.dateId)?.value || '';
+      const currentStart = document.getElementById(settings.startId)?.value || '';
+      const currentEnd = document.getElementById(settings.endId)?.value || '';
+
+      if (currentVenue !== venue || currentDate !== date || currentStart !== start || currentEnd !== end) {
+        return false;
+      }
+
       if (data.conflict === true) {
         showConflictModal(data, { venue, date, start, end });
         return true; // conflict exists
@@ -199,30 +228,57 @@ window.ScheduleConflictUI = (function () {
       // Fallback: don't block workflow on API failure
       return false;
     } finally {
-      showCheckingIndicator(false);
+      if (thisRequestId === currentRequestId) {
+        showCheckingIndicator(false);
+      }
     }
   }
 
   function showConflictModal(data, proposed) {
-    // Populate Modal Comparison Fields
-    const conf = data.conflicting_activity || {};
-    document.getElementById('scuConfTitle').textContent = conf.title || 'Approved Event';
-    document.getElementById('scuConfDate').textContent = formatDate(conf.event_date);
-    document.getElementById('scuConfTime').textContent = conf.start_time + ' – ' + conf.end_time;
-    document.getElementById('scuConfVenue').textContent = conf.venue;
+    if (!modalInstance) {
+      const modalEl = document.getElementById('scheduleConflictModal');
+      if (modalEl && typeof bootstrap !== 'undefined') {
+        modalInstance = new bootstrap.Modal(modalEl, { keyboard: false });
+      }
+    }
 
-    document.getElementById('scuPropDate').textContent = formatDate(proposed.date);
-    document.getElementById('scuPropTime').textContent = formatTime12h(proposed.start) + ' – ' + formatTime12h(proposed.end);
-    document.getElementById('scuPropVenue').textContent = proposed.venue;
+    // Populate Modal Comparison Fields defensively
+    const conf = data.conflicting_activity || {};
+    const confTitle = conf.title || 'Approved Activity';
+    const confDate = formatDate(conf.event_date) || conf.event_date || 'N/A';
+    const confTime = (conf.start_time && conf.end_time)
+      ? (conf.start_time + ' – ' + conf.end_time)
+      : (conf.start_time || 'N/A');
+    const confVenue = conf.venue || 'N/A';
+
+    const propDate = formatDate(proposed?.date) || proposed?.date || 'N/A';
+    const propTime = (proposed?.start && proposed?.end)
+      ? (formatTime12h(proposed.start) + ' – ' + formatTime12h(proposed.end))
+      : 'N/A';
+    const propVenue = proposed?.venue || 'N/A';
+
+    const elConfTitle = document.getElementById('scuConfTitle');
+    const elConfDate  = document.getElementById('scuConfDate');
+    const elConfTime  = document.getElementById('scuConfTime');
+    const elConfVenue = document.getElementById('scuConfVenue');
+    const elPropDate  = document.getElementById('scuPropDate');
+    const elPropTime  = document.getElementById('scuPropTime');
+    const elPropVenue = document.getElementById('scuPropVenue');
+
+    if (elConfTitle) elConfTitle.textContent = confTitle;
+    if (elConfDate)  elConfDate.textContent = confDate;
+    if (elConfTime)  elConfTime.textContent = confTime;
+    if (elConfVenue) elConfVenue.textContent = confVenue;
+
+    if (elPropDate)  elPropDate.textContent = propDate;
+    if (elPropTime)  elPropTime.textContent = propTime;
+    if (elPropVenue) elPropVenue.textContent = propVenue;
 
     // Reset Suggestion UI
     const loadingEl = document.getElementById('scuAiLoading');
     const listEl = document.getElementById('scuAiRecommendationList');
     const useBtn = document.getElementById('scuUseBtn');
 
-    loadingEl.style.display = 'block';
-    listEl.style.display = 'none';
-    listEl.innerHTML = '';
     if (useBtn) useBtn.disabled = true;
     selectedAlternative = null;
 
@@ -230,44 +286,69 @@ window.ScheduleConflictUI = (function () {
       modalInstance.show();
     }
 
-    // Populate alternatives list
-    if (data.alternatives && data.alternatives.length > 0) {
-      loadingEl.style.display = 'none';
-      listEl.style.display = 'flex';
-      data.alternatives.forEach((alt, idx) => {
-        const item = document.createElement('div');
-        item.className = 'p-2 px-3 border rounded mb-2 d-flex justify-content-between align-items-center';
-        item.style.cursor = 'pointer';
-        item.style.background = '#fff';
-        item.style.transition = 'all 0.2s';
-        item.style.fontSize = '0.85rem';
-        item.innerHTML = `
-          <div>
-            <div class="fw-bold text-dark" style="font-size:0.85rem;">📅 ${formatDate(alt.date)} &nbsp; ⏰ ${formatTime12h(alt.start_time)} – ${formatTime12h(alt.end_time)}</div>
-            <div class="small text-secondary mt-1" style="font-weight: 500;">📍 Venue: ${alt.venue || proposed.venue}</div>
-            <div class="text-muted small mt-1" style="font-size: 0.75rem;">💡 ${alt.reason}</div>
-          </div>
-          <input type="radio" name="scu_alt_selection" value="${idx}" class="form-check-input" style="margin-left: 12px; flex-shrink: 0;">
-        `;
-        item.addEventListener('click', () => {
-          const radio = item.querySelector('input[type="radio"]');
-          if (radio) radio.checked = true;
-          selectedAlternative = alt;
-          if (useBtn) useBtn.disabled = false;
-          // Apply active styling
-          listEl.querySelectorAll('.border-primary').forEach(el => {
-            el.classList.remove('border-primary');
-            el.style.background = '#fff';
+    // Safety timeout: ensure loading spinner never spins indefinitely
+    setTimeout(() => {
+      if (loadingEl && loadingEl.style.display !== 'none') {
+        loadingEl.style.display = 'none';
+        if (listEl && listEl.style.display === 'none') {
+          listEl.style.display = 'flex';
+          listEl.innerHTML = `<div class="text-muted text-center py-2" style="font-size:0.8rem;">Alternatives check timed out. Please choose an alternate slot manually.</div>`;
+        }
+      }
+    }, 10000);
+
+    // Populate alternatives list with error protection
+    try {
+      if (data.alternatives && data.alternatives.length > 0) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (listEl) {
+          listEl.style.display = 'flex';
+          listEl.innerHTML = '';
+          data.alternatives.forEach((alt, idx) => {
+            const item = document.createElement('div');
+            item.className = 'p-2 px-3 border rounded mb-2 d-flex justify-content-between align-items-center';
+            item.style.cursor = 'pointer';
+            item.style.background = '#fff';
+            item.style.transition = 'all 0.2s';
+            item.style.fontSize = '0.85rem';
+            item.innerHTML = `
+              <div>
+                <div class="fw-bold text-dark" style="font-size:0.85rem;">📅 ${formatDate(alt.date)} &nbsp; ⏰ ${formatTime12h(alt.start_time)} – ${formatTime12h(alt.end_time)}</div>
+                <div class="small text-secondary mt-1" style="font-weight: 500;">📍 Venue: ${alt.venue || propVenue}</div>
+                <div class="text-muted small mt-1" style="font-size: 0.75rem;">💡 ${alt.reason || 'Available slot'}</div>
+              </div>
+              <input type="radio" name="scu_alt_selection" value="${idx}" class="form-check-input" style="margin-left: 12px; flex-shrink: 0;">
+            `;
+            item.addEventListener('click', () => {
+              const radio = item.querySelector('input[type="radio"]');
+              if (radio) radio.checked = true;
+              selectedAlternative = alt;
+              if (useBtn) useBtn.disabled = false;
+              // Apply active styling
+              listEl.querySelectorAll('.border-primary').forEach(el => {
+                el.classList.remove('border-primary');
+                el.style.background = '#fff';
+              });
+              item.classList.add('border-primary');
+              item.style.background = '#f1f8ff';
+            });
+            listEl.appendChild(item);
           });
-          item.classList.add('border-primary');
-          item.style.background = '#f1f8ff';
-        });
-        listEl.appendChild(item);
-      });
-    } else {
-      loadingEl.style.display = 'none';
-      listEl.style.display = 'flex';
-      listEl.innerHTML = `<div class="text-muted text-center py-2" style="font-size:0.8rem;">No alternative slots available. Please edit your schedule manually.</div>`;
+        }
+      } else {
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (listEl) {
+          listEl.style.display = 'flex';
+          listEl.innerHTML = `<div class="text-muted text-center py-2" style="font-size:0.8rem;">No alternative slots available. Please edit your schedule manually.</div>`;
+        }
+      }
+    } catch (renderErr) {
+      console.error('Error rendering AI alternatives:', renderErr);
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (listEl) {
+        listEl.style.display = 'flex';
+        listEl.innerHTML = `<div class="text-muted text-center py-2" style="font-size:0.8rem;">Unable to load alternative slots. Please edit your schedule manually.</div>`;
+      }
     }
   }
 

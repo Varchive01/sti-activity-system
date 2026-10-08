@@ -49,9 +49,10 @@ usort($questionAverages, fn($a, $b) => $b['average'] <=> $a['average']);
 
 $prog = $db->prepare("SELECT * FROM program_sequence WHERE activity_id=? ORDER BY sort_order"); $prog->execute([$id]); $program=$prog->fetchAll();
 $mp   = $db->prepare("SELECT * FROM manpower WHERE activity_id=?"); $mp->execute([$id]); $manpower=$mp->fetchAll();
-$ft   = $db->prepare("SELECT * FROM faculty_tasks WHERE activity_id=?"); $ft->execute([$id]); $ftasks=$ft->fetchAll();
+$ft   = $db->prepare("SELECT ft.*, u.name as assigned_user_name FROM faculty_tasks ft LEFT JOIN users u ON ft.assigned_user_id = u.id WHERE ft.activity_id=? ORDER BY ft.id ASC"); $ft->execute([$id]); $ftasks=$ft->fetchAll();
 $gl   = $db->prepare("SELECT * FROM guidelines WHERE activity_id=?"); $gl->execute([$id]); $guidelines=$gl->fetch();
 $pe   = $db->prepare("SELECT * FROM post_event WHERE activity_id=?"); $pe->execute([$id]); $postEvent=$pe->fetch();
+$docs = $db->prepare("SELECT * FROM documents WHERE activity_id=? ORDER BY uploaded_at DESC"); $docs->execute([$id]); $documents=$docs->fetchAll();
 $kpis = $db->prepare("SELECT criteria,AVG(rating) as avg FROM kpi_evaluations WHERE activity_id=? GROUP BY criteria"); $kpis->execute([$id]); $kpiData=$kpis->fetchAll();
 $rca  = $db->prepare("SELECT * FROM root_cause_analysis WHERE activity_id=?"); $rca->execute([$id]); $rcas=$rca->fetchAll();
 $logs = $db->prepare("SELECT al.*,u.name,u.role as reviewer_role FROM approval_logs al JOIN users u ON al.reviewer_id=u.id WHERE al.activity_id=? ORDER BY al.acted_at"); $logs->execute([$id]); $history=$logs->fetchAll();
@@ -72,15 +73,21 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
 <head>
 <meta charset="UTF-8">
 <title>View Activity – STI</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    (function() {
+      try {
+        var savedTheme = localStorage.getItem('sti-theme');
+        if (savedTheme === 'dark') {
+          document.documentElement.dataset.theme = 'dark';
+        } else {
+          document.documentElement.dataset.theme = 'light';
+        }
+      } catch (e) {}
+    })();
+  </script>
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
 <style>
-.section-title{font-family:'Syne',sans-serif;font-size:.95rem;font-weight:800;padding:14px 0 8px;border-bottom:2px solid var(--accent);margin-bottom:14px;color:var(--accent);}
-.info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;}
-.info-tile{background:var(--bg-base);border-radius:8px;padding:12px 14px;}
-.info-tile .lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;}
-.info-tile .val{font-weight:600;margin-top:3px;font-size:.88rem;}
-.timeline-item{display:flex;gap:14px;margin-bottom:14px;}
-.timeline-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);margin-top:4px;flex-shrink:0;}
 .timeline-line{width:1px;background:var(--border);margin:14px 4px 0;flex:0 0 1px;}
 .kpi-star{color:var(--sti-gold);}
 </style>
@@ -90,9 +97,12 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
 <div class="main-wrap">
   <header class="topbar">
     <div class="page-title">Activity Detail</div>
-    <div class="topbar-right">
+    <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+        <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
       <a href="<?= BASE_URL ?>/admin1/activities.php" class="btn btn-outline btn-sm">← Back</a>
       <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 Print</button>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
     </div>
   </header>
   <div class="content">
@@ -106,16 +116,12 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
     }
     if ($showTabs):
     ?>
-    <div class="tabs-nav no-print" style="display: flex; gap: 8px; border-bottom: 2px solid var(--border); margin-bottom: 20px;">
-      <a href="?id=<?= $id ?>&tab=overview" class="tab-link <?= $activeTab === 'overview' ? 'active' : '' ?>" style="padding: 10px 16px; font-weight: 700; text-decoration: none; color: var(--text-muted); border-bottom: 3px solid transparent; margin-bottom: -2px; font-size: 0.88rem;">Overview</a>
-      <a href="?id=<?= $id ?>&tab=responses" class="tab-link <?= $activeTab === 'responses' ? 'active' : '' ?>" style="padding: 10px 16px; font-weight: 700; text-decoration: none; color: var(--text-muted); border-bottom: 3px solid transparent; margin-bottom: -2px; font-size: 0.88rem;">Evaluation Responses</a>
-      <a href="?id=<?= $id ?>&tab=ai-analysis" class="tab-link <?= $activeTab === 'ai-analysis' ? 'active' : '' ?>" style="padding: 10px 16px; font-weight: 700; text-decoration: none; color: var(--text-muted); border-bottom: 3px solid transparent; margin-bottom: -2px; font-size: 0.88rem;">🤖 AI Feedback Analysis</a>
+    <div class="tabs-nav no-print">
+      <a href="?id=<?= $id ?>&tab=overview" class="tab-link <?= $activeTab === 'overview' ? 'active' : '' ?>">Overview</a>
+      <a href="?id=<?= $id ?>&tab=responses" class="tab-link <?= $activeTab === 'responses' ? 'active' : '' ?>">Evaluation Responses</a>
+      <a href="?id=<?= $id ?>&tab=ai-analysis" class="tab-link <?= $activeTab === 'ai-analysis' ? 'active' : '' ?>">🤖 AI Feedback Analysis</a>
     </div>
     <style>
-      .tab-link.active {
-        color: var(--accent) !important;
-        border-bottom-color: var(--accent) !important;
-      }
       .tab-link:hover {
         color: var(--text-main);
       }
@@ -136,7 +142,7 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
     <?php if ($activeTab === 'overview'): ?>
 
       <div>
-        <h1 style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;"><?= htmlspecialchars($activity['title']) ?></h1>
+        <h1 style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.4rem;font-weight:800;"><?= htmlspecialchars($activity['title']) ?></h1>
         <div class="text-sm text-muted" style="margin-top:4px;">Submitted by <?= htmlspecialchars($activity['fn']) ?> · <?= $activity['submitted_at'] ? date('F j, Y', strtotime($activity['submitted_at'])) : 'Not yet submitted' ?></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
@@ -213,16 +219,63 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
     </div>
     <?php endif; ?>
 
-    <!-- Faculty Tasks -->
-    <?php if (!empty($ftasks)): ?>
-    <div class="section-title">🧑‍🏫 Faculty Tasks & Contributions</div>
-    <div class="table-wrap" style="margin-bottom:24px;">
-      <table><thead><tr><th>Faculty</th><th>Assigned Task</th><th>Contribution</th><th>Role</th></tr></thead>
-      <tbody><?php foreach($ftasks as $f): ?>
-      <tr><td><?= htmlspecialchars($f['faculty_name']) ?></td><td><?= htmlspecialchars($f['assigned_task']??'') ?></td><td><?= htmlspecialchars($f['contribution_desc']??'') ?></td><td><?= htmlspecialchars($f['role_in_event']??'') ?></td></tr>
-      <?php endforeach; ?></tbody></table>
+    <!-- Task & Role Assignments -->
+    <div class="section-title">📋 Task & Role Assignments (<?= count($ftasks) ?>)</div>
+    <div style="margin-bottom: 12px; padding: 10px 16px; background: var(--bg-subtle, #f8f9fa); border: 1px solid var(--border-color, #e5e7eb); border-radius: 6px; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+      <div>
+        <span style="font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.5px;">Activity Leader:</span>
+        <strong style="color: var(--text-main); margin-left: 4px;"><?= htmlspecialchars($activity['fn']) ?></strong>
+        <span class="badge badge-primary" style="font-size: 0.7rem; padding: 2px 7px; margin-left: 6px;">Spearhead</span>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-muted);">
+        Distribute work among committees & members
+      </div>
     </div>
-    <?php endif; ?>
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <?php if (empty($ftasks)): ?>
+        <div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+          No task assignments created yet for this activity.
+        </div>
+      <?php else: ?>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 25%;">Task & Description</th>
+              <th style="width: 17%;">Committee</th>
+              <th style="width: 18%;">Assigned Member</th>
+              <th style="width: 16%;">Role</th>
+              <th style="width: 12%;">Target Date</th>
+              <th style="width: 12%;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach($ftasks as $f): 
+              $tTitle = $f['task_title'] ?: $f['assigned_task'] ?: 'Untitled Task';
+              $tDesc = $f['task_description'] ?: $f['contribution_desc'] ?: '';
+              $tCommittee = $f['committee'] ?: '—';
+              $tPerson = $f['assigned_user_name'] ?: $f['faculty_name'] ?: '—';
+              $tRole = $f['role_in_event'] ?: '—';
+              $tDue = !empty($f['due_date']) ? date('M j, Y', strtotime($f['due_date'])) : '—';
+              $tStatus = in_array($f['status'], ['Not Started', 'In Progress', 'Completed', 'Delayed']) ? $f['status'] : 'Not Started';
+            ?>
+            <tr>
+              <td>
+                <div style="font-weight: 600; color: var(--text-main);"><?= htmlspecialchars($tTitle) ?></div>
+                <?php if (!empty($tDesc)): ?>
+                  <small style="color: var(--text-muted); display: block; margin-top: 2px;"><?= nl2br(htmlspecialchars($tDesc)) ?></small>
+                <?php endif; ?>
+              </td>
+              <td><?= $tCommittee !== '—' ? '<span class="badge badge-secondary">'.htmlspecialchars($tCommittee).'</span>' : '—' ?></td>
+              <td><strong><?= htmlspecialchars($tPerson) ?></strong></td>
+              <td><?= htmlspecialchars($tRole) ?></td>
+              <td><?= $tDue !== '—' ? '<span class="time-badge">📅 '.htmlspecialchars($tDue).'</span>' : '—' ?></td>
+              <td><?= getTaskStatusBadge($tStatus) ?></td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      <?php endif; ?>
+    </div>
 
     <!-- Guidelines -->
     <?php if ($guidelines): ?>
@@ -235,10 +288,11 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
     <?php endif; ?>
 
     <!-- Post-Event -->
-    <?php if ($postEvent): ?>
-    <div class="section-title">📊 Post-Event Results</div>
+    <?php if ($postEvent || !empty($documents)): ?>
+    <div class="section-title">📊 Post-Event Results & Documentation</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
       <div>
+        <?php if ($postEvent): ?>
         <div class="info-grid" style="grid-template-columns:1fr 1fr 1fr;">
           <?php
           $attPct = $postEvent['target_attendance'] > 0 ? round(($postEvent['actual_attendance']/$postEvent['target_attendance'])*100) : 0;
@@ -252,6 +306,30 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
         <?php endif; ?>
         <?php if ($postEvent['recommendations']): ?>
         <div class="info-tile" style="margin-top:10px;"><div class="lbl">Recommendations</div><div style="font-size:.82rem;margin-top:6px;"><?= nl2br(htmlspecialchars($postEvent['recommendations'])) ?></div></div>
+        <?php endif; ?>
+        <?php endif; ?>
+
+        <?php if (!empty($documents)): ?>
+        <div class="info-tile" style="<?= $postEvent ? 'margin-top:10px;' : '' ?>">
+          <div class="lbl" style="margin-bottom:10px;">📎 Attached Documents & Reports (<?= count($documents) ?>)</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <?php foreach ($documents as $doc): ?>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg-subtle,#f8f9fa);border:1px solid var(--border-color,#e5e7eb);border-radius:6px;">
+              <div style="display:flex;align-items:center;gap:8px;overflow:hidden;min-width:0;">
+                <span style="font-size:1.1rem;flex-shrink:0;">📄</span>
+                <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  <span style="font-size:0.85rem;font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;"><?= htmlspecialchars($doc['file_name'] ?: basename($doc['file_path'])) ?></span>
+                  <small style="color:var(--text-muted);font-size:0.75rem;"><?= date('M d, Y h:i A', strtotime($doc['uploaded_at'])) ?></small>
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0;margin-left:12px;">
+                <a href="<?= BASE_URL ?>/api/document-download.php?id=<?= $doc['id'] ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:0.75rem;">View</a>
+                <a href="<?= BASE_URL ?>/api/document-download.php?id=<?= $doc['id'] ?>&download=1" class="btn btn-primary btn-sm" style="padding:4px 8px;font-size:0.75rem;">Download</a>
+              </div>
+            </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
         <?php endif; ?>
       </div>
       <div>
@@ -645,7 +723,7 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
               
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:8px;">
                 <div>
-                  <h2 style="font-family:'Syne',sans-serif; font-size:1.1rem; font-weight:800; color:var(--text-main); margin:0;">Participant Feedback Analysis</h2>
+                  <h2 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.1rem; font-weight:800; color:var(--text-main); margin:0;">Participant Feedback Analysis</h2>
                   <div class="text-sm text-muted" style="margin-top:2px;">Last analyzed: ${formatDate(data.last_updated)}</div>
                 </div>
                 <div style="display:flex; gap:8px; align-items:center;">
@@ -762,7 +840,7 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
       $pa = json_decode($printAnalysis['analysis_json'], true);
     ?>
     <div class="print-only print-analysis-section" style="display:none; margin-top:30px; border-top:2px solid #333; padding-top:20px; page-break-before:always;">
-      <h2 style="font-family:'Syne',sans-serif; font-size:1.2rem; font-weight:800; margin-bottom:12px;">🤖 AI Participant Feedback Analysis Report</h2>
+      <h2 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.2rem; font-weight:800; margin-bottom:12px;">🤖 AI Participant Feedback Analysis Report</h2>
       <p style="font-size:0.9rem; line-height:1.5; font-style:italic; margin-bottom:15px;">
         "<?= htmlspecialchars($pa['overall_summary'] ?? '') ?>"
       </p>

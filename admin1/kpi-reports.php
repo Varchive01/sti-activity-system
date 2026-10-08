@@ -19,13 +19,32 @@ $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JO
 <head>
 <meta charset="UTF-8">
 <title>Kpi Reports – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    (function() {
+      try {
+        var savedTheme = localStorage.getItem('sti-theme');
+        if (savedTheme === 'dark') {
+          document.documentElement.dataset.theme = 'dark';
+        } else {
+          document.documentElement.dataset.theme = 'light';
+        }
+      } catch (e) {}
+    })();
+  </script>
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
 </head>
 <body class="theme-arjay">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 <div class="main-wrap">
   <header class="topbar">
     <div class="page-title">Kpi Reports</div>
+  
+    <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+      <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
   </header>
   <div class="content">
 
@@ -77,7 +96,7 @@ $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JO
       <div class="card-header"><h2>Kpi Reports</h2></div>
       <div class="card-body" style="padding:0;">
         <div class="table-wrap">
-          <table>
+          <table class="activity-table">
             <thead><tr><th>Title</th><th>Faculty</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
             <?php if (empty($activities)): ?>
@@ -280,7 +299,7 @@ $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JO
         <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-base); border-radius:10px; padding:16px 20px; margin-bottom:20px; border:1px solid var(--border);">
           <div>
             <div style="font-size:0.85rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Overall KPI Performance</div>
-            <div style="font-size:1.6rem; font-weight:800; font-family:'Syne',sans-serif; color:var(--accent); margin-top:2px;">${overallPerf}</div>
+            <div style="font-size:1.6rem; font-weight:800; font-family:'Plus Jakarta Sans',sans-serif; color:var(--accent); margin-top:2px;">${overallPerf}</div>
           </div>
           <div>
             <span class="badge ${overallClass}" style="font-size:0.85rem; padding:6px 12px;">${overallStatus}</span>

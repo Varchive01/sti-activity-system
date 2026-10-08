@@ -11,3 +11,7 @@ firebase-credentials.json
 Thumbs.db
 .vscode/
 .idea/
+node_modules/
+
+# Scratch & temporary development files
+scratch/

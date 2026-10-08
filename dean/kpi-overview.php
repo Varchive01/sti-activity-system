@@ -26,6 +26,12 @@ $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JO
 <div class="main-wrap">
   <header class="topbar">
     <div class="page-title">Kpi Overview</div>
+  
+    <div class="topbar-right">
+      <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
   </header>
   <div class="content">
     <div class="card">

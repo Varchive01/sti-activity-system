@@ -16,6 +16,21 @@ try {
     )";
     $db->exec($sql);
     echo "Database table 'email_logs' created or already exists.\n";
+
+    $sqlReminder = "CREATE TABLE IF NOT EXISTS task_reminder_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        task_id INT NOT NULL,
+        activity_id INT NOT NULL,
+        user_id INT NOT NULL,
+        reminder_type VARCHAR(32) NOT NULL,
+        task_status VARCHAR(32) NULL,
+        due_date DATE NULL,
+        completion_pct INT NULL,
+        sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_task_reminder (task_id, reminder_type, user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    $db->exec($sqlReminder);
+    echo "Database table 'task_reminder_logs' created or already exists.\n";
 } catch (Exception $e) {
     echo "Database error: " . $e->getMessage() . "\n";
 }

@@ -19,20 +19,39 @@ $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JO
 <head>
 <meta charset="UTF-8">
 <title>Kpi – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    (function() {
+      try {
+        var savedTheme = localStorage.getItem('sti-theme');
+        if (savedTheme === 'dark') {
+          document.documentElement.dataset.theme = 'dark';
+        } else {
+          document.documentElement.dataset.theme = 'light';
+        }
+      } catch (e) {}
+    })();
+  </script>
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
 </head>
 <body class="theme-arjay">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 <div class="main-wrap">
   <header class="topbar">
     <div class="page-title">Kpi</div>
+  
+    <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+      <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
   </header>
   <div class="content">
     <div class="card">
       <div class="card-header"><h2>Kpi</h2></div>
       <div class="card-body" style="padding:0;">
         <div class="table-wrap">
-          <table>
+          <table class="activity-table">
             <thead><tr><th>Title</th><th>Faculty</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
             <?php if (empty($activities)): ?>

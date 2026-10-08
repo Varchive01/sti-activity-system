@@ -91,8 +91,11 @@ $pending = $stmt->fetchAll();
     <header class="topbar">
       <div class="page-title">Pending Review Queue</div>
       <div class="topbar-right">
+        <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <span class="badge badge-warning" style="font-size:.8rem;padding:6px 12px;"><?= count($pending) ?> awaiting review</span>
-      </div>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
     </header>
     <div class="content">
 

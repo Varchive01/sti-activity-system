@@ -10,8 +10,20 @@ $user   = currentUser();
 $db     = getDB();
 $actId  = (int)($_POST['activity_id'] ?? 0);
 $action = $_POST['action'] ?? '';
-$role   = $_POST['role'] ?? '';
 $notes  = sanitize($_POST['notes'] ?? '');
+
+// Derive reviewer role exclusively from authenticated session/user (never trust client $_POST['role'])
+$userRole = $user['role'] ?? '';
+$roleMap  = [
+    'admin1' => 'arjay',
+    'admin2' => 'ian',
+    'dean'   => 'dean',
+];
+$role = $roleMap[$userRole] ?? '';
+if (!$role) {
+    http_response_code(403);
+    die('Access denied.');
+}
 
 if (!$actId || !$action) { header('Location: ' . BASE_URL . '/'); exit; }
 
@@ -19,6 +31,24 @@ $activity = $db->prepare("SELECT * FROM activities WHERE id=?");
 $activity->execute([$actId]);
 $act = $activity->fetch();
 if (!$act) die('Activity not found.');
+
+// Enforce current proposal stage before allowing review action
+$isValidStage = false;
+if ($userRole === 'admin1') {
+    $isValidStage = ($act['source'] === 'student_org' && $act['status'] === 'under_review');
+} elseif ($userRole === 'admin2') {
+    $isValidStage = (
+        ($act['source'] === 'faculty' && $act['status'] === 'submitted') ||
+        ($act['source'] === 'student_org' && $act['status'] === 'endorsed')
+    );
+} elseif ($userRole === 'dean') {
+    $isValidStage = ($act['status'] === 'pending_final_approval');
+}
+
+if (!$isValidStage) {
+    http_response_code(403);
+    die('Access denied: Proposal is not in a valid stage for your review role.');
+}
 
 // Determine new status
 $newStatus = match(true) {

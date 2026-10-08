@@ -3,6 +3,8 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/EmailService.php';
+require_once __DIR__ . '/../includes/ai/schedule_conflict.php';
 requireRole('faculty');
 
 $user   = currentUser();
@@ -30,6 +32,222 @@ if ($action === 'submit') {
     $clearNotes = false;
 }
 
+// Parse section-specific reviewer comments from revision_sections JSON
+$revisionSections = [];
+if (!empty($activity['revision_sections'])) {
+    $decoded = json_decode($activity['revision_sections'], true);
+    if (is_array($decoded)) $revisionSections = $decoded;
+}
+$isReturned = ($activity['status'] === 'returned_for_revision');
+$hasSectionComments = !empty($revisionSections);
+
+// Check editability for section 1 (event_details)
+$s1Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['event_details']);
+
+// Authoritative date validation (Asia/Manila)
+$todayManila = date('Y-m-d');
+$eventDate   = trim($_POST['event_date'] ?? '');
+
+if ($s1Editable) {
+    if ($action === 'submit' && empty($eventDate)) {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=missing_date");
+        exit;
+    }
+    if (!empty($eventDate)) {
+        $d = DateTime::createFromFormat('Y-m-d', $eventDate);
+        // Rule: event_date > today's date (earliest allowed date is tomorrow)
+        if (!$d || $d->format('Y-m-d') !== $eventDate || $eventDate <= $todayManila) {
+            header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=past_date");
+            exit;
+        }
+    }
+    $saveEventDate = $eventDate ?: null;
+
+    // Authoritative server-side schedule time validation
+    $startTime = isset($_POST['start_time']) && is_string($_POST['start_time']) ? trim($_POST['start_time']) : '';
+    $endTime   = isset($_POST['end_time']) && is_string($_POST['end_time']) ? trim($_POST['end_time']) : '';
+
+    if ($action === 'submit') {
+        $timeCheck = validateScheduleTimeRange($startTime, $endTime, true);
+        if (!$timeCheck['valid']) {
+            $errCode = ($timeCheck['code'] === 'invalid_order') ? 'invalid_time' : 'missing_time';
+            header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error={$errCode}");
+            exit;
+        }
+    } else {
+        // Draft: if both times are provided, validate order (end > start)
+        if ($startTime !== '' && $endTime !== '') {
+            $timeCheck = validateScheduleTimeRange($startTime, $endTime, false);
+            if (!$timeCheck['valid']) {
+                header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_time");
+                exit;
+            }
+        }
+    }
+    $saveStartTime = $startTime ?: null;
+    $saveEndTime   = $endTime ?: null;
+} else {
+    // When Section 1 is locked, preserve existing event_date and times
+    $saveEventDate = $activity['event_date'];
+    $saveStartTime = $activity['start_time'];
+    $saveEndTime   = $activity['end_time'];
+}
+
+// Authoritative server-side schedule conflict check for submitted proposals
+if ($action === 'submit') {
+    $venue = isset($_POST['venue']) && is_string($_POST['venue']) ? trim($_POST['venue']) : '';
+    if (!$s1Editable && empty($venue) && !empty($activity['venue'])) {
+        $venue = trim($activity['venue']);
+    }
+    if (!empty($venue) && !empty($saveEventDate) && !empty($saveStartTime) && !empty($saveEndTime)) {
+        $conflictCheck = checkScheduleConflict($venue, $saveEventDate, $saveStartTime, $saveEndTime, $id);
+        if (!empty($conflictCheck['conflict'])) {
+            header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=conflict");
+            exit;
+        }
+    }
+}
+
+$s6Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['schedule']);
+if ($s6Editable && !empty($_POST['sched_date']) && is_array($_POST['sched_date'])) {
+    foreach ($_POST['sched_date'] as $sDate) {
+        $sDate = trim($sDate);
+        if (!empty($sDate)) {
+            $sd = DateTime::createFromFormat('Y-m-d', $sDate);
+            if (!$sd || $sd->format('Y-m-d') !== $sDate || $sDate <= $todayManila) {
+                header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=past_date");
+                exit;
+            }
+        }
+    }
+}
+
+if (!empty($_POST['schedule_rows']) && is_array($_POST['schedule_rows'])) {
+    $rowsCheck = validateScheduleRows($_POST['schedule_rows'], ($action === 'submit'));
+    if (!$rowsCheck['valid']) {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_time");
+        exit;
+    }
+}
+
+if (!empty($_FILES['poster_file']['name'])) {
+    if (!isValidPosterImage($_FILES['poster_file'])) {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_poster_format");
+        exit;
+    }
+}
+
+// Server-side required-field and KPI validation for submissions
+if ($action === 'submit') {
+    $title              = isset($_POST['title']) && is_string($_POST['title']) ? trim($_POST['title']) : '';
+    $theme              = isset($_POST['theme']) && is_string($_POST['theme']) ? trim($_POST['theme']) : '';
+    $venue              = isset($_POST['venue']) && is_string($_POST['venue']) ? trim($_POST['venue']) : '';
+    $targetParticipants = isset($_POST['target_participants']) ? trim((string)$_POST['target_participants']) : '';
+
+    if (!$s1Editable) {
+        if ($title === '' && !empty($activity['title'])) {
+            $title = trim($activity['title']);
+            $_POST['title'] = $title;
+        }
+        if ($theme === '' && !empty($activity['theme'])) {
+            $theme = trim($activity['theme']);
+            $_POST['theme'] = $theme;
+        }
+        if ($venue === '' && !empty($activity['venue'])) {
+            $venue = trim($activity['venue']);
+            $_POST['venue'] = $venue;
+        }
+        if (($targetParticipants === '' || !is_numeric($targetParticipants) || (int)$targetParticipants <= 0) && !empty($activity['target_participants'])) {
+            $targetParticipants = (string)$activity['target_participants'];
+            $_POST['target_participants'] = $targetParticipants;
+        }
+    }
+
+    $generalObjectives  = isset($_POST['general_objectives']) && is_string($_POST['general_objectives']) ? trim($_POST['general_objectives']) : '';
+    $specificObjectives = isset($_POST['specific_objectives']) && is_string($_POST['specific_objectives']) ? trim($_POST['specific_objectives']) : '';
+    $rationale          = isset($_POST['rationale']) && is_string($_POST['rationale']) ? trim($_POST['rationale']) : '';
+
+    if (
+        $title === '' ||
+        $theme === '' ||
+        $venue === '' ||
+        $generalObjectives === '' ||
+        $specificObjectives === '' ||
+        $rationale === '' ||
+        $targetParticipants === '' ||
+        !is_numeric($targetParticipants) ||
+        (int)$targetParticipants <= 0
+    ) {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=missing_fields");
+        exit;
+    }
+
+    $hasValidIndicator = false;
+    if (!empty($_POST['kpi_indicator']) && is_array($_POST['kpi_indicator'])) {
+        foreach ($_POST['kpi_indicator'] as $ind) {
+            if (is_string($ind) && trim($ind) !== '') {
+                $hasValidIndicator = true;
+                break;
+            }
+        }
+    }
+
+    $hasValidCriteria = false;
+    if (!empty($_POST['kpi_criteria']) && is_array($_POST['kpi_criteria'])) {
+        foreach ($_POST['kpi_criteria'] as $crit) {
+            if (is_string($crit) && trim($crit) !== '') {
+                $hasValidCriteria = true;
+                break;
+            }
+        }
+    }
+
+    if (!$hasValidIndicator && !$hasValidCriteria) {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=missing_kpi");
+        exit;
+    }
+
+    if (!$hasValidIndicator && isset($_POST['kpi_indicator'])) {
+        unset($_POST['kpi_indicator']);
+    }
+    if (!$hasValidCriteria && isset($_POST['kpi_criteria'])) {
+        unset($_POST['kpi_criteria']);
+    }
+
+    // Server-side AI completeness & alignment validation gating
+    require_once __DIR__ . '/../services/GeminiProposalValidationService.php';
+    require_once __DIR__ . '/../includes/ai/proposal_validator.php';
+
+    $aiService = new GeminiProposalValidationService(getGeminiApiKeySecure());
+    $canonicalPayload = $aiService->getCanonicalProposalPayload($_POST);
+    $currentHash = $aiService->calculateProposalHash($canonicalPayload);
+
+    // Verify against server session cache (never trust client-supplied approval flags)
+    if (!isset($_SESSION['last_ai_validation'][$currentHash])) {
+        // Validation result does not correspond to current payload or was never performed
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=ai_validation_critical");
+        exit;
+    }
+
+    $cachedValidation = $_SESSION['last_ai_validation'][$currentHash]['result'] ?? null;
+    $hasCriticalAiIssues = false;
+    if (is_array($cachedValidation) && !empty($cachedValidation['sections']) && is_array($cachedValidation['sections'])) {
+        foreach ($cachedValidation['sections'] as $sec) {
+            if (is_array($sec) && ($sec['status'] ?? '') === 'error') {
+                $hasCriticalAiIssues = true;
+                break;
+            }
+        }
+    } else {
+        $hasCriticalAiIssues = true;
+    }
+
+    if ($hasCriticalAiIssues) {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=ai_validation_critical");
+        exit;
+    }
+}
+
 $source = sanitize($_POST['source'] ?? 'faculty');
 $evalQuestions = isset($_POST['evaluation_questions']) ? $_POST['evaluation_questions'] : $activity['evaluation_questions'];
 
@@ -44,11 +262,11 @@ try {
             status=?,evaluation_questions=?,revision_notes=NULL,revision_sections=NULL,submitted_at=?,updated_at=NOW()
             WHERE id=?")->execute([
             sanitize($_POST['title']??''), sanitize($_POST['theme']??''), sanitize($_POST['venue']??''), sanitize($_POST['venue_address']??''),
-            $_POST['event_date']??null, $_POST['start_time']??null, $_POST['end_time']??null,
+            $saveEventDate, $saveStartTime, $saveEndTime,
             (int)($_POST['target_participants']??0),
             sanitize($_POST['general_objectives']??''), sanitize($_POST['specific_objectives']??''),
             sanitize($_POST['involved_subjects']??''), sanitize($_POST['rationale']??''),
-            sanitize($_POST['evaluation_method']??''),
+            sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? '')),
             $source, $newStatus,
             $evalQuestions,
             date('Y-m-d H:i:s'), $id
@@ -61,11 +279,11 @@ try {
             status=?,evaluation_questions=?,updated_at=NOW()
             WHERE id=?")->execute([
             sanitize($_POST['title']??''), sanitize($_POST['theme']??''), sanitize($_POST['venue']??''), sanitize($_POST['venue_address']??''),
-            $_POST['event_date']??null, $_POST['start_time']??null, $_POST['end_time']??null,
+            $saveEventDate, $saveStartTime, $saveEndTime,
             (int)($_POST['target_participants']??0),
             sanitize($_POST['general_objectives']??''), sanitize($_POST['specific_objectives']??''),
             sanitize($_POST['involved_subjects']??''), sanitize($_POST['rationale']??''),
-            sanitize($_POST['evaluation_method']??''),
+            sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? '')),
             $source, $newStatus,
             $evalQuestions,
             $id
@@ -118,10 +336,12 @@ try {
 
     $db->prepare("DELETE FROM faculty_tasks WHERE activity_id=?")->execute([$id]);
     if (!empty($_POST['ft_name'])) {
-        $ft = $db->prepare("INSERT INTO faculty_tasks(activity_id,faculty_name,assigned_task,contribution_desc,role_in_event)VALUES(?,?,?,?,?)");
+        $ft = $db->prepare("INSERT INTO faculty_tasks(activity_id,faculty_name,assigned_task,task_title,contribution_desc,task_description,role_in_event,created_by)VALUES(?,?,?,?,?,?,?,?)");
         foreach ($_POST['ft_name'] as $i=>$name) {
             if (!trim($name)) continue;
-            $ft->execute([$id,sanitize($name),sanitize($_POST['ft_task'][$i]??''),sanitize($_POST['ft_contribution'][$i]??''),sanitize($_POST['ft_role'][$i]??'')]);
+            $tTitle = sanitize($_POST['ft_task'][$i]??'');
+            $tDesc = sanitize($_POST['ft_contribution'][$i]??'');
+            $ft->execute([$id,sanitize($name),$tTitle,$tTitle,$tDesc,$tDesc,sanitize($_POST['ft_role'][$i]??''),$user['id']??null]);
         }
     }
 
@@ -174,6 +394,13 @@ try {
             if (!trim($ind)) continue;
             $kpi->execute([$id,sanitize($ind),sanitize($_POST['kpi_target'][$i]??''),sanitize($_POST['kpi_method'][$i]??'')]);
         }
+    } elseif (!empty($_POST['kpi_criteria'])) {
+        $kpi = $db->prepare("INSERT INTO kpi_evaluations(activity_id,indicator,target_metric,evaluation_method)VALUES(?,?,?,?)");
+        foreach ($_POST['kpi_criteria'] as $i=>$crit) {
+            if (!trim($crit)) continue;
+            $target = isset($_POST['kpi_rating'][$i]) ? ('Rating: ' . $_POST['kpi_rating'][$i]) : '';
+            $kpi->execute([$id,sanitize($crit),sanitize($target),'Student Evaluation']);
+        }
     }
 
     // Routing on resubmit
@@ -207,15 +434,66 @@ try {
 
         $db->prepare("UPDATE activities SET status=?, revision_sections=NULL WHERE id=?")->execute([$nextStatus,$id]);
 
-        $admins = $db->prepare("SELECT id FROM users WHERE role=?");
+        $admins = $db->prepare("SELECT id, email, name FROM users WHERE role=?");
         $admins->execute([$notifyRole]);
+        $adminRows = $admins->fetchAll();
         $ns = $db->prepare("INSERT INTO notifications(user_id,activity_id,message)VALUES(?,?,?)");
-        foreach ($admins->fetchAll() as $admin) {
-            $ns->execute([$admin['id'],$id,"Resubmitted proposal: ".sanitize($_POST['title']??'')]);
+        $proposalTitle = sanitize($_POST['title'] ?? '');
+        $emailsToSend = [];
+        foreach ($adminRows as $admin) {
+            $ns->execute([$admin['id'],$id,"Resubmitted proposal: " . $proposalTitle]);
+            if (!empty($admin['email'])) {
+                $emailsToSend[] = [
+                    'email'  => $admin['email'],
+                    'name'   => $admin['name'] ?? 'Administrator',
+                    'role'   => $notifyRole,
+                    'status' => ucwords(str_replace('_', ' ', $nextStatus)),
+                ];
+            }
         }
     }
 
     $db->commit();
+
+    // Persist verified AI validation record to database
+    if ($status === 'submitted' && !empty($cachedValidation)) {
+        try {
+            $mappedAi = $aiService->mapToDatabaseFormat($cachedValidation);
+            saveProposalAiValidationResult($db, $id, $mappedAi);
+        } catch (\Throwable $aiSaveEx) {
+            error_log("Failed to persist AI validation for activity {$id}: " . $aiSaveEx->getMessage());
+        }
+    }
+
+    // Send emails after successful commit so failure never impacts database transaction
+    if (!empty($emailsToSend)) {
+        try {
+            $emailService = new EmailService();
+            $proposalTitle = sanitize($_POST['title'] ?? '');
+            foreach ($emailsToSend as $recipient) {
+                $reviewLink = match($recipient['role']) {
+                    'admin1' => BASE_URL . "/admin1/review.php?id=" . $id,
+                    'dean'   => BASE_URL . "/dean/review.php?id=" . $id,
+                    default  => BASE_URL . "/admin2/review.php?id=" . $id,
+                };
+
+                $emailService->sendNotification(
+                    $recipient['email'],
+                    $recipient['name'],
+                    "Resubmitted Proposal: " . $proposalTitle,
+                    $proposalTitle,
+                    $recipient['status'],
+                    "The activity proposal '" . $proposalTitle . "' has been revised and resubmitted by " . htmlspecialchars($user['name']) . " for your review.",
+                    $reviewLink,
+                    $id,
+                    "proposal_resubmitted"
+                );
+            }
+        } catch (\Throwable $mailEx) {
+            error_log("Failed to dispatch resubmission email for activity {$id}: " . $mailEx->getMessage());
+        }
+    }
+
     header("Location: ".BASE_URL."/faculty/proposal-view.php?id={$id}&updated=1");
     exit;
 } catch (Exception $e) {

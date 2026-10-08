@@ -43,10 +43,10 @@ foreach ($events->fetchAll() as $e) {
   $monthEvents[$day][] = $e;
 }
 
-// Upcoming events list (all future/current month)
+// Upcoming events list (all future/current approved activities for faculty)
 $upcoming = $db->prepare("
     SELECT id, title, event_date, status, venue FROM activities
-    WHERE faculty_id=? AND event_date >= CURDATE()
+    WHERE faculty_id=? AND status='approved' AND event_date >= CURDATE()
     ORDER BY event_date ASC LIMIT 8
 ");
 $upcoming->execute([$user['id']]);
@@ -94,228 +94,6 @@ $todayYear  = (int)date('Y');
   <title>Calendar – STI Activity System</title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
   <style>
-    /* ── Layout ── */
-    .cal-layout {
-      display: grid;
-      grid-template-columns: 1fr 280px;
-      gap: 20px;
-      align-items: start;
-    }
-
-    /* ── Toolbar ── */
-    .cal-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 20px;
-      gap: 12px;
-    }
-
-    .cal-nav {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .cal-nav-btn {
-      width: 34px;
-      height: 34px;
-      border: 1px solid var(--border);
-      border-radius: 50%;
-      background: #fff;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: .9rem;
-      color: var(--text-muted);
-      transition: background .15s, border-color .15s;
-      text-decoration: none;
-    }
-
-    .cal-nav-btn:hover {
-      background: var(--bg-base);
-      border-color: #999;
-      color: var(--text);
-    }
-
-    .cal-month-title {
-      font-family: 'Syne', sans-serif;
-      font-size: 1.25rem;
-      font-weight: 800;
-      color: var(--text);
-      min-width: 180px;
-      text-align: center;
-    }
-
-    .cal-today-btn {
-      padding: 6px 16px;
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      background: #fff;
-      font-size: .8rem;
-      font-weight: 600;
-      cursor: pointer;
-      color: var(--text);
-      text-decoration: none;
-      transition: background .15s;
-    }
-
-    .cal-today-btn:hover {
-      background: var(--bg-base);
-    }
-
-    /* ── Calendar Grid ── */
-    .cal-grid {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      border: 1px solid #E5E7EB;
-      border-radius: 12px;
-      overflow: hidden;
-    }
-
-    .cal-day-name {
-      background: #fff;
-      text-align: center;
-      padding: 10px 4px;
-      font-size: .72rem;
-      font-weight: 600;
-      color: #6B7280;
-      text-transform: uppercase;
-      letter-spacing: .4px;
-      border-bottom: 1px solid #E5E7EB;
-    }
-
-    .cal-cell {
-      background: #fff;
-      min-height: 110px;
-      padding: 6px;
-      border-right: 1px solid #E5E7EB;
-      border-bottom: 1px solid #E5E7EB;
-      position: relative;
-      transition: background .12s;
-      cursor: default;
-    }
-
-    .cal-cell:hover {
-      background: #FAFAFA;
-    }
-
-    .cal-cell.other-month {
-      background: #FAFAFA;
-    }
-
-    .cal-cell.other-month .day-num {
-      color: #D1D5DB;
-    }
-
-    .cal-cell.today {
-      background: #fff;
-    }
-
-    .day-num {
-      font-size: .78rem;
-      font-weight: 600;
-      color: #374151;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      margin-bottom: 3px;
-    }
-
-    .cal-cell.today .day-num {
-      background: #1A73E8;
-      color: #fff;
-      font-weight: 700;
-    }
-
-    /* ── Events on grid ── */
-    .cal-event {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      border-radius: 4px;
-      padding: 2px 6px;
-      font-size: .67rem;
-      font-weight: 600;
-      margin-bottom: 2px;
-      cursor: pointer;
-      transition: filter .12s;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
-
-    .cal-event:hover {
-      filter: brightness(.93);
-    }
-
-    .cal-event-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .cal-event-text {
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
-
-    /* ── More link ── */
-    .cal-more {
-      font-size: .65rem;
-      color: #6B7280;
-      font-weight: 600;
-      cursor: pointer;
-      padding: 1px 4px;
-      border-radius: 4px;
-    }
-
-    .cal-more:hover {
-      background: #F3F4F6;
-    }
-
-    /* ── Legend ── */
-    .cal-legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px 16px;
-      margin-top: 14px;
-      padding-top: 14px;
-      border-top: 1px solid #E5E7EB;
-    }
-
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: .72rem;
-      color: #374151;
-      font-weight: 500;
-    }
-
-    .legend-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: .69rem;
-      font-weight: 600;
-    }
-
-    .legend-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
     /* ── Right Sidebar ── */
     .cal-sidebar .card {
       margin-bottom: 16px;
@@ -323,85 +101,7 @@ $todayYear  = (int)date('Y');
 
     .cal-sidebar .card-header h2 {
       font-size: .85rem;
-    }
-
-    /* Mini calendar */
-    .mini-cal {
-      width: 100%;
-    }
-
-    .mini-cal-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-
-    .mini-cal-title {
-      font-size: .8rem;
-      font-weight: 700;
-      color: var(--text);
-    }
-
-    .mini-nav {
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--text-muted);
-      font-size: .8rem;
-      padding: 2px 6px;
-      border-radius: 4px;
-      transition: background .12s;
-    }
-
-    .mini-nav:hover {
-      background: var(--bg-base);
-    }
-
-    .mini-grid {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 2px;
-      text-align: center;
-    }
-
-    .mini-day-name {
-      font-size: .6rem;
-      color: #9CA3AF;
-      font-weight: 600;
-      padding: 2px 0;
-    }
-
-    .mini-day {
-      font-size: .72rem;
-      color: #374151;
-      padding: 3px 2px;
-      border-radius: 50%;
-      cursor: pointer;
-      transition: background .12s;
-      aspect-ratio: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .mini-day:hover {
-      background: #F3F4F6;
-    }
-
-    .mini-day.today {
-      background: #1A73E8;
-      color: #fff;
-      font-weight: 700;
-    }
-
-    .mini-day.has-event {
-      font-weight: 700;
-      color: #1A73E8;
-    }
-
-    .mini-day.other-month {
-      color: #D1D5DB;
+      color: var(--text-main);
     }
 
     /* Upcoming events */
@@ -409,9 +109,9 @@ $todayYear  = (int)date('Y');
       display: flex;
       gap: 12px;
       padding: 10px 0;
-      border-bottom: 1px solid #F3F4F6;
+      border-bottom: 1px solid var(--border);
       cursor: pointer;
-      transition: background .12s;
+      transition: background .12s, opacity .12s;
     }
 
     .upcoming-item:last-child {
@@ -419,7 +119,7 @@ $todayYear  = (int)date('Y');
     }
 
     .upcoming-item:hover {
-      opacity: .8;
+      opacity: .85;
     }
 
     .upcoming-date-box {
@@ -432,13 +132,13 @@ $todayYear  = (int)date('Y');
       font-size: .6rem;
       font-weight: 700;
       text-transform: uppercase;
-      color: #6B7280;
+      color: var(--text-muted);
     }
 
     .upcoming-date-box .day {
       font-size: 1.2rem;
       font-weight: 800;
-      color: #111;
+      color: var(--text-main);
       line-height: 1;
     }
 
@@ -450,7 +150,7 @@ $todayYear  = (int)date('Y');
     .upcoming-title {
       font-size: .78rem;
       font-weight: 600;
-      color: #111;
+      color: var(--text-main);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -458,7 +158,7 @@ $todayYear  = (int)date('Y');
 
     .upcoming-meta {
       font-size: .68rem;
-      color: #9CA3AF;
+      color: var(--text-muted);
       margin-top: 2px;
     }
 
@@ -477,12 +177,12 @@ $todayYear  = (int)date('Y');
       display: none;
       position: fixed;
       z-index: 500;
-      background: #fff;
+      background: var(--bg-card);
       border-radius: 12px;
-      box-shadow: 0 8px 30px rgba(0, 0, 0, .18);
+      box-shadow: var(--shadow-lg);
       padding: 20px;
       width: 280px;
-      border: 1px solid #E5E7EB;
+      border: 1px solid var(--border);
     }
 
     .event-popup.open {
@@ -499,7 +199,7 @@ $todayYear  = (int)date('Y');
     .event-popup-title {
       font-size: .88rem;
       font-weight: 700;
-      color: #111;
+      color: var(--text-main);
       flex: 1;
     }
 
@@ -507,10 +207,15 @@ $todayYear  = (int)date('Y');
       background: none;
       border: none;
       cursor: pointer;
-      color: #9CA3AF;
+      color: var(--text-muted);
       font-size: 1rem;
       line-height: 1;
       padding: 0 0 0 8px;
+      transition: color .12s;
+    }
+
+    .event-popup-close:hover {
+      color: var(--text-main);
     }
 
     .event-popup-row {
@@ -519,7 +224,7 @@ $todayYear  = (int)date('Y');
       align-items: flex-start;
       margin-bottom: 8px;
       font-size: .78rem;
-      color: #374151;
+      color: var(--text-secondary);
     }
 
     .event-popup-row svg {
@@ -527,7 +232,7 @@ $todayYear  = (int)date('Y');
       height: 14px;
       flex-shrink: 0;
       margin-top: 1px;
-      color: #9CA3AF;
+      color: var(--text-muted);
     }
 
     .event-popup-actions {
@@ -555,13 +260,54 @@ $todayYear  = (int)date('Y');
     }
 
     .popup-btn.primary {
-      background: #1A73E8;
+      background: var(--sti-blue);
       color: #fff;
     }
 
     .popup-btn.ghost {
-      background: #F3F4F6;
-      color: #374151;
+      background: var(--border-light);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+    }
+
+    /* Dark Theme Specific Refinements for Activity Calendar */
+    [data-theme="dark"] .cal-day-name {
+      background: var(--bg-card-elevated);
+      color: var(--text-muted);
+    }
+
+    [data-theme="dark"] .cal-cell {
+      background: var(--bg-card);
+    }
+
+    [data-theme="dark"] .cal-cell:hover {
+      background: var(--bg-card-elevated);
+    }
+
+    [data-theme="dark"] .cal-cell.other-month {
+      background: rgba(0, 0, 0, 0.22);
+    }
+
+    [data-theme="dark"] .cal-cell.other-month .day-num {
+      color: var(--text-muted);
+      opacity: 0.35;
+    }
+
+    [data-theme="dark"] .cal-cell.today {
+      background: var(--bg-card);
+    }
+
+    [data-theme="dark"] .cal-more:hover {
+      background: var(--border-light);
+      color: var(--text-main);
+    }
+
+    [data-theme="dark"] .mini-day.has-event {
+      color: var(--sti-blue-hover);
+    }
+
+    [data-theme="dark"] .upcoming-item:hover {
+      background: rgba(255, 255, 255, 0.03);
     }
   </style>
 </head>
@@ -572,8 +318,11 @@ $todayYear  = (int)date('Y');
     <header class="topbar">
       <div class="page-title">Activity Calendar</div>
       <div class="topbar-right">
+        <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <a href="<?= BASE_URL ?>/faculty/proposal-create.php" class="btn btn-primary btn-sm">+ New Proposal</a>
-      </div>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
     </header>
     <div class="content">
 
@@ -646,34 +395,6 @@ $todayYear  = (int)date('Y');
 
         <!-- Right Sidebar -->
         <div class="cal-sidebar">
-
-          <!-- Mini Calendar -->
-          <div class="card">
-            <div class="card-body" style="padding:16px;">
-              <div class="mini-cal">
-                <div class="mini-cal-header">
-                  <a href="?month=<?= $prevMonth ?>&year=<?= $prevYear ?>" class="mini-nav">&#8249;</a>
-                  <div class="mini-cal-title"><?= date('F Y', mktime(0, 0, 0, $month, 1, $year)) ?></div>
-                  <a href="?month=<?= $nextMonth ?>&year=<?= $nextYear ?>" class="mini-nav">&#8250;</a>
-                </div>
-                <div class="mini-grid">
-                  <?php foreach (['S', 'M', 'T', 'W', 'T', 'F', 'S'] as $d): ?>
-                    <div class="mini-day-name"><?= $d ?></div>
-                  <?php endforeach; ?>
-                  <?php
-                  for ($i = 0; $i < $firstDayOfWeek; $i++) echo '<div class="mini-day other-month"></div>';
-                  for ($d = 1; $d <= $daysInMonth; $d++):
-                    $cls = '';
-                    if ($d === $today && $month === $todayMonth && $year === $todayYear) $cls = 'today';
-                    elseif (!empty($monthEvents[$d])) $cls = 'has-event';
-                  ?>
-                    <a href="?month=<?= $month ?>&year=<?= $year ?>#cell-<?= $d ?>" class="mini-day <?= $cls ?>"><?= $d ?></a>
-                  <?php endfor; ?>
-                  <?php for ($i = 0; $i < $trailing; $i++) echo '<div class="mini-day other-month"></div>'; ?>
-                </div>
-              </div>
-            </div>
-          </div>
 
           <!-- Upcoming Events -->
           <div class="card">

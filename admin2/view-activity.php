@@ -49,9 +49,10 @@ usort($questionAverages, fn($a, $b) => $b['average'] <=> $a['average']);
 
 $prog = $db->prepare("SELECT * FROM program_sequence WHERE activity_id=? ORDER BY sort_order"); $prog->execute([$id]); $program=$prog->fetchAll();
 $mp   = $db->prepare("SELECT * FROM manpower WHERE activity_id=?"); $mp->execute([$id]); $manpower=$mp->fetchAll();
-$ft   = $db->prepare("SELECT * FROM faculty_tasks WHERE activity_id=?"); $ft->execute([$id]); $ftasks=$ft->fetchAll();
+$ft   = $db->prepare("SELECT ft.*, u.name as assigned_user_name FROM faculty_tasks ft LEFT JOIN users u ON ft.assigned_user_id = u.id WHERE ft.activity_id=? ORDER BY ft.id ASC"); $ft->execute([$id]); $ftasks=$ft->fetchAll();
 $gl   = $db->prepare("SELECT * FROM guidelines WHERE activity_id=?"); $gl->execute([$id]); $guidelines=$gl->fetch();
 $pe   = $db->prepare("SELECT * FROM post_event WHERE activity_id=?"); $pe->execute([$id]); $postEvent=$pe->fetch();
+$docs = $db->prepare("SELECT * FROM documents WHERE activity_id=? ORDER BY uploaded_at DESC"); $docs->execute([$id]); $documents=$docs->fetchAll();
 $kpis = $db->prepare("SELECT criteria,AVG(rating) as avg FROM kpi_evaluations WHERE activity_id=? GROUP BY criteria"); $kpis->execute([$id]); $kpiData=$kpis->fetchAll();
 $rca  = $db->prepare("SELECT * FROM root_cause_analysis WHERE activity_id=?"); $rca->execute([$id]); $rcas=$rca->fetchAll();
 $logs = $db->prepare("SELECT al.*,u.name,u.role as reviewer_role FROM approval_logs al JOIN users u ON al.reviewer_id=u.id WHERE al.activity_id=? ORDER BY al.acted_at"); $logs->execute([$id]); $history=$logs->fetchAll();
@@ -74,13 +75,6 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
 <title>View Activity – STI</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
 <style>
-.section-title{font-family:'Syne',sans-serif;font-size:.95rem;font-weight:800;padding:14px 0 8px;border-bottom:2px solid var(--accent);margin-bottom:14px;color:var(--accent);}
-.info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;}
-.info-tile{background:var(--bg-base);border-radius:8px;padding:12px 14px;}
-.info-tile .lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;}
-.info-tile .val{font-weight:600;margin-top:3px;font-size:.88rem;}
-.timeline-item{display:flex;gap:14px;margin-bottom:14px;}
-.timeline-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);margin-top:4px;flex-shrink:0;}
 .timeline-line{width:1px;background:var(--border);margin:14px 4px 0;flex:0 0 1px;}
 .kpi-star{color:var(--sti-gold);}
 </style>
@@ -91,8 +85,11 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
   <header class="topbar">
     <div class="page-title">Activity Detail</div>
     <div class="topbar-right">
+        <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
       <a href="<?= BASE_URL ?>/admin2/activities.php" class="btn btn-outline btn-sm">← Back</a>
       <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 Print</button>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
     </div>
   </header>
   <div class="content">
@@ -106,16 +103,12 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
     }
     if ($showTabs):
     ?>
-    <div class="tabs-nav no-print" style="display: flex; gap: 8px; border-bottom: 2px solid var(--border); margin-bottom: 20px;">
-      <a href="?id=<?= $id ?>&tab=overview" class="tab-link <?= $activeTab === 'overview' ? 'active' : '' ?>" style="padding: 10px 16px; font-weight: 700; text-decoration: none; color: var(--text-muted); border-bottom: 3px solid transparent; margin-bottom: -2px; font-size: 0.88rem;">Overview</a>
-      <a href="?id=<?= $id ?>&tab=responses" class="tab-link <?= $activeTab === 'responses' ? 'active' : '' ?>" style="padding: 10px 16px; font-weight: 700; text-decoration: none; color: var(--text-muted); border-bottom: 3px solid transparent; margin-bottom: -2px; font-size: 0.88rem;">Evaluation Responses</a>
-      <a href="?id=<?= $id ?>&tab=ai-analysis" class="tab-link <?= $activeTab === 'ai-analysis' ? 'active' : '' ?>" style="padding: 10px 16px; font-weight: 700; text-decoration: none; color: var(--text-muted); border-bottom: 3px solid transparent; margin-bottom: -2px; font-size: 0.88rem;">🤖 AI Feedback Analysis</a>
+    <div class="tabs-nav no-print">
+      <a href="?id=<?= $id ?>&tab=overview" class="tab-link <?= $activeTab === 'overview' ? 'active' : '' ?>">Overview</a>
+      <a href="?id=<?= $id ?>&tab=responses" class="tab-link <?= $activeTab === 'responses' ? 'active' : '' ?>">Evaluation Responses</a>
+      <a href="?id=<?= $id ?>&tab=ai-analysis" class="tab-link <?= $activeTab === 'ai-analysis' ? 'active' : '' ?>">🤖 AI Feedback Analysis</a>
     </div>
     <style>
-      .tab-link.active {
-        color: var(--accent) !important;
-        border-bottom-color: var(--accent) !important;
-      }
       .tab-link:hover {
         color: var(--text-main);
       }
@@ -213,16 +206,63 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
     </div>
     <?php endif; ?>
 
-    <!-- Faculty Tasks -->
-    <?php if (!empty($ftasks)): ?>
-    <div class="section-title">🧑‍🏫 Faculty Tasks & Contributions</div>
-    <div class="table-wrap" style="margin-bottom:24px;">
-      <table><thead><tr><th>Faculty</th><th>Assigned Task</th><th>Contribution</th><th>Role</th></tr></thead>
-      <tbody><?php foreach($ftasks as $f): ?>
-      <tr><td><?= htmlspecialchars($f['faculty_name']) ?></td><td><?= htmlspecialchars($f['assigned_task']??'') ?></td><td><?= htmlspecialchars($f['contribution_desc']??'') ?></td><td><?= htmlspecialchars($f['role_in_event']??'') ?></td></tr>
-      <?php endforeach; ?></tbody></table>
+    <!-- Task & Role Assignments -->
+    <div class="section-title">📋 Task & Role Assignments (<?= count($ftasks) ?>)</div>
+    <div style="margin-bottom: 12px; padding: 10px 16px; background: var(--bg-subtle, #f8f9fa); border: 1px solid var(--border-color, #e5e7eb); border-radius: 6px; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+      <div>
+        <span style="font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.5px;">Activity Leader:</span>
+        <strong style="color: var(--text-main); margin-left: 4px;"><?= htmlspecialchars($activity['fn']) ?></strong>
+        <span class="badge badge-primary" style="font-size: 0.7rem; padding: 2px 7px; margin-left: 6px;">Spearhead</span>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-muted);">
+        Distribute work among committees & members
+      </div>
     </div>
-    <?php endif; ?>
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <?php if (empty($ftasks)): ?>
+        <div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+          No task assignments created yet for this activity.
+        </div>
+      <?php else: ?>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 25%;">Task & Description</th>
+              <th style="width: 17%;">Committee</th>
+              <th style="width: 18%;">Assigned Member</th>
+              <th style="width: 16%;">Role</th>
+              <th style="width: 12%;">Target Date</th>
+              <th style="width: 12%;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach($ftasks as $f): 
+              $tTitle = $f['task_title'] ?: $f['assigned_task'] ?: 'Untitled Task';
+              $tDesc = $f['task_description'] ?: $f['contribution_desc'] ?: '';
+              $tCommittee = $f['committee'] ?: '—';
+              $tPerson = $f['assigned_user_name'] ?: $f['faculty_name'] ?: '—';
+              $tRole = $f['role_in_event'] ?: '—';
+              $tDue = !empty($f['due_date']) ? date('M j, Y', strtotime($f['due_date'])) : '—';
+              $tStatus = in_array($f['status'], ['Not Started', 'In Progress', 'Completed', 'Delayed']) ? $f['status'] : 'Not Started';
+            ?>
+            <tr>
+              <td>
+                <div style="font-weight: 600; color: var(--text-main);"><?= htmlspecialchars($tTitle) ?></div>
+                <?php if (!empty($tDesc)): ?>
+                  <small style="color: var(--text-muted); display: block; margin-top: 2px;"><?= nl2br(htmlspecialchars($tDesc)) ?></small>
+                <?php endif; ?>
+              </td>
+              <td><?= $tCommittee !== '—' ? '<span class="badge badge-secondary">'.htmlspecialchars($tCommittee).'</span>' : '—' ?></td>
+              <td><strong><?= htmlspecialchars($tPerson) ?></strong></td>
+              <td><?= htmlspecialchars($tRole) ?></td>
+              <td><?= $tDue !== '—' ? '<span class="time-badge">📅 '.htmlspecialchars($tDue).'</span>' : '—' ?></td>
+              <td><?= getTaskStatusBadge($tStatus) ?></td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      <?php endif; ?>
+    </div>
 
     <!-- Guidelines -->
     <?php if ($guidelines): ?>
@@ -235,10 +275,11 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
     <?php endif; ?>
 
     <!-- Post-Event -->
-    <?php if ($postEvent): ?>
-    <div class="section-title">📊 Post-Event Results</div>
+    <?php if ($postEvent || !empty($documents)): ?>
+    <div class="section-title">📊 Post-Event Results & Documentation</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
       <div>
+        <?php if ($postEvent): ?>
         <div class="info-grid" style="grid-template-columns:1fr 1fr 1fr;">
           <?php
           $attPct = $postEvent['target_attendance'] > 0 ? round(($postEvent['actual_attendance']/$postEvent['target_attendance'])*100) : 0;
@@ -252,6 +293,30 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
         <?php endif; ?>
         <?php if ($postEvent['recommendations']): ?>
         <div class="info-tile" style="margin-top:10px;"><div class="lbl">Recommendations</div><div style="font-size:.82rem;margin-top:6px;"><?= nl2br(htmlspecialchars($postEvent['recommendations'])) ?></div></div>
+        <?php endif; ?>
+        <?php endif; ?>
+
+        <?php if (!empty($documents)): ?>
+        <div class="info-tile" style="<?= $postEvent ? 'margin-top:10px;' : '' ?>">
+          <div class="lbl" style="margin-bottom:10px;">📎 Attached Documents & Reports (<?= count($documents) ?>)</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <?php foreach ($documents as $doc): ?>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg-subtle,#f8f9fa);border:1px solid var(--border-color,#e5e7eb);border-radius:6px;">
+              <div style="display:flex;align-items:center;gap:8px;overflow:hidden;min-width:0;">
+                <span style="font-size:1.1rem;flex-shrink:0;">📄</span>
+                <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  <span style="font-size:0.85rem;font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;"><?= htmlspecialchars($doc['file_name'] ?: basename($doc['file_path'])) ?></span>
+                  <small style="color:var(--text-muted);font-size:0.75rem;"><?= date('M d, Y h:i A', strtotime($doc['uploaded_at'])) ?></small>
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0;margin-left:12px;">
+                <a href="<?= BASE_URL ?>/api/document-download.php?id=<?= $doc['id'] ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:0.75rem;">View</a>
+                <a href="<?= BASE_URL ?>/api/document-download.php?id=<?= $doc['id'] ?>&download=1" class="btn btn-primary btn-sm" style="padding:4px 8px;font-size:0.75rem;">Download</a>
+              </div>
+            </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
         <?php endif; ?>
       </div>
       <div>
@@ -552,13 +617,30 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
           }
 
           function renderAnalysis(data) {
+            window.currentAnalysisData = data;
             const container = document.getElementById('ai-analysis-container');
             const analysis = data.analysis;
             
+            const isFinalized = !!(data.is_finalized || analysis.is_finalized);
+            const isReviewed = !!(data.is_reviewed || analysis.is_reviewed);
+            const finBy = data.finalized_by || analysis.finalized_by;
+            const finAt = data.finalized_at || analysis.finalized_at;
+
             let statusBadge = '';
+            let summaryBadge = '';
+            if (isFinalized) {
+              statusBadge = `<span class="badge" style="background:#15803d; color:#fff; padding:6px 14px; border-radius:999px; font-size:0.75rem; font-weight:700;">🔒 Finalized by ${escapeHtml(finBy?.name || 'Administrator')} (${escapeHtml(finBy?.role || 'Admin')}) on ${formatDate(finAt)}</span>`;
+              summaryBadge = `<span style="font-size:0.72rem; color:#15803d; background:#ecfdf5; padding:4px 10px; border-radius:4px; font-weight:700; border:1px solid #a7f3d0;">🔒 Administrator Finalized</span>`;
+            } else if (isReviewed) {
+              statusBadge = `<span class="badge" style="background:#d97706; color:#fff; padding:6px 14px; border-radius:999px; font-size:0.75rem; font-weight:700;">✏️ Admin Reviewed (Draft)</span>`;
+              summaryBadge = `<span style="font-size:0.72rem; color:#b45309; background:#fffbeb; padding:4px 10px; border-radius:4px; font-weight:700; border:1px solid #fef3c7;">✏️ Admin Reviewed Draft</span>`;
+            } else {
+              statusBadge = `<span class="badge" style="background:#64748b; color:#fff; padding:6px 14px; border-radius:999px; font-size:0.75rem; font-weight:700;">🤖 Unreviewed AI Draft</span>`;
+              summaryBadge = `<span style="font-size:0.72rem; color:var(--text-muted); background:var(--bg-base); padding:4px 10px; border-radius:4px; font-weight:600; border:1px solid var(--border);">🤖 AI-generated summary</span>`;
+            }
+
             let outdatedAlert = '';
-            if (data.is_outdated) {
-              statusBadge = '<span style="color:#d97706; background:#fef3c7; padding:4px 10px; border-radius:999px; font-size:0.75rem; font-weight:700;">New responses available</span>';
+            if (data.is_outdated && !isFinalized && !isReviewed) {
               outdatedAlert = `
                 <div class="no-print" style="background:#fffbeb; border:1px solid #fef3c7; border-left:4px solid #d97706; padding:14px 18px; border-radius:8px; color:#92400e; display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
                   <div>
@@ -568,8 +650,6 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
                   <button class="btn btn-warning btn-sm" onclick="runAnalysis()" style="background:#d97706; border-color:#d97706; color:#fff; font-weight:700;">🔄 Update AI Analysis</button>
                 </div>
               `;
-            } else {
-              statusBadge = '<span style="color:#16a34a; background:#d1e7dd; padding:4px 10px; border-radius:999px; font-size:0.75rem; font-weight:700;">🟢 Up to date</span>';
             }
 
             const isLimited = (data.responses_count < 3);
@@ -616,6 +696,15 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
               impHtml = '<div class="text-muted text-sm">No improvement areas identified.</div>';
             }
 
+            let findingsHtml = '';
+            if (analysis.key_findings && analysis.key_findings.length > 0) {
+              analysis.key_findings.forEach(f => {
+                findingsHtml += `<li style="font-size:0.82rem; margin-bottom:8px; line-height:1.4; color:var(--text-main);">🔍 ${escapeHtml(f)}</li>`;
+              });
+            } else {
+              findingsHtml = '<div class="text-muted text-sm">No key findings recorded.</div>';
+            }
+
             let sugHtml = '';
             if (analysis.common_suggestions && analysis.common_suggestions.length > 0) {
               analysis.common_suggestions.forEach(s => {
@@ -648,9 +737,11 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
                   <h2 style="font-family:'Syne',sans-serif; font-size:1.1rem; font-weight:800; color:var(--text-main); margin:0;">Participant Feedback Analysis</h2>
                   <div class="text-sm text-muted" style="margin-top:2px;">Last analyzed: ${formatDate(data.last_updated)}</div>
                 </div>
-                <div style="display:flex; gap:8px; align-items:center;">
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                   ${statusBadge}
-                  <button class="btn btn-outline btn-sm no-print" onclick="runAnalysis()">🔄 Update Analysis</button>
+                  <button class="btn btn-primary btn-sm no-print" onclick="openReviewModal()">✏️ Review & Edit</button>
+                  ${!isFinalized ? `<button class="btn btn-success btn-sm no-print" onclick="confirmFinalizeAnalysis()" style="background:#15803d; border-color:#15803d; color:#fff; font-weight:700;">🔒 Finalize Analysis</button>` : ''}
+                  ${!isFinalized && !isReviewed ? `<button class="btn btn-outline btn-sm no-print" onclick="runAnalysis()">🔄 Update Analysis</button>` : ''}
                 </div>
               </div>
 
@@ -677,8 +768,8 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
 
               <div class="card" style="margin-bottom:20px;">
                 <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; padding:12px 20px;">
-                  <h3 style="font-size:0.88rem; font-weight:700; margin:0;">AI Feedback Summary</h3>
-                  <span style="font-size:0.7rem; color:var(--text-muted); background:var(--bg-base); padding:3px 8px; border-radius:4px; font-weight:600; border:1px solid var(--border);">AI-generated summary</span>
+                  <h3 style="font-size:0.88rem; font-weight:700; margin:0;">Feedback Summary</h3>
+                  ${summaryBadge}
                 </div>
                 <div class="card-body" style="padding:16px 20px;">
                   <p style="font-size:0.88rem; line-height:1.6; margin:0; color:var(--text-main); font-style:italic;">
@@ -714,6 +805,15 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
                 </div>
               </div>
 
+              <div class="card" style="margin-bottom:20px;">
+                <div class="card-header"><h3 style="font-size:0.88rem; font-weight:700; margin:0;">🔍 Key Findings</h3></div>
+                <div class="card-body" style="padding:16px 20px;">
+                  <ul style="margin:0; padding-left:0; list-style:none;">
+                    ${findingsHtml}
+                  </ul>
+                </div>
+              </div>
+
               <div class="suggestions-layout" style="margin-bottom:20px; display:flex; gap:20px; align-items:start;">
                 <div class="card" style="flex:1;">
                   <div class="card-header"><h3 style="font-size:0.88rem; font-weight:700; margin:0;">💡 Common Suggestions</h3></div>
@@ -733,6 +833,237 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
                 </div>
               </div>
             `;
+          }
+
+          function openReviewModal() {
+            if (!window.currentAnalysisData || !window.currentAnalysisData.analysis) {
+              alert('No analysis loaded to review.');
+              return;
+            }
+            const a = window.currentAnalysisData.analysis;
+            
+            let posThemesHtml = '';
+            (a.positive_themes || []).forEach((t) => {
+              posThemesHtml += `
+                <div class="theme-edit-row" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px; margin-bottom:8px;">
+                  <div style="display:flex; gap:8px; margin-bottom:6px;">
+                    <input type="text" class="form-control form-control-sm pos-theme-name" placeholder="Theme title" value="${escapeHtml(t.theme || '')}" style="font-weight:600; flex:1;">
+                    <input type="number" class="form-control form-control-sm pos-theme-freq" placeholder="Freq" value="${t.frequency || 1}" style="width:70px;">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.theme-edit-row').remove()">✕</button>
+                  </div>
+                  <textarea class="form-control form-control-sm pos-theme-desc" rows="2" placeholder="Theme summary/details">${escapeHtml(t.summary || '')}</textarea>
+                </div>
+              `;
+            });
+
+            let impThemesHtml = '';
+            (a.improvement_themes || []).forEach((t) => {
+              impThemesHtml += `
+                <div class="theme-edit-row" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px; margin-bottom:8px;">
+                  <div style="display:flex; gap:8px; margin-bottom:6px;">
+                    <input type="text" class="form-control form-control-sm imp-theme-name" placeholder="Theme title" value="${escapeHtml(t.theme || '')}" style="font-weight:600; flex:1;">
+                    <input type="number" class="form-control form-control-sm imp-theme-freq" placeholder="Freq" value="${t.frequency || 1}" style="width:70px;">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.theme-edit-row').remove()">✕</button>
+                  </div>
+                  <textarea class="form-control form-control-sm imp-theme-desc" rows="2" placeholder="Theme summary/details">${escapeHtml(t.summary || '')}</textarea>
+                </div>
+              `;
+            });
+
+            const commonSuggText = (a.common_suggestions || []).join('\n');
+            const keyFindingsText = (a.key_findings || []).join('\n');
+            const recsText = (a.recommendations || []).join('\n');
+
+            let modalEl = document.getElementById('review-analysis-modal');
+            if (!modalEl) {
+              modalEl = document.createElement('div');
+              modalEl.id = 'review-analysis-modal';
+              document.body.appendChild(modalEl);
+            }
+
+            modalEl.innerHTML = `
+              <div style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15,23,42,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+                <div style="background:#fff; border-radius:12px; max-width:850px; width:100%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);">
+                  <div style="padding:16px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                      <h3 style="font-family:'Syne',sans-serif; font-size:1.1rem; font-weight:800; margin:0; color:#1e293b;">
+                        ✏️ Administrator Review & Edit — Feedback Analysis
+                      </h3>
+                      <p class="text-muted" style="font-size:0.78rem; margin:2px 0 0 0;">
+                        Review and adjust AI-extracted feedback themes, suggestions, and recommendations before finalization.
+                      </p>
+                    </div>
+                    <button type="button" onclick="closeReviewModal()" style="border:none; background:none; font-size:1.4rem; cursor:pointer; color:#64748b;">&times;</button>
+                  </div>
+
+                  <div style="padding:20px 24px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:18px;">
+                    <div>
+                      <label style="font-weight:700; font-size:0.85rem; display:block; margin-bottom:6px; color:#1e293b;">Overall Summary</label>
+                      <textarea id="edit-summary" class="form-control" rows="3" style="width:100%; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; font-size:0.85rem;">${escapeHtml(a.overall_summary || '')}</textarea>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                      <div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                          <label style="font-weight:700; font-size:0.85rem; color:#16a34a; margin:0;">🟢 Positive Themes</label>
+                          <button type="button" class="btn btn-outline btn-sm" onclick="addThemeRow('pos')" style="font-size:0.72rem; padding:2px 8px;">+ Add Theme</button>
+                        </div>
+                        <div id="pos-themes-container" style="max-height:220px; overflow-y:auto;">
+                          ${posThemesHtml}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                          <label style="font-weight:700; font-size:0.85rem; color:#d97706; margin:0;">Area for Improvement</label>
+                          <button type="button" class="btn btn-outline btn-sm" onclick="addThemeRow('imp')" style="font-size:0.72rem; padding:2px 8px;">+ Add Theme</button>
+                        </div>
+                        <div id="imp-themes-container" style="max-height:220px; overflow-y:auto;">
+                          ${impThemesHtml}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style="font-weight:700; font-size:0.85rem; display:block; margin-bottom:4px; color:#1e293b;">🔍 Key Findings <span class="text-muted" style="font-weight:400; font-size:0.75rem;">(One item per line)</span></label>
+                      <textarea id="edit-findings" class="form-control" rows="3" style="width:100%; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; font-size:0.85rem;">${escapeHtml(keyFindingsText)}</textarea>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                      <div>
+                        <label style="font-weight:700; font-size:0.85rem; display:block; margin-bottom:4px; color:#1e293b;">💡 Common Suggestions <span class="text-muted" style="font-weight:400; font-size:0.75rem;">(One item per line)</span></label>
+                        <textarea id="edit-suggestions" class="form-control" rows="3" style="width:100%; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; font-size:0.85rem;">${escapeHtml(commonSuggText)}</textarea>
+                      </div>
+
+                      <div>
+                        <label style="font-weight:700; font-size:0.85rem; display:block; margin-bottom:4px; color:#1e293b;">🎯 Actionable Recommendations <span class="text-muted" style="font-weight:400; font-size:0.75rem;">(One item per line)</span></label>
+                        <textarea id="edit-recommendations" class="form-control" rows="3" style="width:100%; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; font-size:0.85rem;">${escapeHtml(recsText)}</textarea>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="padding:14px 24px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom-left-radius:12px; border-bottom-right-radius:12px;">
+                    <button type="button" class="btn btn-outline" onclick="closeReviewModal()">Cancel</button>
+                    <div style="display:flex; gap:10px;">
+                      <button type="button" class="btn btn-primary" onclick="submitAnalysisReview('edit')" id="btn-save-draft" style="font-weight:700;">💾 Save Reviewed Draft</button>
+                      <button type="button" class="btn btn-success" onclick="submitAnalysisReview('finalize')" id="btn-finalize" style="background:#15803d; border-color:#15803d; color:#fff; font-weight:700;">🔒 Finalize Analysis</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          }
+
+          function addThemeRow(type) {
+            const container = document.getElementById(type === 'pos' ? 'pos-themes-container' : 'imp-themes-container');
+            if (!container) return;
+            const div = document.createElement('div');
+            div.className = 'theme-edit-row';
+            div.style.cssText = 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px; margin-bottom:8px;';
+            const nameClass = type === 'pos' ? 'pos-theme-name' : 'imp-theme-name';
+            const freqClass = type === 'pos' ? 'pos-theme-freq' : 'imp-theme-freq';
+            const descClass = type === 'pos' ? 'pos-theme-desc' : 'imp-theme-desc';
+            div.innerHTML = `
+              <div style="display:flex; gap:8px; margin-bottom:6px;">
+                <input type="text" class="form-control form-control-sm ${nameClass}" placeholder="Theme title" style="font-weight:600; flex:1;">
+                <input type="number" class="form-control form-control-sm ${freqClass}" placeholder="Freq" value="1" style="width:70px;">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.theme-edit-row').remove()">✕</button>
+              </div>
+              <textarea class="form-control form-control-sm ${descClass}" rows="2" placeholder="Theme summary/details"></textarea>
+            `;
+            container.appendChild(div);
+          }
+
+          function closeReviewModal() {
+            const modalEl = document.getElementById('review-analysis-modal');
+            if (modalEl) modalEl.innerHTML = '';
+          }
+
+          async function submitAnalysisReview(actionType, useCurrentData = false) {
+            let summary = '';
+            let posThemes = [];
+            let impThemes = [];
+            let suggestions = '';
+            let findings = '';
+            let recs = '';
+
+            if (useCurrentData && window.currentAnalysisData && window.currentAnalysisData.analysis) {
+              const a = window.currentAnalysisData.analysis;
+              summary = a.overall_summary || '';
+              posThemes = a.positive_themes || [];
+              impThemes = a.improvement_themes || [];
+              suggestions = (a.common_suggestions || []).join('\n');
+              findings = (a.key_findings || []).join('\n');
+              recs = (a.recommendations || []).join('\n');
+            } else {
+              const sumEl = document.getElementById('edit-summary');
+              if (sumEl) summary = sumEl.value.trim();
+
+              document.querySelectorAll('#pos-themes-container .theme-edit-row').forEach(row => {
+                const name = row.querySelector('.pos-theme-name')?.value.trim();
+                const freq = parseInt(row.querySelector('.pos-theme-freq')?.value || '1', 10);
+                const desc = row.querySelector('.pos-theme-desc')?.value.trim();
+                if (name || desc) {
+                  posThemes.push({ theme: name || 'Theme', frequency: freq, summary: desc || '' });
+                }
+              });
+
+              document.querySelectorAll('#imp-themes-container .theme-edit-row').forEach(row => {
+                const name = row.querySelector('.imp-theme-name')?.value.trim();
+                const freq = parseInt(row.querySelector('.imp-theme-freq')?.value || '1', 10);
+                const desc = row.querySelector('.imp-theme-desc')?.value.trim();
+                if (name || desc) {
+                  impThemes.push({ theme: name || 'Theme', frequency: freq, summary: desc || '' });
+                }
+              });
+
+              findings = document.getElementById('edit-findings')?.value || '';
+              suggestions = document.getElementById('edit-suggestions')?.value || '';
+              recs = document.getElementById('edit-recommendations')?.value || '';
+            }
+
+            const btnDraft = document.getElementById('btn-save-draft');
+            const btnFin = document.getElementById('btn-finalize');
+            if (btnDraft) btnDraft.disabled = true;
+            if (btnFin) btnFin.disabled = true;
+
+            try {
+              const formData = new FormData();
+              formData.append('activity_id', '<?= $id ?>');
+              formData.append('action', actionType);
+              formData.append('summary', summary);
+              formData.append('positive_themes', JSON.stringify(posThemes));
+              formData.append('improvement_themes', JSON.stringify(impThemes));
+              formData.append('key_findings', findings);
+              formData.append('common_suggestions', suggestions);
+              formData.append('recommendations', recs);
+
+              const res = await fetch('<?= BASE_URL ?>/api/generate-feedback-analysis.php', {
+                method: 'POST',
+                body: formData
+              });
+
+              const data = await res.json();
+              if (!res.ok) {
+                alert(data.error || 'Failed to update analysis.');
+                if (btnDraft) btnDraft.disabled = false;
+                if (btnFin) btnFin.disabled = false;
+                return;
+              }
+
+              closeReviewModal();
+              renderAnalysis(data);
+            } catch (err) {
+              alert('An error occurred while saving analysis.');
+              if (btnDraft) btnDraft.disabled = false;
+              if (btnFin) btnFin.disabled = false;
+            }
+          }
+
+          function confirmFinalizeAnalysis() {
+            if (confirm('Are you sure you want to finalize this analysis? This records your approval and marks the evaluation analysis as finalized.')) {
+              submitAnalysisReview('finalize', true);
+            }
           }
 
           function escapeHtml(text) {
@@ -760,12 +1091,37 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
     $printAnalysis = $printAnalysisStmt->fetch(PDO::FETCH_ASSOC);
     if ($printAnalysis):
       $pa = json_decode($printAnalysis['analysis_json'], true);
+      $paIsFinalized = !empty($pa['is_finalized']);
     ?>
     <div class="print-only print-analysis-section" style="display:none; margin-top:30px; border-top:2px solid #333; padding-top:20px; page-break-before:always;">
-      <h2 style="font-family:'Syne',sans-serif; font-size:1.2rem; font-weight:800; margin-bottom:12px;">🤖 AI Participant Feedback Analysis Report</h2>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #ddd; padding-bottom:8px;">
+        <h2 style="font-family:'Syne',sans-serif; font-size:1.2rem; font-weight:800; margin:0;">
+          <?= $paIsFinalized ? '✅ Administrator Finalized Feedback Analysis Report' : '🤖 AI Participant Feedback Analysis Report' ?>
+        </h2>
+        <?php if ($paIsFinalized): ?>
+          <span style="font-size:0.8rem; color:#15803d; font-weight:700;">
+            🔒 FINALIZED by <?= htmlspecialchars($pa['finalized_by']['name'] ?? 'Administrator') ?> (<?= htmlspecialchars($pa['finalized_by']['role'] ?? 'Admin') ?>) on <?= htmlspecialchars($pa['finalized_at'] ?? '') ?>
+          </span>
+        <?php else: ?>
+          <span style="font-size:0.8rem; color:#64748b; font-weight:600;">
+            🤖 UNREVIEWED AI DRAFT
+          </span>
+        <?php endif; ?>
+      </div>
       <p style="font-size:0.9rem; line-height:1.5; font-style:italic; margin-bottom:15px;">
         "<?= htmlspecialchars($pa['overall_summary'] ?? '') ?>"
       </p>
+
+      <?php if (!empty($pa['key_findings'])): ?>
+      <div style="margin-bottom:15px;">
+        <h3 style="font-size:0.9rem; font-weight:700; margin-bottom:8px;">🔍 Key Findings</h3>
+        <ul style="padding-left:16px; margin:0; font-size:0.82rem; line-height:1.4;">
+          <?php foreach($pa['key_findings'] as $kf): ?>
+            <li><?= htmlspecialchars($kf) ?></li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+      <?php endif; ?>
       
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:15px;">
         <div>

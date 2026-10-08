@@ -9,7 +9,7 @@ $user = currentUser();
 $db   = getDB();
 
 $id = (int)($_GET['id'] ?? 0);
-if (!$id) { header('Location: '.BASE_URL.'/admin2/dashboard.php'); exit; }
+if (!$id) { header('Location: '.BASE_URL.'/dean/dashboard.php'); exit; }
 
 $act = $db->prepare("SELECT a.*,u.name as faculty_name,u.email as faculty_email FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.id=?");
 $act->execute([$id]);
@@ -69,46 +69,389 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dean Final Review – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
+<script>
+  (function() {
+    try {
+      var savedTheme = localStorage.getItem('sti-theme');
+      if (savedTheme === 'dark') {
+        document.documentElement.dataset.theme = 'dark';
+      } else {
+        document.documentElement.dataset.theme = 'light';
+      }
+    } catch (e) {}
+  })();
+</script>
 <style>
+/* ── Plus Jakarta Sans Consistency: No Syne on this page ── */
+body, body *,
+h1, h2, h3, h4, h5, h6,
+.page-title,
+.proposal-title,
+.review-section-header h2,
+.btn,
+.badge,
+.topbar-user-name,
+.topbar-user-role,
+.info-block,
+.review-table,
+.modal h3,
+label, input, button, select, textarea {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+/* ── Sticky Action Bar ── */
 .review-action-bar {
-  position: sticky; top: 0; z-index: 50;
-  background: #fff; border-bottom: 2px solid var(--border);
-  padding: 14px 24px;
+  position: sticky; top: 64px; z-index: 45;
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 28px;
   display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap;
-  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  gap: 16px; flex-wrap: wrap;
+  box-shadow: 0 4px 20px rgba(10, 22, 40, 0.05);
 }
 .review-action-bar .proposal-meta { flex: 1; min-width: 0; }
-.review-action-bar .proposal-title { font-family:'Syne',sans-serif; font-size:1.05rem; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.review-section { margin-bottom: 20px; border-radius: var(--radius); border: 1px solid var(--border); background: #fff; overflow: hidden; }
-.review-section.flagged { border-color: #F59E0B; box-shadow: 0 0 0 2px rgba(245,158,11,.18); }
-.review-section-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: var(--bg-base); border-bottom: 1px solid var(--border); gap: 10px; }
-.review-section-header h2 { font-size: .92rem; font-weight: 700; margin: 0; flex: 1; }
-.btn-request-revision { background: none; border: 1.5px solid #D1D5DB; border-radius: 7px; padding: 5px 12px; font-size: .72rem; font-weight: 700; cursor: pointer; color: #6B7280; white-space: nowrap; display: flex; align-items: center; gap: 5px; transition: background .15s, border-color .15s, color .15s; }
-.btn-request-revision:hover { background: #FEF9C3; border-color: #F59E0B; color: #92400E; }
-.btn-request-revision.has-comment { background: #FEF3C7; border-color: #F59E0B; color: #92400E; }
-.review-section-body { padding: 18px 20px; }
-.section-comment-box { display: none; background: #FFFBEB; border-top: 1px solid #FDE68A; padding: 14px 20px; gap: 10px; }
-.section-comment-box.open { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
-.section-comment-box textarea { flex: 1; min-width: 200px; min-height: 70px; border: 1px solid #FCD34D; border-radius: 6px; padding: 8px 10px; font-size: .82rem; resize: vertical; background: #fff; }
-.section-comment-box textarea:focus { outline: none; border-color: #F59E0B; box-shadow: 0 0 0 2px rgba(245,158,11,.2); }
-.section-flagged-banner { background: #FEF3C7; border-top: 1px solid #FDE68A; padding: 8px 20px; font-size: .78rem; color: #78350F; display: flex; align-items: flex-start; gap: 6px; }
-.info-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
-.info-block { background: var(--bg-base); border-radius: 8px; padding: 12px 14px; }
-.info-block .lbl { font-size: .68rem; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); font-weight: 700; }
-.info-block .val { font-size: .88rem; font-weight: 600; margin-top: 3px; }
-.flagged-badge { background: #F59E0B; color: #fff; font-size: .68rem; font-weight: 800; padding: 2px 7px; border-radius: 99px; }
-.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; align-items:center; justify-content:center; }
-.modal-overlay.open { display:flex; }
-.modal { background:#fff; border-radius:var(--radius); padding:28px; max-width:500px; width:100%; box-shadow:var(--shadow-lg); }
-.sl { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-bottom:6px; }
-.budget-total { display:flex; justify-content:flex-end; padding:10px 14px; background:var(--bg-base); font-weight:700; font-size:.9rem; border-top:1px solid var(--border); }
+.review-action-bar .proposal-title {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 1.15rem; font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.3;
+}
+.review-action-bar .btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.82rem; font-weight: 600;
+  padding: 0 16px; height: 38px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-sm);
+}
+.review-action-bar .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.review-action-bar .btn-sm { height: 38px; padding: 0 14px; }
+.review-action-bar button[onclick*="return"] {
+  border-color: var(--border);
+  color: var(--text-main);
+  background: #fff;
+}
+.review-action-bar button[onclick*="return"]:hover {
+  background: var(--sti-gold-lt);
+  border-color: var(--sti-gold);
+  color: #92400e;
+}
+
+/* ── Section Card with Request Revision ── */
+.review-section {
+  margin-bottom: 24px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(10, 22, 40, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.review-section.flagged {
+  border-color: var(--sti-gold);
+  box-shadow: 0 0 0 2px rgba(244, 169, 0, 0.25), 0 4px 16px rgba(244, 169, 0, 0.08);
+}
+.review-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 22px; background: var(--bg-card); border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+.review-section-header h2 {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 0.98rem; font-weight: 700;
+  color: var(--text-main);
+  margin: 0; flex: 1;
+  letter-spacing: -0.01em;
+}
+.btn-request-revision {
+  background: var(--bg-card);
+  color: var(--text-muted);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.75rem; font-weight: 700;
+  cursor: pointer;
+  color: var(--text-muted-dark);
+  white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-request-revision:hover {
+  background: var(--sti-gold-lt);
+  border-color: var(--sti-gold);
+  color: #92400e;
+  box-shadow: 0 2px 6px rgba(244, 169, 0, 0.18);
+  transform: translateY(-1px);
+}
+.btn-request-revision.has-comment {
+  background: var(--sti-gold-lt);
+  border-color: var(--sti-gold);
+  color: #92400e;
+  font-weight: 700;
+}
+.review-section-body { padding: 20px 24px; }
+
+/* ── Inline Comment Box ── */
+.section-comment-box {
+  display: none;
+  background: var(--sti-gold-lt);
+  border-top: 1px solid rgba(244, 169, 0, 0.3);
+  padding: 16px 22px; gap: 12px;
+}
+.section-comment-box.open {
+  display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap;
+  animation: commentSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes commentSlideDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.section-comment-box textarea {
+  flex: 1; min-width: 220px; min-height: 76px;
+  border: 1.5px solid rgba(244, 169, 0, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.85rem; line-height: 1.45;
+  resize: vertical;
+  background: var(--bg-card);
+  color: var(--text-main);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.section-comment-box textarea:focus {
+  outline: none;
+  border-color: var(--sti-gold);
+  box-shadow: 0 0 0 3px rgba(244, 169, 0, 0.2);
+}
+.btn-save-comment {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700; font-size: 0.78rem;
+  padding: 8px 16px; border-radius: var(--radius-sm);
+  white-space: nowrap;
+  background: var(--sti-gold); color: var(--text-main);
+  border: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: all 0.2s ease;
+}
+.btn-save-comment:hover {
+  background: var(--sti-gold-hover);
+  box-shadow: 0 2px 6px rgba(244, 169, 0, 0.25);
+  transform: translateY(-1px);
+}
+.comment-saved-notice {
+  font-size: 0.72rem; color: #78350F; font-weight: 600;
+  display: flex; align-items: center; gap: 4px;
+}
+.section-flagged-banner {
+  background: var(--sti-gold-lt);
+  border-top: 1px solid rgba(244, 169, 0, 0.3);
+  padding: 10px 22px; font-size: 0.82rem; font-weight: 500;
+  color: #78350F;
+  display: flex; align-items: center; gap: 8px;
+}
+.btn-remove-comment {
+  background: none; border: none; cursor: pointer;
+  color: #92400e; font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.75rem; font-weight: 700;
+  padding: 2px 8px; border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-remove-comment:hover {
+  background: rgba(146, 64, 14, 0.1);
+  color: #78350F;
+}
+
+[data-theme="dark"] .section-comment-box {
+  background: rgba(244, 169, 0, 0.08);
+  border-top-color: rgba(244, 169, 0, 0.25);
+}
+[data-theme="dark"] .section-comment-box textarea {
+  background: var(--bg-base);
+  color: var(--text-main);
+  border-color: rgba(244, 169, 0, 0.35);
+}
+[data-theme="dark"] .section-flagged-banner {
+  background: rgba(244, 169, 0, 0.12);
+  color: #FCD34D;
+  border-top-color: rgba(244, 169, 0, 0.25);
+}
+[data-theme="dark"] .comment-saved-notice {
+  color: #FCD34D;
+}
+[data-theme="dark"] .btn-remove-comment {
+  color: #FCD34D;
+}
+[data-theme="dark"] .btn-remove-comment:hover {
+  background: rgba(244, 169, 0, 0.2);
+  color: #FBBF24;
+}
+
+/* ── Info Grid ── */
+.info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.info-block {
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.info-block:hover {
+  background: var(--bg-card);
+  border-color: var(--sti-blue);
+}
+.info-block .lbl {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-muted); font-weight: 700;
+}
+.info-block .val {
+  font-size: 0.9rem; font-weight: 600;
+  color: var(--text-main);
+  margin-top: 3px;
+}
+
+/* ── Flagged count badge ── */
+.flagged-badge {
+  background: var(--sti-gold);
+  color: var(--text-main);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.02em;
+  padding: 2px 9px; border-radius: 99px;
+  display: inline-flex; align-items: center; gap: 4px;
+  box-shadow: 0 1px 3px rgba(244, 169, 0, 0.35);
+  animation: badgePopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes badgePopIn {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* ── Action Modals ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(10, 22, 40, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 200; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.modal-overlay.open {
+  display: flex;
+  animation: modalOverlayFade 0.2s ease-out;
+}
+@keyframes modalOverlayFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.modal {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  max-width: 520px; width: 100%;
+  box-shadow: 0 20px 40px rgba(10, 22, 40, 0.2);
+  border: 1px solid var(--border);
+  position: relative;
+  animation: modalContentZoom 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes modalContentZoom {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.modal h3 {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 1.18rem; font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 8px; letter-spacing: -0.01em;
+}
+.modal p { color: var(--text-body); line-height: 1.5; }
+.modal .form-label {
+  font-weight: 600; font-size: 0.82rem;
+  color: var(--text-main); margin-bottom: 6px; display: block;
+}
+.modal .form-control {
+  width: 100%; border: 1px solid var(--border);
+  background: var(--bg-base);
+  color: var(--text-main);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.85rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+.modal .form-control:focus {
+  outline: none;
+  border-color: var(--sti-blue);
+  box-shadow: 0 0 0 3px rgba(0, 114, 206, 0.15);
+}
+.modal .alert {
+  border-radius: var(--radius-sm);
+  padding: 10px 14px; margin-bottom: 14px;
+  font-size: 0.82rem; line-height: 1.45;
+}
+.modal .alert-warning {
+  background: var(--sti-gold-lt);
+  border: 1px solid rgba(244, 169, 0, 0.4);
+  color: #78350F;
+}
+.modal .alert-danger {
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  color: #991B1B;
+}
+.modal .flex.gap-2 {
+  display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;
+}
+#modal-return .modal { border-top: 4px solid var(--sti-gold); }
+#modal-reject .modal { border-top: 4px solid var(--sti-red); }
+#modal-approve .modal,
+#modal-forward .modal { border-top: 4px solid var(--sti-blue); }
+
+/* ── Section label ── */
+.sl {
+  font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-muted); margin-bottom: 6px;
+}
+
+/* ── Budget total row ── */
+.budget-total {
+  display: flex; justify-content: flex-end;
+  padding: 12px 18px;
+  background: var(--bg-base);
+  font-weight: 700; font-size: 0.95rem;
+  color: var(--text-main);
+  border-top: 1px solid var(--border);
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+
+@media (max-width: 768px) {
+  .review-action-bar { padding: 12px 16px; }
+  .review-section-header { padding: 12px 16px; }
+  .review-section-body { padding: 16px; }
+  .info-grid { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body class="theme-dean">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 <div class="main-wrap">
+
+  <!-- Shared Topbar -->
+  <header class="topbar">
+    <div class="page-title">Review Proposal</div>
+    <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+      <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
+  </header>
 
   <div class="review-action-bar">
     <div class="proposal-meta">
@@ -131,6 +474,7 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
   </div>
 
   <div class="content">
+    <?php renderAiValidationSection($id); ?>
 
     <?php renderSectionHeader('event_details', '📋 Event Details', $stagedComments); ?>
       <div class="info-grid" style="margin-bottom:14px;">
@@ -172,14 +516,36 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
 
     <?php renderSectionHeader('floor_plan', '🗺️ Floor Plan', $stagedComments); ?>
       <?php if ($fp): ?>
-        <?php $ext = strtolower(pathinfo($fp['file_path'], PATHINFO_EXTENSION)); $isImg = in_array($ext,['png','jpg','jpeg','gif','webp']); ?>
-        <?php $fpUrl = str_starts_with($fp['file_path'], 'http') ? $fp['file_path'] : BASE_URL . '/' . $fp['file_path']; ?>
-        <?php if($isImg): ?>
+        <?php
+          $floorsList = [];
+          if (!empty($fp['canvas_json'])) {
+              $parsedFp = json_decode($fp['canvas_json'], true);
+              if ($parsedFp && !empty($parsedFp['floors'])) {
+                  foreach ($parsedFp['floors'] as $fKey => $fVal) {
+                      $floorsList[] = $fVal['name'] ?? ucfirst($fKey) . ' Floor';
+                  }
+              }
+          }
+          if (empty($floorsList) && (!empty($fp['file_path']) || !empty($fp['canvas_json']))) {
+              $floorsList = ['Ground Floor'];
+          }
+        ?>
+        <?php if (!empty($floorsList)): ?>
+          <div style="margin-bottom:10px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+            <span style="font-size:0.75rem; font-weight:600; color:#64748b;">Included Floors:</span>
+            <?php foreach ($floorsList as $flName): ?>
+              <span class="badge" style="background:#0056b3; color:#fff; font-size:0.75rem; padding:3px 8px; border-radius:4px;">🏢 <?= htmlspecialchars($flName) ?></span>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+        <?php $ext = strtolower(pathinfo($fp['file_path'] ?? '', PATHINFO_EXTENSION)); $isImg = in_array($ext,['png','jpg','jpeg','gif','webp']); ?>
+        <?php $fpUrl = !empty($fp['file_path']) ? (str_starts_with($fp['file_path'], 'http') ? $fp['file_path'] : BASE_URL . '/' . $fp['file_path']) : ''; ?>
+        <?php if($isImg && $fpUrl): ?>
           <img src="<?= htmlspecialchars($fpUrl) ?>" style="max-width:100%;border-radius:8px;margin-bottom:12px;" alt="Floor Plan">
-        <?php else: ?>
+        <?php elseif($fpUrl): ?>
           <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm" style="margin-bottom:12px;">📎 View Floor Plan File</a>
         <?php endif; ?>
-        <?php if ($fp['notes']): ?><div class="sl" style="margin-top:10px;">Notes</div><p><?= nl2br(htmlspecialchars($fp['notes'])) ?></p><?php endif; ?>
+        <?php if (!empty($fp['notes'])): ?><div class="sl" style="margin-top:10px;">Notes</div><p><?= nl2br(htmlspecialchars($fp['notes'])) ?></p><?php endif; ?>
       <?php else: ?><p class="text-muted">No floor plan uploaded.</p><?php endif; ?>
     <?php renderSectionClose('floor_plan', $stagedComments, $id); ?>
 
@@ -268,7 +634,7 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
 ] as $key => [$label, $cls, $action, $required]): ?>
 <div class="modal-overlay" id="modal-<?= $key ?>">
   <div class="modal">
-    <h3 style="font-family:'Syne',sans-serif;margin-bottom:8px;"><?= $label ?></h3>
+    <h3 style="font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:8px;color:var(--text-main);"><?= $label ?></h3>
       <?php if ($key === 'return'): ?>
       <?php if ($stagedCount > 0): ?>
       <div class="alert alert-warning" style="margin-bottom:12px;font-size:.82rem;">

@@ -43,6 +43,16 @@ if (!$venue || !$eventDate || !$startTime || !$endTime) {
     exit;
 }
 
+$timeCheck = validateScheduleTimeRange($startTime, $endTime, true);
+if (!$timeCheck['valid']) {
+    http_response_code(400);
+    echo json_encode([
+        'error' => $timeCheck['error'],
+        'code'  => $timeCheck['code']
+    ]);
+    exit;
+}
+
 try {
     $result = checkScheduleConflict($venue, $eventDate, $startTime, $endTime, $activityId);
     echo json_encode($result);

@@ -53,6 +53,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="main-wrap">
   <header class="topbar">
     <div class="page-title">Test Email Configuration</div>
+    <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+      <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
   </header>
   <div class="content">
     <div class="container">

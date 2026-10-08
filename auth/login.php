@@ -7,6 +7,10 @@ startSession();
 
 // Already logged in? Redirect.
 if (!empty($_SESSION['user_id'])) {
+  if (!empty($_SESSION['must_change_password'])) {
+    header("Location: " . BASE_URL . "/auth/change-password.php");
+    exit;
+  }
   $role = $_SESSION['user_role'];
   $map  = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean'];
   $dir  = $map[$role] ?? 'faculty';
@@ -14,18 +18,113 @@ if (!empty($_SESSION['user_id'])) {
   exit;
 }
 
+// Failed-login throttle configuration
+$maxThrottleAttempts = 5;
+$throttleLockoutSeconds = 60;
+$throttleDecaySeconds = 300;
+
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $user = login(trim($_POST['email'] ?? ''), $_POST['password'] ?? '');
-  if ($user) {
-    $map = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean'];
-    $dir = $map[$user['role']] ?? 'faculty';
-    header("Location: " . BASE_URL . "/{$dir}/dashboard.php");
-    exit;
+  $emailInput = trim($_POST['email'] ?? '');
+  $passwordInput = $_POST['password'] ?? '';
+
+  // Composite key per client IP and submitted email
+  $clientIp = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+  $throttleKey = hash('sha256', $clientIp . '|' . strtolower($emailInput));
+  $throttleDir = session_save_path();
+  if (empty($throttleDir) || !is_dir($throttleDir) || !is_writable($throttleDir)) {
+    $throttleDir = (is_dir('C:/xampp/tmp') && is_writable('C:/xampp/tmp')) ? 'C:/xampp/tmp' : sys_get_temp_dir();
   }
-  $error = 'Invalid email or password.';
+  $throttleFile = rtrim($throttleDir, '/\\') . DIRECTORY_SEPARATOR . 'sti_throttle_' . $throttleKey . '.json';
+
+  // Read current throttle state
+  $throttleData = ['count' => 0, 'locked_until' => 0, 'last_attempt' => 0];
+  if (file_exists($throttleFile)) {
+    $raw = @file_get_contents($throttleFile);
+    if ($raw) {
+      $parsed = @json_decode($raw, true);
+      if (is_array($parsed)) {
+        $throttleData = array_merge($throttleData, $parsed);
+      }
+    }
+  }
+  if (!empty($_SESSION['login_throttle'][$throttleKey]) && is_array($_SESSION['login_throttle'][$throttleKey])) {
+    if (($_SESSION['login_throttle'][$throttleKey]['count'] ?? 0) > $throttleData['count']) {
+      $throttleData = array_merge($throttleData, $_SESSION['login_throttle'][$throttleKey]);
+    }
+  }
+
+  $now = time();
+  $isLocked = false;
+
+  // Check lockout or decay expiry
+  if ($throttleData['locked_until'] > 0) {
+    if ($now < $throttleData['locked_until']) {
+      $isLocked = true;
+    } else {
+      $throttleData = ['count' => 0, 'locked_until' => 0, 'last_attempt' => 0];
+      if (file_exists($throttleFile)) {
+        @unlink($throttleFile);
+      }
+      unset($_SESSION['login_throttle'][$throttleKey]);
+    }
+  } elseif ($throttleData['last_attempt'] > 0 && ($now - $throttleData['last_attempt']) > $throttleDecaySeconds) {
+    $throttleData = ['count' => 0, 'locked_until' => 0, 'last_attempt' => 0];
+    if (file_exists($throttleFile)) {
+      @unlink($throttleFile);
+    }
+    unset($_SESSION['login_throttle'][$throttleKey]);
+  }
+
+  if ($isLocked) {
+    http_response_code(429);
+    $error = 'Too many failed login attempts. Please try again later.';
+  } else {
+    $user = login($emailInput, $passwordInput);
+    if ($user) {
+      // Clear throttle on successful login
+      if (file_exists($throttleFile)) {
+        @unlink($throttleFile);
+      }
+      unset($_SESSION['login_throttle'][$throttleKey]);
+
+      if (!empty($user['must_change_password'])) {
+        header("Location: " . BASE_URL . "/auth/change-password.php");
+        exit;
+      }
+      $map = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean'];
+      $dir = $map[$user['role']] ?? 'faculty';
+      header("Location: " . BASE_URL . "/{$dir}/dashboard.php");
+      exit;
+    }
+
+    // Record failed attempt
+    $throttleData['count'] = ($throttleData['count'] ?? 0) + 1;
+    $throttleData['last_attempt'] = $now;
+    if ($throttleData['count'] >= $maxThrottleAttempts) {
+      $throttleData['locked_until'] = $now + $throttleLockoutSeconds;
+      http_response_code(429);
+      $error = 'Too many failed login attempts. Please try again later.';
+    } else {
+      $error = 'Invalid email or password.';
+    }
+    @file_put_contents($throttleFile, json_encode($throttleData), LOCK_EX);
+    $_SESSION['login_throttle'][$throttleKey] = $throttleData;
+  }
 }
 $timeout = isset($_GET['timeout']);
+
+if (empty($error) && isset($_GET['error'])) {
+  $errCode = (string)$_GET['error'];
+  $errorMap = [
+    'microsoft_account_not_found' => 'Your Microsoft account is not registered in the system. Please contact your administrator.',
+    'microsoft_oauth_failed'      => 'Microsoft authentication was cancelled or encountered an error. Please try again.',
+    'invalid_state'               => 'Security verification failed (invalid OAuth state). Please try again.',
+    'missing_email'               => 'Unable to retrieve an email address from your Microsoft profile.',
+    'missing_config'              => 'Microsoft login is not currently configured on this server.',
+  ];
+  $error = $errorMap[$errCode] ?? htmlspecialchars($errCode);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -34,10 +133,6 @@ $timeout = isset($_GET['timeout']);
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login – STI Marikina Activity System</title>
-  <!-- Load Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@700;800&display=swap" rel="stylesheet">
   <!-- Load Bootstrap 5.3.3 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- Load Font Awesome 6.4.0 -->
@@ -47,20 +142,20 @@ $timeout = isset($_GET['timeout']);
   
   <style>
     :root {
-      --primary-color: #1976d2;
-      --primary-hover: #1565c0;
-      --bg-color: #f3f4f6;
+      --primary-color: var(--sti-blue, #0072CE);
+      --primary-hover: var(--sti-blue-hover, #005FA3);
+      --bg-color: var(--bg-page, #F4F6FA);
       --card-bg: #ffffff;
-      --text-main: #1f2937;
-      --text-muted: #6b7280;
-      --border-color: #e5e7eb;
-      --radius: 16px;
-      --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      --text-main: var(--text-main, #1A202C);
+      --text-muted: var(--text-muted, #718096);
+      --border-color: var(--border, #E2E8F0);
+      --radius: var(--radius-md, 12px);
+      --shadow-lg: 0 20px 40px rgba(10, 22, 40, 0.25);
     }
 
     body {
       background: var(--sti-navy, #0A1628);
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       color: var(--text-main);
       display: flex;
       align-items: center;
@@ -72,23 +167,23 @@ $timeout = isset($_GET['timeout']);
 
     .auth-page-body {
       width: 100%;
-      max-width: 370px;
+      max-width: 390px;
     }
 
     .auth-card {
       background: var(--card-bg);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-lg);
-      padding: 44px 30px;
+      border-radius: var(--radius-md, 12px);
+      box-shadow: 0 20px 40px rgba(10, 22, 40, 0.25);
+      padding: 40px 32px;
       border: 1px solid var(--border-color);
     }
 
     .auth-brand {
-      font-family: 'Outfit', sans-serif;
+      font-family: 'Syne', sans-serif;
       font-size: 2.2rem;
       font-weight: 800;
-      letter-spacing: -1px;
-      color: #0f172a;
+      letter-spacing: -0.02em;
+      color: var(--sti-navy, #0A1628);
     }
 
     .auth-brand span {
@@ -97,28 +192,33 @@ $timeout = isset($_GET['timeout']);
 
     .auth-tagline {
       color: var(--text-muted);
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       font-weight: 500;
-      line-height: 1.4;
+      line-height: 1.45;
     }
 
     .form-label {
-      color: var(--text-main);
+      color: var(--sti-navy, #0A1628);
       font-weight: 600;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
+      margin-bottom: 6px;
     }
 
     .form-control {
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      padding: 9px 12px;
-      font-size: 0.9rem;
-      transition: all 0.2s;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm, 6px);
+      padding: 10px 14px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.88rem;
+      color: var(--text-main);
+      background: #ffffff;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
     .form-control:focus {
       border-color: var(--primary-color);
-      box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.15);
+      box-shadow: 0 0 0 3px rgba(0, 114, 206, 0.15);
+      outline: none;
     }
 
     .auth-password-wrapper {
@@ -137,25 +237,26 @@ $timeout = isset($_GET['timeout']);
       color: var(--text-muted);
       border: none;
       background: transparent;
-      padding: 10px;
-      font-size: 1.05rem;
+      padding: 8px 10px;
+      font-size: 1rem;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: color 0.15s;
+      transition: color 0.15s ease;
+      text-decoration: none;
     }
 
     .auth-password-toggle:hover {
-      color: var(--text-main);
+      color: var(--sti-navy, #0A1628);
     }
 
     .login-form-link {
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       color: var(--primary-color);
       text-decoration: none;
-      font-weight: 500;
-      transition: color 0.15s;
+      font-weight: 600;
+      transition: color 0.15s ease;
     }
 
     .login-form-link:hover {
@@ -164,29 +265,34 @@ $timeout = isset($_GET['timeout']);
     }
 
     .auth-submit {
-      background-color: var(--sti-slate, #1E2D45);
+      background: var(--primary-color);
       border: none;
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 0.975rem;
-      font-weight: 600;
+      border-radius: var(--radius-sm, 6px);
+      padding: 11px 16px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.92rem;
+      font-weight: 700;
       color: #ffffff;
-      transition: all 0.2s;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       display: flex;
       align-items: center;
       justify-content: center;
       text-align: center;
       width: 100%;
+      box-shadow: 0 2px 6px rgba(0, 114, 206, 0.25);
+      cursor: pointer;
     }
 
     .auth-submit:hover {
-      background-color: #121C2B;
+      background: var(--primary-hover);
       color: #ffffff;
       transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 114, 206, 0.35);
     }
 
     .auth-submit:active {
       transform: translateY(0);
+      box-shadow: 0 2px 4px rgba(0, 114, 206, 0.2);
     }
 
     .auth-divider {
@@ -194,7 +300,7 @@ $timeout = isset($_GET['timeout']);
       align-items: center;
       text-align: center;
       color: var(--text-muted);
-      font-size: 0.775rem;
+      font-size: 0.75rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -224,7 +330,7 @@ $timeout = isset($_GET['timeout']);
     .auth-oauth-btn {
       background: #ffffff;
       border: 1px solid var(--border-color);
-      border-radius: 8px;
+      border-radius: var(--radius-sm, 6px);
       padding: 10px;
       font-size: 0.85rem;
       font-weight: 600;
@@ -233,12 +339,50 @@ $timeout = isset($_GET['timeout']);
       align-items: center;
       justify-content: center;
       gap: 6px;
-      transition: all 0.2s;
+      transition: all 0.2s ease;
     }
 
     .auth-oauth-btn:hover {
-      background: #f9fafb;
-      border-color: #d1d5db;
+      background: var(--bg-base, #F8FAFD);
+      border-color: #cbd5e1;
+    }
+
+    #btnMicrosoftLogin {
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm, 6px);
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--sti-navy, #0A1628);
+      background: #ffffff;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
+    }
+
+    #btnMicrosoftLogin:hover {
+      background: var(--bg-base, #F8FAFD);
+      border-color: #cbd5e1;
+      color: var(--sti-navy, #0A1628);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow);
+    }
+
+    .alert {
+      border-radius: var(--radius-sm, 6px);
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+
+    .alert-danger {
+      background: #FEF2F2;
+      border: 1px solid #FCA5A5;
+      color: #991B1B;
+    }
+
+    .alert-warning {
+      background: var(--sti-gold-lt, #FEF9E7);
+      border: 1px solid rgba(244, 169, 0, 0.4);
+      color: #78350F;
     }
 
     .auth-footer {
@@ -265,7 +409,7 @@ $timeout = isset($_GET['timeout']);
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      transition: color 0.15s;
+      transition: color 0.15s ease;
     }
 
     .auth-footer-icon-link:hover,
@@ -300,32 +444,33 @@ $timeout = isset($_GET['timeout']);
     }
 
     .demo-logins p {
-      font-size: 0.65rem;
+      font-size: 0.68rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: var(--text-muted);
-      margin-bottom: 4px;
+      margin-bottom: 6px;
     }
 
     .demo-chip {
       display: inline-block;
-      background: #f3f4f6;
+      background: var(--bg-base, #F8FAFD);
       border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 4px 8px;
-      font-size: 0.7rem;
+      border-radius: var(--radius-sm, 6px);
+      padding: 4px 10px;
+      font-size: 0.72rem;
       font-weight: 600;
-      color: var(--text-main);
+      color: var(--sti-navy, #0A1628);
       cursor: pointer;
       margin: 2px;
-      transition: all 0.2s;
+      transition: all 0.2s ease;
     }
 
     .demo-chip:hover {
       border-color: var(--primary-color);
-      background-color: #eff6ff;
+      background-color: var(--sti-blue-lt, #EBF5FB);
       color: var(--primary-color);
+      transform: translateY(-1px);
     }
   </style>
 </head>
@@ -346,7 +491,7 @@ $timeout = isset($_GET['timeout']);
         <div class="alert alert-warning py-2 px-3 small mb-3">Session expired. Please log in again.</div>
       <?php endif; ?>
 
-      <form novalidate="" class="" method="POST">
+      <form novalidate="" class="" method="POST" id="loginForm">
         <!-- Email Input -->
         <div class="mb-2">
           <label class="fw-bold small mb-1 form-label" for="loginEmail">Email</label>
@@ -373,7 +518,23 @@ $timeout = isset($_GET['timeout']);
         <button type="submit" aria-busy="false" class="auth-submit w-100 btn btn-primary">Sign In</button>
       </form>
 
+      <!-- OAuth Separator -->
+      <div class="d-flex align-items-center my-3">
+        <hr class="flex-grow-1 my-0" style="border-color: #e5e7eb;">
+        <span class="px-2 text-muted small" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">or</span>
+        <hr class="flex-grow-1 my-0" style="border-color: #e5e7eb;">
+      </div>
 
+      <!-- Sign in with Microsoft Button -->
+      <a href="<?= BASE_URL ?>/auth/microsoft-login.php" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2 py-2" id="btnMicrosoftLogin">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 21 21">
+          <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+          <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+          <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+          <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+        </svg>
+        Sign in with Microsoft
+      </a>
 
       <!-- Quick Demo Login Section -->
       <div class="demo-logins">

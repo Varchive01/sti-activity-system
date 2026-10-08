@@ -98,7 +98,13 @@ if ($selectedId) {
   <div class="main-wrap">
     <header class="topbar">
       <div class="page-title">Upload Post-Event Report</div>
-    </header>
+    
+    <div class="topbar-right">
+      <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
+  </header>
     <div class="content">
       <?php if ($success): ?>
         <div class="alert alert-success">✓ Post-event report uploaded successfully!</div>

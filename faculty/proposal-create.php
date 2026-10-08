@@ -5,6 +5,8 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('faculty');
 $user = currentUser();
+$todayManila = date('Y-m-d');
+$tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -44,12 +46,20 @@ $user = currentUser();
       left: 0;
       z-index: 1055;
       display: none;
-      width: 100%;
-      height: 100%;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: none !important;
+      max-height: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
       overflow-x: hidden;
       overflow-y: auto;
       outline: 0;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(10, 22, 40, 0.6) !important;
+      animation: none !important;
     }
     .modal.fade {
       transition: opacity 0.15s linear;
@@ -60,26 +70,55 @@ $user = currentUser();
     .modal-dialog {
       position: relative;
       width: auto;
-      margin: 0.5rem;
+      margin: 1.75rem auto;
       pointer-events: none;
     }
     .modal-dialog-centered {
       display: flex;
       align-items: center;
-      min-height: calc(100% - 1rem);
+      min-height: calc(100% - 3.5rem);
+    }
+    .modal-dialog-centered::before {
+      display: block;
+      height: calc(100vh - 3.5rem);
+      height: min-content;
+      content: "";
+    }
+    @media (max-width: 575.98px) {
+      .modal-dialog {
+        margin: 0.5rem;
+      }
+      .modal-dialog-centered {
+        min-height: calc(100% - 1rem);
+      }
+      .modal-dialog-centered::before {
+        height: calc(100vh - 1rem);
+      }
     }
     @media (min-width: 576px) {
       .modal-dialog {
         max-width: 500px;
-        margin: 1.75rem auto;
-      }
-      .modal-dialog-centered {
-        min-height: calc(100% - 3.5rem);
       }
     }
     @media (min-width: 992px) {
       .modal-lg {
         max-width: 800px;
+      }
+    }
+    @media (min-width: 1200px) {
+      .modal-xl {
+        max-width: 1050px;
+      }
+    }
+    #aiProposalValidationModal .modal-dialog {
+      width: calc(100% - 3.5rem);
+      max-width: 1050px;
+      margin: 1.75rem auto;
+    }
+    @media (max-width: 768px) {
+      #aiProposalValidationModal .modal-dialog {
+        width: calc(100% - 1.5rem);
+        margin: 0.75rem auto;
       }
     }
     .modal-content {
@@ -88,11 +127,12 @@ $user = currentUser();
       flex-direction: column;
       width: 100%;
       pointer-events: auto;
-      background-color: #fff;
+      background-color: var(--bg-card, #fff);
       background-clip: padding-box;
-      border: 1px solid rgba(0,0,0,.2);
-      border-radius: 0.5rem;
+      border: 1px solid var(--border, rgba(0,0,0,.2));
+      border-radius: var(--radius, 14px);
       outline: 0;
+      color: var(--text-main);
     }
     .modal-backdrop {
       position: fixed;
@@ -135,12 +175,12 @@ $user = currentUser();
 
     .step-error-banner {
       display: none;
-      background: #fff3cd;
-      border: 1px solid #ffc107;
-      border-radius: 6px;
+      background: var(--warning-lt, #fff3cd);
+      border: 1px solid var(--warning, #ffc107);
+      border-radius: var(--radius-sm, 6px);
       padding: 10px 14px;
       margin-bottom: 16px;
-      color: #664d03;
+      color: var(--warning, #664d03);
       font-size: .85rem;
     }
 
@@ -150,11 +190,76 @@ $user = currentUser();
       gap: 8px;
     }
 
-    /* ── Wizard step locked state ── */
+    [data-theme="dark"] .step-error-banner {
+      background: rgba(217, 119, 6, 0.15) !important;
+      border-color: rgba(217, 119, 6, 0.35) !important;
+      color: #FCD34D !important;
+    }
+
+    /* ── Wizard step navigation ── */
+    .wizard-steps {
+      background: var(--bg-card) !important;
+      border: 1px solid var(--border) !important;
+    }
+
+    .wizard-step {
+      background: var(--bg-card) !important;
+      color: var(--text-muted) !important;
+      border-right: 1px solid var(--border) !important;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .wizard-step .step-num {
+      background: var(--border) !important;
+      color: var(--text-muted) !important;
+    }
+
+    .wizard-step.active {
+      background: #E0F2FE !important;
+      color: var(--sti-blue) !important;
+    }
+
+    .wizard-step.active .step-num {
+      background: var(--sti-blue) !important;
+      color: #ffffff !important;
+    }
+
+    .wizard-step.done {
+      color: var(--sti-blue) !important;
+    }
+
+    .wizard-step.done .step-num {
+      background: var(--sti-blue) !important;
+      color: #ffffff !important;
+    }
+
     .wizard-step.locked {
       opacity: 0.45;
       cursor: not-allowed;
       pointer-events: none;
+    }
+
+    [data-theme="dark"] .wizard-step.active {
+      background: rgba(2, 132, 199, 0.18) !important;
+      color: #38BDF8 !important;
+    }
+
+    [data-theme="dark"] .wizard-step.active .step-num {
+      background: var(--sti-blue) !important;
+      color: #ffffff !important;
+    }
+
+    [data-theme="dark"] .wizard-step.done {
+      color: #38BDF8 !important;
+    }
+
+    [data-theme="dark"] .wizard-step.done .step-num {
+      background: var(--sti-blue) !important;
+      color: #ffffff !important;
+    }
+
+    [data-theme="dark"] .wizard-step:not(.locked):hover {
+      background: rgba(255, 255, 255, 0.03) !important;
     }
 
     /* ── Materials total ── */
@@ -165,23 +270,34 @@ $user = currentUser();
       gap: 12px;
       margin-top: 12px;
       padding: 10px 12px;
-      background: var(--bg-subtle, #f8f9fa);
-      border-radius: 6px;
-      border: 1px solid var(--border, #dee2e6);
+      background: var(--bg-base);
+      border-radius: var(--radius-sm, 6px);
+      border: 1px solid var(--border);
     }
 
     .materials-total-row label {
       font-weight: 600;
       font-size: .9rem;
-      color: var(--text-muted, #6c757d);
+      color: var(--text-muted);
     }
 
     .materials-total-row span {
       font-weight: 700;
       font-size: 1.05rem;
-      color: var(--text, #212529);
+      color: var(--text-main);
       min-width: 100px;
       text-align: right;
+    }
+
+    [data-theme="dark"] .materials-total-row {
+      background: var(--bg-card-elevated) !important;
+      border-color: var(--border) !important;
+    }
+    [data-theme="dark"] .materials-total-row label {
+      color: var(--text-muted) !important;
+    }
+    [data-theme="dark"] .materials-total-row span {
+      color: var(--text-main) !important;
     }
 
     .flex {
@@ -196,6 +312,171 @@ $user = currentUser();
       margin-top: 16px;
     }
 
+    /* ── Preset STI Address button ── */
+    .preset-address-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-base, #f8fafc);
+      border: 1px solid var(--border, #cbd5e1);
+      border-radius: var(--radius-sm, 6px);
+      padding: 5px 12px;
+      font-size: 0.78rem;
+      color: var(--sti-blue, #0284c7);
+      cursor: pointer;
+      text-align: left;
+      line-height: 1.35;
+      transition: all 0.15s ease;
+      font-family: inherit;
+      font-weight: 500;
+    }
+
+    .preset-address-btn:hover {
+      background: var(--sti-blue-lt, #e0f2fe);
+      border-color: var(--sti-blue, #0284c7);
+      color: var(--sti-blue-hover, #0369a1);
+    }
+
+    [data-theme="dark"] .preset-address-btn {
+      background: var(--bg-card-elevated, #15243C) !important;
+      border-color: var(--border, #1E2D45) !important;
+      color: #38bdf8 !important;
+    }
+
+    [data-theme="dark"] .preset-address-btn:hover {
+      background: rgba(2, 132, 199, 0.2) !important;
+      border-color: #38bdf8 !important;
+      color: #ffffff !important;
+    }
+
+    /* ── Form Controls Design System Consistency ── */
+    .content .form-control,
+    .content input[type="text"],
+    .content input[type="email"],
+    .content input[type="password"],
+    .content input[type="date"],
+    .content input[type="time"],
+    .content input[type="number"],
+    .content input[type="search"],
+    .content input[type="url"],
+    .content input[type="file"],
+    .content select.form-control,
+    .content select,
+    .content textarea.form-control,
+    .content textarea,
+    .eval-question-card .form-control,
+    .eval-question-card textarea,
+    .eval-question-card select {
+      background: #FFFFFF;
+      color: var(--text-main);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm, 8px);
+      box-sizing: border-box;
+      transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+    }
+
+    [data-theme="dark"] .content .form-control,
+    [data-theme="dark"] .content input[type="text"],
+    [data-theme="dark"] .content input[type="email"],
+    [data-theme="dark"] .content input[type="password"],
+    [data-theme="dark"] .content input[type="date"],
+    [data-theme="dark"] .content input[type="time"],
+    [data-theme="dark"] .content input[type="number"],
+    [data-theme="dark"] .content input[type="search"],
+    [data-theme="dark"] .content input[type="url"],
+    [data-theme="dark"] .content input[type="file"],
+    [data-theme="dark"] .content select.form-control,
+    [data-theme="dark"] .content select,
+    [data-theme="dark"] .content textarea.form-control,
+    [data-theme="dark"] .content textarea,
+    [data-theme="dark"] .eval-question-card .form-control,
+    [data-theme="dark"] .eval-question-card textarea,
+    [data-theme="dark"] .eval-question-card select {
+      background: var(--bg-card-elevated, #15243C) !important;
+      color: var(--text-main, #F8FAFC) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+
+    [data-theme="dark"] .eval-question-card textarea.eval-question-input,
+    [data-theme="dark"] .eval-question-card select.eval-type-select {
+      background: var(--bg-card, #0F1B2E) !important;
+      color: var(--text-main, #F8FAFC) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+
+    .content .form-control::placeholder,
+    .content input::placeholder,
+    .content textarea::placeholder,
+    .eval-question-card textarea::placeholder {
+      color: var(--text-muted);
+      opacity: 0.75;
+    }
+
+    .content .form-control:focus,
+    .content input:focus,
+    .content select:focus,
+    .content textarea:focus,
+    .eval-question-card textarea:focus,
+    .eval-question-card select:focus {
+      border-color: var(--sti-blue) !important;
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.18) !important;
+      outline: none;
+    }
+
+    .content select option,
+    .eval-question-card select option {
+      background: var(--bg-card, #FFFFFF);
+      color: var(--text-main);
+    }
+
+    [data-theme="dark"] .content select option,
+    [data-theme="dark"] .eval-question-card select option {
+      background: var(--bg-card-elevated, #15243C);
+      color: var(--text-main, #F8FAFC);
+    }
+
+    [data-theme="dark"] .content input[type="date"]::-webkit-calendar-picker-indicator,
+    [data-theme="dark"] .content input[type="time"]::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      opacity: 0.8;
+    }
+
+    /* ── Dynamic Tables in Wizard Steps ── */
+    .dynamic-table {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm, 8px);
+      overflow: hidden;
+      background: var(--bg-card);
+    }
+
+    .dynamic-table table th {
+      background: var(--bg-base);
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 10px 12px;
+      letter-spacing: 0.5px;
+    }
+
+    .dynamic-table table td {
+      border-bottom: 1px solid var(--border);
+      padding: 8px 10px;
+      vertical-align: middle;
+      background: var(--bg-card);
+    }
+
+    [data-theme="dark"] .dynamic-table table th {
+      background: var(--bg-card-elevated, #15243C);
+      color: var(--text-secondary, #CBD5E1);
+      border-bottom-color: var(--border, #1E2D45);
+    }
+
+    [data-theme="dark"] .dynamic-table table td {
+      background: var(--bg-card, #0F1B2E);
+      border-bottom-color: var(--border, #1E2D45);
+    }
+
     /* ── Evaluation Tool styles ── */
     .eval-question-row {
       display: grid;
@@ -206,44 +487,57 @@ $user = currentUser();
       grid-template-columns: 130px 1fr;
       gap: 10px;
       align-items: center;
-      background: var(--bg-base, #ffffff);
+      background: var(--bg-card, #ffffff);
       padding: 12px;
       border: 1px solid var(--border, #dee2e6);
-      border-radius: 8px;
+      border-radius: var(--radius-sm, 8px);
       transition: all 0.2s ease;
     }
+
     .eval-question-row:hover {
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-      border-color: #0284c7;
+      box-shadow: var(--shadow-sm);
+      border-color: var(--sti-blue, #0284c7);
     }
+
+    [data-theme="dark"] .eval-question-row {
+      background: var(--bg-card-elevated, #15243C);
+      border-color: var(--border, #1E2D45);
+    }
+
     .eval-question-row .eval-question-text {
       grid-area: qtext;
       width: 100%;
     }
+
     .eval-question-row .eval-question-type {
       grid-area: qtype;
       width: 100%;
       min-width: 110px;
     }
+
     .eval-question-row .eval-question-category {
       grid-area: qcat;
       width: 100%;
       min-width: 140px;
     }
+
     .eval-question-row .form-control:focus {
-      border-color: #0284c7 !important;
+      border-color: var(--sti-blue, #0284c7) !important;
       box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
     }
+
     .eval-question-row .form-control.is-invalid {
       border-color: #dc3545 !important;
       box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.15) !important;
     }
+
     .eval-question-row .eval-question-delete {
       grid-area: qdel;
       display: flex;
       justify-content: flex-end;
       width: 100%;
     }
+
     .eval-delete-btn {
       color: #dc3545;
       background: none;
@@ -257,13 +551,27 @@ $user = currentUser();
       gap: 6px;
       transition: background-color 0.2s, border-color 0.2s;
     }
+
     .eval-delete-btn:hover {
       background-color: #ffe8e8;
       border-color: #ffb3b3;
     }
+
+    [data-theme="dark"] .eval-delete-btn {
+      background: rgba(220, 38, 38, 0.1);
+      border-color: rgba(220, 38, 38, 0.3);
+      color: #f87171;
+    }
+
+    [data-theme="dark"] .eval-delete-btn:hover {
+      background-color: rgba(220, 38, 38, 0.2);
+      border-color: #f87171;
+    }
+
     .eval-delete-btn .delete-icon {
       font-size: 1rem;
     }
+
     .eval-delete-btn .delete-text {
       display: inline;
     }
@@ -294,11 +602,14 @@ $user = currentUser();
         display: none;
       }
     }
+
     @media (max-width: 1200px) {
       .proposal-layout-grid {
         grid-template-columns: 1fr;
       }
     }
+
+    /* ── AI Evaluation Tool Side Panel ── */
     .proposal-eval-side-panel {
       position: sticky;
       top: 90px;
@@ -306,17 +617,332 @@ $user = currentUser();
       display: flex;
       flex-direction: column;
     }
+
     .proposal-eval-side-panel .card {
       display: flex;
       flex-direction: column;
       height: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius, 14px);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      padding: 0;
     }
+
+    .proposal-eval-side-panel .card-header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0;
+    }
+
+    .proposal-eval-side-panel .card-header h2 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .proposal-eval-side-panel .card-body {
       overflow-y: auto;
       flex: 1;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: calc(100vh - 220px);
+    }
+
+    #evalStatusBadge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    #evalStatusIndicator {
+      width: 6px;
+      height: 6px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    [data-theme="dark"] #evalStatusBadge {
+      background: var(--bg-card-elevated, #15243C) !important;
+      border-color: var(--border, #1E2D45) !important;
+      color: var(--text-secondary, #CBD5E1) !important;
+    }
+
+    .proposal-eval-side-panel .info-alert {
+      font-size: 0.775rem;
+      padding: 10px 14px;
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      color: #0369a1;
+      border-radius: var(--radius-sm, 8px);
+      line-height: 1.45;
+      margin-bottom: 4px;
+    }
+
+    [data-theme="dark"] .proposal-eval-side-panel .info-alert {
+      background: rgba(2, 132, 199, 0.12) !important;
+      border-color: rgba(2, 132, 199, 0.28) !important;
+      color: #38bdf8 !important;
+    }
+
+    .proposal-eval-side-panel .btn-add-manual-q {
+      border: 1px dashed var(--border);
+      font-size: 0.8rem;
+      padding: 7px 12px;
+      border-radius: var(--radius-sm, 8px);
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      height: auto;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .proposal-eval-side-panel .btn-add-manual-q:hover {
+      border-color: var(--sti-blue);
+      color: var(--sti-blue);
+      background: rgba(2, 132, 199, 0.08);
+    }
+
+    [data-theme="dark"] .proposal-eval-side-panel .btn-add-manual-q {
+      background: var(--bg-card-elevated, #15243C) !important;
+      border-color: var(--border, #1E2D45) !important;
+      color: var(--text-main, #F8FAFC) !important;
+    }
+
+    [data-theme="dark"] .proposal-eval-side-panel .card {
+      background: var(--bg-card) !important;
+      border-color: var(--border) !important;
+    }
+
+    [data-theme="dark"] .proposal-eval-side-panel .card-header {
+      background: var(--bg-card) !important;
+      border-bottom-color: var(--border) !important;
+    }
+
+    [data-theme="dark"] .proposal-eval-side-panel .card-header h2 {
+      color: var(--text-main) !important;
+    }
+
+    [data-theme="dark"] .proposal-eval-side-panel .btn-add-manual-q:hover {
+      border-color: var(--sti-blue-hover, #38bdf8) !important;
+      color: var(--sti-blue-hover, #38bdf8) !important;
+      background: rgba(2, 132, 199, 0.15) !important;
+    }
+
+    .proposal-eval-side-panel .footer-actions {
+      margin-top: 10px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .eval-question-card {
+      background: var(--bg-card, #ffffff);
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: var(--radius-sm, 8px);
+      padding: 12px 14px;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .eval-question-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+      border-color: var(--sti-blue);
+    }
+
+    .eval-question-card.editing {
+      border-color: var(--sti-blue);
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+    }
+
+    .eval-question-card .eval-question-body {
+      font-size: 0.85rem;
+      line-height: 1.45;
+      color: var(--text-main);
+      margin-bottom: 8px;
+      font-weight: 500;
+      word-break: break-word;
+    }
+
+    .eval-question-card .eval-question-num {
+      font-weight: 600;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .eval-question-card .eval-card-actions {
+      display: flex;
+      gap: 12px;
+      font-size: 0.75rem;
+      border-top: 1px dashed var(--border);
+      padding-top: 6px;
+    }
+
+    .badge-type-rating {
+      background: var(--sti-blue-lt, #e0f2fe);
+      color: var(--sti-blue, #0369a1);
+    }
+
+    .badge-type-text {
+      background: var(--border-light, #f3f4f6);
+      color: var(--text-secondary, #4b5563);
+    }
+
+    .eval-action-link {
+      cursor: pointer;
+      transition: color 0.15s ease;
+    }
+
+    .eval-action-link:hover {
+      text-decoration: underline !important;
+    }
+
+    .btn-xs {
+      padding: 2px 8px;
+      font-size: 0.75rem;
+      border-radius: 4px;
+    }
+
+    [data-theme="dark"] .eval-question-card {
+      background: var(--bg-card-elevated, #15243C) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+
+    [data-theme="dark"] .eval-question-card:hover {
+      border-color: var(--sti-blue-hover, #38bdf8) !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+    }
+
+    [data-theme="dark"] .badge-type-rating {
+      background: rgba(2, 132, 199, 0.2) !important;
+      color: #38bdf8 !important;
+    }
+
+    [data-theme="dark"] .badge-type-text {
+      background: rgba(148, 163, 184, 0.15) !important;
+      color: #cbd5e1 !important;
+    }
+
+    [data-theme="dark"] #evalGenStatus {
+      background: rgba(2, 132, 199, 0.15) !important;
+      color: #38bdf8 !important;
+      border: 1px solid rgba(2, 132, 199, 0.3) !important;
+      border-radius: var(--radius-sm, 8px) !important;
+    }
+
+    [data-theme="dark"] #evalChangeNotice {
+      background: rgba(217, 119, 6, 0.15) !important;
+      border-color: rgba(217, 119, 6, 0.3) !important;
+      border-left: 4px solid #f59e0b !important;
+      color: #fcd34d !important;
+    }
+
+    [data-theme="dark"] #err-banner-eval-side {
+      background: rgba(220, 38, 38, 0.15) !important;
+      border-color: rgba(220, 38, 38, 0.3) !important;
+      color: #f87171 !important;
+    }
+
+    /* ── Proposal Step 9 Conflict Banner ── */
+    [data-theme="dark"] #scheduleConflictBannerStep9 {
+      background: rgba(220, 38, 38, 0.12) !important;
+      border-color: rgba(220, 38, 38, 0.3) !important;
+      border-left-color: #ef4444 !important;
+      color: #fca5a5 !important;
+    }
+
+    [data-theme="dark"] #scheduleConflictBannerStep9 .scu-alt-wrap > div:first-child {
+      color: #fca5a5 !important;
+    }
+
+    /* ── Modals Consistency ── */
+    [data-theme="dark"] #previewModal .modal-content {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+
+    [data-theme="dark"] #previewModal .modal-header,
+    [data-theme="dark"] #previewModal .modal-footer {
+      border-color: var(--border, #1E2D45) !important;
+    }
+
+    [data-theme="dark"] #previewModal .modal-title {
+      color: var(--text-main, #F8FAFC) !important;
+    }
+
+    [data-theme="dark"] #previewModal .modal-body > div:nth-child(2) {
+      background: var(--bg-card-elevated, #15243C) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+
+    [data-theme="dark"] #previewModalActivityTitle {
+      color: var(--text-main, #F8FAFC) !important;
+    }
+
+    [data-theme="dark"] #preview-questions-list > div {
+      background: var(--bg-card-elevated, #15243C) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+
+    [data-theme="dark"] #preview-questions-list > div > div:first-child {
+      color: var(--text-main, #F8FAFC) !important;
+    }
+
+    [data-theme="dark"] #preview-questions-list .form-control {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-color: var(--border, #1E2D45) !important;
+      color: var(--text-main, #F8FAFC) !important;
+    }
+
+    [data-theme="dark"] #scheduleConflictModal .modal-content {
+      background: var(--bg-card, #0F1B2E) !important;
+    }
+
+    [data-theme="dark"] #scheduleConflictModal .modal-body {
+      background: var(--bg-base, #070E18) !important;
+    }
+
+    [data-theme="dark"] #scheduleConflictModal .modal-body > div {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+
+    [data-theme="dark"] #scheduleConflictModal .modal-footer {
+      background: var(--bg-card, #0F1B2E) !important;
     }
     </style>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/floorplan.css">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/floorplan.css?v=<?= filemtime(__DIR__ . '/../assets/css/floorplan.css') ?>">
 </head>
 
 <body class="theme-faculty">
@@ -325,13 +951,40 @@ $user = currentUser();
     <header class="topbar">
       <div class="page-title">New Activity Proposal</div>
       <div class="topbar-right">
+        <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <a href="<?= BASE_URL ?>/faculty/dashboard.php" class="btn btn-outline btn-sm">← Back</a>
-      </div>
+      <!-- User Profile Control -->
+      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+    </div>
     </header>
     <div class="content">
-      <?php if (isset($_GET['error']) && $_GET['error'] === 'conflict'): ?>
+      <?php if (isset($_GET['error']) && $_GET['error'] === 'past_date'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Invalid Date:</strong> Event date must be tomorrow or a future date. Today and past dates are not permitted.
+        </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'missing_date'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Missing Date:</strong> Please select an event date before submitting.
+        </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'conflict'): ?>
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Schedule Conflict:</strong> The selected venue is already booked for an approved activity at this date and time. Please check and try again.
+        </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'invalid_time'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Invalid Time:</strong> End time must be later than the start time. Overnight activities are not supported.
+        </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'missing_time'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Missing Time:</strong> Both start time and end time are required before submitting.
+        </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'invalid_poster_format'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Invalid Poster Format:</strong> Event poster must be an image (JPG, PNG, WEBP, GIF). Videos and non-image files are not permitted.
+        </div>
+      <?php elseif (isset($_GET['error'])): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Error:</strong> An error occurred while saving the proposal. Please try again.
         </div>
       <?php endif; ?>
 
@@ -368,6 +1021,7 @@ $user = currentUser();
 
       <form id="proposalForm" method="POST" action="<?= BASE_URL ?>/api/proposal-save.php" enctype="multipart/form-data" novalidate>
         <input type="hidden" name="faculty_id" value="<?= $user['id'] ?>">
+        <input type="hidden" name="action" id="proposalFormAction" value="draft">
         <!-- tracks the highest step the user has validly reached -->
         <input type="hidden" id="maxUnlockedStep" value="1">
 
@@ -392,8 +1046,9 @@ $user = currentUser();
 
                 <div class="form-group">
                   <label class="form-label">Date of Event <span class="text-danger">*</span></label>
-                  <input type="date" name="event_date" id="f1_event_date" class="form-control">
+                  <input type="date" name="event_date" id="f1_event_date" class="form-control" min="<?= $tomorrowManila ?>">
                   <span class="field-error" id="e_event_date">Event date is required.</span>
+                  <span class="field-error" id="e_event_date_past">Event date must be tomorrow or a future date.</span>
                 </div>
 
                 <div class="form-group">
@@ -416,6 +1071,7 @@ $user = currentUser();
                   <label class="form-label">End Time <span class="text-danger">*</span></label>
                   <input type="time" name="end_time" id="f1_end_time" class="form-control">
                   <span class="field-error" id="e_end_time">End time is required.</span>
+                  <span class="field-error" id="e_end_time_order">End time must be later than the start time.</span>
                 </div>
 
                 <div class="form-group">
@@ -431,22 +1087,42 @@ $user = currentUser();
                 </div>
 
                 <div class="form-group col-span-2">
-                  <label class="form-label">Venue Address <span class="text-danger">*</span></label>
+                  <label class="form-label" for="f1_venue_address">Venue Address <span class="text-danger">*</span></label>
+                  <div style="margin-top: -2px; margin-bottom: 6px;">
+                    <button type="button" 
+                      id="preset_sti_address"
+                      class="preset-address-btn" 
+                      onclick="usePresetAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila')"
+                      title="Click to insert default STI address">
+                      <span style="font-size: 0.85rem;">📍</span> 289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila
+                    </button>
+                  </div>
                   <input type="text" name="venue_address" id="f1_venue_address" class="form-control" placeholder="Full address">
                   <span class="field-error" id="e_venue_address">Venue address is required.</span>
                 </div>
 
                 <div class="form-group col-span-2">
                   <label class="form-label">Theme <span class="text-danger">*</span></label>
-                  <input type="text" name="theme" id="f1_theme" class="form-control" placeholder="e.g. Igniting Excellence, Empowering Tomorrow">
+                  <div class="theme-input-wrapper" style="position: relative; width: 100%;">
+                    <input type="text" name="theme" id="f1_theme" class="form-control" placeholder="e.g. Igniting Excellence, Empowering Tomorrow" style="padding-right: 42px;" aria-busy="false">
+                    <div id="themeInputSpinner" style="display: none; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; color: #0284c7; align-items: center; justify-content: center;" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="animation: spin 0.8s linear infinite;">
+                        <circle cx="12" cy="12" r="9" stroke-opacity="0.25"></circle>
+                        <path d="M12 3a9 9 0 0 1 9 9"></path>
+                      </svg>
+                    </div>
+                  </div>
                   <span class="field-error" id="e_theme">Theme is required.</span>
+
+                  <!-- Automatic AI Theme Status -->
+                  <div id="themeAiStatus" style="margin-top: 6px;"></div>
                 </div>
 
                 <div class="form-group col-span-2">
                   <label class="form-label">Event Poster <span class="text-danger">*</span></label>
-                  <input type="file" name="poster_file" id="f1_poster_file" class="form-control" accept="image/*" required>
+                  <input type="file" name="poster_file" id="f1_poster_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" required>
                   <span class="field-error" id="e_poster_file">Event poster is required.</span>
-                  <small style="color: var(--text-muted);">Upload a poster for this event.</small>
+                  <small style="color: var(--text-muted);">Upload an image poster for this event (JPG, PNG, WEBP, GIF). Videos are not allowed.</small>
                 </div>
                 </div>
             </div>
@@ -471,7 +1147,12 @@ $user = currentUser();
 
               <div class="form-grid">
                 <div class="form-group col-span-2">
-                  <label class="form-label">General Objectives <span class="text-danger">*</span></label>
+                  <label class="form-label">
+                    General Objectives <span class="text-danger">*</span>
+                    <span id="objInputSpinner" style="display:none;margin-left:8px;vertical-align:middle;" title="Generating objectives with AI...">
+                      <span class="spinner-border" style="width:0.875rem;height:0.875rem;border-width:0.18em;color:#0284c7;"></span>
+                    </span>
+                  </label>
                   <textarea name="general_objectives" id="f2_general_objectives" class="form-control" rows="4" placeholder="State the broad goals of this activity..."></textarea>
                   <span class="field-error" id="e_general_objectives">General objectives are required.</span>
                 </div>
@@ -512,7 +1193,7 @@ $user = currentUser();
               <button type="button" class="btn btn-outline btn-sm" onclick="addRow('materials')">+ Add Item</button>
             </div>
             <div class="card-body">
-              <div class="step-error-banner" id="err-banner-2">⚠️ Please fill in all material fields before continuing.</div>
+              <div class="step-error-banner" id="err-banner-3">⚠️ Please fill in all material fields before continuing.</div>
               <div class="dynamic-table">
                 <table>
                   <thead>
@@ -557,7 +1238,7 @@ $user = currentUser();
               <h2>🗺️ Floor Plan Layout</h2>
             </div>
             <div class="card-body">
-              <div class="step-error-banner" id="err-banner-3">⚠️ Please draw at least one element on the floor plan and fill in the description before continuing.</div>
+              <div class="step-error-banner" id="err-banner-4">⚠️ Please draw at least one element on the floor plan and fill in the description before continuing.</div>
 
               <?php include __DIR__ . '/../includes/floorplan-ui.php'; ?>
 
@@ -651,7 +1332,7 @@ $user = currentUser();
                   </thead>
                   <tbody id="schedule-body">
                     <tr>
-                      <td><input type="date" name="sched_date[]" class="form-control sched-field"></td>
+                      <td><input type="date" name="sched_date[]" class="form-control sched-field" min="<?= $tomorrowManila ?>"></td>
                       <td><input type="text" name="sched_event[]" class="form-control sched-field" placeholder="Event name"></td>
                       <td><input type="text" name="sched_venue[]" class="form-control sched-field" placeholder="Venue"></td>
                       <td><input type="text" name="sched_organizer[]" class="form-control sched-field" placeholder="Name"></td>
@@ -778,37 +1459,37 @@ $user = currentUser();
         <div class="wizard-panel" id="panel-9">
           <div class="card">
             <div class="card-header">
-              <h2>📄 KPI – Key Performance Indicators</h2>
+              <h2>📈 Key Performance Indicators</h2>
+              <button type="button" class="btn btn-outline btn-sm" onclick="addRow('kpi')">+ Add KPI</button>
             </div>
             <div class="card-body">
-              <div class="step-error-banner" id="err-banner-9">⚠️ Please fill in all KPI fields before submitting.</div>
-              <div class="alert alert-info">
-                Define the KPI criteria for this activity. Ratings will be collected automatically from students via a QR code or evaluation link after the event.
-                <br><strong>Rating Scale:</strong> 4 – Excellent &nbsp;|&nbsp; 3 – Very Satisfactory &nbsp;|&nbsp; 2 – Satisfactory &nbsp;|&nbsp; 1 – Needs Improvement
+              <div class="step-error-banner" id="err-banner-9">⚠️ Please fill in all KPI fields and a valid evaluation link before submitting.</div>
+              <div class="dynamic-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Criteria / Indicator</th>
+                      <th>Target Metric</th>
+                      <th>Evaluation Method</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="kpi-body">
+                    <tr>
+                      <td><input type="text" name="kpi_indicator[]" class="form-control kpi-field" placeholder="e.g. Number of Attendees"></td>
+                      <td><input type="text" name="kpi_target[]" class="form-control kpi-field" placeholder="e.g. 500 Participants"></td>
+                      <td><input type="text" name="kpi_method[]" class="form-control kpi-field" placeholder="e.g. Attendance Sheet"></td>
+                      <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-              <div id="kpi-criteria">
-                <div class="form-grid" style="margin-bottom:16px;">
-                  <div class="form-group">
-                    <label class="form-label">KPI Criteria <span class="text-danger">*</span></label>
-                    <input type="text" name="kpi_criteria[]" class="form-control kpi-field" placeholder="e.g. Event Organization">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Target Rating</label>
-                    <select name="kpi_rating[]" class="form-control">
-                      <option value="4">4 – Excellent</option>
-                      <option value="3" selected>3 – Very Satisfactory</option>
-                      <option value="2">2 – Satisfactory</option>
-                      <option value="1">1 – Needs Improvement</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <button type="button" class="btn btn-outline btn-sm" onclick="addKPI()">+ Add KPI Criterion</button>
-              <div class="form-group mt-4">
-                <label class="form-label">Evaluation Form Link / QR Code Source <span class="text-danger">*</span></label>
-                <input type="url" name="eval_form_link" id="f9_eval_form_link" class="form-control" placeholder="https://forms.google.com/...">
+
+              <div style="margin-top:20px;">
+                <label class="form-label">Google Forms Evaluation Link <span class="text-danger">*</span></label>
+                <input type="url" name="eval_form_link" id="f9_eval_form_link" class="form-control" placeholder="https://forms.gle/..." required>
                 <span class="field-error" id="e_eval_form_link">A valid evaluation form link is required.</span>
-                <small style="color:var(--text-muted);font-size:.75rem;margin-top:4px;display:block;">Students will scan a QR code or use this link to submit their evaluation after the event.</small>
+                <small style="color:var(--text-muted);display:block;margin-top:4px;">Required for attendees to provide feedback post-event.</small>
               </div>
 
               <!-- ── SCHEDULE CONFLICT BANNER (Step 9 review) ── -->
@@ -829,8 +1510,8 @@ $user = currentUser();
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
             <div class="flex gap-2">
-              <button type="submit" name="action" value="draft" class="btn btn-outline" formnovalidate onclick="serializeEvaluationQuestions()">💾 Save as Draft</button>
-              <button type="submit" name="action" value="submit" class="btn btn-primary" id="submitBtn" onclick="serializeEvaluationQuestions()">🚀 Submit for Approval</button>
+              <button type="submit" name="action" value="draft" class="btn btn-outline" formnovalidate onclick="document.getElementById('proposalFormAction').value='draft'; serializeEvaluationQuestions();">💾 Save as Draft</button>
+              <button type="submit" name="action" value="submit" class="btn btn-primary" id="submitBtn" onclick="document.getElementById('proposalFormAction').value='submit'; serializeEvaluationQuestions();">🚀 Submit for Approval</button>
             </div>
           </div>
         </div>
@@ -838,59 +1519,13 @@ $user = currentUser();
           </div> <!-- Close proposal-wizard-container -->
           
           <div class="proposal-eval-side-panel">
-            <style>
-              .eval-question-card {
-                background: #ffffff;
-                border: 1px solid var(--border-color, #e2e8f0);
-                border-radius: 8px;
-                padding: 12px;
-                transition: all 0.2s ease;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-                display: flex;
-                flex-direction: column;
-                gap: 6px;
-                margin-bottom: 10px;
-              }
-              .eval-question-card:hover {
-                box-shadow: 0 3px 8px rgba(0,0,0,0.04);
-                border-color: #0284c7;
-              }
-              .eval-question-card.editing {
-                border-color: #0284c7;
-                box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1);
-              }
-              .badge-type-rating {
-                background: #e0f2fe;
-                color: #0369a1;
-              }
-              .badge-type-text {
-                background: #f3f4f6;
-                color: #4b5563;
-              }
-              .eval-action-link {
-                cursor: pointer;
-                transition: color 0.15s ease;
-              }
-              .eval-action-link:hover {
-                text-decoration: underline !important;
-              }
-              .btn-xs {
-                padding: 2px 8px;
-                font-size: 0.75rem;
-                border-radius: 4px;
-              }
-              .proposal-eval-side-panel .card-body {
-                max-height: calc(100vh - 220px);
-                overflow-y: auto;
-              }
-            </style>
-            <div class="card" style="box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-radius: 12px; border: 1px solid var(--border-color, #e5e7eb); overflow: hidden;">
-              <div class="card-header" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center;">
-                <h2 style="font-size: 0.95rem; font-weight: 700; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 8px;">
+            <div class="card">
+              <div class="card-header">
+                <h2>
                   🤖 AI-Generated Evaluation Tool
                 </h2>
-                <span id="evalStatusBadge" style="font-size: 0.7rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 12px; display: flex; align-items: center; gap: 4px;">
-                  <span id="evalStatusIndicator" style="width: 6px; height: 6px; background: #64748b; border-radius: 50%;"></span> <span id="evalStatusText">Empty</span>
+                <span id="evalStatusBadge">
+                  <span id="evalStatusIndicator"></span> <span id="evalStatusText">Empty</span>
                 </span>
               </div>
               <div class="card-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
@@ -909,7 +1544,7 @@ $user = currentUser();
                 <!-- AI Generation Loading & Status -->
                 <div id="evalGenStatus" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; font-size:.775rem;"></div>
 
-                <div class="info-alert" style="font-size: 0.775rem; padding: 10px 12px; background: #f0f9ff; border: 1px solid #e0f2fe; color: #0369a1; border-radius: 6px; line-height: 1.45; margin-bottom: 4px;">
+                <div class="info-alert">
                   These evaluation questions are automatically generated based on your activity objectives and KPIs. Review them and make changes if needed.
                 </div>
 
@@ -921,11 +1556,11 @@ $user = currentUser();
                   <!-- Dynamically populated -->
                 </div>
 
-                <button type="button" class="btn btn-outline btn-sm" onclick="addManualQuestion()" style="border: 1px dashed var(--border-color, #cbd5e1); font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; background: #fafafa; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height:auto;">
+                <button type="button" class="btn btn-outline btn-sm btn-add-manual-q" onclick="addManualQuestion()">
                   + Add Question
                 </button>
                 
-                <div class="footer-actions" style="margin-top: 10px; padding-top: 12px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; gap: 8px;">
+                <div class="footer-actions">
                   <button type="button" class="btn btn-outline btn-sm" id="btn-regenerate-eval" onclick="regenerateEvaluationWithAi(true)" style="font-size: 0.75rem; padding: 6px 10px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
                     ↻ Regenerate
                   </button>
@@ -943,6 +1578,8 @@ $user = currentUser();
   </div>
 
   <script>
+    const todayManila = <?= json_encode($todayManila) ?>;
+    const tomorrowManila = <?= json_encode($tomorrowManila) ?>;
     let currentStep = 1;
     const totalSteps = 9;
     let maxUnlocked = 1; // highest step the user has validly completed up to
@@ -961,8 +1598,8 @@ $user = currentUser();
         top: 0,
         behavior: 'smooth'
       });
-      if (n >= 2 && typeof checkAndTriggerEvaluationAutoUpdate === 'function') {
-        checkAndTriggerEvaluationAutoUpdate();
+      if (n >= 2 && typeof triggerAutomaticEvaluation === 'function' && (!questionsList || questionsList.length === 0)) {
+        triggerAutomaticEvaluation(true);
       }
     }
 
@@ -977,8 +1614,6 @@ $user = currentUser();
       if (currentStep < totalSteps) {
         const goingTo = currentStep + 1;
         showStep(goingTo);
-        // Auto-generate objectives when advancing from Step 1 to Step 2
-        if (goingTo === 2) generateObjectives(false);
       }
     }
 
@@ -986,76 +1621,727 @@ $user = currentUser();
       if (currentStep > 1) showStep(currentStep - 1);
     }
 
-    // ── AI Objectives Generation ───────────────────────────────────────
-    /**
-     * Calls /api/generate-objectives.php with Step 1 field values and
-     * auto-fills the General & Specific Objectives textareas.
-     *
-     * @param {boolean} forced  When true (Re-generate button), always overwrites.
-     *                          When false (auto on Step 1 → 2), skips if both
-     *                          fields already have content (e.g. back-nav).
-     */
-    async function generateObjectives(forced = false) {
-      const genEl   = document.getElementById('f2_general_objectives');
-      const specEl  = document.getElementById('f2_specific_objectives');
+    function usePresetAddress(addr) {
+      const input = document.getElementById('f1_venue_address');
+      if (!input) return;
+      input.value = addr;
+      input.classList.remove('is-invalid');
+      const err = document.getElementById('e_venue_address');
+      if (err) err.style.display = 'none';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.focus();
+    }
+
+    // ── AI Objectives Generation & Automatic Cascade ───────────────────
+    let isObjectivesProtected = false;
+    let lastAiGeneralObjective = '';
+    let lastAiSpecificObjectives = '';
+    let currentObjRequestId = 0;
+    let currentObjAbortController = null;
+    let objDebounceTimer = null;
+    let isObjGenerating = false;
+
+    function hashStr(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return String(hash);
+    }
+
+    function cancelPendingObjectivesGeneration() {
+      if (objDebounceTimer) {
+        clearTimeout(objDebounceTimer);
+        objDebounceTimer = null;
+      }
+      if (currentObjAbortController) {
+        try { currentObjAbortController.abort(); } catch (e) {}
+        currentObjAbortController = null;
+      }
+      isObjGenerating = false;
+      setObjectiveSpinner(false);
+    }
+
+    function setObjectiveSpinner(show) {
+      const spinner = document.getElementById('objInputSpinner');
+      if (spinner) {
+        spinner.style.display = show ? 'inline-flex' : 'none';
+      }
+      const genEl = document.getElementById('f2_general_objectives');
+      const specEl = document.getElementById('f2_specific_objectives');
+      if (genEl) genEl.setAttribute('aria-busy', show ? 'true' : 'false');
+      if (specEl) specEl.setAttribute('aria-busy', show ? 'true' : 'false');
+    }
+
+    function renderObjectivesStatus(state, errorMsg = '') {
       const statusEl = document.getElementById('objGenStatus');
+      if (!statusEl) return;
 
-      // Skip auto-generation if fields already have content (back-navigation scenario)
-      if (!forced && genEl.value.trim() && specEl.value.trim()) return;
+      switch (state) {
+        case 'GENERATING':
+          setObjectiveSpinner(true);
+          statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;';
+          statusEl.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="spinner-border" style="width:14px;height:14px;border-width:2px;color:#0284c7;"></span>
+              <span>✨ Generating objectives with AI based on your title & theme…</span>
+            </div>`;
+          break;
 
-      // Collect Step 1 inputs
+        case 'UPDATED':
+        case 'SUCCESS':
+          setObjectiveSpinner(false);
+          statusEl.style.display = 'none';
+          statusEl.innerHTML = '';
+          break;
+
+        case 'OUTDATED':
+          setObjectiveSpinner(false);
+          statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#fffbeb;color:#92400e;border:1px solid #fde68a;';
+          statusEl.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <span>⚠️ Title/theme changed. Your edited objectives were preserved.</span>
+              <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;font-weight:600;padding:0;">
+                ↻ Regenerate Objectives
+              </button>
+            </div>`;
+          break;
+
+        case 'MANUAL':
+          setObjectiveSpinner(false);
+          statusEl.style.display = 'none';
+          statusEl.innerHTML = '';
+          break;
+
+        case 'ERROR':
+          setObjectiveSpinner(false);
+          statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3;';
+          statusEl.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <span>⚠️ Could not auto-generate objectives (${escapeHtml(errorMsg || 'service unavailable')}). You can enter them manually.</span>
+              <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;padding:0;">
+                Retry
+              </button>
+            </div>`;
+          break;
+
+        case 'WAITING':
+        default:
+          setObjectiveSpinner(false);
+          statusEl.style.display = 'none';
+          break;
+      }
+    }
+
+    function checkManualObjectiveEdit() {
+      const genEl = document.getElementById('f2_general_objectives');
+      const specEl = document.getElementById('f2_specific_objectives');
+      if (!genEl || !specEl) return;
+
+      const curGen = genEl.value.trim();
+      const curSpec = specEl.value.trim();
+
+      if (curGen === '' && curSpec === '') {
+        isObjectivesProtected = false;
+        renderObjectivesStatus('WAITING');
+        return;
+      }
+
+      const isGenMatch = (lastAiGeneralObjective !== '' && curGen === lastAiGeneralObjective.trim());
+      const isSpecMatch = (lastAiSpecificObjectives !== '' && curSpec === lastAiSpecificObjectives.trim());
+
+      if (isGenMatch && isSpecMatch) {
+        isObjectivesProtected = false;
+        renderObjectivesStatus('UPDATED');
+      } else {
+        isObjectivesProtected = true;
+        renderObjectivesStatus('MANUAL');
+      }
+    }
+
+    function forceRegenerateObjectives() {
+      isObjectivesProtected = false;
+      autoGenerateObjectives(true);
+    }
+
+    async function autoGenerateObjectives(forced = false, contextOverride = null) {
+      const genEl = document.getElementById('f2_general_objectives');
+      const specEl = document.getElementById('f2_specific_objectives');
+      const titleEl = document.getElementById('f1_title');
+      const themeEl = document.getElementById('f1_theme');
+      if (!genEl || !specEl || !titleEl) return;
+
+      const currentTitle = contextOverride?.title ?? titleEl.value.trim();
+      const currentTheme = contextOverride?.theme ?? (themeEl ? themeEl.value.trim() : '');
+
+      if (currentTitle.length < 4) return;
+
+      // Protected manual content: never silently overwrite unless forced
+      if (isObjectivesProtected && !forced) {
+        renderObjectivesStatus('OUTDATED');
+        return;
+      }
+
+      // Abort in-flight objective request and cancel any pending evaluation generation
+      if (typeof cancelPendingEvaluationGeneration === 'function') {
+        cancelPendingEvaluationGeneration();
+      }
+      if (currentObjAbortController) {
+        try { currentObjAbortController.abort(); } catch (e) {}
+      }
+      currentObjAbortController = new AbortController();
+
+      const requestId = ++currentObjRequestId;
+      isObjGenerating = true;
+      renderObjectivesStatus('GENERATING');
+
       const payload = {
-        title:               (document.getElementById('f1_title')?.value || '').trim(),
+        title:               currentTitle,
+        theme:               currentTheme,
         source:              (document.getElementById('f1_source')?.value || '').trim(),
         target_participants: (document.getElementById('f1_target_participants')?.value || '').trim(),
-        theme:               (document.getElementById('f1_theme')?.value || '').trim(),
         involved_subjects:   (document.getElementById('f2_involved_subjects')?.value || '').trim(),
         rationale:           (document.getElementById('f2_rationale')?.value || '').trim()
       };
 
-      if (!payload.title) return; // safety guard
-
-      // Show loading state
-      statusEl.style.cssText = 'display:block;margin-bottom:16px;padding:12px 16px;border-radius:8px;font-size:.875rem;background:#e7f1ff;color:#084298;border:1px solid #b6d4fe;';
-      statusEl.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;">' +
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite;">' +
-        '<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>' +
-        '&#x2728; Generating objectives with AI for <strong>"' + payload.title.replace(/</g,'&lt;') + '"</strong>…' +
-        '</span>';
-
-      // Disable textareas while generating
-      genEl.disabled  = true;
-      specEl.disabled = true;
-
       try {
-        const res  = await fetch('<?= BASE_URL ?>/api/generate-objectives.php', {
-          method:  'POST',
+        const res = await fetch('<?= BASE_URL ?>/api/generate-objectives.php', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          signal: currentObjAbortController.signal
         });
+
+        // Stale check
+        if (requestId !== currentObjRequestId || currentObjAbortController.signal.aborted) {
+          return;
+        }
+
+        // Verify title & theme haven't changed in the meantime
+        const nowTitle = (titleEl.value || '').trim();
+        const nowTheme = (themeEl ? themeEl.value.trim() : '');
+        if (nowTitle.length >= 4 && (nowTitle !== currentTitle || nowTheme !== currentTheme)) {
+          return;
+        }
+
         const data = await res.json();
+        if (res.ok && data.success && data.general_objective && data.specific_objectives) {
+          const specVal = Array.isArray(data.specific_objectives)
+            ? data.specific_objectives.join('\n')
+            : (data.specific_objectives || '');
 
-        if (data.success && data.general_objective && data.specific_objectives) {
-          genEl.value  = data.general_objective;
-          specEl.value = data.specific_objectives;
-          if (typeof queueEvaluationAutoUpdate === 'function') queueEvaluationAutoUpdate();
+          lastAiGeneralObjective = data.general_objective;
+          lastAiSpecificObjectives = specVal;
+          isObjectivesProtected = false;
 
-          statusEl.style.cssText = 'display:block;margin-bottom:16px;padding:12px 16px;border-radius:8px;font-size:.875rem;background:#d1e7dd;color:#0f5132;border:1px solid #a3cfbb;';
-          statusEl.innerHTML = '&#x2705; <strong>Objectives generated.</strong> Review and edit them below as needed.';
+          try {
+            sessionStorage.setItem('sti_ai_gen_obj_' + hashStr(data.general_objective.trim()), '1');
+            sessionStorage.setItem('sti_ai_spec_obj_' + hashStr(specVal.trim()), '1');
+          } catch (e) {}
 
-          // Auto-hide success notice after 6 seconds
-          setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 6000);
+          genEl.value = data.general_objective;
+          if (typeof data.specific_objectives === 'string') {
+            specEl.value = data.specific_objectives;
+          } else {
+            specEl.value = specVal;
+          }
+
+          // Subtle green pulse on objective textareas
+          [genEl, specEl].forEach(el => {
+            el.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
+            el.style.borderColor = '#22c55e';
+            el.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
+            setTimeout(() => {
+              el.style.borderColor = '';
+              el.style.boxShadow = '';
+            }, 1000);
+          });
+
+          // Clear validation errors if showing
+          const eGen = document.getElementById('e_general_objectives');
+          const eSpec = document.getElementById('e_specific_objectives');
+          if (eGen) eGen.style.display = 'none';
+          if (eSpec) eSpec.style.display = 'none';
+          genEl.classList.remove('is-invalid');
+          specEl.classList.remove('is-invalid');
+
+          renderObjectivesStatus('UPDATED');
+
+          if (requestId === currentObjRequestId) {
+            isObjGenerating = false;
+            setObjectiveSpinner(false);
+          }
+
+          if (typeof triggerAutomaticEvaluation === 'function') {
+            triggerAutomaticEvaluation(true);
+          }
         } else {
-          throw new Error(data.error || 'Empty response from AI.');
+          throw new Error(data.error || 'Empty or invalid response from AI.');
         }
       } catch (err) {
-        console.warn('generateObjectives error:', err);
-        statusEl.style.cssText = 'display:block;margin-bottom:16px;padding:12px 16px;border-radius:8px;font-size:.875rem;background:#fff3cd;color:#664d03;border:1px solid #ffecb5;';
-        statusEl.innerHTML = '&#x26A0;&#xFE0F; Could not auto-generate objectives (' + (err.message || 'network error') + '). Please fill them in manually.';
+        if (err.name === 'AbortError') return;
+        if (requestId !== currentObjRequestId) return;
+        console.warn('autoGenerateObjectives error:', err);
+        renderObjectivesStatus('ERROR', err.message);
       } finally {
-        genEl.disabled  = false;
-        specEl.disabled = false;
+        if (requestId === currentObjRequestId) {
+          isObjGenerating = false;
+          setObjectiveSpinner(false);
+        }
       }
+    }
+
+    // Keep backwards compatibility for generateObjectives(forced)
+    window.generateObjectives = function(forced = false) {
+      return autoGenerateObjectives(forced);
+    };
+    window.autoGenerateObjectives = autoGenerateObjectives;
+    window.forceRegenerateObjectives = forceRegenerateObjectives;
+
+    // ── Automatic AI Theme Generation & Cascade Coordinator ───────────
+    let isThemeManuallyEdited = false;
+    let lastAiGeneratedTheme = '';
+    let lastGeneratedTitle = '';
+    let currentThemeRequestId = 0;
+    let currentThemeAbortController = null;
+    let themeDebounceTimer = null;
+    let isThemeGenerating = false;
+
+    function cancelPendingThemeGeneration() {
+      if (themeDebounceTimer) {
+        clearTimeout(themeDebounceTimer);
+        themeDebounceTimer = null;
+      }
+      if (currentThemeAbortController) {
+        try { currentThemeAbortController.abort(); } catch (e) {}
+        currentThemeAbortController = null;
+      }
+      isThemeGenerating = false;
+      setThemeSpinner(false);
+    }
+
+    function setupAutomaticThemeGeneration() {
+      const titleEl = document.getElementById('f1_title');
+      const themeEl = document.getElementById('f1_theme');
+      if (!titleEl || !themeEl) return;
+
+      const initialTheme = themeEl.value.trim();
+      const initialTitle = titleEl.value.trim();
+      lastGeneratedTitle = initialTitle;
+
+      // Preserve existing theme on initial load without assuming manual edit
+      if (initialTheme !== '') {
+        lastAiGeneratedTheme = initialTheme;
+        isThemeManuallyEdited = false;
+        renderThemeStatus('SUCCESS');
+      } else {
+        isThemeManuallyEdited = false;
+        renderThemeStatus('WAITING');
+      }
+
+      // Track manual edits by Faculty on the Theme input
+      themeEl.addEventListener('input', () => {
+        const val = themeEl.value.trim();
+        if (val === '') {
+          isThemeManuallyEdited = false;
+          if (titleEl.value.trim().length >= 4) {
+            cancelPendingThemeGeneration();
+            cancelPendingObjectivesGeneration();
+            themeDebounceTimer = setTimeout(() => autoGenerateTheme(true), 800);
+          } else {
+            renderThemeStatus('WAITING');
+          }
+        } else if (val !== lastAiGeneratedTheme) {
+          isThemeManuallyEdited = true;
+          renderThemeStatus('MANUAL');
+
+          // Clean event hook with triggerSource: 'manual_theme'
+          document.dispatchEvent(new CustomEvent('activityThemeChanged', {
+            bubbles: true,
+            detail: {
+              theme: val,
+              title: titleEl.value.trim(),
+              isAiGenerated: false,
+              isManual: true,
+              triggerSource: 'manual_theme'
+            }
+          }));
+        } else {
+          isThemeManuallyEdited = false;
+          renderThemeStatus('SUCCESS');
+        }
+      });
+
+      // Listen for typing on Event Title with 800ms debounce
+      titleEl.addEventListener('input', () => {
+        const newTitle = titleEl.value.trim();
+        cancelPendingThemeGeneration();
+        cancelPendingObjectivesGeneration(); // Cancel pending objectives when title changes!
+        if (typeof cancelPendingEvaluationGeneration === 'function') {
+          cancelPendingEvaluationGeneration();
+        }
+
+        // If title changed to a new activity context, reset evaluation tool to generating and clear manual edit flag
+        if (newTitle !== lastGeneratedTitle) {
+          isEvaluationEdited = false; // Reset manual edit flag for new activity context
+          lastEvaluationHash = '';    // Reset hash so new topic generates cleanly
+          if (newTitle.length >= 4 && typeof setEvaluationState === 'function') {
+            setEvaluationState('GENERATING');
+          }
+        }
+
+        // If title changed and objectives were AI generated (not manually protected), reset them so stale text doesn't linger
+        if (!isObjectivesProtected && newTitle !== lastGeneratedTitle) {
+          const genEl = document.getElementById('f2_general_objectives');
+          const specEl = document.getElementById('f2_specific_objectives');
+          if (genEl) genEl.value = '';
+          if (specEl) specEl.value = '';
+          lastAiGeneralObjective = '';
+          lastAiSpecificObjectives = '';
+          renderObjectivesStatus('WAITING');
+        }
+
+        // Clean event hook for Revision #4 & other listeners
+        document.dispatchEvent(new CustomEvent('activityTitleChanged', {
+          bubbles: true,
+          detail: { title: newTitle, previousTitle: lastGeneratedTitle }
+        }));
+
+        if (newTitle.length < 4) {
+          if (!isThemeManuallyEdited && themeEl.value.trim() === '') {
+            renderThemeStatus('WAITING');
+          }
+          return;
+        }
+
+        // If title hasn't changed, no action needed
+        if (newTitle === lastGeneratedTitle) return;
+
+        // If Faculty manually edited the theme, do NOT automatically overwrite!
+        if (isThemeManuallyEdited) {
+          renderThemeStatus('OUTDATED');
+          if (isObjectivesProtected) {
+            renderObjectivesStatus('OUTDATED');
+            if (typeof triggerAutomaticEvaluation === 'function') {
+              triggerAutomaticEvaluation(false);
+            }
+          } else {
+            objDebounceTimer = setTimeout(() => {
+              autoGenerateObjectives(false, { title: newTitle, theme: themeEl.value.trim() });
+            }, 800);
+          }
+          return;
+        }
+
+        // Untouched AI theme or empty: debounce auto-generation (~800ms)
+        themeDebounceTimer = setTimeout(() => {
+          autoGenerateTheme(false);
+        }, 800);
+      });
+    }
+
+    async function autoGenerateTheme(forced = false) {
+      const titleEl = document.getElementById('f1_title');
+      const themeEl = document.getElementById('f1_theme');
+      if (!titleEl || !themeEl) return;
+
+      const titleVal = titleEl.value.trim();
+      if (titleVal.length < 4) return;
+
+      // Never overwrite manually edited theme unless forced by Faculty
+      if (isThemeManuallyEdited && !forced) {
+        renderThemeStatus('OUTDATED');
+        return;
+      }
+
+      // Abort any in-flight request to prevent race conditions and cancel pending evaluation
+      if (typeof cancelPendingEvaluationGeneration === 'function') {
+        cancelPendingEvaluationGeneration();
+      }
+      if (currentThemeAbortController) {
+        try { currentThemeAbortController.abort(); } catch (e) {}
+      }
+      currentThemeAbortController = new AbortController();
+
+      const requestId = ++currentThemeRequestId;
+      isThemeGenerating = true;
+      renderThemeStatus('GENERATING');
+
+      // Zero stale context: Theme generation strictly depends on Title and non-objective context.
+      const payload = {
+        title:               titleVal,
+        source:              (document.getElementById('f1_source')?.value || '').trim(),
+        target_participants: (document.getElementById('f1_target_participants')?.value || '').trim(),
+        venue:               (document.getElementById('f1_venue')?.value || '').trim(),
+        involved_subjects:   (document.getElementById('f2_involved_subjects')?.value || '').trim(),
+        rationale:           (document.getElementById('f2_rationale')?.value || '').trim()
+      };
+
+      const actIdEl = document.querySelector('[name="activity_id"]');
+      if (actIdEl && actIdEl.value) {
+        payload.activity_id = parseInt(actIdEl.value, 10);
+      }
+
+      console.log('[TRACE autoGenerateTheme] Request #' + requestId + ' Payload:', JSON.stringify(payload));
+
+      try {
+        const res = await fetch('<?= BASE_URL ?>/api/generate-theme.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: currentThemeAbortController.signal
+        });
+
+        // Ignore stale response if superseded by a newer request or if title changed in the meantime
+        const currentTitleNow = (titleEl ? titleEl.value.trim() : '');
+        if (requestId !== currentThemeRequestId || currentThemeAbortController.signal.aborted || currentTitleNow !== titleVal) {
+          return;
+        }
+
+        const data = await res.json();
+        if (res.ok && data.success && data.theme) {
+          lastAiGeneratedTheme = data.theme;
+          lastGeneratedTitle = titleVal;
+          isThemeManuallyEdited = false;
+          try { sessionStorage.setItem('sti_ai_theme_' + data.theme.trim(), '1'); } catch (e) {}
+
+          // Automatically populate / replace Theme input
+          themeEl.value = data.theme;
+          themeEl.dispatchEvent(new Event('change', { bubbles: true }));
+
+          // Hide validation error if showing
+          const errEl = document.getElementById('e_theme');
+          if (errEl) errEl.style.display = 'none';
+          themeEl.classList.remove('is-invalid');
+
+          // Subtle green pulse on input
+          themeEl.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
+          themeEl.style.borderColor = '#22c55e';
+          themeEl.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
+          setTimeout(() => {
+            themeEl.style.borderColor = '';
+            themeEl.style.boxShadow = '';
+          }, 1000);
+
+          renderThemeStatus('SUCCESS');
+
+          // Event hook: Dispatched ONCE for completed Title -> Theme cascade
+          const currentTriggerSource = forced ? 'manual_theme_regen' : 'auto_theme';
+          document.dispatchEvent(new CustomEvent('activityThemeChanged', {
+            bubbles: true,
+            detail: {
+              theme: data.theme,
+              title: titleVal,
+              isAiGenerated: true,
+              isManual: false,
+              triggerSource: currentTriggerSource // triggerSource: 'auto_theme'
+            }
+          }));
+        } else {
+          throw new Error(data.error || 'Empty or invalid response from AI.');
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        if (requestId !== currentThemeRequestId) return;
+        console.warn('autoGenerateTheme error:', err);
+        renderThemeStatus('ERROR', err.message);
+      } finally {
+        if (requestId === currentThemeRequestId) {
+          isThemeGenerating = false;
+          setThemeSpinner(false);
+        }
+      }
+    }
+
+    function setThemeSpinner(show) {
+      const spinner = document.getElementById('themeInputSpinner');
+      const input = document.getElementById('f1_theme');
+      if (spinner) {
+        spinner.style.display = show ? 'inline-flex' : 'none';
+      }
+      if (input) {
+        input.setAttribute('aria-busy', show ? 'true' : 'false');
+      }
+    }
+
+    function forceRegenerateTheme() {
+      isThemeManuallyEdited = false;
+      autoGenerateTheme(true);
+    }
+
+    function renderThemeStatus(state, errorMsg = '') {
+      const statusEl = document.getElementById('themeAiStatus');
+      if (!statusEl) return;
+
+      switch (state) {
+        case 'GENERATING':
+          setThemeSpinner(true);
+          statusEl.innerHTML = `<span class="visually-hidden" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;" role="status">Generating theme with AI...</span>`;
+          break;
+
+        case 'DEBOUNCING':
+          setThemeSpinner(false);
+          break;
+
+        case 'SUCCESS':
+          setThemeSpinner(false);
+          statusEl.innerHTML = `
+            <div style="font-size: 0.8rem; display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap;">
+              <button type="button" onclick="forceRegenerateTheme()" style="background: none; border: none; color: #0284c7; cursor: pointer; text-decoration: underline; font-size: 0.8rem; padding: 0;">
+                ↻ Regenerate
+              </button>
+            </div>`;
+          break;
+
+        case 'MANUAL':
+          setThemeSpinner(false);
+          statusEl.innerHTML = `
+            <div style="font-size: 0.8rem; color: #64748b; display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;">
+              <span>Custom theme entered.</span>
+              <button type="button" onclick="forceRegenerateTheme()" style="background: none; border: none; color: #0284c7; cursor: pointer; text-decoration: underline; font-size: 0.8rem; padding: 0;">
+                ↻ Regenerate
+              </button>
+            </div>`;
+          break;
+
+        case 'OUTDATED':
+          setThemeSpinner(false);
+          statusEl.innerHTML = `
+            <div style="font-size: 0.8rem; color: #b45309; display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;">
+              <span>⚠️ Activity title changed. Your edited theme was preserved.</span>
+              <button type="button" onclick="forceRegenerateTheme()" style="background: none; border: none; color: #0284c7; cursor: pointer; text-decoration: underline; font-size: 0.8rem; padding: 0;">
+                ↻ Regenerate
+              </button>
+            </div>`;
+          break;
+
+        case 'ERROR':
+          setThemeSpinner(false);
+          const themeInputCreate = document.getElementById('f1_theme');
+          if (themeInputCreate) {
+            themeInputCreate.readOnly = false;
+            themeInputCreate.disabled = false;
+          }
+
+          let displayErrorText = '';
+          const lowerMsg = (errorMsg || '').toLowerCase();
+          if (lowerMsg.includes('unexpected response') || lowerMsg.includes('parse') || lowerMsg.includes('empty or invalid')) {
+            displayErrorText = 'The AI returned an unexpected response. Please try again.';
+          } else if (lowerMsg.includes('service') || lowerMsg.includes('curl') || lowerMsg.includes('http') || lowerMsg.includes('offline') || lowerMsg.includes('unavailable')) {
+            displayErrorText = `AI theme service unavailable (${escapeHtml(errorMsg || 'service offline')}).`;
+          } else {
+            displayErrorText = escapeHtml(errorMsg || 'The AI returned an unexpected response. Please try again.');
+          }
+
+          statusEl.innerHTML = `
+            <div style="font-size: 0.8rem; color: #b45309; display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;">
+              <span>⚠️ ${displayErrorText} You can enter your theme manually.</span>
+              <button type="button" onclick="forceRegenerateTheme()" style="background: none; border: none; color: #0284c7; cursor: pointer; text-decoration: underline; font-size: 0.8rem; padding: 0;">
+                Retry
+              </button>
+            </div>`;
+          break;
+
+        case 'WAITING':
+        default:
+          setThemeSpinner(false);
+          statusEl.innerHTML = '';
+          break;
+      }
+    }
+
+    // Connect Theme changes to Objectives cascade
+    document.addEventListener('activityThemeChanged', (e) => {
+      const detail = e.detail || {};
+      const titleEl = document.getElementById('f1_title');
+      const curTitle = detail.title || (titleEl ? titleEl.value.trim() : '');
+      const curTheme = (detail.theme || '').trim();
+
+      if (curTitle.length < 4) return;
+
+      if (detail.triggerSource === 'auto_theme') {
+        // Title -> Theme completed. Exactly ONE objective generation call.
+        cancelPendingObjectivesGeneration();
+        if (isObjectivesProtected) {
+          renderObjectivesStatus('OUTDATED');
+        } else {
+          autoGenerateObjectives(false, { title: curTitle, theme: curTheme });
+        }
+      } else if (detail.triggerSource === 'manual_theme_regen') {
+        // Manual Theme regenerate -> exactly ONE objective generation call.
+        cancelPendingObjectivesGeneration();
+        if (typeof cancelPendingEvaluationGeneration === 'function') {
+          cancelPendingEvaluationGeneration();
+        }
+        if (!isEvaluationEdited && typeof setEvaluationState === 'function') {
+          setEvaluationState('GENERATING');
+        }
+        autoGenerateObjectives(true, { title: curTitle, theme: curTheme });
+      } else if (detail.triggerSource === 'manual_theme') {
+        // Manual theme edit -> debounced objective generation
+        cancelPendingObjectivesGeneration();
+        if (typeof cancelPendingEvaluationGeneration === 'function') {
+          cancelPendingEvaluationGeneration();
+        }
+        if (!isEvaluationEdited && typeof setEvaluationState === 'function') {
+          setEvaluationState('GENERATING');
+        }
+        if (isObjectivesProtected) {
+          renderObjectivesStatus('OUTDATED');
+          if (typeof triggerAutomaticEvaluation === 'function') {
+            triggerAutomaticEvaluation(false);
+          }
+        } else {
+          objDebounceTimer = setTimeout(() => {
+            autoGenerateObjectives(false, { title: curTitle, theme: curTheme });
+          }, 800);
+        }
+      }
+    });
+
+    // Initialize listeners for manual objective editing
+    function setupAutomaticObjectives() {
+      const genEl = document.getElementById('f2_general_objectives');
+      const specEl = document.getElementById('f2_specific_objectives');
+      if (!genEl || !specEl) return;
+
+      const initialGen = genEl.value.trim();
+      const initialSpec = specEl.value.trim();
+
+      // Preserve existing objectives on initial load without generating
+      if (initialGen !== '' || initialSpec !== '') {
+        lastAiGeneralObjective = initialGen;
+        lastAiSpecificObjectives = initialSpec;
+        isObjectivesProtected = false;
+        renderObjectivesStatus('WAITING');
+      } else {
+        isObjectivesProtected = false;
+        renderObjectivesStatus('WAITING');
+      }
+
+      genEl.addEventListener('input', checkManualObjectiveEdit);
+      specEl.addEventListener('input', checkManualObjectiveEdit);
+    }
+
+    // Expose helpers globally for cross-module integration
+    window.autoGenerateTheme = autoGenerateTheme;
+    window.forceRegenerateTheme = forceRegenerateTheme;
+
+    let isAutoCascadeInitialized = false;
+    function initAutoThemeAndObjectives() {
+      if (isAutoCascadeInitialized) return;
+      isAutoCascadeInitialized = true;
+      setupAutomaticThemeGeneration();
+      setupAutomaticObjectives();
+      setupEvaluationAutoUpdateListeners();
+    }
+
+    if (document.readyState === 'interactive' || document.readyState === 'complete') {
+      initAutoThemeAndObjectives();
+    } else {
+      document.addEventListener('DOMContentLoaded', initAutoThemeAndObjectives);
     }
 
     // ── CSS for spinner ────────────────────────────────────────────────
@@ -1082,25 +2368,15 @@ $user = currentUser();
       hideBanner(step);
 
       if (step === 1) {
+        if (!checkEventDateField()) valid = false;
+        if (!validateTimeFields(true)) valid = false;
         const fields = [{
             id: 'f1_title',
             err: 'e_title'
           },
           {
-            id: 'f1_event_date',
-            err: 'e_event_date'
-          },
-          {
             id: 'f1_source',
             err: 'e_source'
-          },
-          {
-            id: 'f1_start_time',
-            err: 'e_start_time'
-          },
-          {
-            id: 'f1_end_time',
-            err: 'e_end_time'
           },
           {
             id: 'f1_venue',
@@ -1117,15 +2393,12 @@ $user = currentUser();
           {
             id: 'f1_theme',
             err: 'e_theme'
-          },
-          {
-            id: 'f1_poster_file',
-            err: 'e_poster_file'
           }
         ];
         fields.forEach(f => {
           if (!checkField(f.id, f.err)) valid = false;
         });
+        if (!validatePosterInput('f1_poster_file', 'e_poster_file')) valid = false;
       } else if (step === 2) {
         const fields = [{
             id: 'f2_general_objectives',
@@ -1161,12 +2434,16 @@ $user = currentUser();
           });
         });
       } else if (step === 4) {
-        // Check that at least one shape has been placed
-        const canvasData = document.getElementById('fp-canvas-data').value;
+        if (window.fpSaveToHidden) {
+          window.fpSaveToHidden();
+        }
+        // Check that at least one shape has been placed across available floors (1 to 3 floors)
+        const canvasData = document.getElementById('fp-canvas-data') ? document.getElementById('fp-canvas-data').value : '';
         let hasShapes = false;
         try {
           const parsed = JSON.parse(canvasData);
-          hasShapes = parsed && parsed.shapes && parsed.shapes.length > 0;
+          hasShapes = (parsed && parsed.shapes && parsed.shapes.length > 0) ||
+                      (parsed && parsed.floors && Object.values(parsed.floors).some(f => f.shapes && f.shapes.length > 0));
         } catch (e) {
           hasShapes = false;
         }
@@ -1205,6 +2482,9 @@ $user = currentUser();
         schedRows.forEach(row => {
           row.querySelectorAll('input.sched-field').forEach(inp => {
             if (!inp.value.trim()) {
+              inp.classList.add('is-invalid');
+              valid = false;
+            } else if (inp.type === 'date' && inp.value <= todayManila) {
               inp.classList.add('is-invalid');
               valid = false;
             } else {
@@ -1257,23 +2537,30 @@ $user = currentUser();
         });
       } else if (step === 9) {
         // All KPI criteria inputs
-        document.querySelectorAll('input.kpi-field').forEach(inp => {
-          if (!inp.value.trim()) {
-            inp.classList.add('is-invalid');
-            valid = false;
-          } else {
-            inp.classList.remove('is-invalid');
-          }
-        });
-        // Eval form link
-        const evalLink = document.getElementById('f9_eval_form_link');
-        if (!evalLink.value.trim() || !isValidUrl(evalLink.value.trim())) {
-          evalLink.classList.add('is-invalid');
-          showError('e_eval_form_link');
+        const kpiFields = document.querySelectorAll('input.kpi-field');
+        if (kpiFields.length === 0) {
           valid = false;
         } else {
-          evalLink.classList.remove('is-invalid');
-          hideError('e_eval_form_link');
+          kpiFields.forEach(inp => {
+            if (!inp.value.trim()) {
+              inp.classList.add('is-invalid');
+              valid = false;
+            } else {
+              inp.classList.remove('is-invalid');
+            }
+          });
+        }
+        // Eval form link
+        const evalLink = document.getElementById('f9_eval_form_link');
+        if (evalLink) {
+          if (!evalLink.value.trim() || !isValidUrl(evalLink.value.trim())) {
+            evalLink.classList.add('is-invalid');
+            showError('e_eval_form_link');
+            valid = false;
+          } else {
+            evalLink.classList.remove('is-invalid');
+            hideError('e_eval_form_link');
+          }
         }
       } else if (step === 10) {
         // All evaluation question text inputs
@@ -1297,6 +2584,28 @@ $user = currentUser();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
+    function checkEventDateField() {
+      const el = document.getElementById('f1_event_date');
+      if (!el) return true;
+      const val = el.value.trim();
+      if (!val) {
+        el.classList.add('is-invalid');
+        showError('e_event_date');
+        hideError('e_event_date_past');
+        return false;
+      }
+      if (val <= todayManila) {
+        el.classList.add('is-invalid');
+        hideError('e_event_date');
+        showError('e_event_date_past');
+        return false;
+      }
+      el.classList.remove('is-invalid');
+      hideError('e_event_date');
+      hideError('e_event_date_past');
+      return true;
+    }
+
     function checkField(fieldId, errId) {
       const el = document.getElementById(fieldId);
       if (!el) return true;
@@ -1309,6 +2618,62 @@ $user = currentUser();
         hideError(errId);
         return true;
       }
+    }
+
+    function validatePosterInput(fieldId, errId) {
+      const el = document.getElementById(fieldId);
+      const errEl = document.getElementById(errId);
+      if (!el) return true;
+
+      if (!el.value || !el.files || el.files.length === 0) {
+        if (el.required) {
+          el.classList.add('is-invalid');
+          if (errEl) {
+            errEl.textContent = 'Event poster is required.';
+            errEl.classList.add('visible');
+          }
+          return false;
+        }
+        el.classList.remove('is-invalid');
+        if (errEl) errEl.classList.remove('visible');
+        return true;
+      }
+
+      const file = el.files[0];
+      const fileName = file.name || '';
+      const ext = (fileName.split('.').pop() || '').toLowerCase();
+      const mime = (file.type || '').toLowerCase();
+
+      const allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+      const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      const videoExts = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp', 'ogv'];
+
+      const isVideo = mime.startsWith('video/') || videoExts.includes(ext);
+      const isAllowed = allowedExts.includes(ext) && (!mime || allowedMimes.includes(mime));
+
+      if (isVideo || !isAllowed) {
+        el.value = '';
+        el.classList.add('is-invalid');
+        if (errEl) {
+          errEl.textContent = 'Only image files (JPG, PNG, WEBP, GIF) are allowed. Videos are not accepted.';
+          errEl.classList.add('visible');
+        }
+        return false;
+      }
+
+      el.classList.remove('is-invalid');
+      if (errEl) {
+        errEl.textContent = 'Event poster is required.';
+        errEl.classList.remove('visible');
+      }
+      return true;
+    }
+
+    const posterInputCreate = document.getElementById('f1_poster_file');
+    if (posterInputCreate) {
+      posterInputCreate.addEventListener('change', function() {
+        validatePosterInput('f1_poster_file', 'e_poster_file');
+      });
     }
 
     function showError(id) {
@@ -1340,13 +2705,162 @@ $user = currentUser();
       }
     }
 
+    function parseTimeToMinutes(timeStr) {
+      if (!timeStr || typeof timeStr !== 'string') return null;
+      const str = timeStr.trim();
+      if (!str) return null;
+
+      // 1. 12-hour format with AM/PM (e.g., "10:00 am", "10:00 AM", "12:00 PM", "12:00 AM")
+      const match12 = str.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap]m)$/i);
+      if (match12) {
+        let hours = parseInt(match12[1], 10);
+        const minutes = parseInt(match12[2], 10);
+        const meridiem = match12[3].toLowerCase();
+
+        if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) {
+          return null;
+        }
+        if (meridiem === 'am') {
+          hours = (hours === 12) ? 0 : hours;
+        } else {
+          hours = (hours === 12) ? 12 : hours + 12;
+        }
+        return hours * 60 + minutes;
+      }
+
+      // 2. 24-hour format (e.g., "00:00", "10:00", "14:00", "14:00:00")
+      const match24 = str.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      if (match24) {
+        const hours = parseInt(match24[1], 10);
+        const minutes = parseInt(match24[2], 10);
+
+        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+          return null;
+        }
+        return hours * 60 + minutes;
+      }
+
+      return null;
+    }
+
+    function validateTimeFields(isRequired = true) {
+      const startEl = document.getElementById('f1_start_time');
+      const endEl = document.getElementById('f1_end_time');
+      if (!startEl || !endEl) return true;
+
+      const startVal = startEl.value.trim();
+      const endVal = endEl.value.trim();
+
+      const errStart = document.getElementById('e_start_time');
+      const errEnd = document.getElementById('e_end_time');
+      const errOrder = document.getElementById('e_end_time_order');
+
+      // Clear error indicators before re-evaluating
+      if (errStart) errStart.classList.remove('visible');
+      if (errEnd) errEnd.classList.remove('visible');
+      if (errOrder) errOrder.classList.remove('visible');
+      startEl.classList.remove('is-invalid');
+      endEl.classList.remove('is-invalid');
+
+      if (!startVal && !endVal) {
+        if (isRequired) {
+          startEl.classList.add('is-invalid');
+          endEl.classList.add('is-invalid');
+          if (errStart) errStart.classList.add('visible');
+          if (errEnd) errEnd.classList.add('visible');
+          return false;
+        }
+        return true; // Draft allows both empty
+      }
+
+      if (!startVal) {
+        if (isRequired) {
+          startEl.classList.add('is-invalid');
+          if (errStart) errStart.classList.add('visible');
+          return false;
+        }
+        const em = parseTimeToMinutes(endVal);
+        if (em === null) {
+          endEl.classList.add('is-invalid');
+          return false;
+        }
+        return true;
+      }
+
+      if (!endVal) {
+        if (isRequired) {
+          endEl.classList.add('is-invalid');
+          if (errEnd) errEnd.classList.add('visible');
+          return false;
+        }
+        const sm = parseTimeToMinutes(startVal);
+        if (sm === null) {
+          startEl.classList.add('is-invalid');
+          return false;
+        }
+        return true;
+      }
+
+      // Both are populated
+      const startMinutes = parseTimeToMinutes(startVal);
+      const endMinutes = parseTimeToMinutes(endVal);
+
+      if (startMinutes === null) {
+        startEl.classList.add('is-invalid');
+        if (errStart) errStart.classList.add('visible');
+        return false;
+      }
+
+      if (endMinutes === null) {
+        endEl.classList.add('is-invalid');
+        if (errEnd) errEnd.classList.add('visible');
+        return false;
+      }
+
+      if (endMinutes <= startMinutes) {
+        endEl.classList.add('is-invalid');
+        if (errOrder) errOrder.classList.add('visible');
+        return false;
+      }
+
+      return true;
+    }
+
+    // Direct event listeners for live clearing and order validation on time inputs
+    const startTimeInputEl = document.getElementById('f1_start_time');
+    const endTimeInputEl = document.getElementById('f1_end_time');
+    ['input', 'change'].forEach(evt => {
+      if (startTimeInputEl) {
+        startTimeInputEl.addEventListener(evt, () => validateTimeFields(false));
+      }
+      if (endTimeInputEl) {
+        endTimeInputEl.addEventListener(evt, () => validateTimeFields(false));
+      }
+    });
+
     // Clear invalid state on input
     document.addEventListener('input', e => {
+      if (e.target.id === 'f1_event_date') {
+        checkEventDateField();
+        return;
+      }
+      if (e.target.id === 'f1_start_time' || e.target.id === 'f1_end_time') {
+        validateTimeFields(false);
+        return;
+      }
       if (e.target.classList.contains('is-invalid') && e.target.value.trim()) {
         e.target.classList.remove('is-invalid');
       }
     });
     document.addEventListener('change', e => {
+      if (e.target.id === 'f1_event_date') {
+        checkEventDateField();
+        return;
+      }
+      if (e.target.id === 'f1_start_time' || e.target.id === 'f1_end_time') {
+        validateTimeFields(false);
+        return;
+      }
       if (e.target.classList.contains('is-invalid') && e.target.value.trim()) {
         e.target.classList.remove('is-invalid');
       }
@@ -1377,15 +2891,58 @@ $user = currentUser();
     // ── Form submit validation ────────────────────────────────────────
     document.getElementById('proposalForm').addEventListener('submit', function(e) {
       serializeEvaluationQuestions();
-      
-      const stepValid = validateStep(currentStep);
-      const evalValid = validateEvaluationSidePanel();
-      
-      if (!stepValid || !evalValid) {
-        e.preventDefault();
-        if (stepValid && !evalValid) {
-          alert('⚠️ Please review the AI-Generated Evaluation Tool questions in the right-side panel before submitting.');
+      if (window.fpSaveToHidden) {
+        window.fpSaveToHidden();
+      }
+
+      const isDraft = (e.submitter && e.submitter.value === 'draft') || (document.getElementById('proposalFormAction') && document.getElementById('proposalFormAction').value === 'draft');
+
+      if (isDraft) {
+        const timeValid = validateTimeFields(false);
+        if (!timeValid) {
+          e.preventDefault();
+          showStep(1);
+          const endEl = document.getElementById('f1_end_time');
+          const startEl = document.getElementById('f1_start_time');
+          if (endEl && endEl.classList.contains('is-invalid')) {
+            endEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            endEl.focus();
+          } else if (startEl && startEl.classList.contains('is-invalid')) {
+            startEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            startEl.focus();
+          }
         }
+        return;
+      }
+
+      // Non-draft submission: validate ALL wizard steps 1 through 9
+      let firstInvalidStep = null;
+      for (let s = 1; s <= 9; s++) {
+        if (!validateStep(s)) {
+          firstInvalidStep = s;
+          break;
+        }
+      }
+
+      const evalValid = validateEvaluationSidePanel();
+
+      if (firstInvalidStep !== null) {
+        e.preventDefault();
+        showStep(firstInvalidStep);
+        const firstInvalidEl = document.querySelector(`#panel-${firstInvalidStep} .is-invalid, #panel-${firstInvalidStep} .fp-canvas-invalid`);
+        if (firstInvalidEl) {
+          firstInvalidEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (typeof firstInvalidEl.focus === 'function') {
+            firstInvalidEl.focus();
+          }
+        }
+        return;
+      }
+
+      if (!evalValid) {
+        e.preventDefault();
+        alert('⚠️ Please review the AI-Generated Evaluation Tool questions in the right-side panel before submitting.');
+        return;
       }
     });
 
@@ -1429,7 +2986,7 @@ $user = currentUser();
         </tr>`,
       schedule: `
         <tr>
-          <td><input type="date" name="sched_date[]" class="form-control sched-field"></td>
+          <td><input type="date" name="sched_date[]" class="form-control sched-field" min="${tomorrowManila}"></td>
           <td><input type="text" name="sched_event[]" class="form-control sched-field" placeholder="Event name"></td>
           <td><input type="text" name="sched_venue[]" class="form-control sched-field" placeholder="Venue"></td>
           <td><input type="text" name="sched_organizer[]" class="form-control sched-field" placeholder="Name"></td>
@@ -1443,14 +3000,28 @@ $user = currentUser();
           <td><input type="text" name="ft_role[]" class="form-control ft-field" placeholder="Role"></td>
           <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
         </tr>`,
+      kpi: `
+        <tr>
+          <td><input type="text" name="kpi_indicator[]" class="form-control kpi-field" placeholder="e.g. Number of Attendees"></td>
+          <td><input type="text" name="kpi_target[]" class="form-control kpi-field" placeholder="e.g. 500 Participants"></td>
+          <td><input type="text" name="kpi_method[]" class="form-control kpi-field" placeholder="e.g. Attendance Sheet"></td>
+          <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
+        </tr>`,
     };
 
     function addRow(table) {
       const tbody = document.getElementById(table + '-body');
+      if (!tbody) return;
       const tmp = document.createElement('tbody');
       tmp.innerHTML = rowTemplates[table];
       tbody.appendChild(tmp.firstElementChild);
       if (table === 'materials') updateTotal();
+      if (table === 'kpi') {
+        if (!isEvaluationEdited && typeof setEvaluationState === 'function') {
+          setEvaluationState('GENERATING');
+        }
+        triggerAutomaticEvaluation(false);
+      }
     }
 
     function removeRow(btn) {
@@ -1459,6 +3030,12 @@ $user = currentUser();
       if (tbody.querySelectorAll('tr').length > 1) {
         tr.remove();
         if (tbody.id === 'materials-body') updateTotal();
+        if (tbody.id === 'kpi-body') {
+          if (!isEvaluationEdited && typeof setEvaluationState === 'function') {
+            setEvaluationState('GENERATING');
+          }
+          triggerAutomaticEvaluation(false);
+        }
       }
     }
 
@@ -1486,26 +3063,7 @@ $user = currentUser();
 
     // ── KPI ──────────────────────────────────────────────────────────
     function addKPI() {
-      const container = document.getElementById('kpi-criteria');
-      const div = document.createElement('div');
-      div.className = 'form-grid';
-      div.style.marginBottom = '16px';
-      div.innerHTML = `
-        <div class="form-group">
-          <label class="form-label">KPI Criteria <span class="text-danger">*</span></label>
-          <input type="text" name="kpi_criteria[]" class="form-control kpi-field" placeholder="e.g. Participant Satisfaction">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Target Rating</label>
-          <select name="kpi_rating[]" class="form-control">
-            <option value="4">4 – Excellent</option>
-            <option value="3" selected>3 – Very Satisfactory</option>
-            <option value="2">2 – Satisfactory</option>
-            <option value="1">1 – Needs Improvement</option>
-          </select>
-        </div>`;
-      container.appendChild(div);
-      queueEvaluationAutoUpdate();
+      addRow('kpi');
     }
 
     // ── Evaluation Tool ──────────────────────────────────────────────
@@ -1532,64 +3090,114 @@ $user = currentUser();
       return JSON.stringify({ title, rationale, genObj, specObj, kpis });
     }
 
-    function checkAndTriggerEvaluationAutoUpdate() {
-      if (typeof currentStep !== 'undefined' && currentStep === 1) {
-        return; // Do not auto-generate while on Step 1
+    // ── AI Evaluation Tool Generation Engine ──────────────────────────
+    let currentEvalRequestId = 0;
+    let currentEvalAbortController = null;
+    let evalDebounceTimer = null;
+    let lastEvaluationHash = '';
+
+    function cancelPendingEvaluationGeneration() {
+      if (evalDebounceTimer) {
+        clearTimeout(evalDebounceTimer);
+        evalDebounceTimer = null;
       }
-      
-      const currentState = getObjectivesAndKpisState();
-      const isListEmpty = questionsList.length === 0;
-      
-      const parsed = JSON.parse(currentState);
-      const hasMinData = parsed.title && (parsed.genObj || parsed.specObj || parsed.kpis.length > 0);
-      
-      if (!hasMinData) {
-        setEvaluationState('EMPTY');
-        return;
+      if (currentEvalAbortController) {
+        try { currentEvalAbortController.abort(); } catch (e) {}
+        currentEvalAbortController = null;
       }
-      
-      if (isListEmpty) {
-        // Initial auto-generation: silent
-        lastEvaluationState = currentState;
-        regenerateEvaluationWithAi(false);
+      isGeneratingEval = false;
+    }
+
+    function triggerAutomaticEvaluation(immediate = false) {
+      if (evalDebounceTimer) {
+        clearTimeout(evalDebounceTimer);
+        evalDebounceTimer = null;
+      }
+
+      // If Theme is currently generating, wait for cascade to reach Objectives
+      if (typeof isThemeGenerating !== 'undefined' && isThemeGenerating) return;
+      // If Objectives are currently generating and this was NOT an immediate post-objectives trigger, wait for objectives to finish
+      if (!immediate && typeof isObjGenerating !== 'undefined' && isObjGenerating) return;
+
+      if (immediate) {
+        // Immediate execution with minimal settle delay
+        evalDebounceTimer = setTimeout(() => {
+          autoGenerateEvaluation(false);
+        }, 50);
       } else {
-        // Subsequent check
-        if (currentState !== lastEvaluationState) {
-          setEvaluationState('NEEDS_UPDATE');
-        }
+        // Debounce manual edits by 800ms
+        evalDebounceTimer = setTimeout(() => {
+          autoGenerateEvaluation(false);
+        }, 800);
       }
     }
 
+    // Alias for backward compatibility
     function queueEvaluationAutoUpdate() {
-      if (autoUpdateTimer) clearTimeout(autoUpdateTimer);
-      autoUpdateTimer = setTimeout(() => {
-        checkAndTriggerEvaluationAutoUpdate();
-      }, 3000);
+      triggerAutomaticEvaluation(false);
+    }
+    function checkAndTriggerEvaluationAutoUpdate() {
+      triggerAutomaticEvaluation(false);
     }
 
     function dismissEvalChangeNotice() {
       const noticeEl = document.getElementById('evalChangeNotice');
       if (noticeEl) noticeEl.style.display = 'none';
+      lastEvaluationHash = JSON.stringify({
+        curTitle: (document.getElementById('f1_title')?.value || '').trim(),
+        curTheme: (document.getElementById('f1_theme')?.value || '').trim(),
+        curGen: (document.getElementById('f2_general_objectives')?.value || '').trim(),
+        curSpec: (document.getElementById('f2_specific_objectives')?.value || '').trim(),
+        kpis: []
+      });
       lastEvaluationState = getObjectivesAndKpisState();
       setEvaluationState('READY');
     }
 
-    async function regenerateEvaluationWithAi(forced = false) {
-      if (isGeneratingEval) return;
+    async function autoGenerateEvaluation(forced = false) {
+      // If Theme or Objectives are still generating, do not run yet unless forced
+      if (!forced && typeof isObjGenerating !== 'undefined' && isObjGenerating) return;
+      if (!forced && typeof isThemeGenerating !== 'undefined' && isThemeGenerating) return;
 
-      if (forced && isEvaluationEdited && questionsList.length > 0) {
-        if (!confirm("Regenerating will replace your current evaluation questions, including manual changes. Continue?")) {
-          return;
+      const titleEl = document.getElementById('f1_title') || document.querySelector('[name="title"]');
+      const themeEl = document.getElementById('f1_theme') || document.querySelector('[name="theme"]');
+      const genEl   = document.getElementById('f2_general_objectives') || document.querySelector('[name="general_objectives"]');
+      const specEl  = document.getElementById('f2_specific_objectives') || document.querySelector('[name="specific_objectives"]');
+
+      const curTitle = (titleEl?.value || '').trim();
+      const curTheme = (themeEl?.value || '').trim();
+      const curGen   = (genEl?.value || '').trim();
+      const curSpec  = (specEl?.value || '').trim();
+
+      // Minimum requirements: Title >= 4 chars, and at least some objectives
+      if (curTitle.length < 4 || (!curGen && !curSpec)) {
+        if (!questionsList || questionsList.length === 0) {
+          setEvaluationState('EMPTY');
         }
+        return;
       }
 
-      setEvaluationState('GENERATING');
-      isGeneratingEval = true;
+      // Never silently overwrite Faculty-customized evaluation questions for minor changes.
+      // Preserve manual edits unless forced or unless the activity Title changes to a new activity context.
+      if (!forced && isEvaluationEdited && questionsList && questionsList.length > 0) {
+        const noticeEl = document.getElementById('evalChangeNotice');
+        if (noticeEl) {
+          noticeEl.style.display = 'flex';
+          noticeEl.innerHTML = `
+            <div>ℹ️ <strong>Activity details were updated.</strong> Your customized evaluation questions were preserved.</div>
+            <div style="display:flex; gap:8px; margin-top:4px;">
+              <button type="button" class="btn btn-outline btn-sm" onclick="dismissEvalChangeNotice()" style="padding: 2px 8px; font-size: 0.7rem; height:auto; line-height:1.2; background:#fff; border:1px solid #d97706; color:#d97706;">Keep Current</button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="regenerateEvaluationWithAi(true)" style="padding: 2px 8px; font-size: 0.7rem; height:auto; line-height:1.2; background: #d97706; border: none; color: white;">Regenerate with AI</button>
+            </div>
+          `;
+        }
+        return;
+      }
 
-      // Gather KPIs
+      // Gather current KPIs
       const kpis = [];
       const criteriaInputs = document.querySelectorAll('input[name="kpi_criteria[]"], input[name="kpi_indicator[]"]');
-      const ratingSelects = document.querySelectorAll('select[name="kpi_rating[]"], input[name="kpi_target[]"]');
+      const ratingSelects  = document.querySelectorAll('select[name="kpi_rating[]"], input[name="kpi_target[]"]');
       criteriaInputs.forEach((input, index) => {
         if (input.value.trim()) {
           kpis.push({
@@ -1599,11 +3207,28 @@ $user = currentUser();
         }
       });
 
+      // Payload hash check to avoid duplicate calls with identical inputs
+      const currentHash = JSON.stringify({ curTitle, curTheme, curGen, curSpec, kpis });
+      if (!forced && currentHash === lastEvaluationHash && questionsList && questionsList.length > 0) {
+        setEvaluationState('READY');
+        return;
+      }
+
+      // Abort in-flight evaluation request
+      if (currentEvalAbortController) {
+        try { currentEvalAbortController.abort(); } catch (e) {}
+      }
+      currentEvalAbortController = new AbortController();
+      const requestId = ++currentEvalRequestId;
+
+      isGeneratingEval = true;
+      setEvaluationState('GENERATING');
+
       const payload = {
-        title: (document.querySelector('[name="title"]')?.value || '').trim(),
+        title: curTitle,
+        theme: curTheme,
         source: (document.querySelector('[name="source"]')?.value || '').trim(),
         target_participants: (document.querySelector('[name="target_participants"]')?.value || '').trim(),
-        theme: (document.querySelector('[name="theme"]')?.value || '').trim(),
         event_date: (document.querySelector('[name="event_date"]')?.value || '').trim(),
         start_time: (document.querySelector('[name="start_time"]')?.value || '').trim(),
         end_time: (document.querySelector('[name="end_time"]')?.value || '').trim(),
@@ -1611,8 +3236,8 @@ $user = currentUser();
         venue_address: (document.querySelector('[name="venue_address"]')?.value || '').trim(),
         involved_subjects: (document.querySelector('[name="involved_subjects"]')?.value || '').trim(),
         rationale: (document.querySelector('[name="rationale"]')?.value || '').trim(),
-        general_objectives: (document.querySelector('[name="general_objectives"]')?.value || '').trim(),
-        specific_objectives: (document.querySelector('[name="specific_objectives"]')?.value || '').trim(),
+        general_objectives: curGen,
+        specific_objectives: curSpec,
         kpis: kpis
       };
 
@@ -1620,11 +3245,17 @@ $user = currentUser();
         const res = await fetch('<?= BASE_URL ?>/api/generate-evaluation.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          signal: currentEvalAbortController.signal
         });
-        
+
+        // Stale check
+        if (requestId !== currentEvalRequestId || currentEvalAbortController.signal.aborted) {
+          return;
+        }
+
         const data = await res.json();
-        
+
         if (res.status === 429 || (data && data.error && (data.error.includes('429') || data.error.includes('RESOURCE_EXHAUSTED') || data.error.includes('limit')))) {
           throw new Error("RATE_LIMIT");
         } else if (!res.ok || (data && data.error)) {
@@ -1632,28 +3263,41 @@ $user = currentUser();
         }
 
         if (data.success && Array.isArray(data.questions)) {
+          // Double check that title or theme didn't change while waiting
+          const latestTitle = (titleEl?.value || '').trim();
+          const latestTheme = (themeEl?.value || '').trim();
+          if (latestTitle !== curTitle || latestTheme !== curTheme) return; // Stale
+
           questionsList = data.questions;
           isEvaluationEdited = false;
           editingIndex = -1;
-          
+          lastEvaluationHash = currentHash;
+          lastEvaluationState = getObjectivesAndKpisState();
+
           renderQuestions();
           serializeEvaluationQuestions();
-          
           setEvaluationState('READY');
-          lastEvaluationState = getObjectivesAndKpisState();
         } else {
           throw new Error(data.error || 'Empty response from AI.');
         }
       } catch (err) {
-        console.warn('generateEvaluation error:', err);
+        if (err.name === 'AbortError') return;
+        if (requestId !== currentEvalRequestId) return;
+        console.warn('autoGenerateEvaluation error:', err);
         let errMsg = err.message || 'Unknown error';
         if (errMsg === 'RATE_LIMIT') {
           errMsg = 'AI service rate limit reached. Please try again.';
         }
         setEvaluationState('ERROR', errMsg);
       } finally {
-        isGeneratingEval = false;
+        if (requestId === currentEvalRequestId) {
+          isGeneratingEval = false;
+        }
       }
+    }
+
+    function regenerateEvaluationWithAi(forced = true) {
+      autoGenerateEvaluation(forced);
     }
 
     function renderQuestions() {
@@ -1695,14 +3339,14 @@ $user = currentUser();
         } else {
           card.innerHTML = `
             <div class="eval-card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
-              <span class="eval-question-num" style="font-weight:600; font-size:0.8rem; color:var(--text-muted, #64748b);">Question ${index + 1}</span>
+              <span class="eval-question-num" style="font-weight:600; font-size:0.8rem; color:var(--text-muted);">Question ${index + 1}</span>
               <span class="badge ${badgeClass}" style="font-size:0.7rem; padding: 2px 6px; border-radius:4px; font-weight:600;">${typeLabel}</span>
             </div>
-            <div class="eval-question-body" style="font-size:0.85rem; line-height:1.45; color:var(--text, #1e293b); margin-bottom: 8px; font-weight:500; word-break: break-word;">
+            <div class="eval-question-body" style="font-size:0.85rem; line-height:1.45; color:var(--text-main); margin-bottom: 8px; font-weight:500; word-break: break-word;">
               ${escapeHtml(q.question)}
             </div>
-            <div class="eval-card-actions" style="display:flex; gap:12px; font-size:0.75rem; border-top: 1px dashed #f1f5f9; padding-top:6px;">
-              <a href="javascript:void(0)" class="eval-action-link" onclick="startEdit(${index})" style="color:var(--primary, #0284c7); text-decoration:none; font-weight:600;">Edit</a>
+            <div class="eval-card-actions" style="display:flex; gap:12px; font-size:0.75rem; border-top: 1px dashed var(--border); padding-top:6px;">
+              <a href="javascript:void(0)" class="eval-action-link" onclick="startEdit(${index})" style="color:var(--sti-blue); text-decoration:none; font-weight:600;">Edit</a>
               <a href="javascript:void(0)" class="eval-action-link" onclick="confirmDeleteQuestion(${index})" style="color:#dc3545; text-decoration:none; font-weight:600;">Delete</a>
             </div>
           `;
@@ -1717,6 +3361,8 @@ $user = currentUser();
       const text = document.getElementById('evalStatusText');
       const statusEl = document.getElementById('evalGenStatus');
       const noticeEl = document.getElementById('evalChangeNotice');
+      const questionsListEl = document.getElementById('eval-questions-list');
+      const regenBtn = document.getElementById('btn-regenerate-eval');
       
       if (!badge || !indicator || !text) return;
       
@@ -1729,6 +3375,11 @@ $user = currentUser();
           badge.style.background = '#f1f5f9';
           badge.style.color = '#64748b';
           indicator.style.background = '#64748b';
+          if (questionsListEl) {
+            questionsListEl.style.opacity = '1';
+            questionsListEl.style.pointerEvents = 'auto';
+          }
+          if (regenBtn) regenBtn.disabled = false;
           if (statusEl) {
             statusEl.style.display = 'block';
             statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#f0f9ff; color:#0369a1; border:1px solid #e0f2fe; margin-bottom:10px;';
@@ -1740,6 +3391,13 @@ $user = currentUser();
           badge.style.background = '#eff6ff';
           badge.style.color = '#1d4ed8';
           indicator.style.background = '#1d4ed8';
+          if (noticeEl) noticeEl.style.display = 'none';
+          if (questionsListEl) {
+            questionsListEl.style.opacity = '0.45';
+            questionsListEl.style.pointerEvents = 'none';
+            questionsListEl.style.transition = 'opacity 0.2s ease';
+          }
+          if (regenBtn) regenBtn.disabled = true;
           if (statusEl) {
             statusEl.style.display = 'block';
             statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; margin-bottom:10px;';
@@ -1755,12 +3413,22 @@ $user = currentUser();
           badge.style.background = '#dcfce7';
           badge.style.color = '#16a34a';
           indicator.style.background = '#16a34a';
+          if (questionsListEl) {
+            questionsListEl.style.opacity = '1';
+            questionsListEl.style.pointerEvents = 'auto';
+          }
+          if (regenBtn) regenBtn.disabled = false;
           break;
         case 'NEEDS_UPDATE':
           text.innerText = 'Needs Update';
           badge.style.background = '#fef3c7';
           badge.style.color = '#d97706';
           indicator.style.background = '#d97706';
+          if (questionsListEl) {
+            questionsListEl.style.opacity = '1';
+            questionsListEl.style.pointerEvents = 'auto';
+          }
+          if (regenBtn) regenBtn.disabled = false;
           if (noticeEl) {
             noticeEl.style.display = 'flex';
           }
@@ -1770,6 +3438,11 @@ $user = currentUser();
           badge.style.background = '#fee2e2';
           badge.style.color = '#dc2626';
           indicator.style.background = '#dc2626';
+          if (questionsListEl) {
+            questionsListEl.style.opacity = '1';
+            questionsListEl.style.pointerEvents = 'auto';
+          }
+          if (regenBtn) regenBtn.disabled = false;
           if (statusEl) {
             statusEl.style.display = 'block';
             statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; margin-bottom:10px;';
@@ -1873,8 +3546,9 @@ $user = currentUser();
     }
 
     function setupEvaluationAutoUpdateListeners() {
+      // NOTE: [name="title"] and [name="theme"] are intentionally excluded here.
+      // Title and Theme trigger their own specific cascade coordinators.
       const fields = [
-        '[name="title"]',
         '[name="rationale"]',
         '[name="general_objectives"]',
         '[name="specific_objectives"]'
@@ -1883,18 +3557,29 @@ $user = currentUser();
       fields.forEach(sel => {
         const el = document.querySelector(sel);
         if (el) {
-          el.addEventListener('input', queueEvaluationAutoUpdate);
-          el.addEventListener('change', queueEvaluationAutoUpdate);
+          const handler = () => {
+            if (!isEvaluationEdited && typeof setEvaluationState === 'function') {
+              setEvaluationState('GENERATING');
+            }
+            triggerAutomaticEvaluation(false);
+          };
+          el.addEventListener('input', handler);
+          el.addEventListener('change', handler);
         }
       });
       
       const kpiContainer = document.getElementById('kpi-criteria') || document.getElementById('kpi-body');
       if (kpiContainer) {
-        kpiContainer.addEventListener('input', e => {
-          if (e.target.classList.contains('kpi-field') || e.target.name === 'kpi_criteria[]' || e.target.name === 'kpi_indicator[]') {
-            queueEvaluationAutoUpdate();
+        const kpiHandler = e => {
+          if (e.target.classList.contains('kpi-field') || e.target.name === 'kpi_criteria[]' || e.target.name === 'kpi_indicator[]' || e.target.name === 'kpi_rating[]' || e.target.name === 'kpi_target[]') {
+            if (!isEvaluationEdited && typeof setEvaluationState === 'function') {
+              setEvaluationState('GENERATING');
+            }
+            triggerAutomaticEvaluation(false);
           }
-        });
+        };
+        kpiContainer.addEventListener('input', kpiHandler);
+        kpiContainer.addEventListener('change', kpiHandler);
       }
     }
 
@@ -1923,9 +3608,9 @@ $user = currentUser();
         const isText = q.type === 'open_ended' || q.type === 'text';
         if (!isText) {
           qHtml = `
-            <div style="margin-bottom: 16px; padding: 14px; background: #fafafa; border: 1px solid #f1f5f9; border-radius: 8px;">
-              <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 8px; color: #1e293b;">Question ${idx+1}: ${escapeHtml(q.question)}</div>
-              <div style="display: flex; gap: 14px; font-size: 0.8rem; color: #475569; flex-wrap: wrap;">
+            <div class="preview-question-card" style="margin-bottom: 16px; padding: 14px; background: var(--bg-card-elevated); border: 1px solid var(--border); border-radius: 8px;">
+              <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 8px; color: var(--text-main);">Question ${idx+1}: ${escapeHtml(q.question)}</div>
+              <div style="display: flex; gap: 14px; font-size: 0.8rem; color: var(--text-secondary); flex-wrap: wrap;">
                 <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="radio" name="pq_${idx}" disabled> 4 – Excellent</label>
                 <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="radio" name="pq_${idx}" disabled> 3 – Very Satisfactory</label>
                 <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="radio" name="pq_${idx}" disabled> 2 – Satisfactory</label>
@@ -1935,9 +3620,9 @@ $user = currentUser();
           `;
         } else {
           qHtml = `
-            <div style="margin-bottom: 16px; padding: 14px; background: #fafafa; border: 1px solid #f1f5f9; border-radius: 8px;">
-              <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 8px; color: #1e293b;">Question ${idx+1}: ${escapeHtml(q.question)}</div>
-              <textarea class="form-control" rows="2" style="font-size: 0.8rem; background:#fff;" placeholder="Type your answer here..." disabled></textarea>
+            <div class="preview-question-card" style="margin-bottom: 16px; padding: 14px; background: var(--bg-card-elevated); border: 1px solid var(--border); border-radius: 8px;">
+              <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 8px; color: var(--text-main);">Question ${idx+1}: ${escapeHtml(q.question)}</div>
+              <textarea class="form-control" rows="2" style="font-size: 0.8rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border);" placeholder="Type your answer here..." disabled></textarea>
             </div>
           `;
         }
@@ -1956,695 +3641,8 @@ $user = currentUser();
 
   <!-- Floor Plan Scripts -->
   <script src="https://unpkg.com/konva@9/konva.min.js"></script>
-  <script src="<?= BASE_URL ?>/assets/js/floorplan.js"></script>
+  <script src="<?= BASE_URL ?>/assets/js/floorplan.js?v=<?= filemtime(__DIR__ . '/../assets/js/floorplan.js') ?>"></script>
 
-  <script>
-    // ════════════════════════════════════════════════════════
-    //  FLOOR PLAN DRAWING ENGINE
-    // ════════════════════════════════════════════════════════
-    (function() {
-      const CANVAS_W = 720;
-      const CANVAS_H = 480;
-      const GRID = 20;
-
-      let activeTool = 'select';
-      let fillColor = '#dbeafe';
-      let strokeWidth = 2;
-      let gridOn = true;
-      let selectedNode = null;
-
-      let history = [];
-      let redoStack = [];
-      let isDrawing = false;
-      let drawStart = {
-        x: 0,
-        y: 0
-      };
-      let ghostShape = null;
-
-      // ── Konva init ───────────────────────────────────────
-      const stage = new Konva.Stage({
-        container: 'fpStageDiv',
-        width: CANVAS_W,
-        height: CANVAS_H,
-      });
-
-      const mainLayer = new Konva.Layer();
-      const ghostLayer = new Konva.Layer();
-      const trLayer = new Konva.Layer();
-      stage.add(mainLayer);
-      stage.add(ghostLayer);
-      stage.add(trLayer);
-
-      const tr = new Konva.Transformer({
-        rotateEnabled: true,
-        enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'middle-right', 'middle-left'],
-        boundBoxFunc: (old, nb) => (nb.width < 10 || nb.height < 10) ? old : nb,
-      });
-      trLayer.add(tr);
-
-      // ── Grid overlay ─────────────────────────────────────
-      const gridCanvas = document.getElementById('fpGridCanvas');
-      const gCtx = gridCanvas.getContext('2d');
-
-      function drawGrid() {
-        const sc = stage.scaleX();
-        const W = CANVAS_W * sc,
-          H = CANVAS_H * sc;
-        gridCanvas.width = W;
-        gridCanvas.height = H;
-        gCtx.clearRect(0, 0, W, H);
-        if (!gridOn) return;
-        gCtx.strokeStyle = '#e5e7eb';
-        gCtx.lineWidth = 0.5;
-        const step = GRID * sc;
-        for (let x = 0; x <= W; x += step) {
-          gCtx.beginPath();
-          gCtx.moveTo(x, 0);
-          gCtx.lineTo(x, H);
-          gCtx.stroke();
-        }
-        for (let y = 0; y <= H; y += step) {
-          gCtx.beginPath();
-          gCtx.moveTo(0, y);
-          gCtx.lineTo(W, y);
-          gCtx.stroke();
-        }
-      }
-
-      // Set container dimensions
-      const stageDiv = document.getElementById('fpStageDiv');
-      stageDiv.style.width = CANVAS_W + 'px';
-      stageDiv.style.height = CANVAS_H + 'px';
-      document.getElementById('fpStageContainer').style.height = CANVAS_H + 'px';
-      drawGrid();
-
-      // ── Snap ─────────────────────────────────────────────
-      function snap(v) {
-        return Math.round(v / GRID) * GRID;
-      }
-
-      function snapPt(x, y) {
-        return gridOn ? {
-          x: snap(x),
-          y: snap(y)
-        } : {
-          x,
-          y
-        };
-      }
-
-      // ── Tool palette ─────────────────────────────────────
-      document.querySelectorAll('.fp-tool-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const tool = btn.dataset.tool;
-
-          if (tool.startsWith('preset-')) {
-            deselect();
-            dropPreset(tool.replace('preset-', ''));
-            return;
-          }
-          if (tool === 'eraser') {
-            deleteSelected();
-            return;
-          }
-
-          deselect();
-          activeTool = tool;
-          document.querySelectorAll('.fp-tool-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          stage.container().style.cursor = tool === 'select' ? 'default' : 'crosshair';
-          setStatus(toolHint(tool));
-        });
-      });
-
-      function toolHint(t) {
-        return {
-          select: 'Click a shape to select it. Drag to move. Use handles to resize.',
-          rect: 'Click and drag to draw a room or area rectangle.',
-          line: 'Click and drag to draw a wall or boundary.',
-          arrow: 'Click and drag to draw a directional arrow.',
-          ellipse: 'Click and drag to draw a circular table or feature.',
-          text: 'Click anywhere to place a text label.',
-        } [t] || '';
-      }
-
-      // ── Color / stroke toolbar ────────────────────────────
-      document.querySelectorAll('.fp-color-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          fillColor = btn.dataset.color;
-          document.querySelectorAll('.fp-color-btn').forEach(b => b.classList.remove('selected'));
-          btn.classList.add('selected');
-          document.getElementById('fpCustomColor').value = fillColor;
-          applyToSelected();
-        });
-      });
-      document.getElementById('fpCustomColor').addEventListener('input', e => {
-        fillColor = e.target.value;
-        document.querySelectorAll('.fp-color-btn').forEach(b => b.classList.remove('selected'));
-        applyToSelected();
-      });
-      document.getElementById('fpStrokeWidth').addEventListener('change', e => {
-        strokeWidth = parseInt(e.target.value);
-      });
-
-      function applyToSelected() {
-        if (!selectedNode) return;
-        if (typeof selectedNode.fill === 'function') selectedNode.fill(fillColor);
-        mainLayer.batchDraw();
-        saveToHidden();
-      }
-
-      // ── Drawing interactions ──────────────────────────────
-      stage.on('mousedown touchstart', e => {
-        if (activeTool === 'select') return;
-        if (e.target !== stage && e.target.getLayer() !== ghostLayer) return;
-
-        const pos = stage.getPointerPosition();
-        if (!pos) return;
-        const pt = snapPt(pos.x, pos.y);
-        drawStart = pt;
-        isDrawing = true;
-
-        if (activeTool === 'text') {
-          const label = prompt('Enter label text:', 'Label');
-          if (!label) {
-            isDrawing = false;
-            return;
-          }
-          const txt = new Konva.Text({
-            x: pt.x,
-            y: pt.y,
-            text: label,
-            fontSize: 13,
-            fontFamily: 'Inter, sans-serif',
-            fill: '#1e2a3a',
-            draggable: true,
-            name: 'shape'
-          });
-          addShape(txt);
-          isDrawing = false;
-          return;
-        }
-
-        ghostShape = buildGhost(activeTool, pt);
-        if (ghostShape) ghostLayer.add(ghostShape);
-        ghostLayer.batchDraw();
-      });
-
-      stage.on('mousemove touchmove', () => {
-        if (!isDrawing || !ghostShape) return;
-        const pos = stage.getPointerPosition();
-        if (!pos) return;
-        const pt = snapPt(pos.x, pos.y);
-        const w = pt.x - drawStart.x,
-          h = pt.y - drawStart.y;
-
-        if (activeTool === 'rect') {
-          ghostShape.x(Math.min(drawStart.x, pt.x));
-          ghostShape.y(Math.min(drawStart.y, pt.y));
-          ghostShape.width(Math.abs(w));
-          ghostShape.height(Math.abs(h));
-        } else if (activeTool === 'ellipse') {
-          ghostShape.x(drawStart.x + w / 2);
-          ghostShape.y(drawStart.y + h / 2);
-          ghostShape.radiusX(Math.abs(w / 2));
-          ghostShape.radiusY(Math.abs(h / 2));
-        } else if (activeTool === 'line' || activeTool === 'arrow') {
-          ghostShape.points([drawStart.x, drawStart.y, pt.x, pt.y]);
-        }
-        ghostLayer.batchDraw();
-      });
-
-      stage.on('mouseup touchend', () => {
-        if (!isDrawing) return;
-        isDrawing = false;
-        if (ghostShape) {
-          ghostShape.destroy();
-          ghostLayer.batchDraw();
-        }
-
-        const pos = stage.getPointerPosition();
-        if (!pos) {
-          ghostShape = null;
-          return;
-        }
-        const pt = snapPt(pos.x, pos.y);
-        const w = Math.abs(pt.x - drawStart.x);
-        const h = Math.abs(pt.y - drawStart.y);
-
-        if (w < 5 && h < 5) {
-          ghostShape = null;
-          return;
-        }
-
-        let shape = null;
-        if (activeTool === 'rect') {
-          shape = new Konva.Rect({
-            x: Math.min(drawStart.x, pt.x),
-            y: Math.min(drawStart.y, pt.y),
-            width: w,
-            height: h,
-            fill: fillColor,
-            stroke: '#1e2a3a',
-            strokeWidth,
-            cornerRadius: 3,
-            draggable: true,
-            name: 'shape'
-          });
-        } else if (activeTool === 'ellipse') {
-          shape = new Konva.Ellipse({
-            x: drawStart.x + (pt.x - drawStart.x) / 2,
-            y: drawStart.y + (pt.y - drawStart.y) / 2,
-            radiusX: w / 2,
-            radiusY: h / 2,
-            fill: fillColor,
-            stroke: '#1e2a3a',
-            strokeWidth,
-            draggable: true,
-            name: 'shape'
-          });
-        } else if (activeTool === 'line') {
-          shape = new Konva.Line({
-            points: [drawStart.x, drawStart.y, pt.x, pt.y],
-            stroke: '#1e2a3a',
-            strokeWidth,
-            lineCap: 'round',
-            draggable: true,
-            name: 'shape'
-          });
-        } else if (activeTool === 'arrow') {
-          shape = new Konva.Arrow({
-            points: [drawStart.x, drawStart.y, pt.x, pt.y],
-            stroke: '#1e2a3a',
-            fill: '#1e2a3a',
-            strokeWidth,
-            pointerLength: 10,
-            pointerWidth: 8,
-            draggable: true,
-            name: 'shape'
-          });
-        }
-
-        if (shape) addShape(shape);
-        ghostShape = null;
-      });
-
-      stage.on('click tap', e => {
-        if (e.target === stage) deselect();
-      });
-
-      // ── Ghost preview factory ─────────────────────────────
-      function buildGhost(tool, pt) {
-        const cfg = {
-          fill: 'rgba(59,130,246,0.12)',
-          stroke: '#3b82f6',
-          strokeWidth: 1,
-          listening: false
-        };
-        if (tool === 'rect') return new Konva.Rect({
-          ...cfg,
-          x: pt.x,
-          y: pt.y,
-          width: 1,
-          height: 1
-        });
-        if (tool === 'ellipse') return new Konva.Ellipse({
-          ...cfg,
-          x: pt.x,
-          y: pt.y,
-          radiusX: 1,
-          radiusY: 1
-        });
-        if (tool === 'line') return new Konva.Line({
-          ...cfg,
-          fill: null,
-          points: [pt.x, pt.y, pt.x, pt.y],
-          lineCap: 'round'
-        });
-        if (tool === 'arrow') return new Konva.Arrow({
-          ...cfg,
-          fill: cfg.stroke,
-          points: [pt.x, pt.y, pt.x, pt.y]
-        });
-        return null;
-      }
-
-      // ── Presets ───────────────────────────────────────────
-      const PRESETS = {
-        stage: {
-          label: 'Stage',
-          fill: '#1e2a3a',
-          stroke: '#0f172a',
-          w: 200,
-          h: 60,
-          shape: 'rect'
-        },
-        table: {
-          label: 'Table',
-          fill: '#dcfce7',
-          stroke: '#16a34a',
-          w: 40,
-          h: 40,
-          shape: 'ellipse'
-        },
-        booth: {
-          label: 'Booth',
-          fill: '#fef9c3',
-          stroke: '#ca8a04',
-          w: 80,
-          h: 50,
-          shape: 'rect'
-        },
-        exit: {
-          label: 'Exit',
-          fill: '#fce7f3',
-          stroke: '#db2777',
-          w: 40,
-          h: 12,
-          shape: 'rect'
-        },
-        restroom: {
-          label: 'Restroom',
-          fill: '#f3f4f6',
-          stroke: '#4b5563',
-          w: 50,
-          h: 50,
-          shape: 'rect'
-        },
-      };
-
-      function dropPreset(key) {
-        const p = PRESETS[key];
-        if (!p) return;
-        const cx = snap(CANVAS_W / 2 - p.w / 2);
-        const cy = snap(CANVAS_H / 2 - p.h / 2);
-        const txtFill = p.fill === '#1e2a3a' ? '#ffffff' : '#1e2a3a';
-
-        const group = new Konva.Group({
-          x: cx,
-          y: cy,
-          draggable: true,
-          name: 'shape'
-        });
-
-        let body;
-        if (p.shape === 'rect') {
-          body = new Konva.Rect({
-            width: p.w,
-            height: p.h,
-            fill: p.fill,
-            stroke: p.stroke,
-            strokeWidth: 2,
-            cornerRadius: 3
-          });
-        } else {
-          body = new Konva.Ellipse({
-            x: p.w / 2,
-            y: p.h / 2,
-            radiusX: p.w / 2,
-            radiusY: p.h / 2,
-            fill: p.fill,
-            stroke: p.stroke,
-            strokeWidth: 2
-          });
-        }
-
-        const lbl = new Konva.Text({
-          x: 0,
-          y: p.h / 2 - 7,
-          width: p.w,
-          align: 'center',
-          text: p.label,
-          fontSize: 11,
-          fontFamily: 'Inter, sans-serif',
-          fill: txtFill,
-          listening: false
-        });
-
-        group.add(body);
-        group.add(lbl);
-        addShape(group);
-        setStatus(`${p.label} placed at center — drag to position it.`);
-      }
-
-      // ── Add shape & wire events ───────────────────────────
-      function addShape(node) {
-        mainLayer.add(node);
-        mainLayer.batchDraw();
-        wireShape(node);
-        saveHistory();
-        saveToHidden();
-        selectNode(node);
-      }
-
-      function wireShape(node) {
-        node.on('click tap', e => {
-          e.cancelBubble = true;
-          selectNode(node);
-        });
-        node.on('dragend transformend', () => {
-          saveHistory();
-          saveToHidden();
-        });
-        node.on('dblclick dbltap', () => {
-          if (node.getClassName() === 'Text') {
-            const nv = prompt('Edit label:', node.text());
-            if (nv !== null) {
-              node.text(nv);
-              mainLayer.batchDraw();
-              saveToHidden();
-            }
-          }
-        });
-      }
-
-      function selectNode(node) {
-        selectedNode = node;
-        tr.nodes([node]);
-        trLayer.batchDraw();
-        updateProps(node);
-        setStatus('Shape selected. Drag to move, use handles to resize/rotate.');
-      }
-
-      function deselect() {
-        selectedNode = null;
-        tr.nodes([]);
-        trLayer.batchDraw();
-        clearProps();
-      }
-
-      function deleteSelected() {
-        if (!selectedNode) {
-          setStatus('Select a shape first, then click Delete.');
-          return;
-        }
-        selectedNode.destroy();
-        tr.nodes([]);
-        trLayer.batchDraw();
-        mainLayer.batchDraw();
-        selectedNode = null;
-        clearProps();
-        saveHistory();
-        saveToHidden();
-      }
-
-      // ── Props panel ───────────────────────────────────────
-      function updateProps(node) {
-        const cls = node.getClassName();
-        document.getElementById('propRot').value = Math.round(node.rotation() || 0);
-        document.getElementById('propOpac').value = node.opacity() || 1;
-        if (cls === 'Rect' || cls === 'Group') {
-          document.getElementById('propW').value = Math.round(typeof node.width === 'function' ? node.width() : 0);
-          document.getElementById('propH').value = Math.round(typeof node.height === 'function' ? node.height() : 0);
-        } else if (cls === 'Ellipse') {
-          document.getElementById('propW').value = Math.round((node.radiusX ? node.radiusX() : 0) * 2);
-          document.getElementById('propH').value = Math.round((node.radiusY ? node.radiusY() : 0) * 2);
-        }
-        if (cls === 'Text') document.getElementById('propLabel').value = node.text();
-      }
-
-      function clearProps() {
-        ['propLabel', 'propW', 'propH', 'propRot', 'propOpac'].forEach(id => document.getElementById(id).value = '');
-      }
-
-      document.getElementById('propLabel').addEventListener('change', e => {
-        if (selectedNode && selectedNode.getClassName() === 'Text') {
-          selectedNode.text(e.target.value);
-          mainLayer.batchDraw();
-          saveToHidden();
-        }
-      });
-      ['propW', 'propH'].forEach(id => {
-        document.getElementById(id).addEventListener('change', e => {
-          if (!selectedNode) return;
-          const v = parseInt(e.target.value);
-          if (id === 'propW') {
-            if (typeof selectedNode.width === 'function') selectedNode.width(v);
-            if (typeof selectedNode.radiusX === 'function') selectedNode.radiusX(v / 2);
-          } else {
-            if (typeof selectedNode.height === 'function') selectedNode.height(v);
-            if (typeof selectedNode.radiusY === 'function') selectedNode.radiusY(v / 2);
-          }
-          tr.forceUpdate();
-          mainLayer.batchDraw();
-          saveToHidden();
-        });
-      });
-      document.getElementById('propRot').addEventListener('change', e => {
-        if (selectedNode) {
-          selectedNode.rotation(parseFloat(e.target.value));
-          tr.forceUpdate();
-          mainLayer.batchDraw();
-          saveToHidden();
-        }
-      });
-      document.getElementById('propOpac').addEventListener('change', e => {
-        if (selectedNode) {
-          selectedNode.opacity(parseFloat(e.target.value));
-          mainLayer.batchDraw();
-          saveToHidden();
-        }
-      });
-
-      // ── Toolbar buttons ───────────────────────────────────
-      document.getElementById('fpClear').addEventListener('click', () => {
-        if (!confirm('Clear the entire floor plan?')) return;
-        mainLayer.destroyChildren();
-        mainLayer.batchDraw();
-        deselect();
-        redoStack = [];
-        history = [];
-        saveToHidden();
-        setStatus('Canvas cleared. Start drawing your floor plan.');
-      });
-
-      document.getElementById('fpUndo').addEventListener('click', undo);
-      document.getElementById('fpRedo').addEventListener('click', redo);
-
-      document.getElementById('fpGrid').addEventListener('click', function() {
-        gridOn = !gridOn;
-        this.textContent = gridOn ? '⊞ Grid: On' : '⊞ Grid: Off';
-        drawGrid();
-      });
-
-      document.getElementById('fpZoomIn').addEventListener('click', () => {
-        const sc = Math.min(stage.scaleX() * 1.2, 3);
-        stage.scale({
-          x: sc,
-          y: sc
-        });
-        stage.batchDraw();
-        drawGrid();
-      });
-      document.getElementById('fpZoomOut').addEventListener('click', () => {
-        const sc = Math.max(stage.scaleX() / 1.2, 0.3);
-        stage.scale({
-          x: sc,
-          y: sc
-        });
-        stage.batchDraw();
-        drawGrid();
-      });
-      document.getElementById('fpZoomReset').addEventListener('click', () => {
-        stage.scale({
-          x: 1,
-          y: 1
-        });
-        stage.position({
-          x: 0,
-          y: 0
-        });
-        stage.batchDraw();
-        drawGrid();
-      });
-
-      // ── Keyboard shortcuts ───────────────────────────────
-      document.addEventListener('keydown', e => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode) deleteSelected();
-        if (e.ctrlKey && e.key === 'z') {
-          e.preventDefault();
-          undo();
-        }
-        if (e.ctrlKey && e.key === 'y') {
-          e.preventDefault();
-          redo();
-        }
-      });
-
-      // ── History ───────────────────────────────────────────
-      function saveHistory() {
-        history.push(mainLayer.toJSON());
-        if (history.length > 50) history.shift();
-        redoStack = [];
-      }
-
-      function undo() {
-        if (history.length < 2) {
-          setStatus('Nothing to undo.');
-          return;
-        }
-        redoStack.push(history.pop());
-        restoreLayer(history[history.length - 1]);
-      }
-
-      function redo() {
-        if (!redoStack.length) {
-          setStatus('Nothing to redo.');
-          return;
-        }
-        const next = redoStack.pop();
-        history.push(next);
-        restoreLayer(next);
-      }
-
-      function restoreLayer(json) {
-        mainLayer.destroyChildren();
-        const parsed = JSON.parse(json);
-        (parsed.children || []).forEach(child => {
-          try {
-            const node = Konva.Node.create(child);
-            node.draggable(true);
-            node.name('shape');
-            mainLayer.add(node);
-            wireShape(node);
-          } catch (e) {}
-        });
-        mainLayer.batchDraw();
-        deselect();
-        saveToHidden();
-      }
-
-      // ── Serialize to hidden inputs ────────────────────────
-      function saveToHidden() {
-        const shapes = mainLayer.getChildren().map(n => ({
-          type: n.getClassName(),
-          attrs: n.getAttrs()
-        }));
-        document.getElementById('fp-canvas-data').value = JSON.stringify({
-          shapes
-        });
-        // Remove invalid outline when user places a shape
-        if (shapes.length > 0) document.getElementById('fp-canvas-invalid-wrap').classList.remove('fp-canvas-invalid');
-        try {
-          document.getElementById('fp-canvas-image').value = stage.toDataURL({
-            pixelRatio: 1
-          });
-        } catch (e) {}
-      }
-
-      // ── Status ────────────────────────────────────────────
-      function setStatus(msg) {
-        document.getElementById('fpStatus').textContent = msg;
-      }
-
-      // ── Boot ─────────────────────────────────────────────
-      saveHistory();
-      setStatus('Select a tool from the left panel to start drawing your floor plan.');
-
-    })();
-  </script>
   <!-- ── Schedule Conflict Modal ── -->
   <div class="modal fade" id="scheduleConflictModal" tabindex="-1" aria-labelledby="scheduleConflictModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered" style="margin: 1.75rem auto; max-width: 750px;">
@@ -2704,7 +3702,7 @@ $user = currentUser();
   <!-- ── AI Proposal Validation Modal ── -->
   <div class="modal fade" id="aiProposalValidationModal" tabindex="-1" aria-labelledby="aiProposalValidationModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered" style="margin: 1.75rem auto; max-width: 1050px;">
-      <div class="modal-content" style="border-radius:16px; overflow:hidden; border:none; box-shadow:0 12px 36px rgba(99, 102, 241, 0.25); font-family: 'Inter', sans-serif; background: #f8fafc;" id="aiProposalValidationContent">
+      <div class="modal-content" style="border-radius:16px; overflow:hidden; border:none; box-shadow:0 12px 36px rgba(10, 22, 40, 0.2); font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc;" id="aiProposalValidationContent">
         <!-- Inner content is rendered dynamically by proposal-ai-validator.js -->
       </div>
     </div>
@@ -2735,44 +3733,34 @@ $user = currentUser();
       });
     }
 
-    // Dynamic auto-updates for AI Evaluation questions
-    document.getElementById('f2_general_objectives')?.addEventListener('blur', queueEvaluationAutoUpdate);
-    document.getElementById('f2_general_objectives')?.addEventListener('input', queueEvaluationAutoUpdate);
-    document.getElementById('f2_specific_objectives')?.addEventListener('blur', queueEvaluationAutoUpdate);
-    document.getElementById('f2_specific_objectives')?.addEventListener('input', queueEvaluationAutoUpdate);
-
-    const kpiContainer = document.getElementById('kpi-criteria');
-    if (kpiContainer) {
-      kpiContainer.addEventListener('input', queueEvaluationAutoUpdate);
-      kpiContainer.addEventListener('change', queueEvaluationAutoUpdate);
-    }
-
-    // Initialize baseline evaluation state and check for initial auto-generation
+    // Initialize baseline evaluation state
     lastEvaluationState = getObjectivesAndKpisState();
-    checkAndTriggerEvaluationAutoUpdate();
+    if (!questionsList || questionsList.length === 0) {
+      setEvaluationState('EMPTY');
+    }
   </script>
   <!-- AI Evaluation Preview Modal -->
   <div id="previewModal" class="modal fade" tabindex="-1" style="display: none;">
     <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 600px;">
       <div class="modal-content" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: none;">
-        <div class="modal-header" style="border-bottom: 1px solid #e2e8f0; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;">
-          <h5 class="modal-title" style="font-size: 1rem; font-weight: 700; color: #1e293b; margin: 0;">👁 Preview Evaluation Tool</h5>
-          <button type="button" class="btn-close" onclick="closePreviewModal()" style="background: none; border: none; font-size: 1.25rem; cursor: pointer; color: #64748b;">✕</button>
+        <div class="modal-header" style="border-bottom: 1px solid var(--border); padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;">
+          <h5 class="modal-title" style="font-size: 1rem; font-weight: 700; color: var(--text-main); margin: 0;">👁 Preview Evaluation Tool</h5>
+          <button type="button" class="btn-close" onclick="closePreviewModal()" style="background: none; border: none; font-size: 1.25rem; cursor: pointer; color: var(--text-muted);">✕</button>
         </div>
         <div class="modal-body" style="padding: 20px; max-height: calc(100vh - 200px); overflow-y: auto;">
-          <div style="margin-bottom: 16px; font-size: 0.85rem; color: #64748b; line-height: 1.45;">
+          <div style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.45;">
             This is how the participant evaluation questionnaire (Evaluation Form) will be displayed to students scanning the QR code post-event.
           </div>
-          <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-bottom: 16px; background:#fff;">
-            <h4 id="previewModalActivityTitle" style="margin:0 0 8px 0; font-size:1.05rem; font-weight:700; color: #0f172a;">Activity Title</h4>
-            <div style="font-size:0.8rem; color:#64748b;">Please take a moment to evaluate the activity you attended. Your feedback helps us improve future events.</div>
+          <div class="preview-modal-info-box" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; background: var(--bg-card-elevated);">
+            <h4 id="previewModalActivityTitle" style="margin:0 0 8px 0; font-size:1.05rem; font-weight:700; color: var(--text-main);">Activity Title</h4>
+            <div style="font-size:0.8rem; color: var(--text-muted);">Please take a moment to evaluate the activity you attended. Your feedback helps us improve future events.</div>
           </div>
           <div id="preview-questions-list" style="display: flex; flex-direction: column; gap: 14px;">
             <!-- Dynamically populated -->
           </div>
         </div>
-        <div class="modal-footer" style="border-top: 1px solid #e2e8f0; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; width:100%;">
-          <span style="font-size:0.75rem; color:#94a3b8; font-style:italic;">* Submitting from preview is disabled</span>
+        <div class="modal-footer" style="border-top: 1px solid var(--border); padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; width:100%;">
+          <span style="font-size:0.75rem; color: var(--text-muted); font-style:italic;">* Submitting from preview is disabled</span>
           <button type="button" class="btn btn-outline" onclick="closePreviewModal()" style="font-size: 0.8rem; padding: 6px 14px; height:auto; line-height:1.2;">Close Preview</button>
         </div>
       </div>
