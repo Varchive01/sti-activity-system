@@ -162,6 +162,10 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
     </div>
 
     <!-- Event Info -->
+    <?php
+      $totalBudgetView = !empty($materials) ? array_sum(array_map(fn($m)=>$m['est_cost']*$m['quantity'],$materials)) : 0;
+      $clrInfoView = getActivityClearanceInfo($activity, $totalBudgetView);
+    ?>
     <div class="section-title">📄 Event Information</div>
     <div class="info-grid">
       <?php foreach([
@@ -171,6 +175,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
         'Theme'=>$activity['theme']??'—',
         'Target Participants'=>number_format($activity['target_participants']),
         'Address'=>$activity['venue_address']??'—',
+        'Clearance'=>$clrInfoView['status'] === 'Not Required' ? 'Not Required' : $clrInfoView['label'],
       ] as $l=>$v): ?>
       <div class="info-tile"><div class="lbl"><?= $l ?></div><div class="val"><?= htmlspecialchars($v) ?></div></div>
       <?php endforeach; ?>
@@ -209,13 +214,26 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
     <!-- Materials -->
     <?php if (!empty($materials)): ?>
     <div class="section-title">📦 Materials Needed</div>
-    <div class="table-wrap" style="margin-bottom:24px;">
+    <div class="table-wrap" style="margin-bottom:14px;">
       <table><thead><tr><th>Item</th><th>Description</th><th>Qty</th><th>Provider</th><th>Est. Cost</th></tr></thead>
       <tbody><?php foreach($materials as $m): ?>
       <tr><td><?= htmlspecialchars($m['item_name']) ?></td><td><?= htmlspecialchars($m['description']??'') ?></td><td><?= $m['quantity'] ?></td><td><?= htmlspecialchars($m['provider']??'') ?></td><td>₱<?= number_format($m['est_cost'],2) ?></td></tr>
       <?php endforeach; ?></tbody>
       <tfoot><tr><td colspan="4" style="text-align:right;font-weight:700;">Total Est. Cost:</td><td>₱<?= number_format(array_sum(array_map(fn($m)=>$m['est_cost']*$m['quantity'],$materials)),2) ?></td></tr></tfoot>
       </table>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($clrInfoView['required'] || !empty($activity['clearance_obtained'])): ?>
+    <div id="clearance-view-strip" style="margin-bottom:24px; padding:12px 16px; background:var(--bg-subtle, #f8f9fa); border:1px solid var(--border-color, #e5e7eb); border-radius:6px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span style="font-weight:700; color:var(--text-muted); font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px;">School Admin / President Clearance:</span>
+        <?= $clrInfoView['badge'] ?>
+        <strong style="font-size:0.85rem; color:var(--text-main);"><?= htmlspecialchars($clrInfoView['label']) ?></strong>
+        <?php if (!empty($activity['clearance_notes'])): ?>
+          <span class="text-sm text-muted" style="font-style:italic;">(<?= htmlspecialchars($activity['clearance_notes']) ?>)</span>
+        <?php endif; ?>
+      </div>
     </div>
     <?php endif; ?>
 

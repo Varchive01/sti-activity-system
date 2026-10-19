@@ -1,0 +1,28 @@
+{
+    "timestamp": "2026-10-08 19:29:23",
+    "testActId": 10009,
+    "testTitle": "Outlook Notification Test Proposal 2026-10-08 19:29:10",
+    "results": {
+        "auth_success": true,
+        "submission_workflow": true,
+        "submission_reviewer": {
+            "id": 2,
+            "name": "Ar-jay Agabayani",
+            "email": "arjay@sti.edu",
+            "role": "admin1"
+        },
+        "submission_email_dispatch": false,
+        "submission_link_verified": true,
+        "revision_workflow": true,
+        "revision_recipient": {
+            "id": 1,
+            "name": "Maria Santos",
+            "email": "faculty@sti.edu"
+        },
+        "revision_email_dispatch": false,
+        "revision_link_verified": true,
+        "email_logs_recorded": true,
+        "mailbox_receipt": false,
+        "blocker": "Microsoft Graph Mail.Send daily sending quota \/ account verification restriction: ErrorExceededMessageLimit (WASCL RefuseQuota, ShowTierUpgrade). The Microsoft account (sti.activity.system@outlook.com) has reached its daily message limit and requires web inbox verification\/reputation check."
+    }
+}

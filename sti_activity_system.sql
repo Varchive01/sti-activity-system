@@ -271,20 +271,15 @@ CREATE TABLE `users` (
   `email` varchar(150) NOT NULL,
   `password` varchar(255) NOT NULL,
   `role` enum('faculty','admin1','admin2','dean') NOT NULL,
+  `must_change_password` tinyint(1) NOT NULL DEFAULT 0,
   `department` varchar(100) DEFAULT NULL,
   `profile_picture` varchar(500) DEFAULT NULL,
+  `employee_id` varchar(50) DEFAULT NULL,
+  `contact_number` varchar(50) DEFAULT NULL,
+  `theme_preference` enum('light','dark','system') DEFAULT 'system',
+  `notification_prefs` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `users`
---
-
-INSERT INTO `users` (`id`, `name`, `email`, `password`, `role`, `department`, `created_at`) VALUES
-(1, 'Maria Santos', 'faculty@sti.edu', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'faculty', 'IT Department', '2026-03-30 15:36:55'),
-(2, 'Ar-jay Agabayani', 'arjay@sti.edu', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin1', 'Student Org Head', '2026-03-30 15:36:55'),
-(3, 'Ian Jade Barangan', 'ian@sti.edu', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin2', 'Events Committee Head', '2026-03-30 15:36:55'),
-(4, 'Frederic Yulo', 'dean@sti.edu', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'dean', 'Administration', '2026-03-30 15:36:55');
 
 --
 -- Indexes for dumped tables
@@ -491,7 +486,7 @@ ALTER TABLE `schedules`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- Constraints for dumped tables

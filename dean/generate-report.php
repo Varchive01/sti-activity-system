@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/ai/kpi_helper.php';
+require_once __DIR__ . '/../includes/compliance_helper.php';
 requireRole('dean', 'admin1', 'admin2', 'faculty');
 $user = currentUser();
 $db   = getDB();
@@ -254,6 +255,25 @@ if ($activityId > 0) {
 
     $reportTasksOverallPct = $reportTasksTotal > 0 ? (int)round($reportTasksSumPct / $reportTasksTotal) : 0;
 
+    // Post-Activity Compliance calculation
+    $complianceResult = calculatePostActivityCompliance($activityId, null, $db);
+    $complianceStatusBadgeClass = match($complianceResult['overall_status'] ?? '') {
+        'Compliant' => 'badge-success',
+        'Partially Compliant' => 'badge-warning',
+        'Not Compliant', 'Non-Compliant' => 'badge-danger',
+        default => 'badge-secondary'
+    };
+    $complianceNameMap = [
+        'Activity title'                    => 'Activity Title',
+        'Event date'                        => 'Event Date',
+        'Venue'                             => 'Venue',
+        'Objectives'                        => 'Objectives',
+        'Program/sequence'                  => 'Program / Sequence',
+        'Assigned people/manpower'          => 'Assigned People / Manpower',
+        'KPI/evaluation criteria'           => 'KPI / Evaluation Criteria',
+        'Post-event documentation presence' => 'Post-Event Documentation',
+    ];
+
     // CSV Export Handler (?export=csv)
     if (strtolower((string)($_GET['export'] ?? '')) === 'csv') {
         $safeTitle = preg_replace('/[^a-zA-Z0-9_-]/', '_', $activity['title']);
@@ -288,6 +308,8 @@ if ($activityId > 0) {
         fputcsv($out, ['Target Participants', $activity['target_participants'] ?? 'N/A']);
         fputcsv($out, ['Source', ucfirst(str_replace('_', ' ', $activity['source'] ?? 'faculty'))]);
         fputcsv($out, ['Overall Performance Score', ($kpiResults['overall_performance'] !== null ? $kpiResults['overall_performance'] . '%' : 'N/A') . ' (' . $kpiResults['overall_status'] . ')']);
+        $clrInfoReport = getActivityClearanceInfo($activity);
+        fputcsv($out, ['Large Event Clearance', $clrInfoReport['label']]);
         fputcsv($out, []);
 
         // Task & Performance Summary
@@ -315,6 +337,29 @@ if ($activityId > 0) {
                     $t['timing_label']
                 ]);
             }
+        }
+        fputcsv($out, []);
+
+        // Post-Activity Compliance
+        fputcsv($out, ['--- POST-ACTIVITY COMPLIANCE ---']);
+        $compPctStr = ($complianceResult['compliance_percentage'] !== null)
+            ? number_format($complianceResult['compliance_percentage'], 1) . '%'
+            : 'Not Verifiable';
+        fputcsv($out, ['Overall Status', $complianceResult['overall_status']]);
+        fputcsv($out, ['Compliance Percentage', $compPctStr]);
+        fputcsv($out, ['Verifiable Checks', $complianceResult['verifiable_count'] . ' / ' . $complianceResult['total_checks']]);
+        fputcsv($out, ['Compliant Checks', $complianceResult['compliant_count']]);
+        fputcsv($out, ['Non-Compliant Checks', $complianceResult['non_compliant_count']]);
+        fputcsv($out, ['Not Verifiable Checks', $complianceResult['not_verifiable_count']]);
+        fputcsv($out, []);
+        fputcsv($out, ['Check Name', 'Result', 'Approved / Proposal Value', 'Actual / Post-Event Value']);
+        foreach (($complianceResult['checks'] ?? []) as $chk) {
+            $cName = $complianceNameMap[$chk['field']] ?? $chk['field'];
+            $approvedVal = !empty($chk['approved_value']) ? $chk['approved_value'] : 'Not Defined';
+            $actualVal = ($chk['result'] === 'Not Verifiable' || $chk['actual_value'] === null || trim((string)$chk['actual_value']) === '')
+                ? 'Not Verifiable'
+                : (string)$chk['actual_value'];
+            fputcsv($out, [$cName, $chk['result'], $approvedVal, $actualVal]);
         }
         fputcsv($out, []);
 
@@ -556,6 +601,8 @@ if ($activityId > 0) {
                 <div><strong>Venue:</strong> <?= htmlspecialchars($activity['venue'] ?? '—') ?></div>
                 <div><strong>Status:</strong> <?= ucfirst($activity['status']) ?></div>
                 <div><strong>Overall Performance Score:</strong> <?= $kpiResults['overall_performance'] !== null ? $kpiResults['overall_performance'] . '%' : '—' ?> (<?= $kpiResults['overall_status'] ?>)</div>
+                <?php $clrInfoReport = getActivityClearanceInfo($activity); ?>
+                <div><strong>Large Event Clearance:</strong> <?= $clrInfoReport['badge'] ?> <span class="text-sm"><?= htmlspecialchars($clrInfoReport['label']) ?></span></div>
               </div>
             </div>
           </div>
@@ -645,6 +692,106 @@ if ($activityId > 0) {
                   </table>
                 </div>
               <?php endif; ?>
+            </div>
+          </div>
+
+          <!-- Section: Post-Activity Compliance -->
+          <div class="card report-section" id="postActivityComplianceSection">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <h2 style="margin:0;">🛡️ Post-Activity Compliance</h2>
+              <span class="badge <?= $complianceStatusBadgeClass ?>" style="font-size:0.82rem; padding:4px 10px; font-weight:700;">
+                <?= htmlspecialchars($complianceResult['overall_status'] ?? 'Not Verifiable') ?>
+              </span>
+            </div>
+            <div class="card-body">
+              <div class="compliance-summary-strip" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-bottom:18px;">
+                <div class="compliance-summary-card" style="background:var(--bg-base); border:1px solid var(--border); border-radius:8px; padding:12px 14px; text-align:center;">
+                  <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.4px;">Compliance Rate</div>
+                  <div style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.4rem; font-weight:800; color:var(--text-main); margin-top:2px;">
+                    <?php if (($complianceResult['compliance_percentage'] ?? null) !== null): ?>
+                      <?= number_format($complianceResult['compliance_percentage'], 1) ?>%
+                    <?php else: ?>
+                      <span class="badge badge-secondary" style="font-size:0.8rem;">Not Verifiable</span>
+                    <?php endif; ?>
+                  </div>
+                </div>
+                <div class="compliance-summary-card" style="background:var(--bg-base); border:1px solid var(--border); border-radius:8px; padding:12px 14px; text-align:center;">
+                  <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.4px;">Verifiable Checks</div>
+                  <div style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.4rem; font-weight:800; color:var(--text-main); margin-top:2px;">
+                    <?= (int)($complianceResult['verifiable_count'] ?? 0) ?> <span style="font-size:0.8rem; font-weight:400; color:var(--text-muted);">/ <?= (int)($complianceResult['total_checks'] ?? 8) ?></span>
+                  </div>
+                </div>
+                <div class="compliance-summary-card" style="background:var(--bg-base); border:1px solid var(--border); border-radius:8px; padding:12px 14px; text-align:center;">
+                  <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.4px;">Compliant Checks</div>
+                  <div style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.4rem; font-weight:800; color:#10b981; margin-top:2px;">
+                    <?= (int)($complianceResult['compliant_count'] ?? 0) ?>
+                  </div>
+                </div>
+                <div class="compliance-summary-card" style="background:var(--bg-base); border:1px solid var(--border); border-radius:8px; padding:12px 14px; text-align:center;">
+                  <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.4px;">Non-Compliant Checks</div>
+                  <div style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.4rem; font-weight:800; color:<?= ($complianceResult['non_compliant_count'] ?? 0) > 0 ? '#ef4444' : 'var(--text-muted)' ?>; margin-top:2px;">
+                    <?= (int)($complianceResult['non_compliant_count'] ?? 0) ?>
+                  </div>
+                </div>
+                <div class="compliance-summary-card" style="background:var(--bg-base); border:1px solid var(--border); border-radius:8px; padding:12px 14px; text-align:center;">
+                  <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.4px;">Not Verifiable Checks</div>
+                  <div style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.4rem; font-weight:800; color:var(--text-muted); margin-top:2px;">
+                    <?= (int)($complianceResult['not_verifiable_count'] ?? 0) ?>
+                  </div>
+                </div>
+              </div>
+
+              <div class="table-wrap" style="overflow-x:auto;">
+                <table class="kpi-table" id="complianceChecksTable" style="margin-top:0; width:100%;">
+                  <thead>
+                    <tr>
+                      <th style="width:24%;">Check Name</th>
+                      <th style="width:18%;">Result</th>
+                      <th style="width:29%;">Approved / Proposal Value</th>
+                      <th style="width:29%;">Actual / Post-Event Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach (($complianceResult['checks'] ?? []) as $check):
+                        $checkLabel = $complianceNameMap[$check['field']] ?? $check['field'];
+                        $resBadgeClass = match($check['result']) {
+                            'Compliant' => 'badge-success',
+                            'Partially Compliant' => 'badge-warning',
+                            'Not Compliant', 'Non-Compliant' => 'badge-danger',
+                            default => 'badge-secondary'
+                        };
+                    ?>
+                    <tr>
+                      <td>
+                        <strong style="display:block; font-size:0.85rem; color:var(--text-main);"><?= htmlspecialchars($checkLabel) ?></strong>
+                        <?php if (!empty($check['notes'])): ?>
+                          <span class="text-sm text-muted" style="display:block; font-size:0.75rem; margin-top:2px; line-height:1.3;"><?= htmlspecialchars($check['notes']) ?></span>
+                        <?php endif; ?>
+                      </td>
+                      <td>
+                        <span class="badge <?= $resBadgeClass ?>" style="font-weight:700;">
+                          <?= htmlspecialchars($check['result']) ?>
+                        </span>
+                      </td>
+                      <td>
+                        <?php if (!empty($check['approved_value'])): ?>
+                          <div style="font-size:0.82rem; line-height:1.4; white-space:pre-wrap;"><?= htmlspecialchars($check['approved_value']) ?></div>
+                        <?php else: ?>
+                          <span class="badge badge-secondary" style="font-size:0.75rem;">Not Defined</span>
+                        <?php endif; ?>
+                      </td>
+                      <td>
+                        <?php if ($check['result'] === 'Not Verifiable' || $check['actual_value'] === null || trim((string)$check['actual_value']) === ''): ?>
+                          <span class="badge badge-secondary" style="font-size:0.75rem;">Not Verifiable</span>
+                        <?php else: ?>
+                          <div style="font-size:0.82rem; line-height:1.4; white-space:pre-wrap;"><?= htmlspecialchars($check['actual_value']) ?></div>
+                        <?php endif; ?>
+                      </td>
+                    </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 

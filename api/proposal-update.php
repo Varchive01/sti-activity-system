@@ -456,7 +456,7 @@ try {
     $db->commit();
 
     // Persist verified AI validation record to database
-    if ($status === 'submitted' && !empty($cachedValidation)) {
+    if ($newStatus === 'submitted' && !empty($cachedValidation)) {
         try {
             $mappedAi = $aiService->mapToDatabaseFormat($cachedValidation);
             saveProposalAiValidationResult($db, $id, $mappedAi);

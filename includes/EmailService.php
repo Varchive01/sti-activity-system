@@ -89,11 +89,20 @@ class EmailService {
 
     private function sendViaGraphAPI($recipientEmail, $recipientName, $subject, $body, $activityId, $notificationType) {
         try {
+            $verifyCa = true;
+            if (file_exists('C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem')) {
+                $verifyCa = 'C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem';
+            } elseif (file_exists('C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem')) {
+                $verifyCa = 'C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem';
+            }
+
+            $guzzle = new \GuzzleHttp\Client(['verify' => $verifyCa]);
+
             $provider = new \Greew\OAuth2\Client\Provider\Azure([
                 'clientId'     => $this->config['OAUTH_CLIENT_ID'],
                 'clientSecret' => $this->config['OAUTH_CLIENT_SECRET'],
                 'tenantId'     => $this->config['OAUTH_TENANT_ID'] ?: 'common',
-            ]);
+            ], ['httpClient' => $guzzle]);
             
             $grant = new \League\OAuth2\Client\Grant\RefreshToken();
             $token = $provider->getAccessToken($grant, [
@@ -125,7 +134,7 @@ class EmailService {
                 'saveToSentItems' => 'true'
             ];
 
-            $client = new \GuzzleHttp\Client();
+            $client = new \GuzzleHttp\Client(['verify' => $verifyCa]);
             $response = $client->post($graphUrl, [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $accessToken,

@@ -32,13 +32,37 @@ $activity->execute([$actId]);
 $act = $activity->fetch();
 if (!$act) die('Activity not found.');
 
+// ── Dedicated Dean-Only Large-Event Clearance Recording ───────────────────────
+if ($action === 'record_clearance') {
+    if ($userRole !== 'dean') {
+        http_response_code(403);
+        die('Access denied: Only Dean can record large-event clearance.');
+    }
+    $clearanceObtained = isset($_POST['clearance_obtained']) && $_POST['clearance_obtained'] !== ''
+        ? (int)$_POST['clearance_obtained']
+        : null;
+    $clearanceRequired = isset($_POST['clearance_required'])
+        ? (int)$_POST['clearance_required']
+        : (!empty($act['clearance_required']) ? 1 : 0);
+    $clearanceNotes = sanitize($_POST['clearance_notes'] ?? '');
+
+    $db->prepare("
+        UPDATE activities
+        SET clearance_required = ?, clearance_obtained = ?, clearance_notes = ?
+        WHERE id = ?
+    ")->execute([$clearanceRequired, $clearanceObtained, $clearanceNotes, $actId]);
+
+    header("Location: " . BASE_URL . "/dean/review.php?id={$actId}&msg=" . urlencode("Clearance record successfully updated."));
+    exit;
+}
+
 // Enforce current proposal stage before allowing review action
 $isValidStage = false;
 if ($userRole === 'admin1') {
     $isValidStage = ($act['source'] === 'student_org' && $act['status'] === 'under_review');
 } elseif ($userRole === 'admin2') {
     $isValidStage = (
-        ($act['source'] === 'faculty' && $act['status'] === 'submitted') ||
+        ($act['source'] === 'faculty' && in_array($act['status'], ['submitted', 'resubmitted'], true)) ||
         ($act['source'] === 'student_org' && $act['status'] === 'endorsed')
     );
 } elseif ($userRole === 'dean') {
@@ -112,16 +136,39 @@ if ($action === 'returned') {
 
 $db->beginTransaction();
 try {
+    // Clearance record update during final approval (Dean only)
+    $clearanceRequired = (int)($act['clearance_required'] ?? 0);
+    $clearanceObtained = isset($act['clearance_obtained']) && $act['clearance_obtained'] !== null
+        ? (int)$act['clearance_obtained']
+        : null;
+    $clearanceNotes    = $act['clearance_notes'] ?? null;
+
+    if ($userRole === 'dean') {
+        if (isset($_POST['clearance_obtained']) && $_POST['clearance_obtained'] !== '') {
+            $clearanceObtained = (int)$_POST['clearance_obtained'];
+        }
+        if (isset($_POST['clearance_required'])) {
+            $clearanceRequired = (int)$_POST['clearance_required'];
+        }
+        if (isset($_POST['clearance_notes'])) {
+            $clearanceNotes = sanitize($_POST['clearance_notes']);
+        }
+    }
+
     // Update activity
     $db->prepare("
         UPDATE activities
-        SET status=?, revision_notes=?, revision_sections=?, approved_at=?
+        SET status=?, revision_notes=?, revision_sections=?, approved_at=?,
+            clearance_required=?, clearance_obtained=?, clearance_notes=?
         WHERE id=?
     ")->execute([
         $newStatus,
         $notes,
         $revisionSectionsJson,
         ($newStatus === 'approved') ? date('Y-m-d H:i:s') : null,
+        $clearanceRequired,
+        $clearanceObtained,
+        $clearanceNotes,
         $actId
     ]);
 
@@ -146,7 +193,7 @@ try {
     $notifMsg = match($logAction) {
         'forwarded' => "Your proposal '{$act['title']}' has been forwarded to the next reviewer.",
         'approved'  => "Congratulations! Your proposal '{$act['title']}' has been fully APPROVED.",
-        'returned'  => "Your proposal '{$act['title']}' has been returned for revision. Please check the section comments.",
+        'returned', 'returned_for_revision' => "Your proposal '{$act['title']}' has been returned for revision. Please check the section comments.",
         'rejected'  => "Your proposal '{$act['title']}' has been rejected. Notes: {$notes}",
         default     => "Your proposal '{$act['title']}' status has been updated.",
     };

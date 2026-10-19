@@ -13,7 +13,7 @@ require_once __DIR__ . '/../includes/auth.php';
 
 requireLogin();
 
-$isForced = !empty($_SESSION['must_change_password']);
+$isForced = !empty($_SESSION['must_change_password']) && (($_SESSION['auth_method'] ?? '') !== 'microsoft');
 $map = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean'];
 $dir = $map[$_SESSION['user_role'] ?? 'faculty'] ?? 'faculty';
 $dashboardUrl = BASE_URL . "/{$dir}/dashboard.php";

@@ -1,0 +1,346 @@
+/* ============================================================
+   STI Guided Walkthrough / Tour System Styles
+   Uses STI Marikina Design Tokens & Dark Theme Variables
+   ============================================================ */
+
+/* ── Container ── */
+.sti-walkthrough-container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99990;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.22s ease, visibility 0.22s ease;
+}
+
+.sti-walkthrough-container.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* ── SVG Mask & Backdrop Overlay ── */
+.sti-walkthrough-svg-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 99991;
+  pointer-events: auto;
+}
+
+.sti-walkthrough-mask-rect {
+  fill: rgba(10, 22, 40, 0.58);
+  transition: fill 0.25s ease;
+}
+
+[data-theme="dark"] .sti-walkthrough-mask-rect {
+  fill: rgba(3, 7, 18, 0.78);
+}
+
+#sti-walkthrough-cutout {
+  transition: x 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              y 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              height 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Active Target Highlight Ring ── */
+.sti-walkthrough-highlight {
+  position: fixed;
+  z-index: 99993;
+  pointer-events: none;
+  border-radius: 10px;
+  border: 2px solid var(--sti-blue, #0284C7);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.25), 0 0 20px rgba(2, 132, 199, 0.35);
+  box-sizing: border-box;
+  opacity: 0;
+  transition: top 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              left 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              height 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.2s ease;
+}
+
+.sti-walkthrough-highlight.visible {
+  opacity: 1;
+  animation: stiSpotlightPulse 2.4s infinite ease-in-out;
+}
+
+@keyframes stiSpotlightPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.25), 0 0 20px rgba(2, 132, 199, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(2, 132, 199, 0.35), 0 0 28px rgba(2, 132, 199, 0.5);
+  }
+}
+
+[data-theme="dark"] .sti-walkthrough-highlight {
+  border-color: #38BDF8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.28), 0 0 24px rgba(56, 189, 248, 0.4);
+}
+
+[data-theme="dark"] .sti-walkthrough-highlight.visible {
+  animation: stiSpotlightPulseDark 2.4s infinite ease-in-out;
+}
+
+@keyframes stiSpotlightPulseDark {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.28), 0 0 24px rgba(56, 189, 248, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(56, 189, 248, 0.4), 0 0 32px rgba(56, 189, 248, 0.55);
+  }
+}
+
+/* ── Popover Tooltip Card ── */
+.sti-walkthrough-popover {
+  position: fixed;
+  z-index: 99996;
+  width: 370px;
+  max-width: calc(100vw - 32px);
+  background: var(--bg-card, #FFFFFF);
+  border: 1px solid var(--border, #E2E8F0);
+  border-radius: var(--radius, 14px);
+  box-shadow: 0 20px 48px rgba(10, 22, 40, 0.2), 0 4px 14px rgba(10, 22, 40, 0.08);
+  padding: 20px 22px 18px 22px;
+  box-sizing: border-box;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: var(--text-main, #0A1628);
+  pointer-events: auto;
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity 0.2s ease,
+              transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              top 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              left 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sti-walkthrough-popover.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Modal pulse when clicking backdrop */
+.sti-walkthrough-popover.pulse {
+  animation: stiPopoverPulse 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes stiPopoverPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+
+/* ── Popover Header ── */
+.sti-walkthrough-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+.sti-walkthrough-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--sti-blue-lt, #E0F2FE);
+  color: var(--sti-blue, #0284C7);
+}
+
+[data-theme="dark"] .sti-walkthrough-badge {
+  background: rgba(56, 189, 248, 0.16);
+  color: #38BDF8;
+}
+
+.sti-walkthrough-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #64748B);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.sti-walkthrough-close:hover {
+  background: rgba(10, 22, 40, 0.06);
+  color: var(--text-main, #0A1628);
+}
+
+[data-theme="dark"] .sti-walkthrough-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+}
+
+/* ── Popover Body ── */
+.sti-walkthrough-body {
+  margin-bottom: 18px;
+}
+
+.sti-walkthrough-title {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-main, #0A1628);
+  margin: 0 0 8px 0;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.sti-walkthrough-description {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--text-secondary, #334155);
+  margin: 0;
+}
+
+[data-theme="dark"] .sti-walkthrough-description {
+  color: var(--text-secondary, #CBD5E1);
+}
+
+/* ── Popover Footer & Controls ── */
+.sti-walkthrough-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light, #F1F5F9);
+}
+
+[data-theme="dark"] .sti-walkthrough-footer {
+  border-top-color: var(--border, #1E2D45);
+}
+
+.sti-walkthrough-btn-skip {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #64748B);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm, 6px);
+  transition: all 0.15s ease;
+}
+
+.sti-walkthrough-btn-skip:hover {
+  color: var(--text-main, #0A1628);
+  background: rgba(10, 22, 40, 0.05);
+}
+
+[data-theme="dark"] .sti-walkthrough-btn-skip:hover {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sti-walkthrough-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sti-walkthrough-btn-prev {
+  background: transparent;
+  border: 1px solid var(--border, #E2E8F0);
+  color: var(--text-main, #0A1628);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm, 8px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sti-walkthrough-btn-prev:hover:not(:disabled) {
+  background: var(--bg-base, #F4F6FB);
+  border-color: var(--text-muted);
+}
+
+.sti-walkthrough-btn-prev:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sti-walkthrough-btn-next {
+  background: var(--sti-blue, #0284C7);
+  border: 1px solid transparent;
+  color: #FFFFFF;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 6px 18px;
+  border-radius: var(--radius-sm, 8px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+}
+
+.sti-walkthrough-btn-next:hover {
+  background: var(--sti-blue-hover, #0369A1);
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+  transform: translateY(-1px);
+}
+
+/* ── Arrow Pointer ── */
+.sti-walkthrough-arrow {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--bg-card, #FFFFFF);
+  border: 1px solid var(--border, #E2E8F0);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.sti-walkthrough-arrow.arrow-top {
+  top: -6px;
+  border-bottom: none;
+  border-right: none;
+}
+
+.sti-walkthrough-arrow.arrow-bottom {
+  bottom: -6px;
+  border-top: none;
+  border-left: none;
+}
+
+.sti-walkthrough-arrow.arrow-left {
+  left: -6px;
+  border-top: none;
+  border-right: none;
+}
+
+.sti-walkthrough-arrow.arrow-right {
+  right: -6px;
+  border-bottom: none;
+  border-left: none;
+}

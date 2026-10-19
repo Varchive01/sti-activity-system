@@ -494,7 +494,11 @@ $logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON a
 
     <!-- Event Poster -->
     <?php if (!empty($activity['poster_path'])): ?>
-    <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/' . $activity['poster_path']; ?>
+    <?php 
+      $posterUrl = str_starts_with($activity['poster_path'], 'http') 
+          ? $activity['poster_path'] 
+          : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=poster';
+    ?>
     <div class="card">
       <div class="card-header">
         <h2>Event Poster</h2>
@@ -538,7 +542,9 @@ $logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON a
         <?php endif; ?>
         <?php if (!empty($floorplan['file_path'])): ?>
           <?php 
-            $fpUrl = str_starts_with($floorplan['file_path'], 'http') ? $floorplan['file_path'] : BASE_URL . '/' . $floorplan['file_path'];
+            $fpUrl = str_starts_with($floorplan['file_path'], 'http') 
+                ? $floorplan['file_path'] 
+                : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=floorplan';
             $ext = strtolower(pathinfo($floorplan['file_path'], PATHINFO_EXTENSION));
             $isImg = in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp']);
           ?>

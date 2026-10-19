@@ -10,7 +10,8 @@ startSession();
 
 // If user is already authenticated, redirect to appropriate page
 if (!empty($_SESSION['user_id'])) {
-    if (!empty($_SESSION['must_change_password'])) {
+    $isSso = (($_SESSION['auth_method'] ?? '') === 'microsoft');
+    if (!empty($_SESSION['must_change_password']) && !$isSso) {
         header("Location: " . BASE_URL . "/auth/change-password.php");
         exit;
     }

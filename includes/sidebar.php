@@ -174,7 +174,7 @@ if (!function_exists('sidebarIcon')) {
 
   <!-- 3. Bottom Utility Area -->
   <div class="sidebar-bottom">
-    <!-- Help Button Placeholder -->
+    <!-- Help / Guided Walkthrough Button -->
     <button type="button" class="sidebar-bottom-btn sidebar-help-btn" id="sidebar-help-btn" aria-label="Help">
       <span class="btn-icon"><?= sidebarIcon('help') ?></span>
       <span class="btn-label-text">Help</span>
@@ -183,6 +183,17 @@ if (!function_exists('sidebarIcon')) {
   </div>
 </aside>
 
+<link rel="stylesheet" href="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/css/walkthrough.css">
+<script src="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/js/walkthrough.js"></script>
+<?php if (($user['role'] ?? '') === 'faculty'): ?>
+<script src="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/js/walkthrough-faculty.js"></script>
+<?php elseif (($user['role'] ?? '') === 'admin1'): ?>
+<script src="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/js/walkthrough-admin1.js"></script>
+<?php elseif (($user['role'] ?? '') === 'admin2'): ?>
+<script src="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/js/walkthrough-admin2.js"></script>
+<?php elseif (($user['role'] ?? '') === 'dean'): ?>
+<script src="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/js/walkthrough-dean.js"></script>
+<?php endif; ?>
 
 <script>
   (function() {

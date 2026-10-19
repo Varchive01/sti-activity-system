@@ -209,6 +209,9 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
     .dashboard-rail-sticky {
       top: 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
 
     /* ── Free-Standing Topbar Icons (No Permanent Box) ── */
@@ -305,12 +308,12 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
       background: var(--accent-lt, rgba(2, 132, 199, 0.08));
     }
 
-    /* ── 1. Compact Horizontal KPI Stat Cards (Exact Faculty Match: 70px height, 10px radius, 14px gap) ── */
+    /* ── 1. Compact Horizontal KPI Stat Cards (Dean Standardized Parity) ── */
     .stat-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 14px;
-      align-items: center;
+      gap: 10px;
+      align-items: stretch;
       width: 100%;
       margin-bottom: 0 !important;
     }
@@ -323,7 +326,7 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
       border-radius: 10px;
       border: 1px solid var(--border);
       box-shadow: var(--shadow-sm);
-      padding: 10px 14px;
+      padding: 9px 8px 11px;
       display: flex;
       flex-direction: row;
       align-items: center;
@@ -334,11 +337,9 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
       cursor: pointer;
       width: 100%;
       min-width: 0;
-      height: 70px;
-      min-height: 70px;
-      max-height: 70px;
+      min-height: 72px;
       box-sizing: border-box;
-      gap: 12px;
+      gap: 7px;
       overflow: hidden;
       transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, border-color 0.18s ease;
     }
@@ -352,10 +353,10 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     }
 
     .stat-icon {
-      width: 36px;
-      height: 36px;
-      min-width: 36px;
-      border-radius: 8px;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -364,12 +365,37 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     }
 
     .stat-icon svg {
-      width: 16px;
-      height: 16px;
+      width: 13px;
+      height: 13px;
     }
+
+    /* Light mode icon badges */
+    .stat-card-pending .stat-icon { background: rgba(245, 158, 11, 0.12); }
+    .stat-card-pending .stat-icon svg { color: #d97706; }
+    .stat-card-approved .stat-icon { background: rgba(16, 185, 129, 0.12); }
+    .stat-card-approved .stat-icon svg { color: #059669; }
+    .stat-card-returned .stat-icon { background: rgba(245, 158, 11, 0.12); }
+    .stat-card-returned .stat-icon svg { color: #d97706; }
+    .stat-card-danger .stat-icon,
+    .stat-card-rejected .stat-icon { background: rgba(239, 68, 68, 0.12); }
+    .stat-card-danger .stat-icon svg,
+    .stat-card-rejected .stat-icon svg { color: #dc2626; }
+
+    /* Dark mode icon badges */
+    [data-theme="dark"] .stat-card-pending .stat-icon { background: rgba(251, 191, 36, 0.15); }
+    [data-theme="dark"] .stat-card-pending .stat-icon svg { color: #fbbf24; }
+    [data-theme="dark"] .stat-card-approved .stat-icon { background: rgba(52, 211, 153, 0.15); }
+    [data-theme="dark"] .stat-card-approved .stat-icon svg { color: #34d399; }
+    [data-theme="dark"] .stat-card-returned .stat-icon { background: rgba(251, 191, 36, 0.15); }
+    [data-theme="dark"] .stat-card-returned .stat-icon svg { color: #fbbf24; }
+    [data-theme="dark"] .stat-card-danger .stat-icon,
+    [data-theme="dark"] .stat-card-rejected .stat-icon { background: rgba(239, 68, 68, 0.18); }
+    [data-theme="dark"] .stat-card-danger .stat-icon svg,
+    [data-theme="dark"] .stat-card-rejected .stat-icon svg { color: #f87171; }
 
     .stat-card > div:not(.stat-icon):not(.stat-strip) {
       min-width: 0;
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
@@ -380,10 +406,10 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     a.stat-card .stat-val,
     .stat-grid a.stat-card .stat-val,
     .stat-card .stat-val {
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 1.38rem;
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      font-size: 1.25rem;
       font-weight: 800;
-      line-height: 1;
+      line-height: 1.1;
       color: var(--text-main) !important;
       letter-spacing: -0.02em;
     }
@@ -391,17 +417,38 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     a.stat-card .stat-label,
     .stat-grid a.stat-card .stat-label,
     .stat-card .stat-label {
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 0.73rem;
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      font-size: 0.68rem;
       font-weight: 600;
       color: var(--text-muted) !important;
-      line-height: 1.15;
+      line-height: 1.2;
       margin-top: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      white-space: normal;
+      word-break: normal;
       text-align: left;
     }
+
+    /* Bottom accent strip */
+    .stat-strip {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2.5px;
+      display: flex;
+      border-bottom-left-radius: 9px;
+      border-bottom-right-radius: 9px;
+      overflow: hidden;
+    }
+    .stat-strip-pending { background: #f59e0b; }
+    .stat-strip-approved { background: #10b981; }
+    .stat-strip-returned { background: #f59e0b; }
+    [data-theme="dark"] .stat-strip-returned { background: #fbbf24; }
+    .stat-strip-danger,
+    .stat-strip-rejected { background: #ef4444; }
+    [data-theme="dark"] .stat-strip-danger,
+    [data-theme="dark"] .stat-strip-rejected { background: #f87171; }
+
 
     /* ── 2. Shared Card Styling (14px radius, shared border, shared background, shared shadow) ── */
     .dashboard-main .card,
@@ -931,12 +978,6 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
       background: var(--bg-card);
       border-color: var(--border);
     }
-    [data-theme="dark"] .stat-icon {
-      background: rgba(2, 132, 199, 0.22);
-    }
-    [data-theme="dark"] .stat-icon svg {
-      color: #38BDF8;
-    }
     [data-theme="dark"] .activity-table th,
     [data-theme="dark"] .rail-table th {
       background: var(--bg-base);
@@ -1010,6 +1051,31 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
       .dashboard-rail-sticky {
         position: static;
       }
+      .stat-card,
+      a.stat-card,
+      .stat-grid a.stat-card {
+        width: 100%;
+        min-width: 0;
+        min-height: 68px;
+        padding: 8px 10px 10px;
+      }
+      .stat-icon {
+        width: 26px;
+        height: 26px;
+        min-width: 26px;
+      }
+      .stat-icon svg {
+        width: 13px;
+        height: 13px;
+      }
+      a.stat-card .stat-val,
+      .stat-grid a.stat-card .stat-val {
+        font-size: 1.20rem;
+      }
+      a.stat-card .stat-label,
+      .stat-grid a.stat-card .stat-label {
+        font-size: 0.68rem;
+      }
     }
 
     @media (max-width: 850px) {
@@ -1037,6 +1103,31 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     @media (max-width: 640px) {
       .content {
         padding: 16px;
+      }
+      .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 10px;
+      }
+      .stat-card,
+      a.stat-card,
+      .stat-grid a.stat-card {
+        width: 100%;
+        min-width: 0;
+        min-height: 64px;
+        padding: 8px 8px 10px;
+      }
+      .stat-icon {
+        width: 24px;
+        height: 24px;
+        min-width: 24px;
+      }
+      .stat-icon svg {
+        width: 12px;
+        height: 12px;
+      }
+      a.stat-card .stat-val,
+      .stat-grid a.stat-card .stat-val {
+        font-size: 1.15rem;
       }
       .col-faculty {
         display: none;

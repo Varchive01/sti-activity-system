@@ -13,13 +13,15 @@ if (empty($user['id'])) {
     die('Unauthorized.');
 }
 
-// 2. Validate document or deliverable ID from query parameter
+// 2. Validate document, deliverable, or activity ID from query parameter
 $docId = (int)($_GET['id'] ?? 0);
 $deliverableId = (int)($_GET['deliverable_id'] ?? 0);
+$activityId = (int)($_GET['activity_id'] ?? 0);
+$type = $_GET['type'] ?? '';
 
-if ($docId <= 0 && $deliverableId <= 0) {
+if ($docId <= 0 && $deliverableId <= 0 && !($activityId > 0 && in_array($type, ['poster', 'floorplan'], true))) {
     http_response_code(400);
-    die('Bad Request: Invalid document or deliverable ID.');
+    die('Bad Request: Invalid document, deliverable, or activity ID.');
 }
 
 $db = getDB();
@@ -66,6 +68,61 @@ if ($deliverableId > 0) {
 
     $storedPath = trim((string)($deliv['file_path'] ?? ''));
     $originalName = $deliv['file_name'] ?: basename($storedPath);
+} elseif ($activityId > 0 && $type === 'poster') {
+    // 3c. Retrieve activity record for poster
+    $stmt = $db->prepare("SELECT id, faculty_id, title, poster_path FROM activities WHERE id = ? LIMIT 1");
+    $stmt->execute([$activityId]);
+    $act = $stmt->fetch();
+
+    if (!$act || empty($act['poster_path'])) {
+        http_response_code(404);
+        die('Poster not found.');
+    }
+
+    if (in_array($role, ['admin1', 'admin2', 'dean'], true)) {
+        $isAuthorized = true;
+    } elseif ($role === 'faculty') {
+        // Authenticated faculty can view proposal posters
+        $isAuthorized = true;
+    }
+
+    if (!$isAuthorized) {
+        http_response_code(403);
+        die('Forbidden: You do not have permission to access this poster.');
+    }
+
+    $storedPath = trim((string)($act['poster_path'] ?? ''));
+    $originalName = basename($storedPath);
+} elseif ($activityId > 0 && $type === 'floorplan') {
+    // 3d. Retrieve floor plan record for activity
+    $stmt = $db->prepare("
+        SELECT fp.*, a.faculty_id, a.title AS activity_title
+        FROM floor_plans fp
+        JOIN activities a ON fp.activity_id = a.id
+        WHERE fp.activity_id = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$activityId]);
+    $fp = $stmt->fetch();
+
+    if (!$fp || empty($fp['file_path'])) {
+        http_response_code(404);
+        die('Floor plan not found.');
+    }
+
+    if (in_array($role, ['admin1', 'admin2', 'dean'], true)) {
+        $isAuthorized = true;
+    } elseif ($role === 'faculty') {
+        $isAuthorized = true;
+    }
+
+    if (!$isAuthorized) {
+        http_response_code(403);
+        die('Forbidden: You do not have permission to access this floor plan.');
+    }
+
+    $storedPath = trim((string)($fp['file_path'] ?? ''));
+    $originalName = basename($storedPath);
 } else {
     // 3b. Retrieve document record and associated activity
     $stmt = $db->prepare("

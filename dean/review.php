@@ -16,6 +16,11 @@ $act->execute([$id]);
 $activity = $act->fetch();
 if (!$activity) { die('Activity not found or not accessible.'); }
 
+if ($activity['status'] !== 'pending_final_approval') {
+    header("Location: " . BASE_URL . "/dean/view-activity.php?id=" . (int)$id);
+    exit;
+}
+
 $materials = $db->prepare("SELECT * FROM materials WHERE activity_id=?");
 $materials->execute([$id]);
 $mats = $materials->fetchAll();
@@ -62,6 +67,7 @@ foreach ($scStmt->fetchAll() as $sc) {
 $stagedCount = count($stagedComments);
 
 $totalBudget = array_sum(array_column($mats, 'est_cost'));
+$clrInfo = getActivityClearanceInfo($activity, $totalBudget);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -512,6 +518,29 @@ label, input, button, select, textarea {
         <?php endforeach; ?></tbody></table>
         <div class="budget-total">Grand Total: ₱<?= number_format($totalBudget,2) ?></div>
       <?php else: ?><p class="text-muted">No materials listed.</p><?php endif; ?>
+
+      <!-- School Administrator / President Clearance Record -->
+      <div id="clearance-summary-card" style="margin-top:16px; padding:14px 18px; background:var(--bg-subtle, #f8f9fa); border:1px solid var(--border); border-radius:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+          <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px;">
+            🏛️ School Administrator / President Clearance Record
+          </div>
+          <div style="margin-top:4px; font-size:0.92rem; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:8px;">
+            <?= $clrInfo['badge'] ?>
+            <span><?= htmlspecialchars($clrInfo['label']) ?></span>
+          </div>
+          <?php if (!empty($activity['clearance_notes'])): ?>
+            <div class="text-sm text-muted" style="margin-top:4px; font-style:italic;">
+              Remarks: "<?= htmlspecialchars($activity['clearance_notes']) ?>"
+            </div>
+          <?php endif; ?>
+        </div>
+        <?php if ($clrInfo['required']): ?>
+          <button type="button" class="btn btn-outline btn-sm" onclick="openModal('clearance')" style="font-size:0.78rem; padding:5px 12px;">
+            ✏️ Record / Update Clearance
+          </button>
+        <?php endif; ?>
+      </div>
     <?php renderSectionClose('materials', $stagedComments, $id); ?>
 
     <?php renderSectionHeader('floor_plan', '🗺️ Floor Plan', $stagedComments); ?>
@@ -661,6 +690,29 @@ label, input, button, select, textarea {
         <p class="text-sm" style="margin-bottom:16px;">Are you sure you want to return this proposal for revision?</p>
       <?php else: ?>
         <p class="text-sm" style="margin-bottom:16px;">Are you sure you want to approve this proposal? No comment is required.</p>
+        <?php if ($clrInfo['required']): ?>
+        <div class="form-group" id="final-approval-clearance-group" style="margin-bottom:16px; padding:12px 14px; background:var(--bg-subtle, #f8f9fa); border:1px solid var(--border); border-radius:6px; text-align:left;">
+          <label class="form-label" style="font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+            🏛️ School Administrator / President Clearance
+            <span class="badge badge-warning" style="font-size:0.7rem;">Required for Budgeted Event</span>
+          </label>
+          <p class="text-sm text-muted" style="margin-bottom:10px;">
+            This event requires a budget (₱<?= number_format($totalBudget, 2) ?>). Please record whether clearance from the school administrator or president has been obtained.
+          </p>
+          <div style="display:flex; gap:18px; align-items:center; margin-bottom:10px;">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.88rem;">
+              <input type="radio" name="clearance_obtained" value="1" <?= ($activity['clearance_obtained'] === 1 || $activity['clearance_obtained'] === '1' || $activity['clearance_obtained'] === null) ? 'checked' : '' ?> required>
+              <strong style="color:var(--success, #16a34a);">✓ Clearance Obtained</strong>
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.88rem;">
+              <input type="radio" name="clearance_obtained" value="0" <?= ($activity['clearance_obtained'] === 0 || $activity['clearance_obtained'] === '0') ? 'checked' : '' ?>>
+              <strong style="color:var(--danger, #dc2626);">✕ Clearance Not Obtained</strong>
+            </label>
+          </div>
+          <input type="hidden" name="clearance_required" value="1">
+          <input type="text" name="clearance_notes" class="form-control" style="font-size:0.82rem;" placeholder="Optional clearance remarks (e.g. Cleared by School Administrator)" value="<?= htmlspecialchars($activity['clearance_notes'] ?? '') ?>">
+        </div>
+        <?php endif; ?>
       <?php endif; ?>
       <div class="flex gap-2" style="justify-content:flex-end;">
         <button type="button" class="btn btn-outline" onclick="closeModal('<?= $key ?>')">Cancel</button>
@@ -674,6 +726,40 @@ label, input, button, select, textarea {
   </div>
 </div>
 <?php endforeach; ?>
+
+<?php if ($clrInfo['required']): ?>
+<div class="modal-overlay" id="modal-clearance">
+  <div class="modal">
+    <h3 style="font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:8px;color:var(--text-main);">🏛️ Record Large-Event Clearance</h3>
+    <p class="text-sm text-muted" style="margin-bottom:16px;">Activity: <strong><?= htmlspecialchars($activity['title']) ?></strong></p>
+    <form method="POST" action="<?= BASE_URL ?>/api/review-action.php">
+      <input type="hidden" name="activity_id" value="<?= $id ?>">
+      <input type="hidden" name="reviewer_id" value="<?= $user['id'] ?>">
+      <input type="hidden" name="action" value="record_clearance">
+      <input type="hidden" name="clearance_required" value="1">
+      <div class="form-group" style="margin-bottom:16px; padding:12px 14px; background:var(--bg-subtle, #f8f9fa); border:1px solid var(--border); border-radius:6px; text-align:left;">
+        <label class="form-label" style="font-weight:700; margin-bottom:8px;">Clearance Status</label>
+        <div style="display:flex; gap:18px; align-items:center; margin-bottom:12px;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.88rem;">
+            <input type="radio" name="clearance_obtained" value="1" <?= ($activity['clearance_obtained'] === 1 || $activity['clearance_obtained'] === '1' || $activity['clearance_obtained'] === null) ? 'checked' : '' ?> required>
+            <strong style="color:var(--success, #16a34a);">✓ Clearance Obtained</strong>
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.88rem;">
+            <input type="radio" name="clearance_obtained" value="0" <?= ($activity['clearance_obtained'] === 0 || $activity['clearance_obtained'] === '0') ? 'checked' : '' ?>>
+            <strong style="color:var(--danger, #dc2626);">✕ Clearance Not Obtained</strong>
+          </label>
+        </div>
+        <label class="form-label" style="font-weight:700; margin-bottom:4px;">Clearance Notes / Remarks</label>
+        <input type="text" name="clearance_notes" class="form-control" style="font-size:0.82rem;" placeholder="e.g. Cleared by President on memo dated ..." value="<?= htmlspecialchars($activity['clearance_notes'] ?? '') ?>">
+      </div>
+      <div class="flex gap-2" style="justify-content:flex-end;">
+        <button type="button" class="btn btn-outline" onclick="closeModal('clearance')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Clearance Record</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
 
 <script>
 const BASE_URL = '<?= BASE_URL ?>';

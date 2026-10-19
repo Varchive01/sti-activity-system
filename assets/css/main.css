@@ -2,6 +2,7 @@
    STI Marikina Activity System – Global Styles
    ============================================================ */
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap');
+@import url('walkthrough.css');
 
 /* ============================================================
    Design System Tokens (Light & Dark Theme Architecture)
@@ -1186,7 +1187,7 @@ a.stat-card,
   border-radius: 10px;
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
-  padding: 10px 14px;
+  padding: 9px 8px 11px;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -1197,11 +1198,9 @@ a.stat-card,
   cursor: pointer;
   width: 100%;
   min-width: 0;
-  height: 70px;
-  min-height: 70px;
-  max-height: 70px;
+  min-height: 72px;
   box-sizing: border-box;
-  gap: 12px;
+  gap: 7px;
   overflow: hidden;
   transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, border-color 0.18s ease;
 }
@@ -1222,10 +1221,10 @@ a.stat-card:hover,
 }
 
 .stat-icon {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1234,8 +1233,8 @@ a.stat-card:hover,
 }
 
 .stat-icon svg {
-  width: 16px;
-  height: 16px;
+  width: 13px;
+  height: 13px;
 }
 
 /* Light mode / default icon badges */
@@ -1251,8 +1250,10 @@ a.stat-card:hover,
 .stat-card-revision .stat-icon svg { color: #d97706; }
 .stat-card-rejected .stat-icon  { background: rgba(239, 68, 68, 0.12); }
 .stat-card-rejected .stat-icon svg { color: #dc2626; }
-.stat-card-completed .stat-icon { background: rgba(2, 132, 199, 0.1); }
-.stat-card-completed .stat-icon svg { color: var(--accent, #0284c7); }
+.stat-card-completed .stat-icon,
+.stat-card-kpi .stat-icon       { background: rgba(2, 132, 199, 0.1); }
+.stat-card-completed .stat-icon svg,
+.stat-card-kpi .stat-icon svg   { color: var(--accent, #0284c7); }
 
 /* Dark mode icon badges */
 [data-theme="dark"] .stat-card-total .stat-icon     { background: rgba(56, 189, 248, 0.15); }
@@ -1267,11 +1268,14 @@ a.stat-card:hover,
 [data-theme="dark"] .stat-card-revision .stat-icon svg { color: #fbbf24; }
 [data-theme="dark"] .stat-card-rejected .stat-icon  { background: rgba(239, 68, 68, 0.15); }
 [data-theme="dark"] .stat-card-rejected .stat-icon svg { color: #f87171; }
-[data-theme="dark"] .stat-card-completed .stat-icon { background: rgba(56, 189, 248, 0.15); }
-[data-theme="dark"] .stat-card-completed .stat-icon svg { color: #38bdf8; }
+[data-theme="dark"] .stat-card-completed .stat-icon,
+[data-theme="dark"] .stat-card-kpi .stat-icon       { background: rgba(56, 189, 248, 0.15); }
+[data-theme="dark"] .stat-card-completed .stat-icon svg,
+[data-theme="dark"] .stat-card-kpi .stat-icon svg   { color: #38bdf8; }
 
 .stat-card > div:not(.stat-icon):not(.stat-strip) {
   min-width: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1284,9 +1288,9 @@ a.stat-card .stat-val,
 .stat-card .stat-val,
 .stat-row-sm a.stat-sm .n {
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 1.38rem;
+  font-size: 1.25rem;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.1;
   color: var(--text-main) !important;
   letter-spacing: -0.02em;
 }
@@ -1296,14 +1300,13 @@ a.stat-card .stat-label,
 .stat-card .stat-label,
 .stat-row-sm a.stat-sm .l {
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 0.73rem;
+  font-size: 0.68rem;
   font-weight: 600;
   color: var(--text-muted) !important;
-  line-height: 1.15;
+  line-height: 1.2;
   margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: normal;
   text-align: left;
 }
 
@@ -1335,8 +1338,10 @@ a.stat-card .stat-label,
 .stat-strip-returned,
 .stat-strip-revision { background: #f59e0b; }
 .stat-strip-rejected { background: #dc2626; }
-.stat-strip-completed { background: #0284c7; }
-[data-theme="dark"] .stat-strip-completed { background: #38bdf8; }
+.stat-strip-completed,
+.stat-strip-kpi { background: #0284c7; }
+[data-theme="dark"] .stat-strip-completed,
+[data-theme="dark"] .stat-strip-kpi { background: #38bdf8; }
 
 
 /* ── Tables ── */

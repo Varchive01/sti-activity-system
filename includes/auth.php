@@ -22,8 +22,9 @@ function requireLogin(): void
     }
     $_SESSION['last_activity'] = time();
 
-    // Forced first-login password change check
-    if (!empty($_SESSION['must_change_password'])) {
+    // Forced first-login password change check (exempt for Microsoft SSO sessions)
+    $isSso = (($_SESSION['auth_method'] ?? '') === 'microsoft');
+    if (!empty($_SESSION['must_change_password']) && !$isSso) {
         $currentScript = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? $_SERVER['PHP_SELF'] ?? '');
         if (!str_ends_with($currentScript, '/auth/change-password.php') &&
             !str_ends_with($currentScript, '/auth/logout.php')) {
@@ -52,6 +53,7 @@ function currentUser(): array
         'dept'                 => $_SESSION['user_dept'] ?? '',
         'must_change_password' => $_SESSION['must_change_password'] ?? 0,
         'profile_picture'      => $_SESSION['user_profile_picture'] ?? null,
+        'auth_method'          => $_SESSION['auth_method'] ?? 'local',
     ];
 }
 
@@ -82,6 +84,7 @@ function login(string $email, string $password): array|false
     $_SESSION['user_role']            = $user['role'];
     $_SESSION['user_dept']            = $user['department'];
     $_SESSION['must_change_password'] = (int)($user['must_change_password'] ?? 0);
+    $_SESSION['auth_method']          = 'local';
     $_SESSION['user_profile_picture'] = $user['profile_picture'] ?? null;
     $_SESSION['last_activity']        = time();
     return $user;

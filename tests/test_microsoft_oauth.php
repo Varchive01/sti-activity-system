@@ -263,13 +263,8 @@ function runCallbackSimulation(array $queryParams, ?string $sessionState, ?array
         \$_SESSION['user_role']            = \$localUser['role'];
         \$_SESSION['user_dept']            = \$localUser['department'];
         \$_SESSION['must_change_password'] = (int)(\$localUser['must_change_password'] ?? 0);
+        \$_SESSION['auth_method']          = 'microsoft';
         \$_SESSION['last_activity']        = time();
-
-        if (!empty(\$localUser['must_change_password'])) {
-            echo 'REDIRECT:' . BASE_URL . '/auth/change-password.php';
-            echo '|SESSION:' . json_encode(\$_SESSION);
-            exit;
-        }
 
         \$map  = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean'];
         \$dir  = \$map[\$localUser['role']] ?? 'faculty';
@@ -433,8 +428,8 @@ $resMustChange = runCallbackSimulation([
 // Reset back to 0
 $db->exec("UPDATE users SET must_change_password = 0 WHERE id = 1");
 
-assertTest("4.8 Microsoft login respects must_change_password and redirects to change-password.php", 
-    str_contains($resMustChange['redirect'], '/auth/change-password.php'), 
+assertTest("4.8 Microsoft login exempts must_change_password and routes directly to role dashboard", 
+    str_contains($resMustChange['redirect'], '/faculty/dashboard.php') && ($resMustChange['session']['auth_method'] ?? '') === 'microsoft', 
     "Redirect: " . $resMustChange['redirect']);
 
 // -------------------------------------------------------------------------

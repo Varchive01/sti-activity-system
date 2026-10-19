@@ -1044,3 +1044,89 @@ function checkTaskProgressReminders(PDO $db, ?int $userId = null, ?string $role 
 // Post-Activity Compliance calculation helper
 require_once __DIR__ . '/compliance_helper.php';
 
+/**
+ * Determines whether an activity is a large event that requires budget clearance.
+ *
+ * @param array $activity Activity record.
+ * @param float|null $totalBudget Total calculated budget for materials (optional).
+ * @return bool True if clearance is required.
+ */
+function isLargeEventClearanceRequired(array $activity, ?float $totalBudget = null): bool
+{
+    if (!empty($activity['clearance_required'])) {
+        return true;
+    }
+    if ($totalBudget !== null && $totalBudget > 0) {
+        return true;
+    }
+    if ($totalBudget === null && !empty($activity['id'])) {
+        try {
+            $db = getDB();
+            $stmt = $db->prepare("SELECT SUM(est_cost * quantity) FROM materials WHERE activity_id = ?");
+            $stmt->execute([$activity['id']]);
+            $sum = (float)$stmt->fetchColumn();
+            if ($sum > 0) {
+                return true;
+            }
+        } catch (Throwable $e) {}
+    }
+    return false;
+}
+
+/**
+ * Returns a structured descriptor and HTML badge for large-event clearance.
+ *
+ * @param array $activity Activity record.
+ * @param float|null $totalBudget Total calculated budget (optional).
+ * @return array Clearance information.
+ */
+function getActivityClearanceInfo(array $activity, ?float $totalBudget = null): array
+{
+    $required = isLargeEventClearanceRequired($activity, $totalBudget);
+    $obtained = isset($activity['clearance_obtained']) && $activity['clearance_obtained'] !== null
+        ? (int)$activity['clearance_obtained']
+        : null;
+
+    if (!$required) {
+        return [
+            'required' => false,
+            'obtained' => null,
+            'status'   => 'Not Required',
+            'label'    => 'Not Required (Ordinary Event)',
+            'badge'    => '<span class="badge badge-secondary" style="font-size:0.75rem;">Clearance Not Required</span>',
+            'notes'    => $activity['clearance_notes'] ?? null
+        ];
+    }
+
+    if ($obtained === 1) {
+        return [
+            'required' => true,
+            'obtained' => 1,
+            'status'   => 'Obtained',
+            'label'    => 'Clearance Obtained (School Admin / President)',
+            'badge'    => '<span class="badge badge-success" style="font-size:0.75rem; background:#10b981; color:#fff;">✓ Clearance Obtained</span>',
+            'notes'    => $activity['clearance_notes'] ?? null
+        ];
+    }
+
+    if ($obtained === 0) {
+        return [
+            'required' => true,
+            'obtained' => 0,
+            'status'   => 'Not Obtained',
+            'label'    => 'Clearance Not Obtained',
+            'badge'    => '<span class="badge badge-danger" style="font-size:0.75rem; background:#ef4444; color:#fff;">✕ Clearance Not Obtained</span>',
+            'notes'    => $activity['clearance_notes'] ?? null
+        ];
+    }
+
+    return [
+        'required' => true,
+        'obtained' => null,
+        'status'   => 'Pending',
+        'label'    => 'Clearance Pending / Required',
+        'badge'    => '<span class="badge badge-warning" style="font-size:0.75rem; background:#f59e0b; color:#fff;">⏳ Clearance Required</span>',
+        'notes'    => $activity['clearance_notes'] ?? null
+    ];
+}
+

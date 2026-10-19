@@ -120,7 +120,7 @@ $activities = $acts->fetchAll();
                     <td style="text-align:right;">
                       <div style="display:inline-flex;gap:6px;align-items:center;justify-content:flex-end;">
                         <a href="<?= BASE_URL ?>/admin1/view-activity.php?id=<?= $a['id'] ?>" class="btn btn-outline btn-sm">View</a>
-                        <?php if (in_array($a['status'], ['under_review', 'resubmitted'])): ?>
+                        <?php if ($a['source'] === 'student_org' && $a['status'] === 'under_review'): ?>
                           <a href="<?= BASE_URL ?>/admin1/review.php?id=<?= $a['id'] ?>" class="btn btn-primary btn-sm">Review</a>
                         <?php endif; ?>
                       </div>

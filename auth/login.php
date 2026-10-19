@@ -7,7 +7,8 @@ startSession();
 
 // Already logged in? Redirect.
 if (!empty($_SESSION['user_id'])) {
-  if (!empty($_SESSION['must_change_password'])) {
+  $isSso = (($_SESSION['auth_method'] ?? '') === 'microsoft');
+  if (!empty($_SESSION['must_change_password']) && !$isSso) {
     header("Location: " . BASE_URL . "/auth/change-password.php");
     exit;
   }
@@ -435,43 +436,6 @@ if (empty($error) && isset($_GET['error'])) {
       text-decoration: underline;
     }
 
-    /* Demo logins style */
-    .demo-logins {
-      margin-top: 22px;
-      padding-top: 14px;
-      border-top: 1px dashed var(--border-color);
-      text-align: center;
-    }
-
-    .demo-logins p {
-      font-size: 0.68rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-    }
-
-    .demo-chip {
-      display: inline-block;
-      background: var(--bg-base, #F8FAFD);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm, 6px);
-      padding: 4px 10px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      color: var(--sti-navy, #0A1628);
-      cursor: pointer;
-      margin: 2px;
-      transition: all 0.2s ease;
-    }
-
-    .demo-chip:hover {
-      border-color: var(--primary-color);
-      background-color: var(--sti-blue-lt, #EBF5FB);
-      color: var(--primary-color);
-      transform: translateY(-1px);
-    }
   </style>
 </head>
 
@@ -536,23 +500,10 @@ if (empty($error) && isset($_GET['error'])) {
         Sign in with Microsoft
       </a>
 
-      <!-- Quick Demo Login Section -->
-      <div class="demo-logins">
-        <p>Quick Demo Login</p>
-        <span class="demo-chip" onclick="setLogin('faculty@sti.edu','password')">Faculty</span>
-        <span class="demo-chip" onclick="setLogin('arjay@sti.edu','password')">Sir Ar-jay</span>
-        <span class="demo-chip" onclick="setLogin('ian@sti.edu','password')">Sir Ian</span>
-        <span class="demo-chip" onclick="setLogin('dean@sti.edu','password')">Dean</span>
-      </div>
     </main>
   </div>
 
   <script>
-    // Autofill helper for development and demo environments
-    function setLogin(email, password) {
-      document.getElementById('loginEmail').value = email;
-      document.getElementById('loginPassword').value = password;
-    }
 
     // Show/Hide password toggle logic
     const togglePasswordBtn = document.getElementById('togglePasswordBtn');

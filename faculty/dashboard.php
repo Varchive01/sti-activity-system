@@ -108,9 +108,9 @@ function timeAgo($datetime)
     /* 1. Compact Horizontal KPI Stat Cards - Exact Reference Match */
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 14px;
-      align-items: center;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
       width: 100%;
       margin-bottom: 0 !important;
     }
@@ -123,7 +123,7 @@ function timeAgo($datetime)
       border-radius: 10px;
       border: 1px solid var(--border);
       box-shadow: var(--shadow-sm);
-      padding: 10px 14px;
+      padding: 9px 8px 11px;
       display: flex;
       flex-direction: row;
       align-items: center;
@@ -134,11 +134,9 @@ function timeAgo($datetime)
       cursor: pointer;
       width: 100%;
       min-width: 0;
-      height: 70px;
-      min-height: 70px;
-      max-height: 70px;
+      min-height: 72px;
       box-sizing: border-box;
-      gap: 12px;
+      gap: 7px;
       overflow: hidden;
       transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, border-color 0.18s ease;
     }
@@ -152,10 +150,10 @@ function timeAgo($datetime)
     }
 
     .stat-icon {
-      width: 36px;
-      height: 36px;
-      min-width: 36px;
-      border-radius: 8px;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -164,8 +162,8 @@ function timeAgo($datetime)
     }
 
     .stat-icon svg {
-      width: 16px;
-      height: 16px;
+      width: 13px;
+      height: 13px;
     }
 
     /* Light mode / default icon badges */
@@ -194,6 +192,7 @@ function timeAgo($datetime)
 
     .stat-card > div:not(.stat-icon):not(.stat-strip) {
       min-width: 0;
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
@@ -204,23 +203,22 @@ function timeAgo($datetime)
     a.stat-card .stat-val,
     .stat-grid a.stat-card .stat-val {
       font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 1.38rem;
+      font-size: 1.25rem;
       font-weight: 800;
-      line-height: 1;
+      line-height: 1.1;
       color: var(--text-main) !important;
       letter-spacing: -0.02em;
     }
 
     a.stat-card .stat-label,
     .stat-grid a.stat-card .stat-label {
-      font-size: 0.73rem;
+      font-size: 0.68rem;
       font-weight: 600;
       color: var(--text-muted) !important;
-      line-height: 1.15;
+      line-height: 1.2;
       margin-top: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      white-space: normal;
+      word-break: normal;
       text-align: left;
     }
 
@@ -533,42 +531,53 @@ function timeAgo($datetime)
     }
 
     /* Responsive adjustments */
+    @media (max-width: 1200px) {
+      .stat-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 10px;
+      }
+    }
+
     @media (max-width: 1024px) {
       .stat-grid {
-        display: grid;
         grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-        gap: 12px;
+        gap: 10px;
       }
       .stat-card,
       a.stat-card,
       .stat-grid a.stat-card {
         width: 100%;
         min-width: 0;
-        height: 68px;
         min-height: 68px;
-        max-height: 68px;
-        padding: 8px 12px;
+        padding: 8px 10px 10px;
       }
       .stat-icon {
-        width: 32px;
-        height: 32px;
-        min-width: 32px;
+        width: 26px;
+        height: 26px;
+        min-width: 26px;
       }
       .stat-icon svg {
-        width: 14px;
-        height: 14px;
+        width: 13px;
+        height: 13px;
       }
       a.stat-card .stat-val,
       .stat-grid a.stat-card .stat-val {
-        font-size: 1.25rem;
+        font-size: 1.20rem;
       }
       a.stat-card .stat-label,
       .stat-grid a.stat-card .stat-label {
-        font-size: 0.70rem;
+        font-size: 0.68rem;
       }
       .dashboard-layout {
         grid-template-columns: 1fr;
         gap: 20px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 10px;
       }
     }
 
@@ -578,7 +587,7 @@ function timeAgo($datetime)
       }
       .stat-grid {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         gap: 10px;
       }
       .stat-card,
@@ -586,19 +595,17 @@ function timeAgo($datetime)
       .stat-grid a.stat-card {
         width: 100%;
         min-width: 0;
-        height: 66px;
-        min-height: 66px;
-        max-height: 66px;
-        padding: 8px 10px;
+        min-height: 64px;
+        padding: 8px 8px 10px;
       }
       .stat-icon {
-        width: 30px;
-        height: 30px;
-        min-width: 30px;
+        width: 24px;
+        height: 24px;
+        min-width: 24px;
       }
       .stat-icon svg {
-        width: 14px;
-        height: 14px;
+        width: 12px;
+        height: 12px;
       }
       a.stat-card .stat-val,
       .stat-grid a.stat-card .stat-val {
@@ -606,7 +613,7 @@ function timeAgo($datetime)
       }
       a.stat-card .stat-label,
       .stat-grid a.stat-card .stat-label {
-        font-size: 0.68rem;
+        font-size: 0.66rem;
       }
       .dashboard-main .card-header {
         gap: 10px;

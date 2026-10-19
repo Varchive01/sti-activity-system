@@ -72,6 +72,7 @@ $_SESSION['user_email']           = $localUser['email'];
 $_SESSION['user_role']            = $localUser['role'];
 $_SESSION['user_dept']            = $localUser['department'];
 $_SESSION['must_change_password'] = (int)($localUser['must_change_password'] ?? 0);
+$_SESSION['auth_method']          = 'microsoft';
 $_SESSION['last_activity']        = time();
 
 // Clear login throttle state for this account
@@ -79,13 +80,7 @@ $clientIp = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
 $throttleKey = hash('sha256', $clientIp . '|' . strtolower($localUser['email']));
 unset($_SESSION['login_throttle'][$throttleKey]);
 
-// Respect must_change_password requirement
-if (!empty($localUser['must_change_password'])) {
-    header("Location: " . BASE_URL . "/auth/change-password.php");
-    exit;
-}
-
-// Route to authorized role dashboard
+// Route to authorized role dashboard (Microsoft SSO sessions are exempt from local password change)
 $role = $localUser['role'] ?? 'faculty';
 $map  = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean'];
 $dir  = $map[$role] ?? 'faculty';

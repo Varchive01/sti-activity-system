@@ -56,7 +56,8 @@ $dTot = max(1, (int)($stats['total'] ?? 0));
 $pDeanPending = round(((int)($stats['pending'] ?? 0) / $dTot) * 100, 1);
 $pDeanApproved = round(((int)($stats['approved'] ?? 0) / $dTot) * 100, 1);
 $pDeanCompleted = round(((int)($stats['completed'] ?? 0) / $dTot) * 100, 1);
-$pDeanReturned = round(((int)($stats['returned_rejected'] ?? 0) / $dTot) * 100, 1);
+$pDeanReturned = round(((int)($stats['returned'] ?? 0) / $dTot) * 100, 1);
+$pDeanRejected = round(((int)($stats['rejected'] ?? 0) / $dTot) * 100, 1);
 
 // 2. Approval Trends for Selected Period
 $approvalTrends = getApprovalTrends($selectedYear, $selectedPeriod, $db);
@@ -193,6 +194,9 @@ if (empty($recent_all)) {
 
     .dashboard-rail-sticky {
       top: 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
 
     /* ── Topbar Filter & Form Controls ── */
@@ -263,12 +267,12 @@ if (empty($recent_all)) {
       color: #7DD3FC;
     }
 
-    /* ── 1. Compact Horizontal KPI Stat Cards (Exact Faculty Parity) ── */
+    /* ── 1. Compact Horizontal KPI Stat Cards ── */
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 14px;
-      align-items: center;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
       width: 100%;
       margin-bottom: 0 !important;
     }
@@ -281,7 +285,7 @@ if (empty($recent_all)) {
       border-radius: 10px;
       border: 1px solid var(--border);
       box-shadow: var(--shadow-sm);
-      padding: 10px 14px;
+      padding: 9px 8px 11px;
       display: flex;
       flex-direction: row;
       align-items: center;
@@ -292,11 +296,9 @@ if (empty($recent_all)) {
       cursor: pointer;
       width: 100%;
       min-width: 0;
-      height: 70px;
-      min-height: 70px;
-      max-height: 70px;
+      min-height: 72px;
       box-sizing: border-box;
-      gap: 12px;
+      gap: 7px;
       overflow: hidden;
       transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, border-color 0.18s ease;
     }
@@ -310,10 +312,10 @@ if (empty($recent_all)) {
     }
 
     .stat-icon {
-      width: 36px;
-      height: 36px;
-      min-width: 36px;
-      border-radius: 8px;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -322,8 +324,8 @@ if (empty($recent_all)) {
     }
 
     .stat-icon svg {
-      width: 16px;
-      height: 16px;
+      width: 13px;
+      height: 13px;
     }
 
     /* Light mode icon badges */
@@ -335,10 +337,12 @@ if (empty($recent_all)) {
     .stat-card-approved .stat-icon svg { color: #059669; }
     .stat-card-completed .stat-icon { background: rgba(2, 132, 199, 0.1); }
     .stat-card-completed .stat-icon svg { color: var(--accent, #0284c7); }
+    .stat-card-returned .stat-icon { background: rgba(245, 158, 11, 0.12); }
+    .stat-card-returned .stat-icon svg { color: #d97706; }
     .stat-card-danger .stat-icon,
-    .stat-card-returned .stat-icon { background: rgba(239, 68, 68, 0.12); }
+    .stat-card-rejected .stat-icon { background: rgba(239, 68, 68, 0.12); }
     .stat-card-danger .stat-icon svg,
-    .stat-card-returned .stat-icon svg { color: #dc2626; }
+    .stat-card-rejected .stat-icon svg { color: #dc2626; }
 
     /* Dark mode icon badges */
     [data-theme="dark"] .stat-card-total .stat-icon { background: rgba(56, 189, 248, 0.15); }
@@ -349,13 +353,16 @@ if (empty($recent_all)) {
     [data-theme="dark"] .stat-card-approved .stat-icon svg { color: #34d399; }
     [data-theme="dark"] .stat-card-completed .stat-icon { background: rgba(56, 189, 248, 0.15); }
     [data-theme="dark"] .stat-card-completed .stat-icon svg { color: #38bdf8; }
+    [data-theme="dark"] .stat-card-returned .stat-icon { background: rgba(251, 191, 36, 0.15); }
+    [data-theme="dark"] .stat-card-returned .stat-icon svg { color: #fbbf24; }
     [data-theme="dark"] .stat-card-danger .stat-icon,
-    [data-theme="dark"] .stat-card-returned .stat-icon { background: rgba(239, 68, 68, 0.18); }
+    [data-theme="dark"] .stat-card-rejected .stat-icon { background: rgba(239, 68, 68, 0.18); }
     [data-theme="dark"] .stat-card-danger .stat-icon svg,
-    [data-theme="dark"] .stat-card-returned .stat-icon svg { color: #f87171; }
+    [data-theme="dark"] .stat-card-rejected .stat-icon svg { color: #f87171; }
 
     .stat-card > div:not(.stat-icon):not(.stat-strip) {
       min-width: 0;
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
@@ -366,9 +373,9 @@ if (empty($recent_all)) {
     a.stat-card .stat-val,
     .stat-grid a.stat-card .stat-val {
       font-family: 'Plus Jakarta Sans', sans-serif !important;
-      font-size: 1.38rem;
+      font-size: 1.25rem;
       font-weight: 800;
-      line-height: 1;
+      line-height: 1.1;
       color: var(--text-main) !important;
       letter-spacing: -0.02em;
     }
@@ -376,14 +383,13 @@ if (empty($recent_all)) {
     a.stat-card .stat-label,
     .stat-grid a.stat-card .stat-label {
       font-family: 'Plus Jakarta Sans', sans-serif !important;
-      font-size: 0.73rem;
+      font-size: 0.68rem;
       font-weight: 600;
       color: var(--text-muted) !important;
-      line-height: 1.15;
+      line-height: 1.2;
       margin-top: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      white-space: normal;
+      word-break: normal;
       text-align: left;
     }
 
@@ -414,10 +420,12 @@ if (empty($recent_all)) {
     .stat-strip-approved { background: #10b981; }
     .stat-strip-completed { background: #0284c7; }
     [data-theme="dark"] .stat-strip-completed { background: #38bdf8; }
+    .stat-strip-returned { background: #f59e0b; }
+    [data-theme="dark"] .stat-strip-returned { background: #fbbf24; }
     .stat-strip-danger,
-    .stat-strip-returned { background: #ef4444; }
+    .stat-strip-rejected { background: #ef4444; }
     [data-theme="dark"] .stat-strip-danger,
-    [data-theme="dark"] .stat-strip-returned { background: #f87171; }
+    [data-theme="dark"] .stat-strip-rejected { background: #f87171; }
 
     /* ── 2. Shared Dashboard Card Styling (Exact Faculty Parity) ── */
     .dashboard-main .card,
@@ -703,9 +711,10 @@ if (empty($recent_all)) {
     }
 
     /* ── 7. Responsive Adjustments ── */
-    @media (max-width: 1100px) {
+    @media (max-width: 1200px) {
       .stat-grid {
-        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 10px;
       }
     }
 
@@ -751,31 +760,29 @@ if (empty($recent_all)) {
       .stat-grid a.stat-card {
         width: 100%;
         min-width: 0;
-        height: 68px;
         min-height: 68px;
-        max-height: 68px;
-        padding: 8px 12px;
+        padding: 8px 10px 10px;
       }
       .stat-icon {
-        width: 32px;
-        height: 32px;
-        min-width: 32px;
+        width: 26px;
+        height: 26px;
+        min-width: 26px;
       }
       .stat-icon svg {
-        width: 14px;
-        height: 14px;
+        width: 13px;
+        height: 13px;
       }
       a.stat-card .stat-val,
       .stat-grid a.stat-card .stat-val {
-        font-size: 1.25rem;
+        font-size: 1.20rem;
       }
       a.stat-card .stat-label,
       .stat-grid a.stat-card .stat-label {
-        font-size: 0.70rem;
+        font-size: 0.68rem;
       }
     }
 
-    @media (max-width: 850px) {
+    @media (max-width: 768px) {
       .stat-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         gap: 10px;
@@ -788,7 +795,7 @@ if (empty($recent_all)) {
       }
       .stat-grid {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         gap: 10px;
       }
       .stat-card,
@@ -796,19 +803,17 @@ if (empty($recent_all)) {
       .stat-grid a.stat-card {
         width: 100%;
         min-width: 0;
-        height: 66px;
-        min-height: 66px;
-        max-height: 66px;
-        padding: 8px 10px;
+        min-height: 64px;
+        padding: 8px 8px 10px;
       }
       .stat-icon {
-        width: 30px;
-        height: 30px;
-        min-width: 30px;
+        width: 24px;
+        height: 24px;
+        min-width: 24px;
       }
       .stat-icon svg {
-        width: 14px;
-        height: 14px;
+        width: 12px;
+        height: 12px;
       }
       a.stat-card .stat-val,
       .stat-grid a.stat-card .stat-val {
@@ -816,8 +821,117 @@ if (empty($recent_all)) {
       }
       a.stat-card .stat-label,
       .stat-grid a.stat-card .stat-label {
-        font-size: 0.68rem;
+        font-size: 0.66rem;
       }
+    }
+
+    /* ── Proposal Approval Trends Chart ── */
+    .month-bar-wrap {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      height: 140px;
+      margin: 16px 0 10px;
+    }
+    .month-bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+    }
+    .month-bar-inner {
+      height: 105px;
+      width: 100%;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 4px;
+    }
+    .month-bar {
+      width: 14px;
+      border-radius: 4px 4px 0 0;
+      min-width: 0;
+      transition: opacity .18s ease, transform .18s ease;
+      cursor: default;
+      position: relative;
+    }
+    .month-bar.approved {
+      background: #16A34A;
+    }
+    .month-bar.returned {
+      background: #DC2626;
+    }
+    .month-bar.zero-bar {
+      background: rgba(148, 163, 184, 0.4);
+      height: 3px !important;
+      border-radius: 2px;
+    }
+    .month-bar.zero-bar:hover {
+      transform: none;
+    }
+    .month-bar.approved.zero-bar:hover {
+      background: #16A34A;
+    }
+    .month-bar.returned.zero-bar:hover {
+      background: #DC2626;
+    }
+    .month-bar.zero-bar .month-val {
+      opacity: 0;
+      transition: opacity .15s ease;
+    }
+    .month-bar.zero-bar:hover .month-val {
+      opacity: 1;
+    }
+    .month-bar:hover {
+      opacity: .85;
+      transform: scaleY(1.04);
+      transform-origin: bottom;
+    }
+    .month-label {
+      text-align: center;
+      font-size: .68rem;
+      color: var(--text-muted);
+      font-weight: 700;
+      margin-top: 8px;
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+    }
+    .month-val {
+      position: absolute;
+      top: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: .62rem;
+      font-weight: 700;
+      white-space: nowrap;
+      color: var(--text-main);
+    }
+    .month-val.approved {
+      color: #16A34A;
+    }
+    .month-val.returned {
+      color: #DC2626;
+    }
+    [data-theme="dark"] .month-bar.approved {
+      background: #22C55E;
+    }
+    [data-theme="dark"] .month-bar.returned {
+      background: #EF4444;
+    }
+    [data-theme="dark"] .month-bar.zero-bar {
+      background: rgba(148, 163, 184, 0.25);
+    }
+    [data-theme="dark"] .month-bar.approved.zero-bar:hover {
+      background: #22C55E;
+    }
+    [data-theme="dark"] .month-bar.returned.zero-bar:hover {
+      background: #EF4444;
+    }
+    [data-theme="dark"] .month-val.approved {
+      color: #22C55E;
+    }
+    [data-theme="dark"] .month-val.returned {
+      color: #EF4444;
     }
   </style>
 </head>
@@ -859,20 +973,21 @@ if (empty($recent_all)) {
           <a href="<?= BASE_URL ?>/dean/activities.php" class="stat-card stat-card-total">
             <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></div>
             <div>
-              <div class="stat-val"><?= $stats['total'] ?></div>
+              <div class="stat-val"><?= (int)($stats['total'] ?? 0) ?></div>
               <div class="stat-label">Total Activities</div>
             </div>
             <div class="stat-strip stat-strip-total">
-              <span style="width:<?= $pDeanPending ?>%;background:#f59e0b;"></span>
-              <span style="width:<?= $pDeanApproved ?>%;background:#10b981;"></span>
-              <span style="width:<?= $pDeanCompleted ?>%;background:#0284c7;"></span>
-              <span style="width:<?= $pDeanReturned ?>%;background:#ef4444;"></span>
+              <span style="width:<?= $pDeanPending ?>%;background:#f59e0b;" title="Pending"></span>
+              <span style="width:<?= $pDeanApproved ?>%;background:#10b981;" title="Approved"></span>
+              <span style="width:<?= $pDeanCompleted ?>%;background:#0284c7;" title="Completed"></span>
+              <span style="width:<?= $pDeanReturned ?>%;background:#f59e0b;" title="Returned"></span>
+              <span style="width:<?= $pDeanRejected ?>%;background:#ef4444;" title="Rejected"></span>
             </div>
           </a>
           <a href="<?= BASE_URL ?>/dean/pending.php" class="stat-card stat-card-pending">
             <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
             <div>
-              <div class="stat-val"><?= $stats['pending'] ?></div>
+              <div class="stat-val"><?= (int)($stats['pending'] ?? 0) ?></div>
               <div class="stat-label">Pending Proposals</div>
             </div>
             <div class="stat-strip stat-strip-pending"></div>
@@ -880,7 +995,7 @@ if (empty($recent_all)) {
           <a href="<?= BASE_URL ?>/dean/approved.php" class="stat-card stat-card-approved">
             <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
             <div>
-              <div class="stat-val"><?= $stats['approved'] ?></div>
+              <div class="stat-val"><?= (int)($stats['approved'] ?? 0) ?></div>
               <div class="stat-label">Approved Activities</div>
             </div>
             <div class="stat-strip stat-strip-approved"></div>
@@ -888,18 +1003,26 @@ if (empty($recent_all)) {
           <a href="<?= BASE_URL ?>/dean/activities.php?status=completed" class="stat-card stat-card-completed">
             <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg></div>
             <div>
-              <div class="stat-val"><?= $stats['completed'] ?></div>
+              <div class="stat-val"><?= (int)($stats['completed'] ?? 0) ?></div>
               <div class="stat-label">Completed Activities</div>
             </div>
             <div class="stat-strip stat-strip-completed"></div>
           </a>
-          <a href="<?= BASE_URL ?>/dean/returned.php" class="stat-card stat-card-danger">
-            <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg></div>
+          <a href="<?= BASE_URL ?>/dean/activities.php?status=returned_for_revision" class="stat-card stat-card-returned">
+            <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></div>
             <div>
-              <div class="stat-val"><?= $stats['returned_rejected'] ?></div>
-              <div class="stat-label">Returned / Rejected</div>
+              <div class="stat-val"><?= (int)($stats['returned'] ?? 0) ?></div>
+              <div class="stat-label">Returned for Revision</div>
             </div>
-            <div class="stat-strip stat-strip-danger"></div>
+            <div class="stat-strip stat-strip-returned"></div>
+          </a>
+          <a href="<?= BASE_URL ?>/dean/activities.php?status=rejected" class="stat-card stat-card-rejected">
+            <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+            <div>
+              <div class="stat-val"><?= (int)($stats['rejected'] ?? 0) ?></div>
+              <div class="stat-label">Rejected</div>
+            </div>
+            <div class="stat-strip stat-strip-rejected"></div>
           </a>
         </div>
 
@@ -913,25 +1036,37 @@ if (empty($recent_all)) {
             </span>
           </div>
           <div class="card-body">
+            <?php
+              $chartMaxVal = 0;
+              foreach ($approvalTrends['months'] as $tm) {
+                $chartMaxVal = max($chartMaxVal, (int)$tm['approved'], (int)$tm['returned']);
+              }
+              $plotMax = max(1, $chartMaxVal);
+            ?>
             <div class="month-bar-wrap">
               <?php foreach ($approvalTrends['months'] as $tm): 
-                $appH = $approvalTrends['max_count'] > 0 ? max(round(($tm['approved'] / $approvalTrends['max_count']) * 100), ($tm['approved'] > 0 ? 8 : 0)) : 0;
-                $retH = $approvalTrends['max_count'] > 0 ? max(round(($tm['returned'] / $approvalTrends['max_count']) * 100), ($tm['returned'] > 0 ? 8 : 0)) : 0;
+                $appH = $tm['approved'] > 0 ? max(round(($tm['approved'] / $plotMax) * 88), 10) : 0;
+                $retH = $tm['returned'] > 0 ? max(round(($tm['returned'] / $plotMax) * 88), 10) : 0;
               ?>
                 <div class="month-bar-col">
                   <div class="month-bar-inner">
                     <?php if ($tm['approved'] > 0): ?>
                       <div class="month-bar approved" style="height:<?= $appH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['approved'] ?> Approved">
-                        <span class="month-val"><?= $tm['approved'] ?></span>
+                        <span class="month-val approved"><?= $tm['approved'] ?></span>
+                      </div>
+                    <?php else: ?>
+                      <div class="month-bar approved zero-bar" title="<?= $tm['month_name'] ?>: 0 Approved">
+                        <span class="month-val approved">0</span>
                       </div>
                     <?php endif; ?>
                     <?php if ($tm['returned'] > 0): ?>
                       <div class="month-bar returned" style="height:<?= $retH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['returned'] ?> Returned/Rejected">
-                        <span class="month-val" style="color:#DC2626;"><?= $tm['returned'] ?></span>
+                        <span class="month-val returned"><?= $tm['returned'] ?></span>
                       </div>
-                    <?php endif; ?>
-                    <?php if ($tm['approved'] == 0 && $tm['returned'] == 0): ?>
-                      <div style="height:4px;width:10px;background:var(--border);border-radius:2px;"></div>
+                    <?php else: ?>
+                      <div class="month-bar returned zero-bar" title="<?= $tm['month_name'] ?>: 0 Returned/Rejected">
+                        <span class="month-val returned">0</span>
+                      </div>
                     <?php endif; ?>
                   </div>
                   <div class="month-label"><?= $tm['month_name'] ?></div>

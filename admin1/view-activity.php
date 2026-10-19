@@ -58,7 +58,7 @@ $rca  = $db->prepare("SELECT * FROM root_cause_analysis WHERE activity_id=?"); $
 $logs = $db->prepare("SELECT al.*,u.name,u.role as reviewer_role FROM approval_logs al JOIN users u ON al.reviewer_id=u.id WHERE al.activity_id=? ORDER BY al.acted_at"); $logs->execute([$id]); $history=$logs->fetchAll();
 
 $currentApprover = 'None';
-if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
+if ($activity['source'] === 'student_org' && $activity['status'] === 'under_review') {
     $currentApprover = 'Events Committee Head';
 } elseif (in_array($activity['status'], ['endorsed', 'pending_final_approval'])) {
     $currentApprover = 'Dean';
@@ -100,6 +100,9 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
     <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
       <a href="<?= BASE_URL ?>/admin1/activities.php" class="btn btn-outline btn-sm">← Back</a>
+      <?php if ($activity['source'] === 'student_org' && $activity['status'] === 'under_review'): ?>
+        <a href="<?= BASE_URL ?>/admin1/review.php?id=<?= $activity['id'] ?>" class="btn btn-primary btn-sm">Review Proposal</a>
+      <?php endif; ?>
       <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 Print</button>
       <!-- User Profile Control -->
       <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>

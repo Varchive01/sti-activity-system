@@ -1306,14 +1306,14 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   <details style="margin-top:12px;">
                     <summary style="cursor:pointer; color:#475569; font-size:0.85rem; font-weight:600;">🖼️ View Last Saved Exported Floor Plan</summary>
                     <div style="margin-top:8px;">
-                      <img src="<?= BASE_URL ?>/<?= htmlspecialchars($floorplan['file_path']) ?>" style="max-width:100%; border-radius:8px; border:1px solid #dee2e6;" alt="Current Floor Plan">
+                      <img src="<?= BASE_URL ?>/api/document-download.php?activity_id=<?= (int)$id ?>&type=floorplan" style="max-width:100%; border-radius:8px; border:1px solid #dee2e6;" alt="Current Floor Plan">
                     </div>
                   </details>
                 <?php endif; ?>
               <?php else: ?>
                 <?php if ($floorplan && !empty($floorplan['file_path'])): ?>
                   <div class="alert alert-info">Current floor plan: <strong><?= basename($floorplan['file_path']) ?></strong></div>
-                  <img src="<?= BASE_URL ?>/<?= htmlspecialchars($floorplan['file_path']) ?>" style="max-width:100%; border-radius:8px; border:1px solid #dee2e6;" alt="Current Floor Plan">
+                  <img src="<?= BASE_URL ?>/api/document-download.php?activity_id=<?= (int)$id ?>&type=floorplan" style="max-width:100%; border-radius:8px; border:1px solid #dee2e6;" alt="Current Floor Plan">
                 <?php endif; ?>
               <?php endif; ?>
 

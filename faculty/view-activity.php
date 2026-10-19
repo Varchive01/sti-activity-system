@@ -641,7 +641,7 @@ label, input, button, select, textarea {
 
     <!-- Tabs Navigation -->
     <?php
-    $showTabs = ($activity['status'] === 'completed' || $postEvent);
+    $showTabs = ($activity['status'] === 'completed' || $postEvent || in_array($activity['status'], ['approved', 'completed'], true) || !empty($responsesList));
     $activeTab = $_GET['tab'] ?? 'overview';
     if (!in_array($activeTab, ['overview', 'responses', 'ai-analysis'])) {
         $activeTab = 'overview';
@@ -712,7 +712,7 @@ label, input, button, select, textarea {
     </div>
 
     <?php if (!empty($activity['poster_path'])): ?>
-    <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/' . $activity['poster_path']; ?>
+    <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=poster'; ?>
     <div class="card detail-section-card">
       <div class="card-header">
         <h2><span>🖼️</span> Event Poster</h2>
@@ -1768,12 +1768,24 @@ label, input, button, select, textarea {
         <div class="card">
           <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <h2>📋 Completed Participant Evaluations</h2>
-            <span class="badge badge-info"><?= count($responsesList) ?> total responses</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button type="button" class="btn btn-primary btn-sm" id="btnOpenCsvImport" onclick="openCsvImportModal()">
+                📥 Import Evaluation CSV
+              </button>
+              <span class="badge badge-info"><?= count($responsesList) ?> total responses</span>
+            </div>
           </div>
           <div class="card-body">
             <?php if (empty($responsesList)): ?>
-              <div style="text-align:center; padding:40px; color:var(--text-muted);">
-                No evaluation responses have been submitted yet.
+              <div style="text-align:center; padding:40px 20px; color:var(--text-muted);">
+                <div style="font-size:2.6rem; margin-bottom:12px;">📥</div>
+                <div style="font-weight:700; font-size:1.05rem; margin-bottom:6px; color:var(--text-main);">No evaluation responses yet</div>
+                <p style="font-size:0.86rem; max-width:500px; margin:0 auto 18px auto; line-height:1.5;">
+                  Upload responses exported from <strong>Google Forms</strong> or <strong>Microsoft Forms</strong> (.csv) to automatically compute KPI ratings and analyze student feedback.
+                </p>
+                <button type="button" class="btn btn-primary btn-sm" onclick="openCsvImportModal()">
+                  📥 Import Evaluation CSV
+                </button>
               </div>
             <?php else: ?>
               <div class="filters" style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
@@ -1851,6 +1863,126 @@ label, input, button, select, textarea {
             <?php endif; ?>
           </div>
         </div>
+
+        <!-- Evaluation CSV Import Modal -->
+        <div id="csvImportModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15,23,42,0.6); z-index: 9999; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box;">
+          <div style="background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); max-width: 520px; width: 100%; box-shadow: var(--shadow-lg); overflow: hidden;">
+            <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+              <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                <span>📥</span> <span>Import Evaluation CSV</span>
+              </h3>
+              <button type="button" onclick="closeCsvImportModal()" style="border: none; background: transparent; font-size: 1.3rem; color: var(--text-muted); cursor: pointer; line-height: 1;">&times;</button>
+            </div>
+            <form id="csvImportForm" onsubmit="submitCsvImport(event)" style="padding: 20px; display: flex; flex-direction: column; gap: 14px; margin: 0;">
+              <input type="hidden" name="activity_id" value="<?= $id ?>">
+              <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
+              
+              <div id="csvImportStatusBanner" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 0.84rem; font-weight: 600;"></div>
+
+              <div style="background: var(--bg-subtle, #f8f9fa); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-color, #e5e7eb);">
+                <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-main); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                  <span>ℹ️</span> Supported CSV Formats
+                </div>
+                <p style="margin: 0; font-size: 0.76rem; color: var(--text-muted); line-height: 1.5;">
+                  Upload exported CSV files from <strong>Google Forms</strong> (with Timestamp and question columns) or <strong>Microsoft Forms</strong> (with ID, completion time, and question columns). Ratings (1-4/Likert) and open-ended feedback are automatically mapped without credentials.
+                </p>
+              </div>
+
+              <div>
+                <label class="form-label" style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 5px; color: var(--text-main);">
+                  Select CSV File <span class="text-danger" style="color: var(--danger, #dc2626);">*</span>
+                </label>
+                <input type="file" id="csvFileInput" name="csv_file" class="form-control" accept=".csv,text/csv" style="width: 100%;" required>
+                <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 3px;">
+                  Max file size: 5 MB. Supported format: .csv
+                </small>
+              </div>
+
+              <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="closeCsvImportModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm" id="csvImportSubmitBtn">Upload &amp; Import</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <script>
+          function openCsvImportModal() {
+            const modal = document.getElementById('csvImportModal');
+            if (modal) {
+              const banner = document.getElementById('csvImportStatusBanner');
+              if (banner) banner.style.display = 'none';
+              document.getElementById('csvImportForm').reset();
+              modal.style.display = 'flex';
+            }
+          }
+
+          function closeCsvImportModal() {
+            const modal = document.getElementById('csvImportModal');
+            if (modal) modal.style.display = 'none';
+          }
+
+          async function submitCsvImport(e) {
+            e.preventDefault();
+            const form = document.getElementById('csvImportForm');
+            const btn = document.getElementById('csvImportSubmitBtn');
+            const banner = document.getElementById('csvImportStatusBanner');
+            
+            const fileInput = document.getElementById('csvFileInput');
+            if (!fileInput.files || fileInput.files.length === 0) {
+              banner.style.display = 'block';
+              banner.style.background = 'rgba(220,38,38,0.1)';
+              banner.style.border = '1px solid rgba(220,38,38,0.3)';
+              banner.style.color = 'var(--danger, #dc2626)';
+              banner.textContent = 'Please select a valid .csv file to import.';
+              return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Importing...';
+            banner.style.display = 'none';
+
+            try {
+              const formData = new FormData(form);
+              const res = await fetch('<?= BASE_URL ?>/api/import-evaluations-csv.php', {
+                method: 'POST',
+                body: formData
+              });
+
+              const data = await res.json();
+              if (res.ok && data.success) {
+                banner.style.display = 'block';
+                banner.style.background = 'rgba(22,163,74,0.1)';
+                banner.style.border = '1px solid rgba(22,163,74,0.3)';
+                banner.style.color = 'var(--success, #16A34A)';
+                banner.textContent = data.message || `Imported ${data.imported_count} records (${data.skipped_count} skipped duplicates).`;
+                setTimeout(() => {
+                  window.location.reload();
+                }, 1000);
+              } else {
+                banner.style.display = 'block';
+                banner.style.background = 'rgba(220,38,38,0.1)';
+                banner.style.border = '1px solid rgba(220,38,38,0.3)';
+                banner.style.color = 'var(--danger, #dc2626)';
+                banner.textContent = data.error || 'Failed to import evaluation CSV.';
+                btn.disabled = false;
+                btn.textContent = 'Upload & Import';
+              }
+            } catch (err) {
+              banner.style.display = 'block';
+              banner.style.background = 'rgba(220,38,38,0.1)';
+              banner.style.border = '1px solid rgba(220,38,38,0.3)';
+              banner.style.color = 'var(--danger, #dc2626)';
+              banner.textContent = 'A network or server error occurred during upload.';
+              btn.disabled = false;
+              btn.textContent = 'Upload & Import';
+            }
+          }
+
+          document.getElementById('csvImportModal')?.addEventListener('click', (e) => {
+            if (e.target.id === 'csvImportModal') closeCsvImportModal();
+          });
+        </script>
     <?php endif; ?>
 
     <!-- AI Feedback Analysis Tab -->
