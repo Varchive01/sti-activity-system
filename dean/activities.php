@@ -12,15 +12,19 @@ $page       = max(1, (int)($_GET['page'] ?? 1));
 $perPage    = 15;
 $offset     = ($page - 1) * $perPage;
 
-$where  = "1=1";
+$where  = "a.status != 'draft'";
 $params = [];
 if ($search) {
   $where .= " AND a.title LIKE ?";
   $params[] = "%$search%";
 }
 if ($filterStat) {
-  $where .= " AND a.status=?";
-  $params[] = $filterStat;
+  if (strtolower($filterStat) === 'draft') {
+    $where .= " AND 1=0";
+  } else {
+    $where .= " AND a.status=?";
+    $params[] = $filterStat;
+  }
 }
 if ($filterSrc) {
   $where .= " AND a.source=?";
@@ -101,7 +105,7 @@ $activities = $acts->fetchAll();
         <input type="text" name="q" class="form-control" placeholder="Search title…" value="<?= htmlspecialchars($search) ?>" style="max-width:260px;">
         <select name="status" class="form-control" style="max-width:180px;">
           <option value="">All Statuses</option>
-          <?php foreach (['draft', 'submitted', 'under_review', 'endorsed', 'pending_final_approval', 'returned_for_revision', 'approved', 'completed', 'rejected'] as $s): ?>
+          <?php foreach (['submitted', 'under_review', 'endorsed', 'pending_final_approval', 'returned_for_revision', 'approved', 'completed', 'rejected'] as $s): ?>
             <option value="<?= $s ?>" <?= $filterStat === $s ? 'selected' : '' ?>><?= ucfirst(str_replace('_', ' ', $s)) ?></option>
           <?php endforeach; ?>
         </select>

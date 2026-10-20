@@ -551,13 +551,80 @@ if ($activityId > 0) {
       <style>
         .print-only { display: block; }
         .no-print { display: block; }
+        @page {
+          size: landscape;
+          margin: 12mm 15mm;
+        }
         @media print {
-          .no-print { display: none !important; }
-          .sidebar { display: none !important; }
-          body { font-size: 12px; background: white; color: black; }
-          .main-wrap { margin-left: 0 !important; }
-          .content { padding: 0 !important; }
-          .card { border: 1px solid #ddd !important; box-shadow: none !important; margin-bottom: 16px !important; page-break-inside: avoid; }
+          *, *::before, *::after {
+            box-shadow: none !important;
+            text-shadow: none !important;
+          }
+          html, body, [data-theme="dark"], [data-theme="dark"] body {
+            font-size: 10pt !important;
+            background: #FFFFFF !important;
+            color: #0A1628 !important;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .no-print,
+          .sidebar,
+          aside.sidebar,
+          .topbar,
+          header.topbar,
+          .print-btn,
+          .theme-toggle-btn,
+          #themeToggleBtn,
+          .topbar-profile,
+          #topbarProfileBtn,
+          .topbar-profile-menu,
+          .topbar-widget-btn,
+          #notifBellBtn,
+          #notifModal,
+          .btn,
+          button,
+          .walkthrough-overlay,
+          .walkthrough-spotlight,
+          .walkthrough-step-tooltip {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          .main-wrap {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          .content {
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          .card, [data-theme="dark"] .card {
+            border: 1px solid #CBD5E1 !important;
+            background: #FFFFFF !important;
+            box-shadow: none !important;
+            margin-bottom: 16px !important;
+            page-break-inside: avoid;
+          }
+          .table-wrap, [data-theme="dark"] .table-wrap {
+            overflow: visible !important;
+            overflow-x: visible !important;
+            background: #FFFFFF !important;
+            border: none !important;
+          }
+          table {
+            width: 100% !important;
+            table-layout: auto !important;
+            border-collapse: collapse !important;
+          }
         }
         .report-header { border-bottom: 2px solid var(--accent); padding-bottom: 12px; margin-bottom: 20px; }
         .report-section { margin-bottom: 20px; }
@@ -577,7 +644,7 @@ if ($activityId > 0) {
           <div class="page-title">KPI Report Generator</div>
           <div class="topbar-right">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
-            <button class="btn btn-primary" onclick="window.print()">🖨 Print / Export PDF</button>
+            <button class="btn btn-primary" id="exportPdfBtn" onclick="window.print()">📄 Export PDF</button>
             <a href="?activity_id=<?= $activityId ?>&export=csv" class="btn btn-outline">📥 Export CSV</a>
             <a href="javascript:window.close()" class="btn btn-outline">Close</a>
       <!-- User Profile Control -->
@@ -669,7 +736,7 @@ if ($activityId > 0) {
                           <div style="font-weight:600;"><?= htmlspecialchars($t['task_title']) ?></div>
                           <?php if (!empty($t['task_description'])): ?>
                             <small class="text-muted" style="display:block; font-size:0.72rem; margin-top:2px;">
-                              <?= htmlspecialchars(mb_strimwidth($t['task_description'], 0, 75, '...')) ?>
+                              <?= htmlspecialchars(function_exists('mb_strimwidth') ? mb_strimwidth($t['task_description'], 0, 75, '...') : (strlen($t['task_description']) > 75 ? substr($t['task_description'], 0, 72) . '...' : $t['task_description'])) ?>
                             </small>
                           <?php endif; ?>
                         </td>
@@ -1138,20 +1205,24 @@ if ($user['role'] === 'faculty') {
     die("Access denied.");
 }
 
-// Filters
-$filterYear   = (int)($_GET['year']   ?? date('Y'));
+// Filters: Restrict Year filter strictly to 2026 for all roles
+if (isset($_GET['year']) && (int)$_GET['year'] !== 2026) {
+    $_GET['year'] = 2026;
+}
+$filterYear   = 2026;
 $filterStatus = sanitize($_GET['status'] ?? '');
 $filterSource = sanitize($_GET['source'] ?? '');
 
 $where = "1=1";
 $params = [];
-if ($filterYear)   { $where .= " AND YEAR(a.event_date)=?";  $params[] = $filterYear; }
-if ($filterStatus) { $where .= " AND a.status=?";             $params[] = $filterStatus; }
-if ($filterSource) { $where .= " AND a.source=?";             $params[] = $filterSource; }
+$where .= " AND YEAR(a.event_date)=?";
+$params[] = $filterYear;
+if ($filterStatus && $filterStatus !== 'all') { $where .= " AND a.status=?";             $params[] = $filterStatus; }
+if ($filterSource && $filterSource !== 'all') { $where .= " AND a.source=?";             $params[] = $filterSource; }
 
 $acts = $db->prepare("
     SELECT a.*, u.name as faculty_name,
-           pe.actual_attendance, pe.target_attendance, pe.satisfaction_score,
+           pe.actual_attendance, pe.target_attendance, pe.satisfaction_score, pe.recommendations,
            AVG(k.rating) as avg_kpi
     FROM activities a
     JOIN users u ON a.faculty_id=u.id
@@ -1164,14 +1235,71 @@ $acts = $db->prepare("
 $acts->execute($params);
 $activities = $acts->fetchAll();
 
-// Aggregate totals
+// Aggregate totals & metrics
 $total = count($activities);
-$totalAtt = array_sum(array_column($activities,'actual_attendance'));
-$totalTarget = array_sum(array_column($activities,'target_attendance'));
-$avgKpi = $total > 0 ? array_sum(array_column($activities,'avg_kpi')) / max(count(array_filter($activities,fn($a)=>$a['avg_kpi'])),1) : 0;
-$avgSat = $total > 0 ? array_sum(array_column($activities,'satisfaction_score')) / max(count(array_filter($activities,fn($a)=>$a['satisfaction_score'])),1) : 0;
+$totalAtt = array_sum(array_column($activities, 'actual_attendance'));
+$totalTarget = array_sum(array_column($activities, 'target_attendance'));
+$attendanceRate = $totalTarget > 0 ? number_format(($totalAtt / $totalTarget) * 100, 1) . '%' : 'No data';
 
-$years = range(date('Y'), date('Y')-4);
+$completedActivities = array_filter($activities, fn($a) => $a['status'] === 'completed');
+$completedCount = count($completedActivities);
+$approvedCount = count(array_filter($activities, fn($a) => $a['status'] === 'approved'));
+$returnedCount = count(array_filter($activities, fn($a) => $a['status'] === 'returned_for_revision'));
+$rejectedCount = count(array_filter($activities, fn($a) => $a['status'] === 'rejected'));
+$completionRate = $total > 0 ? number_format(($completedCount / $total) * 100, 1) . '%' : '0.0%';
+
+$evaluatedKpiActivities = array_filter($activities, fn($a) => !empty($a['avg_kpi']));
+$evaluatedKpiCount = count($evaluatedKpiActivities);
+$avgKpi = $evaluatedKpiCount > 0 ? (array_sum(array_column($evaluatedKpiActivities, 'avg_kpi')) / $evaluatedKpiCount) : null;
+
+$satisfactionActivities = array_filter($activities, fn($a) => $a['satisfaction_score'] !== null && $a['satisfaction_score'] !== '');
+$satisfactionCount = count($satisfactionActivities);
+$avgSat = $satisfactionCount > 0 ? (array_sum(array_column($satisfactionActivities, 'satisfaction_score')) / $satisfactionCount) : null;
+
+// Statistical breakdown by activity source
+$sourceList = [
+    'student_org' => 'Student Organization',
+    'faculty'     => 'Faculty-Initiated'
+];
+foreach ($activities as $a) {
+    $src = $a['source'] ?? 'other';
+    if (!isset($sourceList[$src])) {
+        $sourceList[$src] = ucfirst(str_replace('_', ' ', $src));
+    }
+}
+$sourceBreakdown = [];
+foreach ($sourceList as $srcKey => $srcLabel) {
+    if ($filterSource && $filterSource !== 'all' && $filterSource !== $srcKey) {
+        continue;
+    }
+    $srcActivities = array_filter($activities, fn($a) => ($a['source'] ?? '') === $srcKey);
+    $srcTotal = count($srcActivities);
+    $srcCompleted = count(array_filter($srcActivities, fn($a) => $a['status'] === 'completed'));
+    $srcApproved = count(array_filter($srcActivities, fn($a) => $a['status'] === 'approved'));
+    $srcReturned = count(array_filter($srcActivities, fn($a) => $a['status'] === 'returned_for_revision'));
+    $srcRejected = count(array_filter($srcActivities, fn($a) => $a['status'] === 'rejected'));
+    $srcCompRate = $srcTotal > 0 ? number_format(($srcCompleted / $srcTotal) * 100, 1) . '%' : '0.0%';
+
+    $srcKpiActs = array_filter($srcActivities, fn($a) => !empty($a['avg_kpi']));
+    $srcAvgKpi = !empty($srcKpiActs) ? number_format(array_sum(array_column($srcKpiActs, 'avg_kpi')) / count($srcKpiActs), 2) : 'No data';
+
+    $srcSatActs = array_filter($srcActivities, fn($a) => $a['satisfaction_score'] !== null && $a['satisfaction_score'] !== '');
+    $srcAvgSat = !empty($srcSatActs) ? number_format(array_sum(array_column($srcSatActs, 'satisfaction_score')) / count($srcSatActs), 1) . '/5' : 'No data';
+
+    $sourceBreakdown[$srcKey] = [
+        'label'           => $srcLabel,
+        'total'           => $srcTotal,
+        'completed'       => $srcCompleted,
+        'approved'        => $srcApproved,
+        'returned'        => $srcReturned,
+        'rejected'        => $srcRejected,
+        'completion_rate' => $srcCompRate,
+        'avg_kpi'         => $srcAvgKpi,
+        'avg_sat'         => $srcAvgSat,
+    ];
+}
+
+$years = [2026];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1199,11 +1327,272 @@ $years = range(date('Y'), date('Y')-4);
 .summary-item{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center;}
 .summary-item .n{font-family:'Plus Jakarta Sans',sans-serif !important;font-size:1.5rem;font-weight:800;color:var(--accent, var(--sti-blue));line-height:1.1;}
 .summary-item .l{font-size:.7rem;text-transform:uppercase;letter-spacing:.3px;color:var(--text-muted);font-weight:700;}
-@media print{
-  .sidebar,.topbar,.filter-bar,.print-btn{display:none!important;}
-  .main-wrap{margin-left:0!important;}
-  .content{padding:20px!important;}
-  body{font-size:12px;}
+.stat-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px;}
+@media (max-width: 900px){.stat-grid-2{grid-template-columns:1fr;}}
+@page {
+  size: A4 landscape;
+  margin: 12mm 14mm 16mm 14mm;
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font-size: 8pt;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: #475569;
+  }
+  @bottom-left {
+    content: "STI College Marikina — Activity Performance & Compliance Report";
+    font-size: 8pt;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: #475569;
+  }
+}
+
+@media print {
+  /* 1. Global Reset to Crisp White Page with Dark Typography */
+  *, *::before, *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  html,
+  body,
+  [data-theme="dark"],
+  [data-theme="dark"] body {
+    background: #FFFFFF !important;
+    color: #0A1628 !important;
+    font-size: 10pt !important;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 2. Hide STI-ARMES App Chrome, Navigation, Controls, and Action Buttons */
+  .sidebar,
+  aside.sidebar,
+  .topbar,
+  header.topbar,
+  .filter-bar,
+  form.filter-bar,
+  .print-btn,
+  .no-print,
+  .theme-toggle-btn,
+  #themeToggleBtn,
+  .topbar-profile,
+  #topbarProfileBtn,
+  .topbar-profile-menu,
+  .topbar-widget-btn,
+  #notifBellBtn,
+  #notifModal,
+  .btn,
+  button,
+  .walkthrough-overlay,
+  .walkthrough-spotlight,
+  .walkthrough-step-tooltip {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 3. Full-width Report Canvas */
+  .main-wrap {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-top: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .content {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 4. Report Header */
+  .report-print-header {
+    margin-bottom: 16px !important;
+    padding-bottom: 10px !important;
+    border-bottom: 2px solid #0284C7 !important;
+  }
+  .report-print-header .report-title {
+    font-family: 'Plus Jakarta Sans', sans-serif !important;
+    font-size: 15pt !important;
+    font-weight: 800 !important;
+    color: #0A1628 !important;
+    line-height: 1.2 !important;
+  }
+  .report-print-header .report-meta {
+    font-size: 9pt !important;
+    color: #475569 !important;
+    margin-top: 4px !important;
+  }
+
+  /* 5. KPI Summary Strip */
+  .summary-strip {
+    display: grid !important;
+    grid-template-columns: repeat(5, 1fr) !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+    page-break-inside: avoid !important;
+  }
+  .summary-item,
+  [data-theme="dark"] .summary-item {
+    background: #F8FAFD !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 8px !important;
+    padding: 10px 8px !important;
+    text-align: center !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .summary-item .n {
+    font-family: 'Plus Jakarta Sans', sans-serif !important;
+    font-size: 15pt !important;
+    font-weight: 800 !important;
+    color: #0284C7 !important;
+    line-height: 1.1 !important;
+  }
+  .summary-item .l {
+    font-size: 7.5pt !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.4px !important;
+    color: #475569 !important;
+    font-weight: 700 !important;
+    margin-top: 2px !important;
+  }
+
+  /* 6. Card & Table Container (Prevent Clipping and Horizontal Scrollbars) */
+  .card,
+  [data-theme="dark"] .card {
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    margin-bottom: 16px !important;
+    page-break-inside: auto !important;
+  }
+  .card-header,
+  [data-theme="dark"] .card-header {
+    background: #F8FAFD !important;
+    border-bottom: 1px solid #CBD5E1 !important;
+    padding: 10px 14px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .card-header h2 {
+    font-size: 11pt !important;
+    font-weight: 700 !important;
+    color: #0A1628 !important;
+    margin: 0 !important;
+  }
+  .card-body {
+    padding: 0 !important;
+  }
+
+  .table-wrap,
+  [data-theme="dark"] .table-wrap {
+    overflow: visible !important;
+    overflow-x: visible !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #FFFFFF !important;
+    width: 100% !important;
+  }
+
+  /* 7. Activity Table Columns & Typography */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 8.5pt !important;
+    table-layout: auto !important;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  thead tr,
+  [data-theme="dark"] thead tr {
+    background: #F1F5F9 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  th {
+    padding: 8px 10px !important;
+    font-size: 7.5pt !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    color: #334155 !important;
+    border-bottom: 1.5px solid #94A3B8 !important;
+    white-space: nowrap !important;
+    text-align: left !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+  }
+  td,
+  [data-theme="dark"] td {
+    padding: 8px 10px !important;
+    font-size: 8.5pt !important;
+    color: #1E293B !important;
+    border-bottom: 1px solid #E2E8F0 !important;
+    vertical-align: middle !important;
+  }
+  td strong {
+    color: #0A1628 !important;
+    font-size: 8.5pt !important;
+  }
+  td .text-muted,
+  td small {
+    color: #64748B !important;
+  }
+
+  /* 8. Badges in Print */
+  .badge {
+    border: 1px solid #CBD5E1 !important;
+    font-size: 7.5pt !important;
+    font-weight: 600 !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .badge-secondary {
+    background: #F1F5F9 !important;
+    color: #334155 !important;
+  }
+  .badge-success {
+    background: #DCFCE7 !important;
+    color: #15803D !important;
+  }
+  .badge-warning {
+    background: #FEF3C7 !important;
+    color: #B45309 !important;
+  }
+  .badge-danger {
+    background: #FEE2E2 !important;
+    color: #B91C1C !important;
+  }
+  .badge-dark {
+    background: #0A1628 !important;
+    color: #FFFFFF !important;
+  }
+
+  /* 9. Supplementary Report Sections */
+  .report-section {
+    page-break-inside: avoid !important;
+  }
+  .stat-grid-2 {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 14px !important;
+    page-break-inside: avoid !important;
+  }
 }
 </style>
 </head>
@@ -1218,7 +1607,7 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
     <div class="page-title">Generate Report</div>
     <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
       <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
-      <button class="btn btn-primary print-btn" onclick="window.print()">🖨 Print / Export PDF</button>
+      <button class="btn btn-primary print-btn" id="exportPdfBtn" onclick="exportReportToPdf()">📄 Export PDF</button>
       <!-- User Profile Control -->
       <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
     </div>
@@ -1253,35 +1642,169 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
         </select>
       </div>
       <button type="submit" class="btn btn-primary">Apply Filters</button>
-      <a href="generate-report.php" class="btn btn-outline">Reset</a>
+      <a href="generate-report.php?year=2026" class="btn btn-outline">Reset</a>
     </form>
 
-    <!-- Report Header (print-visible) -->
-    <div style="margin-bottom:20px;">
-      <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.3rem;font-weight:800;color:var(--text-main);">STI College Marikina — Activity Report</div>
-      <div class="text-sm text-muted">Generated: <?= date('F j, Y g:i A') ?> · Year: <?= $filterYear ?><?= $filterStatus ? " · Status: ".ucfirst(str_replace('_',' ',$filterStatus)) : '' ?><?= $filterSource ? " · Source: ".ucfirst(str_replace('_',' ',$filterSource)) : '' ?></div>
+    <!-- Formal Report Header (Visible on screen and in print) -->
+    <div class="report-print-header" style="margin-bottom:22px; padding-bottom:16px; border-bottom:2px solid var(--sti-blue, #0284C7);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+        <div>
+          <div style="font-size:0.75rem; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--sti-blue, #0284C7); margin-bottom:4px;">STI College Marikina · Office of the Dean</div>
+          <div class="report-title" style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.4rem; font-weight:800; color:var(--text-main); line-height:1.25;">Institutional Activity Performance and Compliance Report</div>
+          <div class="report-meta text-sm text-muted" style="margin-top:6px;">
+            <span><strong>Reporting Year:</strong> CY <?= $filterYear ?></span>
+            <span style="margin:0 8px;">·</span>
+            <span><strong>Status Filter:</strong> <?= ($filterStatus && $filterStatus !== 'all') ? ucfirst(str_replace('_',' ',$filterStatus)) : 'All Statuses' ?></span>
+            <span style="margin:0 8px;">·</span>
+            <span><strong>Source Filter:</strong> <?= ($filterSource && $filterSource !== 'all') ? ($sourceList[$filterSource] ?? ucfirst(str_replace('_',' ',$filterSource))) : 'All Sources' ?></span>
+          </div>
+        </div>
+        <div style="text-align:right; font-size:0.8rem; color:var(--text-muted); line-height:1.45;">
+          <div><strong>Generation Date:</strong> <?= date('F j, Y g:i A') ?></div>
+          <div><strong>Report Preparer:</strong> <?= htmlspecialchars($user['name']) ?> (<?= ucfirst($user['role']) ?>)</div>
+          <div><strong>System:</strong> STI-ARMES Operations</div>
+        </div>
+      </div>
     </div>
 
-    <!-- Summary -->
-    <div class="summary-strip">
-      <div class="summary-item"><div class="n"><?= $total ?></div><div class="l">Total Activities</div></div>
-      <div class="summary-item"><div class="n"><?= $totalTarget > 0 ? round(($totalAtt/$totalTarget)*100).'%' : '—' ?></div><div class="l">Attendance Rate</div></div>
-      <div class="summary-item"><div class="n"><?= $avgKpi > 0 ? number_format($avgKpi,2) : '—' ?></div><div class="l">Avg KPI / 4.0</div></div>
-      <div class="summary-item"><div class="n"><?= $avgSat > 0 ? number_format($avgSat,1) : '—' ?></div><div class="l">Avg Satisfaction</div></div>
-      <div class="summary-item"><div class="n"><?= count(array_filter($activities,fn($a)=>$a['status']==='completed')) ?></div><div class="l">Completed</div></div>
+    <!-- Executive Summary Card -->
+    <div class="card report-section" style="margin-bottom:20px;">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>Executive Summary — Year <?= $filterYear ?></h2>
+        <span class="badge badge-secondary" style="font-size:0.8rem;"><?= $total ?> Total Activities</span>
+      </div>
+      <div class="card-body" style="padding:18px 20px;">
+        <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px; line-height:1.55;">
+          During Calendar Year <strong><?= $filterYear ?></strong>, a total of <strong><?= $total ?></strong> <?= $total === 1 ? 'activity was' : 'activities were' ?> tracked in STI-ARMES under the selected criteria. The institutional execution pipeline achieved an overall <strong><?= $completionRate ?></strong> completion rate, with registered activities reaching an attendance turnout of <strong><?= $attendanceRate ?></strong>. Average KPI rating is <strong><?= $avgKpi !== null ? number_format($avgKpi, 2) . '/4.0' : 'No data' ?></strong> and participant satisfaction score stands at <strong><?= $avgSat !== null ? number_format($avgSat, 2) . ' / 5.0' : 'No data' ?></strong>.
+        </p>
+
+        <!-- KPI Summary Strip -->
+        <div class="summary-strip" style="margin-bottom:0;">
+          <div class="summary-item">
+            <div class="n"><?= $total ?></div>
+            <div class="l">Total Activities</div>
+          </div>
+          <div class="summary-item">
+            <div class="n"><?= $completionRate ?></div>
+            <div class="l">Completion Rate</div>
+          </div>
+          <div class="summary-item">
+            <div class="n"><?= $attendanceRate ?></div>
+            <div class="l">Attendance Rate</div>
+          </div>
+          <div class="summary-item">
+            <div class="n"><?= $avgKpi !== null ? number_format($avgKpi, 2) : 'No data' ?></div>
+            <div class="l">Average KPI</div>
+          </div>
+          <div class="summary-item">
+            <div class="n"><?= $avgSat !== null ? number_format($avgSat, 2) . ' / 5.0' : 'No data' ?></div>
+            <div class="l">Avg Satisfaction</div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Detail Table -->
-    <div class="card">
-      <div class="card-header"><h2>Activity Details — <?= $filterYear ?></h2></div>
+    <!-- Statistical Breakdown by Status and Source -->
+    <div class="stat-grid-2 report-section">
+      <!-- Status Breakdown Card -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-header">
+          <h2>Statistical Breakdown by Status</h2>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Status Category</th>
+                  <th style="text-align:center;">Count</th>
+                  <th style="text-align:right;">Distribution</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="badge badge-dark">Completed</span></td>
+                  <td style="text-align:center; font-weight:700;"><?= $completedCount ?></td>
+                  <td style="text-align:right; color:var(--text-muted);"><?= $total > 0 ? number_format(($completedCount / $total) * 100, 1) . '%' : '0.0%' ?></td>
+                </tr>
+                <tr>
+                  <td><span class="badge badge-success">Approved</span></td>
+                  <td style="text-align:center; font-weight:700;"><?= $approvedCount ?></td>
+                  <td style="text-align:right; color:var(--text-muted);"><?= $total > 0 ? number_format(($approvedCount / $total) * 100, 1) . '%' : '0.0%' ?></td>
+                </tr>
+                <tr>
+                  <td><span class="badge badge-danger">Returned for Revision</span></td>
+                  <td style="text-align:center; font-weight:700;"><?= $returnedCount ?></td>
+                  <td style="text-align:right; color:var(--text-muted);"><?= $total > 0 ? number_format(($returnedCount / $total) * 100, 1) . '%' : '0.0%' ?></td>
+                </tr>
+                <tr>
+                  <td><span class="badge badge-danger">Rejected</span></td>
+                  <td style="text-align:center; font-weight:700;"><?= $rejectedCount ?></td>
+                  <td style="text-align:right; color:var(--text-muted);"><?= $total > 0 ? number_format(($rejectedCount / $total) * 100, 1) . '%' : '0.0%' ?></td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr style="border-top:1.5px solid var(--border); font-weight:700;">
+                  <td>Total Monitored</td>
+                  <td style="text-align:center;"><?= $total ?></td>
+                  <td style="text-align:right;">100.0%</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Source Breakdown Card -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-header">
+          <h2>Statistical Breakdown by Source</h2>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Activity Source</th>
+                  <th style="text-align:center;">Events</th>
+                  <th style="text-align:center;">Completed</th>
+                  <th style="text-align:center;">Completion %</th>
+                  <th style="text-align:right;">Avg KPI</th>
+                  <th style="text-align:right;">Satisfaction</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($sourceBreakdown as $sb): ?>
+                <tr>
+                  <td><strong><?= htmlspecialchars($sb['label']) ?></strong></td>
+                  <td style="text-align:center; font-weight:700;"><?= $sb['total'] ?></td>
+                  <td style="text-align:center;"><?= $sb['completed'] ?></td>
+                  <td style="text-align:center; font-weight:600; color:var(--sti-blue, #0284c7);"><?= $sb['completion_rate'] ?></td>
+                  <td style="text-align:right;"><?= $sb['avg_kpi'] ?></td>
+                  <td style="text-align:right;"><?= $sb['avg_sat'] ?></td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Detailed Activity Register Table -->
+    <div class="card report-section">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>5. Detailed Activity Register — Year <?= $filterYear ?></h2>
+        <span class="badge badge-secondary"><?= $total ?> Registered Events</span>
+      </div>
       <div class="card-body" style="padding:0;">
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>#</th>
-                <th>Activity Title</th>
-                <th>Faculty</th>
+                <th>Activity Title & Venue</th>
+                <th>Responsible Faculty</th>
                 <th>Date</th>
                 <th>Source</th>
                 <th>Status</th>
@@ -1305,19 +1828,174 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
               <td><span class="badge badge-secondary"><?= ucfirst(str_replace('_',' ',$a['source'])) ?></span></td>
               <td><?= getStatusBadge($a['status']) ?></td>
               <td>
-                <?php if ($a['actual_attendance'] !== null): ?>
+                <?php if ($a['actual_attendance'] !== null && $a['target_attendance'] !== null): ?>
                   <?= $a['actual_attendance'] ?>/<?= $a['target_attendance'] ?>
                   <?php if ($attPct !== null): ?>
                   <br><small style="color:<?= $attPct>=90?'#16A34A':($attPct>=70?'#D97706':'#DC2626') ?>;font-weight:700;"><?= $attPct ?>%</small>
                   <?php endif; ?>
-                <?php else: ?>—<?php endif; ?>
+                <?php else: ?>No data<?php endif; ?>
               </td>
-              <td><?= $a['avg_kpi'] ? '<strong>'.number_format($a['avg_kpi'],2).'</strong>' : '—' ?></td>
-              <td><?= $a['satisfaction_score'] ? number_format($a['satisfaction_score'],1).'/5' : '—' ?></td>
+              <td><?= $a['avg_kpi'] ? '<strong>'.number_format($a['avg_kpi'],2).'</strong>' : 'No data' ?></td>
+              <td><?= $a['satisfaction_score'] !== null && $a['satisfaction_score'] !== '' ? number_format($a['satisfaction_score'],1).'/5' : 'No data' ?></td>
             </tr>
             <?php endforeach; endif; ?>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Completed Activity Performance Details -->
+    <?php
+    $completedDetails = array_filter($activities, fn($a) => $a['status'] === 'completed');
+    ?>
+    <div class="card report-section" style="margin-top:20px; page-break-inside:avoid;">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>6. Completed Activity Performance Details</h2>
+        <span class="badge badge-dark"><?= count($completedDetails) ?> Completed</span>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <?php if (empty($completedDetails)): ?>
+          <div style="padding:24px; text-align:center; color:var(--text-muted); font-size:0.88rem;">
+            No completed activities recorded for the selected filter criteria.
+          </div>
+        <?php else: ?>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Activity Title</th>
+                  <th>Proponent</th>
+                  <th>Date</th>
+                  <th>Target Att.</th>
+                  <th>Actual Att.</th>
+                  <th>Turnout Rate</th>
+                  <th>KPI Score</th>
+                  <th>Satisfaction</th>
+                  <th>Post-Event Recommendations</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach (array_values($completedDetails) as $ci => $ca):
+                  $cAttPct = $ca['target_attendance'] > 0 ? round(($ca['actual_attendance'] / $ca['target_attendance']) * 100, 1) : null;
+                ?>
+                <tr>
+                  <td class="text-muted"><?= $ci + 1 ?></td>
+                  <td><strong><?= htmlspecialchars($ca['title']) ?></strong>
+                    <?php if ($ca['venue']): ?><br><span class="text-sm text-muted"><?= htmlspecialchars($ca['venue']) ?></span><?php endif; ?>
+                  </td>
+                  <td><?= htmlspecialchars($ca['faculty_name']) ?></td>
+                  <td><?= $ca['event_date'] ? date('M j, Y', strtotime($ca['event_date'])) : '—' ?></td>
+                  <td><?= $ca['target_attendance'] !== null ? $ca['target_attendance'] : 'No data' ?></td>
+                  <td><?= $ca['actual_attendance'] !== null ? $ca['actual_attendance'] : 'No data' ?></td>
+                  <td>
+                    <?php if ($cAttPct !== null): ?>
+                      <strong style="color:<?= $cAttPct>=90?'#16A34A':($cAttPct>=70?'#D97706':'#DC2626') ?>;"><?= $cAttPct ?>%</strong>
+                    <?php else: ?>No data<?php endif; ?>
+                  </td>
+                  <td><?= $ca['avg_kpi'] ? '<strong>'.number_format($ca['avg_kpi'], 2).'</strong>' : 'No data' ?></td>
+                  <td><?= $ca['satisfaction_score'] !== null && $ca['satisfaction_score'] !== '' ? '<strong>'.number_format($ca['satisfaction_score'], 1).'/5</strong>' : 'No data' ?></td>
+                  <td class="text-sm" style="max-width:280px;"><?= htmlspecialchars($ca['recommendations'] ?? 'No data') ?></td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <!-- 7. Data-Based Institutional Findings & Recommended Follow-Up Actions -->
+    <div class="card report-section" style="margin-top:20px; page-break-inside:avoid;">
+      <div class="card-header">
+        <h2>7. Institutional Findings & Recommended Follow-Up Actions</h2>
+      </div>
+      <div class="card-body" style="padding:20px 22px;">
+        <?php if ($total === 0): ?>
+          <p style="font-size:0.88rem; color:var(--text-muted); margin:0; line-height:1.5;">
+            No activity records match the selected filter criteria for <strong><?= $filterYear ?></strong>. Adjust the filters above to inspect institutional performance records.
+          </p>
+        <?php else: ?>
+          <div style="margin-bottom:18px;">
+            <strong style="display:block; font-size:0.92rem; color:var(--text-main); margin-bottom:8px;">A. Data-Based Institutional Findings</strong>
+            <ul style="font-size:0.86rem; color:var(--text-muted); margin:0; padding-left:20px; line-height:1.65;">
+              <li>
+                <strong>Activity Pipeline & Execution:</strong> A total of <strong><?= $total ?></strong> <?= $total === 1 ? 'activity is' : 'activities are' ?> recorded for year <strong><?= $filterYear ?></strong>. Currently, <strong><?= $completedCount ?></strong> (<?= $total > 0 ? round(($completedCount/$total)*100, 1) : 0 ?>%) is completed, <strong><?= $approvedCount ?></strong> (<?= $total > 0 ? round(($approvedCount/$total)*100, 1) : 0 ?>%) is approved and queued for execution, <strong><?= $returnedCount ?></strong> (<?= $total > 0 ? round(($returnedCount/$total)*100, 1) : 0 ?>%) is under revision, and <strong><?= $rejectedCount ?></strong> (<?= $total > 0 ? round(($rejectedCount/$total)*100, 1) : 0 ?>%) is rejected.
+              </li>
+              <li>
+                <strong>Channel Distribution:</strong>
+                <?php foreach ($sourceBreakdown as $sb): ?>
+                  <?= htmlspecialchars($sb['label']) ?> accounts for <strong><?= $sb['total'] ?></strong> event(s) with <strong><?= $sb['completed'] ?></strong> completed (<?= $sb['completion_rate'] ?> completion rate);
+                <?php endforeach; ?>
+              </li>
+              <li>
+                <strong>Turnout & Participation:</strong>
+                <?php if ($totalTarget > 0): ?>
+                  Overall attendance turnout reached <strong><?= $attendanceRate ?></strong> across events with registered participant targets (<?= $totalAtt ?> actual of <?= $totalTarget ?> targeted participants).
+                <?php else: ?>
+                  Attendance targets and participant turnout records have not yet been logged for the filtered activities.
+                <?php endif; ?>
+              </li>
+              <li>
+                <strong>Evaluation & Quality Scoring:</strong>
+                <?php if ($evaluatedKpiCount > 0): ?>
+                  Evaluated events achieved an average KPI score of <strong><?= number_format($avgKpi, 2) ?>/4.0</strong>.
+                <?php else: ?>
+                  Formal KPI rubrics are currently pending submission for the recorded activities (recorded as "No data").
+                <?php endif; ?>
+                <?php if ($satisfactionCount > 0): ?>
+                  Participant satisfaction averaged <strong><?= number_format($avgSat, 1) ?>/5.0</strong> across activities with recorded feedback.
+                <?php else: ?>
+                  Participant satisfaction scores are pending post-event submission.
+                <?php endif; ?>
+              </li>
+            </ul>
+          </div>
+
+          <div style="border-top:1px solid var(--border); padding-top:16px;">
+            <strong style="display:block; font-size:0.92rem; color:var(--text-main); margin-bottom:8px;">B. Recommended Follow-Up Actions</strong>
+            <ul style="font-size:0.86rem; color:var(--text-muted); margin:0; padding-left:20px; line-height:1.65;">
+              <?php if ($approvedCount > 0): ?>
+                <li>
+                  <strong>Upcoming Approved Activities (<?= $approvedCount ?>):</strong> Coordinate with responsible faculty organizers to ensure logistics, venue bookings, and attendance sheets are prepared prior to scheduled event dates.
+                </li>
+              <?php endif; ?>
+              <?php if ($returnedCount > 0): ?>
+                <li>
+                  <strong>Revision Follow-Up (<?= $returnedCount ?>):</strong> Prompt proponents of returned proposals to address reviewer comments and resubmit updated plans in STI-ARMES.
+                </li>
+              <?php endif; ?>
+              <li>
+                <strong>Post-Event Evaluation Compliance:</strong> Follow up on completed activities without submitted evaluation rubrics to collect participant feedback and finalize official documentation within the required window.
+              </li>
+              <li>
+                <strong>Institutional Audit:</strong> Continue routine monitoring of activity timelines and resource utilization through the Dean and Academic Administration dashboards.
+              </li>
+            </ul>
+          </div>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <!-- 8. Formal Sign-Off and Print Footer -->
+    <div class="report-section" style="margin-top:24px; page-break-inside:avoid;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px; margin-top:16px; margin-bottom:16px; padding:16px 20px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);">
+        <div>
+          <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:700; margin-bottom:24px;">Prepared by:</div>
+          <div style="font-weight:700; color:var(--text-main); font-size:0.92rem;"><?= htmlspecialchars($user['name']) ?></div>
+          <div style="font-size:0.8rem; color:var(--text-muted);"><?= ucfirst($user['role']) ?>, STI College Marikina</div>
+        </div>
+        <div>
+          <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:700; margin-bottom:24px;">Noted by:</div>
+          <div style="font-weight:700; color:var(--text-main); font-size:0.92rem;">Office of the Academic Head</div>
+          <div style="font-size:0.8rem; color:var(--text-muted);">STI College Marikina</div>
+        </div>
+      </div>
+      <div class="report-print-footer">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-top:1.5px solid #CBD5E1; padding-top:8px; font-size:8pt; color:#64748B;">
+          <span>STI College Marikina · Institutional Activity Performance and Compliance Report</span>
+          <span>Reporting Year: CY <?= $filterYear ?> · Confidential Institutional Document</span>
         </div>
       </div>
     </div>
@@ -1327,7 +2005,7 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
     $withRecs = array_filter($activities, fn($a) => !empty($a['avg_kpi']) && $a['avg_kpi'] < 2.5);
     if (!empty($withRecs)):
     ?>
-    <div class="card" style="margin-top:20px;">
+    <div class="card no-print" style="margin-top:20px;">
       <div class="card-header"><h2>⚠️ Events Needing Attention (KPI &lt; 2.5)</h2></div>
       <div class="card-body" style="padding:0;">
         <table>
@@ -1364,7 +2042,7 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
     } catch (Exception $e) {}
     if ($yearInsights):
     ?>
-    <div class="card report-section" style="margin-top:20px; page-break-inside:avoid;">
+    <div class="card report-section no-print" style="margin-top:20px; page-break-inside:avoid;">
       <div class="card-header"><h2>🤖 AI Institutional Insights — Year: <?= $filterYear ?> (Advisory Only)</h2></div>
       <div class="card-body">
         <div style="margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--border);">
@@ -1406,5 +2084,10 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
 
   </div>
 </div>
+<script>
+function exportReportToPdf() {
+  window.print();
+}
+</script>
 </body>
 </html>

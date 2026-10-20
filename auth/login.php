@@ -113,10 +113,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_SESSION['login_throttle'][$throttleKey] = $throttleData;
   }
 }
-$timeout = isset($_GET['timeout']);
+$timeout = false;
+if (isset($_GET['timeout'])) {
+  if (empty($_SESSION['shown_timeout'])) {
+    $timeout = true;
+    $_SESSION['shown_timeout'] = true;
+  }
+} else {
+  unset($_SESSION['shown_timeout']);
+}
 
-if (empty($error) && isset($_GET['error'])) {
-  $errCode = (string)$_GET['error'];
+// Flash message handler for OAuth errors
+if (empty($error)) {
   $errorMap = [
     'microsoft_account_not_found' => 'Your Microsoft account is not registered in the system. Please contact your administrator.',
     'microsoft_oauth_failed'      => 'Microsoft authentication was cancelled or encountered an error. Please try again.',
@@ -124,7 +132,25 @@ if (empty($error) && isset($_GET['error'])) {
     'missing_email'               => 'Unable to retrieve an email address from your Microsoft profile.',
     'missing_config'              => 'Microsoft login is not currently configured on this server.',
   ];
-  $error = $errorMap[$errCode] ?? htmlspecialchars($errCode);
+
+  if (isset($_GET['error'])) {
+    $errCode = (string)$_GET['error'];
+    // Display error once, then mark as flashed in session
+    if (empty($_SESSION['shown_oauth_error']) || $_SESSION['shown_oauth_error'] !== $errCode) {
+      $error = $errorMap[$errCode] ?? htmlspecialchars($errCode);
+      $_SESSION['shown_oauth_error'] = $errCode;
+    } else {
+      // Re-requesting the same error parameter on refresh: suppress and clear
+      unset($_SESSION['shown_oauth_error']);
+    }
+  } elseif (!empty($_SESSION['flash_error'])) {
+    $errCode = (string)$_SESSION['flash_error'];
+    $error = $errorMap[$errCode] ?? htmlspecialchars($errCode);
+    unset($_SESSION['flash_error']);
+  } else {
+    // Normal visit without error parameter: ensure flash state is reset
+    unset($_SESSION['shown_oauth_error']);
+  }
 }
 ?>
 <!DOCTYPE html>
@@ -139,7 +165,7 @@ if (empty($error) && isset($_GET['error'])) {
   <!-- Load Font Awesome 6.4.0 -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <!-- Load App Custom CSS -->
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=<?= filemtime(__DIR__ . '/../assets/css/main.css') ?>">
   
   <style>
     :root {
@@ -169,22 +195,26 @@ if (empty($error) && isset($_GET['error'])) {
     .auth-page-body {
       width: 100%;
       max-width: 390px;
+      margin: auto;
     }
 
     .auth-card {
       background: var(--card-bg);
       border-radius: var(--radius-md, 12px);
       box-shadow: 0 20px 40px rgba(10, 22, 40, 0.25);
-      padding: 40px 32px;
+      padding: 38px 28px !important;
       border: 1px solid var(--border-color);
     }
 
     .auth-brand {
       font-family: 'Syne', sans-serif;
-      font-size: 2.2rem;
+      font-size: clamp(1.75rem, 8vw, 2.1rem);
       font-weight: 800;
       letter-spacing: -0.02em;
       color: var(--sti-navy, #0A1628);
+      white-space: nowrap;
+      display: inline-block;
+      line-height: 1.15;
     }
 
     .auth-brand span {
@@ -269,7 +299,7 @@ if (empty($error) && isset($_GET['error'])) {
       background: var(--primary-color);
       border: none;
       border-radius: var(--radius-sm, 6px);
-      padding: 11px 16px;
+      padding: 10px 16px;
       font-family: 'Plus Jakarta Sans', sans-serif;
       font-size: 0.92rem;
       font-weight: 700;
@@ -301,10 +331,10 @@ if (empty($error) && isset($_GET['error'])) {
       align-items: center;
       text-align: center;
       color: var(--text-muted);
-      font-size: 0.75rem;
+      font-size: 0.78rem;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
+      margin: 18px 0;
     }
 
     .auth-divider::before,
@@ -315,57 +345,58 @@ if (empty($error) && isset($_GET['error'])) {
     }
 
     .auth-divider:not(:empty)::before {
-      margin-right: 1rem;
+      margin-right: 0.75rem;
     }
 
     .auth-divider:not(:empty)::after {
-      margin-left: 1rem;
-    }
-
-    .auth-oauth-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-
-    .auth-oauth-btn {
-      background: #ffffff;
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm, 6px);
-      padding: 10px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--text-main);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-
-    .auth-oauth-btn:hover {
-      background: var(--bg-base, #F8FAFD);
-      border-color: #cbd5e1;
+      margin-left: 0.75rem;
     }
 
     #btnMicrosoftLogin {
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm, 6px);
-      font-weight: 600;
-      font-size: 0.85rem;
-      color: var(--sti-navy, #0A1628);
       background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: var(--radius-sm, 6px);
+      padding: 10px 16px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: #24292f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
       text-decoration: none;
-      transition: all 0.2s ease;
-      box-shadow: var(--shadow-sm);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
     }
 
     #btnMicrosoftLogin:hover {
-      background: var(--bg-base, #F8FAFD);
-      border-color: #cbd5e1;
-      color: var(--sti-navy, #0A1628);
+      background-color: #f8fafc;
+      border-color: #8c8c8c;
+      color: #0f172a;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
       transform: translateY(-1px);
-      box-shadow: var(--shadow);
+      text-decoration: none;
+    }
+
+    #btnMicrosoftLogin:focus-visible,
+    #btnMicrosoftLogin:focus {
+      outline: none;
+      border-color: #0078d4;
+      box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.25);
+    }
+
+    #btnMicrosoftLogin:active {
+      background-color: #f1f5f9;
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    #btnMicrosoftLogin svg {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
     }
 
     .alert {
@@ -442,10 +473,10 @@ if (empty($error) && isset($_GET['error'])) {
 <body>
   <div class="auth-page-body" data-label-id="0">
     <main class="auth-card auth-form-container">
-      <header class="mb-4 text-center">
+      <header class="mb-3 text-center">
         <!-- Brand Title and Subtitle -->
-        <h1 class="auth-brand mb-1"><span>STI</span>-ARMES</h1>
-        <p class="auth-tagline mb-1 small">Activity Request, Monitoring, and Evaluation System</p>
+        <h1 class="auth-brand mb-1"><span>STI</span>&#8209;ARMES</h1>
+        <p class="auth-tagline mb-0 small">Activity Request, Monitoring, and Evaluation System</p>
       </header>
 
       <?php if ($error): ?>
@@ -457,7 +488,7 @@ if (empty($error) && isset($_GET['error'])) {
 
       <form novalidate="" class="" method="POST" id="loginForm">
         <!-- Email Input -->
-        <div class="mb-2">
+        <div class="mb-3">
           <label class="fw-bold small mb-1 form-label" for="loginEmail">Email</label>
           <input autocomplete="email" type="email" id="loginEmail" name="email" class="form-control" placeholder="you@sti.edu" required value="">
         </div>
@@ -476,28 +507,24 @@ if (empty($error) && isset($_GET['error'])) {
           </div>
         </div>
 
-
-
-        <!-- Sign In Button -->
-        <button type="submit" aria-busy="false" class="auth-submit w-100 btn btn-primary">Sign In</button>
+        <!-- Primary Sign In Button -->
+        <button type="submit" id="btnSignIn" aria-busy="false" class="auth-submit w-100 btn btn-primary">Sign In</button>
       </form>
 
-      <!-- OAuth Separator -->
-      <div class="d-flex align-items-center my-3">
-        <hr class="flex-grow-1 my-0" style="border-color: #e5e7eb;">
-        <span class="px-2 text-muted small" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">or</span>
-        <hr class="flex-grow-1 my-0" style="border-color: #e5e7eb;">
+      <!-- Centered "or" Divider -->
+      <div class="auth-divider">
+        <span>or</span>
       </div>
 
-      <!-- Sign in with Microsoft Button -->
-      <a href="<?= BASE_URL ?>/auth/microsoft-login.php" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2 py-2" id="btnMicrosoftLogin">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 21 21">
+      <!-- Secondary Sign in with Microsoft Button -->
+      <a href="<?= BASE_URL ?>/auth/microsoft-login.php" id="btnMicrosoftLogin" class="btn w-100" role="button" aria-label="Sign in with Microsoft">
+        <svg class="me-2" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 21 21" aria-hidden="true" focusable="false">
           <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
           <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
           <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
           <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
         </svg>
-        Sign in with Microsoft
+        <span>Sign in with Microsoft</span>
       </a>
 
     </main>
@@ -526,6 +553,27 @@ if (empty($error) && isset($_GET['error'])) {
           togglePasswordBtn.setAttribute('aria-pressed', 'true');
         }
       });
+    }
+
+    // Space key activation for Microsoft Sign-In button (WAI-ARIA button pattern)
+    const btnMicrosoftLogin = document.getElementById('btnMicrosoftLogin');
+    if (btnMicrosoftLogin) {
+      btnMicrosoftLogin.addEventListener('keydown', function (e) {
+        if (e.key === ' ' || e.key === 'Spacebar') {
+          e.preventDefault();
+          btnMicrosoftLogin.click();
+        }
+      });
+    }
+
+    // Clean stale error and timeout query parameters from the browser address bar
+    if (window.history && window.history.replaceState) {
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.searchParams.has('error') || currentUrl.searchParams.has('timeout')) {
+        currentUrl.searchParams.delete('error');
+        currentUrl.searchParams.delete('timeout');
+        window.history.replaceState({}, document.title, currentUrl.pathname + (currentUrl.search || ''));
+      }
     }
   </script>
 </body>

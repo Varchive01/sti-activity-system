@@ -61,6 +61,41 @@ if (!empty($missingFields)) {
     exit;
 }
 
+// Authoritative meaningful-input validation before AI analysis
+require_once __DIR__ . '/../includes/meaningful_validation.php';
+$meaningfulCheck = validateProposalMeaningfulInput($input, true);
+if (!$meaningfulCheck['valid']) {
+    $failedLabels = [];
+    $fieldLabelMap = [
+        'title'                => 'Activity Title',
+        'venue'                => 'Venue',
+        'venue_address'        => 'Venue Address',
+        'theme'                => 'Theme',
+        'general_objectives'   => 'General Objectives',
+        'specific_objectives'  => 'Specific Objectives',
+        'involved_subjects'    => 'Involved Subjects',
+        'rationale'            => 'Rationale',
+        'floor_plan_notes'     => 'Floor Plan Notes',
+        'guidelines_mechanics' => 'Guidelines / Mechanics',
+        'guidelines_criteria'  => 'Judging Criteria',
+        'guidelines_scoring'   => 'Scoring System',
+        'guidelines_awards'    => 'Special Awards',
+        'description'          => 'Activity Description'
+    ];
+    foreach ($meaningfulCheck['errors'] as $fKey => $errMsg) {
+        $lbl = $fieldLabelMap[$fKey] ?? ucwords(str_replace('_', ' ', $fKey));
+        $failedLabels[] = "{$lbl}: {$errMsg}";
+    }
+
+    echo json_encode([
+        'success'           => false,
+        'validation_passed' => false,
+        'error'             => 'One or more fields contain insufficient or meaningless text. Please provide substantive information.',
+        'missing_fields'    => $failedLabels
+    ]);
+    exit;
+}
+
 try {
     if (session_status() === PHP_SESSION_NONE) {
         session_start();

@@ -98,6 +98,16 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
   outline-offset: 2px;
 }
 
+.topbar-profile .topbar-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+}
+
 .topbar-profile .topbar-avatar {
   width: 38px;
   height: 38px;
@@ -115,6 +125,48 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   overflow: hidden;
   position: relative;
+}
+
+.topbar-profile .topbar-avatar-indicator {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--bg-card, #ffffff);
+  border: 1.5px solid var(--border, #E2E8F0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main, #334155);
+  pointer-events: none;
+  z-index: 2;
+  transition: transform 0.2s ease, border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.topbar-profile .topbar-avatar-indicator svg {
+  width: 7.5px;
+  height: 7.5px;
+  display: block;
+  stroke: currentColor;
+  transition: transform 0.2s ease;
+}
+
+.topbar-profile:hover .topbar-avatar-indicator {
+  border-color: var(--sti-blue, #0284C7);
+  color: var(--sti-blue, #0284C7);
+}
+
+.topbar-profile[aria-expanded="true"] .topbar-avatar-indicator {
+  border-color: var(--sti-blue, #0284C7);
+  background: var(--sti-blue-lt, #E0F2FE);
+  color: var(--sti-blue, #0284C7);
+}
+
+.topbar-profile[aria-expanded="true"] .topbar-avatar-indicator svg {
+  transform: rotate(180deg);
 }
 
 .topbar-profile .topbar-avatar-img {
@@ -663,6 +715,18 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
 [data-theme="dark"] .topbar-profile:focus-visible {
   outline-color: var(--sti-blue, #0284C7);
 }
+[data-theme="dark"] .topbar-profile .topbar-avatar-indicator {
+  background: var(--bg-card, #0F1B2E);
+  border-color: var(--border, #1E2D45);
+  color: var(--text-main, #F8FAFC);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+[data-theme="dark"] .topbar-profile:hover .topbar-avatar-indicator,
+[data-theme="dark"] .topbar-profile[aria-expanded="true"] .topbar-avatar-indicator {
+  border-color: var(--sti-blue-hover, #38BDF8);
+  color: var(--sti-blue-hover, #38BDF8);
+  background: var(--bg-base, #070E18);
+}
 [data-theme="dark"] .topbar-profile-popover {
   background: var(--bg-card, #0F1B2E);
   border-color: var(--border, #1E2D45);
@@ -735,12 +799,19 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
 <div class="topbar-profile-wrapper" id="topbarProfileWrapper">
   <!-- Profile Trigger -->
   <div class="topbar-profile" id="topbarProfile" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false" title="Account settings for <?= htmlspecialchars($uName) ?>">
-    <div class="topbar-avatar" id="topbarAvatar">
-      <?php if (!empty($uPic)): ?>
-        <img src="<?= $baseUrl ?>/api/profile-avatar.php?id=<?= $uId ?>" alt="<?= htmlspecialchars($uName) ?>" class="topbar-avatar-img" id="topbarAvatarImg">
-      <?php else: ?>
-        <span class="topbar-avatar-initial" id="topbarAvatarInitial"><?= htmlspecialchars($uInitial) ?></span>
-      <?php endif; ?>
+    <div class="topbar-avatar-wrap">
+      <div class="topbar-avatar" id="topbarAvatar">
+        <?php if (!empty($uPic)): ?>
+          <img src="<?= $baseUrl ?>/api/profile-avatar.php?id=<?= $uId ?>" alt="<?= htmlspecialchars($uName) ?>" class="topbar-avatar-img" id="topbarAvatarImg">
+        <?php else: ?>
+          <span class="topbar-avatar-initial" id="topbarAvatarInitial"><?= htmlspecialchars($uInitial) ?></span>
+        <?php endif; ?>
+      </div>
+      <span class="topbar-avatar-indicator" id="topbarAvatarIndicator" aria-hidden="true">
+        <svg viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 1.2l4 3.6 4-3.6"/>
+        </svg>
+      </span>
     </div>
     <div class="topbar-user-info">
       <span class="topbar-user-name" id="topbarUserName" title="<?= htmlspecialchars($uName) ?>"><?= htmlspecialchars($uName) ?></span>

@@ -31,6 +31,9 @@ if (!$configCheck['valid']) {
     exit;
 }
 
+// Clear any previous error flash state when initiating a new login attempt
+unset($_SESSION['shown_oauth_error'], $_SESSION['flash_error']);
+
 // Generate secure CSRF state token and store in session
 $state = $oauthService->generateState();
 $_SESSION['microsoft_oauth_state'] = $state;

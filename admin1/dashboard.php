@@ -153,7 +153,7 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
     [data-theme="dark"] .sidebar-nav a.active,
     [data-theme="dark"] aside.sidebar.theme-arjay .sidebar-nav a.active {
-      background: var(--accent, #38BDF8) !important;
+      background: #0284C7 !important;
       color: #fff !important;
     }
 

@@ -18,24 +18,35 @@ $db   = getDB();
 $userQuery = $db->query("SELECT id, name, email, role, department, created_at FROM users ORDER BY created_at DESC, id ASC");
 $userList  = $userQuery->fetchAll(PDO::FETCH_ASSOC);
 
+$deanCount = 0;
+foreach ($userList as $item) {
+    if ($item['role'] === 'dean') {
+        $deanCount++;
+    }
+}
+
 // Friendly Error Messages
 $errorMessage = '';
 if (isset($_GET['error'])) {
     $errCode = $_GET['error'];
     $errorMap = [
-        'duplicate_email'          => 'An account with this email address already exists. Please use a unique email.',
-        'missing_name'             => 'Full Name is required.',
-        'invalid_email'            => 'Please provide a valid email address.',
-        'missing_password'         => 'Default password is required.',
-        'invalid_password'         => 'Password must be at least 6 characters long.',
-        'forbidden_role'           => 'You are not authorized to assign or create this role.',
-        'forbidden_target'         => 'You are not authorized to modify this user account.',
-        'forbidden_self_demotion'  => 'You cannot modify your own role.',
-        'forbidden_role_change'    => 'You are not authorized to change this user to that role.',
-        'invalid_role'             => 'The requested role is invalid.',
-        'user_not_found'           => 'The specified user account was not found.',
-        'database_error'           => 'A database error occurred. Please try again.',
-        'invalid_method'           => 'Invalid request method.',
+        'duplicate_email'           => 'An account with this email address already exists. Please use a unique email.',
+        'missing_name'              => 'Full Name is required.',
+        'invalid_email'             => 'Please provide a valid email address.',
+        'missing_password'          => 'Default password is required.',
+        'invalid_password'          => 'Password must be at least 6 characters long.',
+        'forbidden_role'            => 'You are not authorized to assign or create this role.',
+        'forbidden_target'          => 'You are not authorized to modify or delete this user account.',
+        'forbidden_self_demotion'   => 'You cannot modify your own role.',
+        'forbidden_self_deletion'   => 'You cannot delete your own account.',
+        'forbidden_last_dean'       => 'Cannot delete the last remaining Dean account.',
+        'user_has_activity_history' => 'Cannot delete user account: This account has historical activity records, approval logs, or task assignments. Account history must be preserved for audit and compliance integrity.',
+        'forbidden_role_change'     => 'You are not authorized to change this user to that role.',
+        'invalid_role'              => 'The requested role is invalid.',
+        'invalid_user'              => 'Target user ID is missing or invalid.',
+        'user_not_found'            => 'The specified user account was not found.',
+        'database_error'            => 'A database error occurred. Please try again.',
+        'invalid_method'            => 'Invalid request method.',
     ];
     $errorMessage = $errorMap[$errCode] ?? 'An unexpected error occurred. Please try again.';
 }
@@ -62,6 +73,92 @@ $csrfToken = generateCsrfToken();
   </script>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    .btn-action-danger:hover {
+      background: rgba(220, 38, 38, 0.08) !important;
+      color: var(--danger, #DC2626) !important;
+      border-color: var(--danger, #DC2626) !important;
+      box-shadow: 0 2px 6px rgba(220, 38, 38, 0.15);
+    }
+
+    /* ── Info Notice Banner (Delete Modal & Reset Password Modal) ── */
+    .delete-audit-notice,
+    .um-modal-info-banner {
+      background: rgba(2, 132, 199, 0.08);
+      border: 1px solid rgba(2, 132, 199, 0.28);
+      color: #0369A1;
+      padding: 11px 14px;
+      border-radius: var(--radius-sm, 8px);
+      font-size: 0.8rem;
+      line-height: 1.45;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .delete-audit-notice i,
+    .um-modal-info-banner i {
+      color: var(--sti-blue, #0284C7);
+      font-size: 0.95rem;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .delete-audit-notice strong,
+    .um-modal-info-banner strong {
+      color: #0A1628;
+    }
+
+    [data-theme="dark"] .delete-audit-notice,
+    [data-theme="dark"] .um-modal-info-banner {
+      background: rgba(2, 132, 199, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.32);
+      color: #BAE6FD;
+    }
+    [data-theme="dark"] .delete-audit-notice i,
+    [data-theme="dark"] .um-modal-info-banner i {
+      color: #38BDF8;
+    }
+    [data-theme="dark"] .delete-audit-notice strong,
+    [data-theme="dark"] .um-modal-info-banner strong {
+      color: #F0F9FF;
+    }
+
+    /* ── Modal Cancel Button (Add, Edit, Delete & Reset Modals) ── */
+    #btnCancelAddUser,
+    #btnCancelEditUser,
+    #btnCancelDeleteUser,
+    #btnCancelResetPassword {
+      background: #F1F5F9;
+      border: 1.5px solid #CBD5E1;
+      color: #334155;
+      font-weight: 500;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #btnCancelAddUser:hover,
+    #btnCancelEditUser:hover,
+    #btnCancelDeleteUser:hover,
+    #btnCancelResetPassword:hover {
+      background: #E2E8F0;
+      border-color: #94A3B8;
+      color: #0F172A;
+    }
+
+    [data-theme="dark"] #btnCancelAddUser,
+    [data-theme="dark"] #btnCancelEditUser,
+    [data-theme="dark"] #btnCancelDeleteUser,
+    [data-theme="dark"] #btnCancelResetPassword {
+      background: #18263B;
+      border: 1.5px solid #283C5A;
+      color: #F1F5F9;
+    }
+    [data-theme="dark"] #btnCancelAddUser:hover,
+    [data-theme="dark"] #btnCancelEditUser:hover,
+    [data-theme="dark"] #btnCancelDeleteUser:hover,
+    [data-theme="dark"] #btnCancelResetPassword:hover {
+      background: #20334E;
+      border-color: #3B5278;
+      color: #FFFFFF;
+    }
+  </style>
 </head>
 <body class="<?= htmlspecialchars($themeClass ?? 'theme-dean') ?>">
   <?php include __DIR__ . '/sidebar.php'; ?>
@@ -111,6 +208,13 @@ $csrfToken = generateCsrfToken();
         </div>
       <?php endif; ?>
 
+      <?php if (isset($_GET['deleted']) && $_GET['deleted'] === '1'): ?>
+        <div class="alert alert-success" style="margin-bottom:20px;">
+          <i class="fa-solid fa-circle-check"></i>
+          <div><strong>Success:</strong> User account deleted successfully!</div>
+        </div>
+      <?php endif; ?>
+
       <?php if ($errorMessage): ?>
         <div class="alert alert-danger" style="margin-bottom:20px;">
           <i class="fa-solid fa-triangle-exclamation"></i>
@@ -155,18 +259,27 @@ $csrfToken = generateCsrfToken();
                       $roleLabel = $roleLabels[$roleKey] ?? ucfirst($roleKey);
                       $badgeClass = 'role-' . $roleKey;
 
-                      // Authority check for editing & resetting password:
-                      // Dean can edit Faculty, Admin1, Admin2 (and edit own name/dept, but not own role).
-                      // Admin2 can ONLY edit Faculty accounts.
+                      // Authority check for editing, resetting password, and deleting:
+                      // Dean can edit/reset Faculty, Admin1, Admin2 (and edit own name/dept, but not own role).
+                      // Admin2 can ONLY edit/reset/delete Faculty accounts.
+                      // Self-deletion and deletion of last Dean are prohibited.
+                      $isSelf = ((int)$u['id'] === (int)$user['id']);
                       $canEdit = false;
                       $canResetPassword = false;
+                      $canDelete = false;
 
                       if ($user['role'] === 'dean') {
                           $canEdit = true;
-                          $canResetPassword = ($u['role'] !== 'dean' || (int)$u['id'] === (int)$user['id']);
+                          $canResetPassword = ($u['role'] !== 'dean' || $isSelf);
+                          if (!$isSelf) {
+                              $canDelete = ($u['role'] !== 'dean' || $deanCount > 1);
+                          }
                       } elseif ($user['role'] === 'admin2') {
                           $canEdit = ($u['role'] === 'faculty');
                           $canResetPassword = ($u['role'] === 'faculty');
+                          if (!$isSelf) {
+                              $canDelete = ($u['role'] === 'faculty');
+                          }
                       }
                     ?>
                     <tr>
@@ -201,7 +314,14 @@ $csrfToken = generateCsrfToken();
                             </button>
                           <?php endif; ?>
 
-                          <?php if (!$canEdit && !$canResetPassword): ?>
+                          <?php if ($canDelete): ?>
+                            <button type="button" class="btn-action btn-action-danger" id="btnDeleteUser_<?= (int)$u['id'] ?>"
+                              onclick="openDeleteModal(<?= (int)$u['id'] ?>, '<?= htmlspecialchars(addslashes($u['name']), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($u['email']), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($roleLabel, ENT_QUOTES, 'UTF-8') ?>')">
+                              <i class="fa-regular fa-trash-can" style="color:var(--danger, #DC2626);"></i> Delete
+                            </button>
+                          <?php endif; ?>
+
+                          <?php if (!$canEdit && !$canResetPassword && !$canDelete): ?>
                             <span class="badge-restricted" id="restrictedBadge_<?= (int)$u['id'] ?>"><i class="fa-solid fa-lock me-1"></i> Restricted</span>
                           <?php endif; ?>
                         </div>
@@ -279,7 +399,7 @@ $csrfToken = generateCsrfToken();
           <div class="form-group">
             <label for="add_password">Default Password <span style="color:var(--danger, #DC2626);">*</span></label>
             <input type="password" name="password" id="add_password" class="form-control" placeholder="Minimum 6 characters" minlength="6" required autocomplete="new-password">
-            <div class="um-callout-warning" style="margin-top:8px;">
+            <div class="um-modal-info-banner" style="margin-top:8px;">
               <i class="fa-solid fa-circle-info me-1"></i>
               <span>The user will be required to change this password upon first login.</span>
             </div>
@@ -287,7 +407,7 @@ $csrfToken = generateCsrfToken();
         </div>
 
         <div class="um-modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('addModalBackdrop')">Cancel</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelAddUser" onclick="closeModal('addModalBackdrop')">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btnSubmitAddUser">
             <i class="fa-solid fa-check me-1"></i> Create User
           </button>
@@ -359,7 +479,7 @@ $csrfToken = generateCsrfToken();
         </div>
 
         <div class="um-modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('editModalBackdrop')">Cancel</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelEditUser" onclick="closeModal('editModalBackdrop')">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btnSubmitEditUser">
             <i class="fa-solid fa-floppy-disk me-1"></i> Save Changes
           </button>
@@ -389,7 +509,7 @@ $csrfToken = generateCsrfToken();
           <div class="form-group">
             <label for="reset_new_password">New Default Password <span style="color:var(--danger, #DC2626);">*</span></label>
             <input type="password" name="new_password" id="reset_new_password" class="form-control" placeholder="Minimum 6 characters" minlength="6" required autocomplete="new-password">
-            <div class="um-callout-warning" style="margin-top:8px;">
+            <div class="um-modal-info-banner" style="margin-top:8px;">
               <i class="fa-solid fa-triangle-exclamation me-1"></i>
               <span>The user will be required to change this password on their next login.</span>
             </div>
@@ -397,9 +517,50 @@ $csrfToken = generateCsrfToken();
         </div>
 
         <div class="um-modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('resetModalBackdrop')">Cancel</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelResetPassword" onclick="closeModal('resetModalBackdrop')">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btnSubmitResetPassword">
             <i class="fa-solid fa-key me-1"></i> Set Default Password
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── 4. DELETE USER CONFIRMATION MODAL ── -->
+  <div class="um-modal-backdrop" id="deleteModalBackdrop" onclick="handleBackdropClick(event, 'deleteModalBackdrop')">
+    <div class="um-modal" role="dialog" aria-labelledby="deleteModalTitle" aria-modal="true">
+      <div class="um-modal-header" style="border-bottom:1px solid var(--border);">
+        <h3 id="deleteModalTitle" style="color:var(--danger, #DC2626);">
+          <i class="fa-solid fa-triangle-exclamation" style="color:var(--danger, #DC2626);"></i> Confirm User Deletion
+        </h3>
+        <button type="button" class="um-modal-close" onclick="closeModal('deleteModalBackdrop')" aria-label="Close modal">&times;</button>
+      </div>
+      <form method="POST" action="<?= BASE_URL ?>/api/user-delete.php" id="deleteUserForm">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+        <input type="hidden" name="redirect" value="<?= htmlspecialchars($_SERVER['REQUEST_URI'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+        <input type="hidden" name="user_id" id="delete_user_id" value="">
+
+        <div class="um-modal-body">
+          <div style="background:var(--bg-base); border:1px solid var(--border); border-radius:var(--radius-sm, 8px); padding:14px 16px; margin-bottom:18px;">
+            <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:var(--text-muted); margin-bottom:4px;">Target Account</div>
+            <strong id="delete_user_display" style="color:var(--text-main); font-size:0.95rem; display:block;"></strong>
+            <span id="delete_user_role_badge" class="role-badge" style="margin-top:6px; display:inline-block;"></span>
+          </div>
+
+          <p style="font-size:0.875rem; color:var(--text-main); line-height:1.5; margin-bottom:12px;">
+            Are you sure you want to permanently delete this user account?
+          </p>
+
+          <div class="delete-audit-notice" style="margin-top:8px;">
+            <i class="fa-solid fa-shield-halved me-1"></i>
+            <span><strong>Audit Protection:</strong> If this account has created proposals, logged approvals, or submitted tasks, deletion will be refused to preserve institutional compliance history.</span>
+          </div>
+        </div>
+
+        <div class="um-modal-footer">
+          <button type="button" class="btn btn-secondary" id="btnCancelDeleteUser" onclick="closeModal('deleteModalBackdrop')">Cancel</button>
+          <button type="submit" class="btn btn-danger" id="btnConfirmDeleteUser" style="background:var(--danger, #DC2626); border-color:var(--danger, #DC2626); color:#ffffff; font-weight:600;">
+            <i class="fa-solid fa-trash-can me-1"></i> Delete User
           </button>
         </div>
       </form>
@@ -469,6 +630,23 @@ $csrfToken = generateCsrfToken();
       }
     }
 
+    function openDeleteModal(userId, name, email, role) {
+      const form = document.getElementById('deleteUserForm');
+      if (form) form.reset();
+      document.getElementById('delete_user_id').value = userId;
+      document.getElementById('delete_user_display').innerText = name + ' (' + email + ')';
+      const roleBadge = document.getElementById('delete_user_role_badge');
+      if (roleBadge) {
+        roleBadge.innerText = role;
+        roleBadge.className = 'role-badge role-' + role.toLowerCase().replace(/\s+/g, '');
+      }
+      const modal = document.getElementById('deleteModalBackdrop');
+      if (modal) {
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+      }
+    }
+
     function closeModal(backdropId) {
       const modal = document.getElementById(backdropId);
       if (modal) {
@@ -495,6 +673,9 @@ $csrfToken = generateCsrfToken();
       } else if (h.startsWith('#reset_')) {
         const id = h.replace('#reset_', '');
         document.getElementById('btnResetPass_' + id)?.click();
+      } else if (h.startsWith('#delete_')) {
+        const id = h.replace('#delete_', '');
+        document.getElementById('btnDeleteUser_' + id)?.click();
       }
     }
     window.addEventListener('DOMContentLoaded', checkHash);

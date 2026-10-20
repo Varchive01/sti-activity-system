@@ -6,14 +6,77 @@ require_once __DIR__ . '/../includes/functions.php';
 requireRole('dean');
 $db = getDB();
 $year = (int)($_GET['year'] ?? date('Y'));
-$bySource = $db->query("SELECT a.source, AVG(k.rating) as avg, COUNT(DISTINCT a.id) as cnt FROM activities a LEFT JOIN kpi_evaluations k ON a.id=k.activity_id WHERE YEAR(a.event_date)=$year GROUP BY a.source")->fetchAll();
-try {
-    $topPerf = $db->query("SELECT a.title, a.event_date, u.name as fn, AVG(k.rating) as avg_kpi, pe.satisfaction_score, pe.actual_attendance, pe.target_attendance FROM activities a JOIN users u ON a.faculty_id=u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id LEFT JOIN post_event pe ON a.id=pe.activity_id WHERE YEAR(a.event_date)=$year AND a.status IN ('approved', 'completed') GROUP BY a.id HAVING avg_kpi IS NOT NULL ORDER BY avg_kpi DESC LIMIT 10")->fetchAll();
-} catch (PDOException $e) {
-    // Legacy schema where post_event columns are removed
-    $topPerf = $db->query("SELECT a.title, a.event_date, u.name as fn, AVG(k.rating) as avg_kpi, NULL AS satisfaction_score, NULL AS actual_attendance, NULL AS target_attendance FROM activities a JOIN users u ON a.faculty_id=u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id LEFT JOIN post_event pe ON a.id=pe.activity_id WHERE YEAR(a.event_date)=$year AND a.status IN ('approved', 'completed') GROUP BY a.id HAVING avg_kpi IS NOT NULL ORDER BY avg_kpi DESC LIMIT 10")->fetchAll();
+
+// All supported activity sources in STI-ARMES
+$supportedSources = [
+    'student_org' => 'Student Organization',
+    'faculty'     => 'Faculty'
+];
+
+// 1. KPI by Source (Eligible records: approved & completed activities for the selected year)
+$bySourceStmt = $db->prepare("
+    SELECT 
+        a.source, 
+        AVG(k.rating) as avg_kpi, 
+        COUNT(DISTINCT a.id) as cnt 
+    FROM activities a 
+    LEFT JOIN kpi_evaluations k ON a.id = k.activity_id 
+    WHERE YEAR(a.event_date) = ? AND a.status IN ('approved', 'completed') 
+    GROUP BY a.source
+");
+$bySourceStmt->execute([$year]);
+$rawBySource = $bySourceStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$sourceStats = [];
+foreach ($rawBySource as $row) {
+    $sourceStats[$row['source']] = $row;
 }
-$monthly = $db->query("SELECT MONTH(a.event_date) as m, COUNT(*) as cnt, AVG(k.rating) as avg_kpi FROM activities a LEFT JOIN kpi_evaluations k ON a.id=k.activity_id WHERE YEAR(a.event_date)=$year AND a.status IN ('approved','completed') GROUP BY MONTH(a.event_date) ORDER BY m")->fetchAll();
+
+$bySource = [];
+foreach ($supportedSources as $srcKey => $srcLabel) {
+    if (isset($sourceStats[$srcKey])) {
+        $bySource[] = [
+            'source' => $srcKey,
+            'label'  => $srcLabel,
+            'avg'    => $sourceStats[$srcKey]['avg_kpi'] !== null ? (float)$sourceStats[$srcKey]['avg_kpi'] : null,
+            'cnt'    => (int)$sourceStats[$srcKey]['cnt'],
+        ];
+    } else {
+        $bySource[] = [
+            'source' => $srcKey,
+            'label'  => $srcLabel,
+            'avg'    => null,
+            'cnt'    => 0,
+        ];
+    }
+}
+// Include any other sources dynamically if present in database
+foreach ($rawBySource as $row) {
+    if (!isset($supportedSources[$row['source']])) {
+        $bySource[] = [
+            'source' => $row['source'],
+            'label'  => ucfirst(str_replace('_', ' ', $row['source'])),
+            'avg'    => $row['avg_kpi'] !== null ? (float)$row['avg_kpi'] : null,
+            'cnt'    => (int)$row['cnt'],
+        ];
+    }
+}
+
+// 2. Top Performing Events
+try {
+    $topPerfStmt = $db->prepare("SELECT a.title, a.event_date, u.name as fn, AVG(k.rating) as avg_kpi, pe.satisfaction_score, pe.actual_attendance, pe.target_attendance FROM activities a JOIN users u ON a.faculty_id=u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id LEFT JOIN post_event pe ON a.id=pe.activity_id WHERE YEAR(a.event_date)=? AND a.status IN ('approved', 'completed') GROUP BY a.id HAVING avg_kpi IS NOT NULL ORDER BY avg_kpi DESC LIMIT 10");
+    $topPerfStmt->execute([$year]);
+    $topPerf = $topPerfStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $topPerfStmt = $db->prepare("SELECT a.title, a.event_date, u.name as fn, AVG(k.rating) as avg_kpi, NULL AS satisfaction_score, NULL AS actual_attendance, NULL AS target_attendance FROM activities a JOIN users u ON a.faculty_id=u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id LEFT JOIN post_event pe ON a.id=pe.activity_id WHERE YEAR(a.event_date)=? AND a.status IN ('approved', 'completed') GROUP BY a.id HAVING avg_kpi IS NOT NULL ORDER BY avg_kpi DESC LIMIT 10");
+    $topPerfStmt->execute([$year]);
+    $topPerf = $topPerfStmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// 3. Monthly Activity Count (Use COUNT(DISTINCT a.id) to prevent duplicate counting on multiple evaluation rows)
+$monthlyStmt = $db->prepare("SELECT MONTH(a.event_date) as m, COUNT(DISTINCT a.id) as cnt, AVG(k.rating) as avg_kpi FROM activities a LEFT JOIN kpi_evaluations k ON a.id=k.activity_id WHERE YEAR(a.event_date)=? AND a.status IN ('approved','completed') GROUP BY MONTH(a.event_date) ORDER BY m");
+$monthlyStmt->execute([$year]);
+$monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -152,11 +215,23 @@ $monthly = $db->query("SELECT MONTH(a.event_date) as m, COUNT(*) as cnt, AVG(k.r
             <h2>KPI by Source — <?= $year ?></h2>
           </div>
           <div class="card-body">
-            <?php foreach ($bySource as $bs): $pct = round(($bs['avg'] / 4) * 100); ?>
+            <?php foreach ($bySource as $bs): 
+              $hasAvg = $bs['avg'] !== null && $bs['avg'] > 0;
+              $pct = $hasAvg ? min(100, round(($bs['avg'] / 4) * 100)) : 0;
+              $displayLabel = !empty($bs['label']) ? $bs['label'] : ucfirst(str_replace('_', ' ', $bs['source']));
+            ?>
               <div style="margin-bottom:16px;">
                 <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-                  <span class="fw-bold"><?= ucfirst(str_replace('_', ' ', $bs['source'])) ?></span>
-                  <span><?= number_format($bs['avg'], 2) ?>/4.0 &nbsp;<span class="text-muted text-sm">(<?= $bs['cnt'] ?> events)</span></span>
+                  <span class="fw-bold"><?= htmlspecialchars($displayLabel) ?></span>
+                  <span>
+                    <?php if ($hasAvg): ?>
+                      <?= number_format($bs['avg'], 2) ?>/4.0 &nbsp;<span class="text-muted text-sm">(<?= $bs['cnt'] ?> event<?= $bs['cnt'] === 1 ? '' : 's' ?>)</span>
+                    <?php elseif ($bs['cnt'] > 0): ?>
+                      0.00/4.0 &nbsp;<span class="text-muted text-sm">(<?= $bs['cnt'] ?> event<?= $bs['cnt'] === 1 ? '' : 's' ?>)</span>
+                    <?php else: ?>
+                      <span class="text-muted text-sm">No data (0 events)</span>
+                    <?php endif; ?>
+                  </span>
                 </div>
                 <div style="height:10px;background:var(--border);border-radius:999px;overflow:hidden;">
                   <div style="width:<?= $pct ?>%;height:100%;background:var(--accent);border-radius:999px;"></div>

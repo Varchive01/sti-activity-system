@@ -182,6 +182,14 @@ if ($action === 'submit') {
         exit;
     }
 
+    // Authoritative server-side meaningful-input validation for submissions
+    require_once __DIR__ . '/../includes/meaningful_validation.php';
+    $meaningfulCheck = validateProposalMeaningfulInput($_POST, $s1Editable);
+    if (!$meaningfulCheck['valid']) {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_meaningful_input");
+        exit;
+    }
+
     $hasValidIndicator = false;
     if (!empty($_POST['kpi_indicator']) && is_array($_POST['kpi_indicator'])) {
         foreach ($_POST['kpi_indicator'] as $ind) {

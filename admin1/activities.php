@@ -13,15 +13,19 @@ $page       = max(1, (int)($_GET['page'] ?? 1));
 $perPage    = 15;
 $offset     = ($page - 1) * $perPage;
 
-$where  = "a.source='student_org'";
+$where  = "a.source='student_org' AND a.status != 'draft'";
 $params = [];
 if ($search) {
   $where .= " AND a.title LIKE ?";
   $params[] = "%$search%";
 }
 if ($filterStat) {
-  $where .= " AND a.status=?";
-  $params[] = $filterStat;
+  if (strtolower($filterStat) === 'draft') {
+    $where .= " AND 1=0";
+  } else {
+    $where .= " AND a.status=?";
+    $params[] = $filterStat;
+  }
 }
 
 $total = $db->prepare("SELECT COUNT(*) FROM activities a WHERE $where");
@@ -80,7 +84,7 @@ $activities = $acts->fetchAll();
         <input type="text" name="q" class="form-control" placeholder="Search activities…" value="<?= htmlspecialchars($search) ?>" style="max-width:280px;">
         <select name="status" class="form-control" style="max-width:180px;">
           <option value="">All Statuses</option>
-          <?php foreach (['draft', 'submitted', 'under_review', 'endorsed', 'pending_final_approval', 'returned_for_revision', 'resubmitted', 'approved', 'completed', 'rejected'] as $s): ?>
+          <?php foreach (['submitted', 'under_review', 'endorsed', 'pending_final_approval', 'returned_for_revision', 'resubmitted', 'approved', 'completed', 'rejected'] as $s): ?>
             <option value="<?= $s ?>" <?= $filterStat === $s ? 'selected' : '' ?>><?= ucfirst(str_replace('_', ' ', $s)) ?></option>
           <?php endforeach; ?>
         </select>

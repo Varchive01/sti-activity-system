@@ -3,7 +3,9 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../config/microsoft_config.php';
+require_once __DIR__ . '/MicrosoftAzureProvider.php';
 
+use App\OAuth\MicrosoftAzureProvider;
 use Greew\OAuth2\Client\Provider\Azure;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
@@ -31,7 +33,7 @@ class MicrosoftOAuthService
             $collaborators['httpClient'] = $this->createDefaultHttpClient();
         }
 
-        $this->provider = new Azure([
+        $this->provider = new MicrosoftAzureProvider([
             'clientId'      => $this->config['client_id'] ?? '',
             'clientSecret'  => $this->config['client_secret'] ?? '',
             'redirectUri'   => $this->config['redirect_uri'] ?? '',

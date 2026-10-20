@@ -118,6 +118,14 @@ foreach ($modelsToTry as $modelName) {
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+        if (file_exists('C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem')) {
+            curl_setopt($ch, CURLOPT_CAINFO, 'C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem');
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+        } else {
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        }
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -129,7 +137,13 @@ foreach ($modelsToTry as $modelName) {
             break 2; // Break both loops, we are successful!
         }
         
-        // Retry on 503 or 429
+        // If quota is exhausted (daily/tier limit), stop retrying immediately
+        if (strpos($response, 'RESOURCE_EXHAUSTED') !== false || strpos($response, 'Quota exceeded') !== false || strpos($response, 'quotaMetric') !== false) {
+            error_log("Gemini API quota exhausted in generate-evaluation. Halting retries.");
+            break 2;
+        }
+
+        // Bounded retry on temporary 503 or transient 429 rate limit
         if ($httpCode === 503 || $httpCode === 429 || strpos($response, 'UNAVAILABLE') !== false) {
             if ($attempt < $maxAttempts) {
                 $sleepSeconds = 2;
@@ -152,9 +166,17 @@ if ($curlError) {
 
 if ($httpCode !== 200) {
     error_log("Gemini API Error (HTTP $httpCode) in generate-evaluation: " . $response);
+    $isQuotaExhausted = (strpos($response, 'RESOURCE_EXHAUSTED') !== false || strpos($response, 'Quota exceeded') !== false || strpos($response, 'quotaMetric') !== false);
+    $isRateLimited = ($httpCode === 429);
+
     echo json_encode([
-        'error' => 'API Error: HTTP ' . $httpCode,
-        'details' => 'Google API Response: ' . $response
+        'error' => $isQuotaExhausted ? 'QUOTA_EXHAUSTED' : ($isRateLimited ? 'RATE_LIMIT' : 'API Error: HTTP ' . $httpCode),
+        'quota_exhausted' => $isQuotaExhausted,
+        'rate_limited' => $isRateLimited,
+        'message' => $isQuotaExhausted 
+            ? 'AI service quota has been reached. You can add and customize evaluation questions manually.' 
+            : ($isRateLimited ? 'AI service rate limit reached. Please wait a moment and try again.' : 'Unable to generate evaluation questions right now.'),
+        'details' => $response
     ]);
     exit;
 }

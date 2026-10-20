@@ -117,6 +117,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Edit Proposal – STI Activity System</title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <script src="<?= BASE_URL ?>/assets/js/meaningful-validation.js?v=<?= time() ?>"></script>
   <style>
     .wizard-panel { display: none }
     .wizard-panel.active { display: block }
@@ -254,6 +255,17 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     }
 
     .field-error.visible {
+      display: block;
+    }
+
+    .field-meaningful-warning {
+      color: #dc3545;
+      font-size: .75rem;
+      margin-top: 4px;
+      display: none;
+    }
+
+    .field-meaningful-warning.visible {
       display: block;
     }
 
@@ -414,41 +426,59 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       color: var(--text-main) !important;
     }
 
-    /* ── Preset STI Address button ── */
-    .preset-address-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: var(--bg-base, #f8fafc);
-      border: 1px solid var(--border, #cbd5e1);
-      border-radius: var(--radius-sm, 6px);
-      padding: 5px 12px;
-      font-size: 0.78rem;
-      color: var(--sti-blue, #0284c7);
+    /* ── Venue Address Dropdown ── */
+    .venue-address-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    .venue-address-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: #15243C;
+      border: 1px solid #1E2D45;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+      z-index: 50;
+      padding: 4px;
+      display: none;
+    }
+
+    .venue-address-item {
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      color: #F8FAFC;
+      border-radius: 6px;
       cursor: pointer;
-      text-align: left;
-      line-height: 1.35;
-      transition: all 0.15s ease;
+      user-select: none;
+      transition: background 0.15s ease, color 0.15s ease;
       font-family: inherit;
       font-weight: 500;
     }
 
-    .preset-address-btn:hover {
-      background: var(--sti-blue-lt, #e0f2fe);
-      border-color: var(--sti-blue, #0284c7);
-      color: var(--sti-blue-hover, #0369a1);
+    .venue-address-item:hover,
+    .venue-address-item:focus {
+      background: rgba(2, 132, 199, 0.22);
+      color: #38BDF8;
+      outline: none;
     }
 
-    [data-theme="dark"] .preset-address-btn {
-      background: var(--bg-card-elevated, #15243C) !important;
-      border-color: var(--border, #1E2D45) !important;
-      color: #38bdf8 !important;
+    [data-theme="dark"] .venue-address-item,
+    [data-theme="dark"] .venue-address-dropdown .venue-address-item,
+    [data-theme="dark"] #venue_address_dropdown .venue-address-item {
+      color: #FFFFFF;
     }
 
-    [data-theme="dark"] .preset-address-btn:hover {
-      background: rgba(2, 132, 199, 0.2) !important;
-      border-color: #38bdf8 !important;
-      color: #ffffff !important;
+    [data-theme="dark"] .venue-address-item:hover,
+    [data-theme="dark"] .venue-address-item:focus,
+    [data-theme="dark"] .venue-address-dropdown .venue-address-item:hover,
+    [data-theme="dark"] .venue-address-dropdown .venue-address-item:focus,
+    [data-theme="dark"] #venue_address_dropdown .venue-address-item:hover,
+    [data-theme="dark"] #venue_address_dropdown .venue-address-item:focus {
+      color: #38BDF8;
     }
 
     /* ── Form Controls Design System Consistency ── */
@@ -984,6 +1014,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Invalid Poster Format:</strong> Event poster must be an image (JPG, PNG, WEBP, GIF). Videos and non-image files are not permitted.
         </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'invalid_meaningful_input'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Meaningful Input Required:</strong> One or more fields contain insufficient or meaningless text (e.g. keyboard mash or random numbers). Please provide substantive information before submitting.
+        </div>
       <?php elseif (isset($_GET['error'])): ?>
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Error:</strong> An error occurred while saving the proposal. Please try again.
@@ -1064,6 +1098,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   <label class="form-label">Event Name / Title <span class="text-danger">*</span></label>
                   <input type="text" name="title" id="f1_title" class="form-control" placeholder="e.g. Foundation Day Celebration 2025" required value="<?= htmlspecialchars($activity['title'] ?? '') ?>" <?= $s1Attr ?>>
                   <span class="field-error" id="e_title">Event title is required.</span>
+                  <span class="field-error field-meaningful-warning" id="e_title_meaningful">Please enter a meaningful event title (at least 3 characters; avoid keyboard mash or random numbers).</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Date of Event <span class="text-danger">*</span></label>
@@ -1095,26 +1130,28 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   <label class="form-label">Venue <span class="text-danger">*</span></label>
                   <input type="text" name="venue" id="f1_venue" class="form-control" placeholder="e.g. STI Marikina Auditorium" required value="<?= htmlspecialchars($activity['venue'] ?? '') ?>" <?= $s1Attr ?>>
                   <span class="field-error" id="e_venue">Venue is required.</span>
+                  <span class="field-error field-meaningful-warning" id="e_venue_meaningful">Please enter a valid venue name (avoid keyboard mash or random numbers).</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Target Participants <span class="text-danger">*</span></label>
                   <input type="number" name="target_participants" id="f1_target_participants" class="form-control" placeholder="e.g. 200" min="1" value="<?= $activity['target_participants'] ?? '' ?>" <?= $s1Attr ?>>
                   <span class="field-error" id="e_target_participants">Target participants is required.</span>
+                  <span class="field-error" id="e_target_participants_meaningful" style="display:none;">Please enter a valid positive number of target participants (e.g. 100).</span>
                 </div>
                 <div class="form-group col-span-2">
                   <label class="form-label" for="f1_venue_address">Venue Address <span class="text-danger">*</span></label>
-                  <div style="margin-top: -2px; margin-bottom: 6px;">
-                    <button type="button" 
-                      id="preset_sti_address"
-                      class="preset-address-btn" 
-                      onclick="usePresetAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila')"
-                      <?= $s1Editable ? '' : 'disabled' ?>
-                      title="Click to insert default STI address">
-                      <span style="font-size: 0.85rem;">📍</span> 289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila
-                    </button>
+                  <div class="venue-address-wrapper">
+                    <input type="text" name="venue_address" id="f1_venue_address" class="form-control" placeholder="Full address" value="<?= htmlspecialchars($activity['venue_address'] ?? '') ?>" <?= $s1Attr ?> autocomplete="off">
+                    <?php if ($s1Editable): ?>
+                    <div id="venue_address_dropdown" class="venue-address-dropdown" role="listbox" aria-label="Suggested venue address">
+                      <div class="venue-address-item" role="option" tabindex="0" onmousedown="selectVenueAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila', event)" onclick="selectVenueAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila', event)">
+                        289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila
+                      </div>
+                    </div>
+                    <?php endif; ?>
                   </div>
-                  <input type="text" name="venue_address" id="f1_venue_address" class="form-control" placeholder="Full address" value="<?= htmlspecialchars($activity['venue_address'] ?? '') ?>" <?= $s1Attr ?>>
                   <span class="field-error" id="e_venue_address">Venue address is required.</span>
+                  <span class="field-error field-meaningful-warning" id="e_venue_address_meaningful">Please enter a complete and meaningful venue address.</span>
                 </div>
                 <div class="form-group col-span-2">
                   <label class="form-label">Theme</label>
@@ -1134,6 +1171,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   <div id="themeAiStatus" style="margin-top: 6px;"></div>
                   <?php endif; ?>
                   <span class="field-error" id="e_theme">Theme is required.</span>
+                  <span class="field-error field-meaningful-warning" id="e_theme_meaningful">Please enter a meaningful event theme (at least 4 characters).</span>
                 </div>
                 <div class="form-group col-span-2">
                   <label class="form-label">Event Poster <?php if(empty($activity['poster_path'])) echo '<span class="text-danger">*</span>'; ?></label>
@@ -1187,21 +1225,25 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   </label>
                   <textarea name="general_objectives" id="f2_general_objectives" class="form-control" required <?= $s2Attr ?>><?= htmlspecialchars($activity['general_objectives'] ?? '') ?></textarea>
                   <span class="field-error" id="e_general_objectives">General objectives are required.</span>
+                  <span class="field-error field-meaningful-warning" id="e_general_objectives_meaningful">General objectives must be substantive (at least 20 characters and 3 words; avoid placeholder text).</span>
                 </div>
                 <div class="form-group col-span-2">
                   <label class="form-label">Specific Objectives <span class="text-danger">*</span></label>
                   <textarea name="specific_objectives" id="f2_specific_objectives" class="form-control" <?= $s2Attr ?>><?= htmlspecialchars($activity['specific_objectives'] ?? '') ?></textarea>
                   <span class="field-error" id="e_specific_objectives">Specific objectives are required.</span>
+                  <span class="field-error field-meaningful-warning" id="e_specific_objectives_meaningful">Specific objectives must be substantive (at least 20 characters and 3 words; avoid placeholder text).</span>
                 </div>
                 <div class="form-group col-span-2">
                   <label class="form-label">Involved Subjects <span class="text-danger">*</span></label>
                   <input type="text" name="involved_subjects" id="f2_involved_subjects" class="form-control" placeholder="e.g. ITE314, GE102" value="<?= htmlspecialchars($activity['involved_subjects'] ?? '') ?>" <?= $s2Attr ?>>
                   <span class="field-error" id="e_involved_subjects">Involved subjects are required.</span>
+                  <span class="field-error field-meaningful-warning" id="e_involved_subjects_meaningful">Please enter valid subject codes (e.g. ITE314, GE102).</span>
                 </div>
                 <div class="form-group col-span-2">
                   <label class="form-label">Rationale <span class="text-danger">*</span></label>
                   <textarea name="rationale" id="f2_rationale" class="form-control" placeholder="Why is this activity necessary?" <?= $s2Attr ?>><?= htmlspecialchars($activity['rationale'] ?? '') ?></textarea>
                   <span class="field-error" id="e_rationale">Rationale is required.</span>
+                  <span class="field-error field-meaningful-warning" id="e_rationale_meaningful">Activity rationale must provide substantive justification (at least 20 characters and 3 words).</span>
                 </div>
               </div>
             </div>
@@ -1321,6 +1363,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 <label class="form-label">Floor Plan Notes / Description <span class="text-danger">*</span></label>
                 <textarea name="floor_plan_notes" id="f3_floor_plan_notes" class="form-control" rows="3" placeholder="Describe the layout — exits, important areas, stage direction, seating arrangement..." <?= $s4Attr ?>><?= htmlspecialchars($floorplan['notes'] ?? '') ?></textarea>
                 <span class="field-error" id="e_floor_plan_notes">Floor plan notes are required.</span>
+                <span class="field-error field-meaningful-warning" id="e_floor_plan_notes_meaningful">Floor plan notes must describe the layout and facilities (at least 15 characters).</span>
               </div>
             </div>
           </div>
@@ -1561,21 +1604,25 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 <label class="form-label">Mechanics / Guidelines <span class="text-danger">*</span></label>
                 <textarea name="guidelines_mechanics" id="f7_mechanics" class="form-control" style="min-height:100px" <?= $s7Attr ?>><?= htmlspecialchars($guidelines['mechanics'] ?? '') ?></textarea>
                 <span class="field-error" id="e_mechanics">Mechanics are required.</span>
+                <span class="field-error field-meaningful-warning" id="e_mechanics_meaningful">Event mechanics must describe rules and procedures (at least 15 characters).</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Criteria for Judging <span class="text-danger">*</span></label>
                 <textarea name="guidelines_criteria" id="f7_criteria" class="form-control" <?= $s7Attr ?>><?= htmlspecialchars($guidelines['criteria'] ?? '') ?></textarea>
                 <span class="field-error" id="e_criteria">Criteria for judging are required.</span>
+                <span class="field-error field-meaningful-warning" id="e_criteria_meaningful">Judging criteria must be substantive (at least 15 characters).</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Scoring System <span class="text-danger">*</span></label>
                 <textarea name="guidelines_scoring" id="f7_scoring" class="form-control" <?= $s7Attr ?>><?= htmlspecialchars($guidelines['scoring_system'] ?? '') ?></textarea>
                 <span class="field-error" id="e_scoring">Scoring system is required.</span>
+                <span class="field-error field-meaningful-warning" id="e_scoring_meaningful">Scoring system description must be substantive (at least 15 characters).</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Special Awards <span class="text-danger">*</span></label>
                 <textarea name="guidelines_awards" id="f7_awards" class="form-control" <?= $s7Attr ?>><?= htmlspecialchars($guidelines['special_awards'] ?? '') ?></textarea>
                 <span class="field-error" id="e_awards">Special awards are required.</span>
+                <span class="field-error field-meaningful-warning" id="e_awards_meaningful">Special awards details must be substantive (at least 10 characters).</span>
               </div>
             </div>
           </div>
@@ -1868,10 +1915,28 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       if (!el.value.trim()) {
         el.classList.add('is-invalid');
         showError(errId);
+        hideError(errId + '_meaningful');
         return false;
       } else {
-        el.classList.remove('is-invalid');
         hideError(errId);
+        if (typeof MeaningfulValidation !== 'undefined' && MeaningfulValidation.isMonitoredField(fieldId)) {
+          const mRes = MeaningfulValidation.checkField(fieldId);
+          if (!mRes.valid) {
+            el.classList.add('is-invalid');
+            const mEl = document.getElementById(errId + '_meaningful');
+            if (mEl) {
+              mEl.textContent = mRes.message;
+              mEl.classList.add('visible');
+            }
+            return false;
+          } else {
+            hideError(errId + '_meaningful');
+            el.classList.remove('is-invalid');
+            return true;
+          }
+        }
+        hideError(errId + '_meaningful');
+        el.classList.remove('is-invalid');
         return true;
       }
     }
@@ -2120,16 +2185,101 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       return true;
     }
 
-    function usePresetAddress(addr) {
+    function showVenueAddressDropdown() {
+      const input = document.getElementById('f1_venue_address');
+      const dropdown = document.getElementById('venue_address_dropdown');
+      if (!input || !dropdown) return;
+      if (input.disabled || input.readOnly) return;
+      if (input.value.trim() === '') {
+        dropdown.style.display = 'block';
+      } else {
+        dropdown.style.display = 'none';
+      }
+    }
+
+    function hideVenueAddressDropdown() {
+      const dropdown = document.getElementById('venue_address_dropdown');
+      if (dropdown) dropdown.style.display = 'none';
+    }
+
+    function selectVenueAddress(addr, e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
       const input = document.getElementById('f1_venue_address');
       if (!input) return;
       input.value = addr;
       input.classList.remove('is-invalid');
-      const err = document.getElementById('e_venue_address');
-      if (err) err.style.display = 'none';
+      const errReq = document.getElementById('e_venue_address');
+      if (errReq) {
+        errReq.style.display = 'none';
+        errReq.classList.remove('visible');
+      }
+      const errMean = document.getElementById('e_venue_address_meaningful');
+      if (errMean) {
+        errMean.style.display = 'none';
+        errMean.classList.remove('visible');
+      }
+      hideVenueAddressDropdown();
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
       input.focus();
+    }
+
+    function usePresetAddress(addr) {
+      selectVenueAddress(addr);
+    }
+
+    const venueAddressInput = document.getElementById('f1_venue_address');
+    const venueAddressDropdown = document.getElementById('venue_address_dropdown');
+    if (venueAddressInput && venueAddressDropdown) {
+      venueAddressInput.addEventListener('focus', showVenueAddressDropdown);
+      venueAddressInput.addEventListener('click', showVenueAddressDropdown);
+      venueAddressInput.addEventListener('input', () => {
+        if (venueAddressInput.value.trim() === '') {
+          showVenueAddressDropdown();
+        } else {
+          hideVenueAddressDropdown();
+        }
+      });
+      venueAddressInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          hideVenueAddressDropdown();
+        } else if (e.key === 'ArrowDown' && venueAddressDropdown.style.display !== 'none') {
+          e.preventDefault();
+          const firstItem = venueAddressDropdown.querySelector('.venue-address-item');
+          if (firstItem) firstItem.focus();
+        }
+      });
+      venueAddressInput.addEventListener('blur', () => {
+        setTimeout(() => {
+          const wrapper = venueAddressInput.closest('.venue-address-wrapper');
+          if (!wrapper || !wrapper.contains(document.activeElement)) {
+            hideVenueAddressDropdown();
+          }
+        }, 150);
+      });
+
+      const firstItem = venueAddressDropdown.querySelector('.venue-address-item');
+      if (firstItem) {
+        firstItem.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectVenueAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila', e);
+          } else if (e.key === 'Escape') {
+            hideVenueAddressDropdown();
+            venueAddressInput.focus();
+          }
+        });
+      }
+
+      document.addEventListener('click', (e) => {
+        const wrapper = venueAddressInput.closest('.venue-address-wrapper');
+        if (!wrapper || !wrapper.contains(e.target)) {
+          hideVenueAddressDropdown();
+        }
+      });
     }
 
     const startTimeInputEl = document.getElementById('f1_start_time');
@@ -2152,6 +2302,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         if (isS1Editable) validateTimeFields(false);
         return;
       }
+      if (typeof MeaningfulValidation !== 'undefined' && MeaningfulValidation.isMonitoredField(e.target.id)) {
+        MeaningfulValidation.validateFieldUI(e.target.id);
+        return;
+      }
       if (e.target.classList.contains('is-invalid') && e.target.value.trim()) {
         e.target.classList.remove('is-invalid');
       }
@@ -2164,6 +2318,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       }
       if (e.target.id === 'f1_start_time' || e.target.id === 'f1_end_time') {
         if (isS1Editable) validateTimeFields(false);
+        return;
+      }
+      if (typeof MeaningfulValidation !== 'undefined' && MeaningfulValidation.isMonitoredField(e.target.id)) {
+        MeaningfulValidation.validateFieldUI(e.target.id);
         return;
       }
       if (e.target.classList.contains('is-invalid') && e.target.value.trim()) {
@@ -2277,10 +2435,27 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             if (!notes.value.trim()) {
               notes.classList.add('is-invalid');
               showError('e_floor_plan_notes');
+              hideError('e_floor_plan_notes_meaningful');
               valid = false;
             } else {
-              notes.classList.remove('is-invalid');
               hideError('e_floor_plan_notes');
+              if (typeof MeaningfulValidation !== 'undefined') {
+                const mNotes = MeaningfulValidation.checkField('f3_floor_plan_notes');
+                if (!mNotes.valid) {
+                  notes.classList.add('is-invalid');
+                  const mEl = document.getElementById('e_floor_plan_notes_meaningful');
+                  if (mEl) {
+                    mEl.textContent = mNotes.message;
+                    mEl.classList.add('visible');
+                  }
+                  valid = false;
+                } else {
+                  hideError('e_floor_plan_notes_meaningful');
+                  notes.classList.remove('is-invalid');
+                }
+              } else {
+                notes.classList.remove('is-invalid');
+              }
             }
           }
         }
@@ -2754,10 +2929,12 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
 
         const data = await res.json();
 
-        if (res.status === 429 || (data && data.error && (data.error.includes('429') || data.error.includes('RESOURCE_EXHAUSTED') || data.error.includes('limit')))) {
+        if (data && (data.quota_exhausted || (data.error && data.error === 'QUOTA_EXHAUSTED'))) {
+          throw new Error("QUOTA_EXHAUSTED");
+        } else if (res.status === 429 || (data && (data.rate_limited || (data.error && (data.error.includes('429') || data.error.includes('limit')))))) {
           throw new Error("RATE_LIMIT");
         } else if (!res.ok || (data && data.error)) {
-          throw new Error(data.error || `API Error: HTTP ${res.status}`);
+          throw new Error(data.message || data.error || `API Error: HTTP ${res.status}`);
         }
 
         if (data.success && Array.isArray(data.questions)) {
@@ -2783,10 +2960,14 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         if (requestId !== currentEvalRequestId) return;
         console.warn('autoGenerateEvaluation error:', err);
         let errMsg = err.message || 'Unknown error';
-        if (errMsg === 'RATE_LIMIT') {
-          errMsg = 'AI service rate limit reached. Please try again.';
+        let isQuota = false;
+        if (errMsg === 'QUOTA_EXHAUSTED') {
+          errMsg = 'AI service quota has been reached. You can add evaluation questions manually below.';
+          isQuota = true;
+        } else if (errMsg === 'RATE_LIMIT') {
+          errMsg = 'AI service rate limit reached. Please wait a moment and try again.';
         }
-        setEvaluationState('ERROR', errMsg);
+        setEvaluationState('ERROR', errMsg, isQuota);
       } finally {
         if (requestId === currentEvalRequestId) {
           isGeneratingEval = false;
@@ -2853,7 +3034,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       });
     }
 
-    function setEvaluationState(state, errorMsg = '') {
+    function setEvaluationState(state, errorMsg = '', isQuota = false) {
       const badge = document.getElementById('evalStatusBadge');
       const indicator = document.getElementById('evalStatusIndicator');
       const text = document.getElementById('evalStatusText');
@@ -2944,8 +3125,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           if (statusEl) {
             statusEl.style.display = 'block';
             statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; margin-bottom:10px;';
-            statusEl.innerHTML = `⚠️ <span>Unable to generate evaluation questions right now.</span> <br> <span style="font-size:0.7rem; opacity:0.85;">${escapeHtml(errorMsg || 'Network error')}</span>` +
-              `<div style="margin-top:6px;"><button type="button" class="btn btn-outline btn-xs" style="background:#fff; border:1px solid #fca5a5; padding:2px 8px; font-size:0.7rem; height:auto; line-height:1.2;" onclick="regenerateEvaluationWithAi(false)">Retry</button></div>`;
+            const actionHtml = isQuota
+              ? `<div style="margin-top:6px; color:#475569; font-size:0.75rem; font-weight:500;">💡 Manual evaluation question entry is active. Use the <strong>+ Add Question</strong> button below to customize your questions.</div>`
+              : `<div style="margin-top:6px;"><button type="button" class="btn btn-outline btn-xs" style="background:#fff; border:1px solid #fca5a5; padding:2px 8px; font-size:0.7rem; height:auto; line-height:1.2;" onclick="regenerateEvaluationWithAi(false)">Retry</button></div>`;
+            statusEl.innerHTML = `⚠️ <span>Unable to generate evaluation questions right now.</span> <br> <span style="font-size:0.7rem; opacity:0.85;">${escapeHtml(errorMsg || 'Network error')}</span>` + actionHtml;
           }
           break;
       }
@@ -3544,6 +3727,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       });
 
       titleEl.addEventListener('input', () => {
+        if (typeof MeaningfulValidation !== 'undefined') {
+          MeaningfulValidation.validateFieldUI('f1_title');
+        }
         const newTitle = titleEl.value.trim();
         cancelPendingThemeGeneration();
         cancelPendingObjectivesGeneration();
@@ -3600,6 +3786,12 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         themeDebounceTimer = setTimeout(() => {
           autoGenerateTheme(false);
         }, 800);
+      });
+
+      titleEl.addEventListener('blur', () => {
+        if (typeof MeaningfulValidation !== 'undefined') {
+          MeaningfulValidation.validateFieldUI('f1_title');
+        }
       });
     }
 

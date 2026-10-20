@@ -347,6 +347,9 @@ assertTest("4.3 Unknown Microsoft account DOES NOT create a new database user",
     $beforeCount === $afterCount, 
     "Count before: $beforeCount, after: $afterCount");
 
+$facultyDbUser = $db->query("SELECT * FROM users WHERE email='faculty@sti.edu'")->fetch(PDO::FETCH_ASSOC);
+$facultyId = (int)($facultyDbUser['id'] ?? 387);
+
 // 4.4 Faculty Role Mapping
 $resFaculty = runCallbackSimulation([
     'state' => $stateValid,
@@ -360,8 +363,8 @@ $resFaculty = runCallbackSimulation([
 assertTest("4.4 Faculty mapping redirects to /faculty/dashboard.php", 
     str_contains($resFaculty['redirect'], '/faculty/dashboard.php'), 
     "Redirect: " . $resFaculty['redirect']);
-assertTest("4.4 Faculty session preserves local user_id = 1 and role = 'faculty'", 
-    ($resFaculty['session']['user_id'] ?? 0) === 1 && ($resFaculty['session']['user_role'] ?? '') === 'faculty');
+assertTest("4.4 Faculty session preserves local user_id = $facultyId and role = 'faculty'", 
+    ($resFaculty['session']['user_id'] ?? 0) === $facultyId && ($resFaculty['session']['user_role'] ?? '') === 'faculty');
 
 // 4.5 Admin1 (Student Org Head) Role Mapping
 $resAdmin1 = runCallbackSimulation([
@@ -413,7 +416,7 @@ assertTest("4.7 Dean session preserves local user_id = 4 and role = 'dean'",
 
 // 4.8 must_change_password enforcement
 // Temporarily set must_change_password = 1 for a test user or faculty
-$db->exec("UPDATE users SET must_change_password = 1 WHERE id = 1");
+$db->exec("UPDATE users SET must_change_password = 1 WHERE id = $facultyId");
 
 $resMustChange = runCallbackSimulation([
     'state' => $stateValid,
@@ -426,7 +429,7 @@ $resMustChange = runCallbackSimulation([
 ]);
 
 // Reset back to 0
-$db->exec("UPDATE users SET must_change_password = 0 WHERE id = 1");
+$db->exec("UPDATE users SET must_change_password = 0 WHERE id = $facultyId");
 
 assertTest("4.8 Microsoft login exempts must_change_password and routes directly to role dashboard", 
     str_contains($resMustChange['redirect'], '/faculty/dashboard.php') && ($resMustChange['session']['auth_method'] ?? '') === 'microsoft', 
@@ -439,7 +442,7 @@ echo "\n--- 5. Local Password Authentication Preservation Tests ---\n";
 
 $localFaculty = @login('faculty@sti.edu', 'password');
 assertTest("5.1 Standard password login for faculty@sti.edu still authenticates successfully", 
-    is_array($localFaculty) && $localFaculty['id'] === 1);
+    is_array($localFaculty) && $localFaculty['id'] === $facultyId);
 
 $localAdmin1 = @login('arjay@sti.edu', 'password');
 assertTest("5.2 Standard password login for arjay@sti.edu still authenticates successfully", 

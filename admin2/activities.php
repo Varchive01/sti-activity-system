@@ -10,9 +10,16 @@ if(isset($_GET['q']))      $search    =sanitize($_GET['q']);
 if(isset($_GET['status'])) $filterStat=sanitize($_GET['status']);
 if(isset($_GET['page']))   $page      =max(1,(int)$_GET['page']);
 $offset=($page-1)*$perPage;
-$where="1=1"; $params=[];
+$where="a.status != 'draft'"; $params=[];
 if($search)     {$where.=" AND a.title LIKE ?"; $params[]="%$search%";}
-if($filterStat) {$where.=" AND a.status=?";     $params[]=$filterStat;}
+if($filterStat) {
+  if (strtolower($filterStat) === 'draft') {
+    $where .= " AND 1=0";
+  } else {
+    $where .= " AND a.status=?";
+    $params[] = $filterStat;
+  }
+}
 $total=$db->prepare("SELECT COUNT(*) FROM activities a WHERE $where"); $total->execute($params); $totalCount=$total->fetchColumn(); $totalPages=ceil($totalCount/$perPage);
 $acts=$db->prepare("SELECT a.*,u.name as fn FROM activities a JOIN users u ON a.faculty_id=u.id WHERE $where ORDER BY a.updated_at DESC LIMIT $perPage OFFSET $offset"); $acts->execute($params); $activities=$acts->fetchAll();
 ?>
@@ -71,7 +78,7 @@ $acts=$db->prepare("SELECT a.*,u.name as fn FROM activities a JOIN users u ON a.
         <input type="text" name="q" class="form-control" placeholder="Search activities…" value="<?= htmlspecialchars($search) ?>" style="max-width:280px;">
         <select name="status" class="form-control" style="max-width:180px;">
           <option value="">All Statuses</option>
-          <?php foreach (['draft', 'submitted', 'under_review', 'endorsed', 'pending_final_approval', 'returned_for_revision', 'resubmitted', 'approved', 'completed', 'rejected'] as $s): ?>
+          <?php foreach (['submitted', 'under_review', 'endorsed', 'pending_final_approval', 'returned_for_revision', 'resubmitted', 'approved', 'completed', 'rejected'] as $s): ?>
             <option value="<?= $s ?>" <?= $filterStat === $s ? 'selected' : '' ?>><?= ucfirst(str_replace('_', ' ', $s)) ?></option>
           <?php endforeach; ?>
         </select>

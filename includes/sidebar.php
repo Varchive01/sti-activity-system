@@ -128,6 +128,116 @@ if (!function_exists('sidebarIcon')) {
   })();
 </script>
 
+<style>
+  /* Ensure shared sidebar uses a light color scheme ONLY when application is in dark mode */
+  [data-theme="dark"] .sidebar {
+    background: #FFFFFF !important;
+    border-right: 1px solid #E2E8F0 !important;
+    box-shadow: 2px 0 16px rgba(0, 0, 0, 0.25) !important;
+  }
+  [data-theme="dark"] .sidebar-logo {
+    border-bottom: 1px solid #E2E8F0 !important;
+  }
+  [data-theme="dark"] .sidebar-logo .brand {
+    color: #0A1628 !important;
+  }
+  [data-theme="dark"] .sidebar-logo .brand span {
+    color: var(--sti-gold, #F4A900) !important;
+  }
+  [data-theme="dark"] .sidebar-logo .sub {
+    color: #64748B !important;
+  }
+  [data-theme="dark"] .sidebar-toggle {
+    color: #475569 !important;
+  }
+  [data-theme="dark"] .sidebar-toggle:hover {
+    background: #F1F5F9 !important;
+    color: #0A1628 !important;
+  }
+  [data-theme="dark"] .sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.12) !important;
+    border-radius: 9999px;
+  }
+  [data-theme="dark"] .sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.22) !important;
+  }
+  [data-theme="dark"] .sidebar-nav .nav-label {
+    color: #64748B !important;
+  }
+  [data-theme="dark"] .sidebar-nav a.sidebar-nav-item,
+  [data-theme="dark"] .sidebar-nav a {
+    color: #334155 !important;
+  }
+  [data-theme="dark"] .sidebar-nav a svg {
+    color: #475569 !important;
+  }
+  [data-theme="dark"] .sidebar-nav a:hover {
+    background: #F1F5F9 !important;
+    color: #0A1628 !important;
+  }
+  [data-theme="dark"] .sidebar-nav a:hover svg {
+    color: #0284C7 !important;
+  }
+  [data-theme="dark"] .sidebar-nav a.active,
+  [data-theme="dark"] aside.sidebar .sidebar-nav a.active {
+    background: #0284C7 !important;
+    color: #FFFFFF !important;
+    font-weight: 600 !important;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35) !important;
+  }
+  [data-theme="dark"] .sidebar-nav a.active svg,
+  [data-theme="dark"] .sidebar-nav a.active .nav-icon svg {
+    color: #FFFFFF !important;
+  }
+  [data-theme="dark"] .sidebar-bottom {
+    border-top: 1px solid #E2E8F0 !important;
+    background: #F8FAFC !important;
+  }
+  [data-theme="dark"] .sidebar-bottom-btn {
+    color: #334155 !important;
+  }
+  [data-theme="dark"] .sidebar-bottom-btn svg {
+    color: #475569 !important;
+  }
+  [data-theme="dark"] .sidebar-bottom-btn:hover {
+    background: #E2E8F0 !important;
+    color: #0A1628 !important;
+  }
+  [data-theme="dark"] .sidebar-bottom-btn:hover svg {
+    color: #0A1628 !important;
+  }
+  [data-theme="dark"] .sidebar-help-btn:hover {
+    color: #0284C7 !important;
+    background: #E0F2FE !important;
+  }
+  [data-theme="dark"] .sidebar-help-btn:hover svg {
+    color: #0284C7 !important;
+  }
+  [data-theme="dark"] .sidebar-collapsed .sidebar-nav .nav-group:not(:last-child)::after {
+    background: #E2E8F0 !important;
+  }
+  [data-theme="dark"] .sidebar-collapsed .sidebar-nav a.active {
+    background: #0284C7 !important;
+    color: #FFFFFF !important;
+    border-radius: 12px !important;
+    box-shadow: 0 3px 12px rgba(2, 132, 199, 0.35) !important;
+  }
+  [data-theme="dark"] .sidebar-collapsed .sidebar-nav a.active svg {
+    color: #FFFFFF !important;
+  }
+  [data-theme="dark"] .sidebar-collapsed .sidebar-nav a:hover {
+    background: #F1F5F9 !important;
+    color: #0A1628 !important;
+  }
+  [data-theme="dark"] .sidebar-collapsed .sidebar-nav a:hover svg {
+    color: #0284C7 !important;
+  }
+  [data-theme="dark"] .sidebar-collapsed .sidebar-bottom-btn:hover {
+    background: #E2E8F0 !important;
+    color: #0A1628 !important;
+  }
+</style>
+
 <aside class="sidebar <?= $theme ?>">
   <!-- 1. Top Header: Logo & Sidebar Toggle -->
   <div class="sidebar-logo">
