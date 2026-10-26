@@ -16,7 +16,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>New Proposal – STI Activity System</title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
-  <script src="<?= BASE_URL ?>/assets/js/meaningful-validation.js?v=<?= time() ?>"></script>
   <style>
     .wizard-panel {
       display: none;
@@ -174,17 +173,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       display: block;
     }
 
-    .field-meaningful-warning {
-      color: #dc3545;
-      font-size: .75rem;
-      margin-top: 4px;
-      display: none;
-    }
-
-    .field-meaningful-warning.visible {
-      display: block;
-    }
-
     .step-error-banner {
       display: none;
       background: var(--warning-lt, #fff3cd);
@@ -212,6 +200,11 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     .wizard-steps {
       background: var(--bg-card) !important;
       border: 1px solid var(--border) !important;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
     }
 
     .wizard-step {
@@ -219,6 +212,10 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       color: var(--text-muted) !important;
       border-right: 1px solid var(--border) !important;
       transition: background-color 0.2s ease, color 0.2s ease;
+      white-space: nowrap;
+      flex: 1 0 auto;
+      min-width: 72px;
+      box-sizing: border-box;
     }
 
     .wizard-step .step-num {
@@ -475,8 +472,16 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     .dynamic-table {
       border: 1px solid var(--border);
       border-radius: var(--radius-sm, 8px);
-      overflow: hidden;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
       background: var(--bg-card);
+      max-width: 100%;
+    }
+
+    .dynamic-table table {
+      width: 100%;
+      min-width: 580px;
     }
 
     .dynamic-table table th {
@@ -636,6 +641,16 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     @media (max-width: 1200px) {
       .proposal-layout-grid {
         grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .topbar .page-title {
+        font-size: 0.90rem;
+      }
+      .topbar-right .btn-sm {
+        padding: 4px 8px;
+        font-size: 0.72rem;
       }
     }
 
@@ -1012,9 +1027,9 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Invalid Poster Format:</strong> Event poster must be an image (JPG, PNG, WEBP, GIF). Videos and non-image files are not permitted.
         </div>
-      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'invalid_meaningful_input'): ?>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'invalid_text_input'): ?>
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
-          <strong>⚠️ Meaningful Input Required:</strong> One or more fields contain insufficient or meaningless text (e.g. keyboard mash or random numbers). Please provide substantive information before submitting.
+          <strong>⚠️ Meaningful Input Required:</strong> One or more fields contain random characters, keyboard mashing, or insufficient text. Please provide valid information before submitting.
         </div>
       <?php elseif (isset($_GET['error'])): ?>
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
@@ -1076,7 +1091,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                   <label class="form-label">Event Name / Title <span class="text-danger">*</span></label>
                   <input type="text" name="title" id="f1_title" class="form-control" placeholder="e.g. Foundation Day Celebration 2025">
                   <span class="field-error" id="e_title">Event title is required.</span>
-                  <span class="field-error field-meaningful-warning" id="e_title_meaningful">Please enter a meaningful event title (at least 3 characters; avoid keyboard mash or random numbers).</span>
                 </div>
 
                 <div class="form-group">
@@ -1113,14 +1127,12 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                   <label class="form-label">Venue <span class="text-danger">*</span></label>
                   <input type="text" name="venue" id="f1_venue" class="form-control" placeholder="e.g. STI Marikina Auditorium">
                   <span class="field-error" id="e_venue">Venue is required.</span>
-                  <span class="field-error field-meaningful-warning" id="e_venue_meaningful">Please enter a valid venue name (avoid keyboard mash or random numbers).</span>
                 </div>
 
                 <div class="form-group">
                   <label class="form-label">Target Participants <span class="text-danger">*</span></label>
                   <input type="number" name="target_participants" id="f1_target_participants" class="form-control" placeholder="e.g. 200" min="1">
                   <span class="field-error" id="e_target_participants">Target participants is required.</span>
-                  <span class="field-error" id="e_target_participants_meaningful" style="display:none;">Please enter a valid positive number of target participants (e.g. 100).</span>
                 </div>
 
                 <div class="form-group col-span-2">
@@ -1134,7 +1146,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                     </div>
                   </div>
                   <span class="field-error" id="e_venue_address">Venue address is required.</span>
-                  <span class="field-error field-meaningful-warning" id="e_venue_address_meaningful">Please enter a complete and meaningful venue address.</span>
                 </div>
 
                 <div class="form-group col-span-2">
@@ -1149,7 +1160,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                     </div>
                   </div>
                   <span class="field-error" id="e_theme">Theme is required.</span>
-                  <span class="field-error field-meaningful-warning" id="e_theme_meaningful">Please enter a meaningful event theme (at least 4 characters).</span>
 
                   <!-- Automatic AI Theme Status -->
                   <div id="themeAiStatus" style="margin-top: 6px;"></div>
@@ -1192,28 +1202,24 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                   </label>
                   <textarea name="general_objectives" id="f2_general_objectives" class="form-control" rows="4" placeholder="State the broad goals of this activity..."></textarea>
                   <span class="field-error" id="e_general_objectives">General objectives are required.</span>
-                  <span class="field-error field-meaningful-warning" id="e_general_objectives_meaningful">General objectives must be substantive (at least 20 characters and 3 words; avoid placeholder text).</span>
                 </div>
 
                 <div class="form-group col-span-2">
                   <label class="form-label">Specific Objectives <span class="text-danger">*</span></label>
                   <textarea name="specific_objectives" id="f2_specific_objectives" class="form-control" rows="6" placeholder="List measurable specific goals..."></textarea>
                   <span class="field-error" id="e_specific_objectives">Specific objectives are required.</span>
-                  <span class="field-error field-meaningful-warning" id="e_specific_objectives_meaningful">Specific objectives must be substantive (at least 20 characters and 3 words; avoid placeholder text).</span>
                 </div>
 
                 <div class="form-group col-span-2">
                   <label class="form-label">Involved Subjects <span class="text-danger">*</span></label>
                   <input type="text" name="involved_subjects" id="f2_involved_subjects" class="form-control" placeholder="e.g. ITE314, GE102">
                   <span class="field-error" id="e_involved_subjects">Involved subjects are required.</span>
-                  <span class="field-error field-meaningful-warning" id="e_involved_subjects_meaningful">Please enter valid subject codes (e.g. ITE314, GE102).</span>
                 </div>
 
                 <div class="form-group col-span-2">
                   <label class="form-label">Rationale <span class="text-danger">*</span></label>
                   <textarea name="rationale" id="f2_rationale" class="form-control" rows="3" placeholder="Why is this activity necessary?"></textarea>
                   <span class="field-error" id="e_rationale">Rationale is required.</span>
-                  <span class="field-error field-meaningful-warning" id="e_rationale_meaningful">Activity rationale must provide substantive justification (at least 20 characters and 3 words).</span>
                 </div>
               </div>
             </div>
@@ -1287,7 +1293,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                 <label class="form-label">Floor Plan Notes / Description <span class="text-danger">*</span></label>
                 <textarea name="floor_plan_notes" id="f3_floor_plan_notes" class="form-control" rows="3" placeholder="Describe the layout — exits, important areas, stage direction, seating arrangement..."></textarea>
                 <span class="field-error" id="e_floor_plan_notes">Floor plan notes are required.</span>
-                <span class="field-error field-meaningful-warning" id="e_floor_plan_notes_meaningful">Floor plan notes must describe the layout and facilities (at least 15 characters).</span>
               </div>
             </div>
           </div>
@@ -1434,25 +1439,21 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                 <label class="form-label">Mechanics / Guidelines <span class="text-danger">*</span></label>
                 <textarea name="guidelines_mechanics" id="f7_mechanics" class="form-control" style="min-height:120px" placeholder="Describe event rules and procedures..."></textarea>
                 <span class="field-error" id="e_mechanics">Mechanics / guidelines are required.</span>
-                <span class="field-error field-meaningful-warning" id="e_mechanics_meaningful">Event mechanics must describe rules and procedures (at least 15 characters).</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Criteria for Judging <span class="text-danger">*</span></label>
                 <textarea name="guidelines_criteria" id="f7_criteria" class="form-control" placeholder="List judging criteria..."></textarea>
                 <span class="field-error" id="e_criteria">Criteria for judging are required.</span>
-                <span class="field-error field-meaningful-warning" id="e_criteria_meaningful">Judging criteria must be substantive (at least 15 characters).</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Scoring System <span class="text-danger">*</span></label>
                 <textarea name="guidelines_scoring" id="f7_scoring" class="form-control" placeholder="Describe scoring system..."></textarea>
                 <span class="field-error" id="e_scoring">Scoring system is required.</span>
-                <span class="field-error field-meaningful-warning" id="e_scoring_meaningful">Scoring system description must be substantive (at least 15 characters).</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Special Awards <span class="text-danger">*</span></label>
                 <textarea name="guidelines_awards" id="f7_awards" class="form-control" placeholder="List any special awards..."></textarea>
                 <span class="field-error" id="e_awards">Special awards field is required.</span>
-                <span class="field-error field-meaningful-warning" id="e_awards_meaningful">Special awards details must be substantive (at least 10 characters).</span>
               </div>
             </div>
           </div>
@@ -1638,6 +1639,13 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         if (i + 1 < n) s.classList.add('done');
         if (i + 1 === n) s.classList.add('active');
       });
+      const activeStepEl = document.querySelector(`.wizard-step[data-step="${n}"]`);
+      if (activeStepEl && typeof activeStepEl.scrollIntoView === 'function') {
+        const wizardContainer = document.getElementById('wizardSteps');
+        if (wizardContainer && wizardContainer.scrollWidth > wizardContainer.clientWidth) {
+          activeStepEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      }
       document.getElementById('panel-' + n).classList.add('active');
       currentStep = n;
       window.scrollTo({
@@ -1697,11 +1705,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       if (errReq) {
         errReq.style.display = 'none';
         errReq.classList.remove('visible');
-      }
-      const errMean = document.getElementById('e_venue_address_meaningful');
-      if (errMean) {
-        errMean.style.display = 'none';
-        errMean.classList.remove('visible');
       }
       hideVenueAddressDropdown();
       input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2107,9 +2110,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 
       // Listen for typing on Event Title with 800ms debounce
       titleEl.addEventListener('input', () => {
-        if (typeof MeaningfulValidation !== 'undefined') {
-          MeaningfulValidation.validateFieldUI('f1_title');
-        }
         const newTitle = titleEl.value.trim();
         cancelPendingThemeGeneration();
         cancelPendingObjectivesGeneration(); // Cancel pending objectives when title changes!
@@ -2173,12 +2173,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         themeDebounceTimer = setTimeout(() => {
           autoGenerateTheme(false);
         }, 800);
-      });
-
-      titleEl.addEventListener('blur', () => {
-        if (typeof MeaningfulValidation !== 'undefined') {
-          MeaningfulValidation.validateFieldUI('f1_title');
-        }
       });
     }
 
@@ -2565,7 +2559,11 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         const rows = document.querySelectorAll('#materials-body tr');
         rows.forEach(row => {
           row.querySelectorAll('input.mat-field, input.mat-qty, input.mat-cost').forEach(inp => {
-            if (!inp.value.trim()) {
+            const v = inp.value.trim();
+            if (!v) {
+              inp.classList.add('is-invalid');
+              valid = false;
+            } else if (inp.classList.contains('mat-field') && hasGibberishText(v)) {
               inp.classList.add('is-invalid');
               valid = false;
             } else {
@@ -2596,37 +2594,15 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           wrap.classList.remove('fp-canvas-invalid');
         }
 
-        const notes = document.getElementById('f3_floor_plan_notes');
-        if (!notes.value.trim()) {
-          notes.classList.add('is-invalid');
-          showError('e_floor_plan_notes');
-          hideError('e_floor_plan_notes_meaningful');
+        if (!checkField('f3_floor_plan_notes', 'e_floor_plan_notes')) {
           valid = false;
-        } else {
-          hideError('e_floor_plan_notes');
-          if (typeof MeaningfulValidation !== 'undefined') {
-            const mNotes = MeaningfulValidation.checkField('f3_floor_plan_notes');
-            if (!mNotes.valid) {
-              notes.classList.add('is-invalid');
-              const mEl = document.getElementById('e_floor_plan_notes_meaningful');
-              if (mEl) {
-                mEl.textContent = mNotes.message;
-                mEl.classList.add('visible');
-              }
-              valid = false;
-            } else {
-              hideError('e_floor_plan_notes_meaningful');
-              notes.classList.remove('is-invalid');
-            }
-          } else {
-            notes.classList.remove('is-invalid');
-          }
         }
       } else if (step === 5) {
         const rows = document.querySelectorAll('#manpower-body tr');
         rows.forEach(row => {
           row.querySelectorAll('input.mp-person-field').forEach(inp => {
-            if (!inp.value.trim()) {
+            const v = inp.value.trim();
+            if (!v || hasGibberishText(v)) {
               inp.classList.add('is-invalid');
               valid = false;
             } else {
@@ -2638,10 +2614,14 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         const schedRows = document.querySelectorAll('#schedule-body tr');
         schedRows.forEach(row => {
           row.querySelectorAll('input.sched-field').forEach(inp => {
-            if (!inp.value.trim()) {
+            const v = inp.value.trim();
+            if (!v) {
               inp.classList.add('is-invalid');
               valid = false;
             } else if (inp.type === 'date' && inp.value <= todayManila) {
+              inp.classList.add('is-invalid');
+              valid = false;
+            } else if (inp.type === 'text' && hasGibberishText(v)) {
               inp.classList.add('is-invalid');
               valid = false;
             } else {
@@ -2652,7 +2632,11 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         const progRows = document.querySelectorAll('#program-body tr');
         progRows.forEach(row => {
           row.querySelectorAll('input.prog-field').forEach(inp => {
-            if (!inp.value.trim()) {
+            const v = inp.value.trim();
+            if (!v) {
+              inp.classList.add('is-invalid');
+              valid = false;
+            } else if (inp.type === 'text' && hasGibberishText(v)) {
               inp.classList.add('is-invalid');
               valid = false;
             } else {
@@ -2684,7 +2668,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         const rows = document.querySelectorAll('#faculty-tasks-body tr');
         rows.forEach(row => {
           row.querySelectorAll('input.ft-field').forEach(inp => {
-            if (!inp.value.trim()) {
+            const v = inp.value.trim();
+            if (!v || hasGibberishText(v)) {
               inp.classList.add('is-invalid');
               valid = false;
             } else {
@@ -2699,7 +2684,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           valid = false;
         } else {
           kpiFields.forEach(inp => {
-            if (!inp.value.trim()) {
+            const v = inp.value.trim();
+            if (!v || hasGibberishText(v)) {
               inp.classList.add('is-invalid');
               valid = false;
             } else {
@@ -2763,36 +2749,129 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       return true;
     }
 
-    function checkField(fieldId, errId) {
-      const el = document.getElementById(fieldId);
-      if (!el) return true;
-      if (!el.value.trim()) {
-        el.classList.add('is-invalid');
-        showError(errId);
-        hideError(errId + '_meaningful');
-        return false;
-      } else {
-        hideError(errId);
-        if (typeof MeaningfulValidation !== 'undefined' && MeaningfulValidation.isMonitoredField(fieldId)) {
-          const mRes = MeaningfulValidation.checkField(fieldId);
-          if (!mRes.valid) {
-            el.classList.add('is-invalid');
-            const mEl = document.getElementById(errId + '_meaningful');
-            if (mEl) {
-              mEl.textContent = mRes.message;
-              mEl.classList.add('visible');
-            }
-            return false;
-          } else {
-            hideError(errId + '_meaningful');
-            el.classList.remove('is-invalid');
-            return true;
-          }
-        }
-        hideError(errId + '_meaningful');
-        el.classList.remove('is-invalid');
+    function isGibberishToken(token) {
+      token = token.replace(/^[ \t\n\r\v,.:;!?"'()[\]{}/*\-+=@#$%^&<>~`|]+|[ \t\n\r\v,.:;!?"'()[\]{}/*\-+=@#$%^&<>~`|]+$/g, '');
+      if (token.length < 3) return false;
+
+      // If token has no letters at all (pure numbers, time like '8:00', '100%', '10,000'), not gibberish
+      if (!/[A-Za-z]/.test(token)) return false;
+
+      // Allow standard alphanumeric codes/course codes (e.g. 'CS101', 'ITE314', 'GE102', 'ACT-101')
+      if (/^[A-Za-z]{2,5}-?\d{1,4}[A-Za-z]?$/i.test(token)) return false;
+
+      // Allow ordinal numbers (e.g. '1st', '2nd', '3rd', '4th')
+      if (/^\d+(st|nd|rd|th)$/i.test(token)) return false;
+
+      // Allow all-uppercase abbreviations up to 6 characters (e.g. 'JPCS', 'AWS', 'STI', 'PDRRMC', 'SSG', 'UNESCO')
+      if (token.length <= 6 && token === token.toUpperCase() && /^[A-Z]+$/.test(token)) return false;
+
+      const lower = token.toLowerCase();
+      // Extract letter portion for checks when numbers or symbols are appended (e.g. 'fsdfsd123', 'asdd99')
+      const letters = lower.replace(/[^a-z]/g, '');
+
+      // 1. Must contain at least one vowel (a, e, i, o, u, y) if length of letters >= 3
+      if (letters.length >= 3 && !/[aeiouy]/.test(letters)) {
         return true;
       }
+
+      // 2. Obvious keyboard walks / mashing runs (3+ char runs)
+      if (/asdf|fdsa|qwerty|ytrewq|zxcvb|bvcxz|hjkl|lkjh|qwer|rewq|ghjk|kjhg|dfgh|fghj|poiuy/i.test(lower)) {
+        return true;
+      }
+
+      // 3. Repeated characters: 3+ identical characters (e.g. 'aaa', 'zzz') or repeated pairs (e.g. 'asdasd', 'fsdfsd')
+      if (/(.)\1{2,}/i.test(lower)) return true;
+      if (/(.{2,3})\1{1,}/i.test(letters)) {
+        return true;
+      }
+
+      // 4. Consecutive consonants: 5+ consecutive consonants in a word (unless whitelisted)
+      const consonants = 'bcdfghjklmnpqrstvwxz'; // exclude y as semi-vowel
+      if (new RegExp('[' + consonants + ']{5,}', 'i').test(letters)) {
+        const whitelist = ['angst', 'strengths', 'twelfths', 'catchphrase', 'knights', 'lengths', 'birthplace', 'instinct', 'abstract', 'construct', 'instruct'];
+        if (!whitelist.includes(letters)) return true;
+      }
+
+      // 5. Pure home-row mash (length >= 3)
+      if (letters.length >= 3 && /^[asdfghjkl]+$/.test(letters)) {
+        const homeWhitelist = ['all', 'ask', 'had', 'has', 'gas', 'glad', 'hall', 'half', 'fall', 'dash', 'flag', 'lass', 'salad', 'shall', 'flash', 'flask', 'glass'];
+        if (!homeWhitelist.includes(letters)) return true;
+      }
+
+      // 6. Pure top-row mash (length >= 3)
+      if (letters.length >= 3 && /^[qwertyuiop]+$/.test(letters)) {
+        const topWhitelist = ['per', 'pie', 'pot', 'our', 'out', 'put', 'pet', 'pit', 'tie', 'toe', 'tip', 'top', 'toy', 'two', 'wet', 'who', 'you', 'yet', 'pure', 'pour', 'poor', 'port', 'pert', 'pipe', 'peer', 'prop', 'quit', 'quiz', 'root', 'rope', 'ripe', 'riot', 'tour', 'trip', 'true', 'tree', 'type', 'wire', 'wipe', 'wept', 'were', 'your', 'write', 'wrote', 'writer', 'power', 'tower', 'route', 'quiet', 'quite', 'quote', 'equip', 'upper', 'piper', 'outer', 'priority', 'prior', 'proper', 'property', 'error', 'tier'];
+        if (!topWhitelist.includes(letters)) return true;
+      }
+
+      return false;
+    }
+
+    function hasGibberishText(val) {
+      if (!val) return false;
+      const words = val.trim().split(/\s+/);
+      for (const w of words) {
+        if (isGibberishToken(w)) return true;
+      }
+      return false;
+    }
+
+    function isDescriptiveField(fieldId) {
+      return ['f2_general_objectives', 'f2_specific_objectives', 'f2_rationale', 'f3_floor_plan_notes', 'f7_mechanics', 'f7_criteria', 'f7_scoring'].includes(fieldId);
+    }
+
+    function checkField(fieldId, errId) {
+      const el = document.getElementById(fieldId);
+      const errEl = document.getElementById(errId);
+      if (!el) return true;
+      const val = el.value.trim();
+      if (!val) {
+        el.classList.add('is-invalid');
+        if (errEl) {
+          if (!errEl.hasAttribute('data-default-msg')) {
+            errEl.setAttribute('data-default-msg', errEl.textContent);
+          }
+          errEl.textContent = errEl.getAttribute('data-default-msg');
+        }
+        showError(errId);
+        return false;
+      }
+
+      // Check gibberish
+      const words = val.split(/\s+/);
+      let isGibberish = false;
+      for (const w of words) {
+        if (isGibberishToken(w)) {
+          isGibberish = true;
+          break;
+        }
+      }
+
+      const isDescriptive = isDescriptiveField(fieldId);
+      if (isDescriptive && (val.length < 10 || words.length < 2)) {
+        isGibberish = true;
+      }
+
+      if (isGibberish) {
+        el.classList.add('is-invalid');
+        if (errEl) {
+          if (!errEl.hasAttribute('data-default-msg')) {
+            errEl.setAttribute('data-default-msg', errEl.textContent);
+          }
+          errEl.textContent = isDescriptive && (val.length < 10 || words.length < 2)
+            ? 'Please provide a substantive description (at least 10 characters and 2 words).'
+            : 'Please enter valid, meaningful text (avoid random characters or keyboard mash).';
+        }
+        showError(errId);
+        return false;
+      }
+
+      el.classList.remove('is-invalid');
+      if (errEl && errEl.hasAttribute('data-default-msg')) {
+        errEl.textContent = errEl.getAttribute('data-default-msg');
+      }
+      hideError(errId);
+      return true;
     }
 
     function validatePosterInput(fieldId, errId) {
@@ -3023,12 +3102,32 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         validateTimeFields(false);
         return;
       }
-      if (typeof MeaningfulValidation !== 'undefined' && MeaningfulValidation.isMonitoredField(e.target.id)) {
-        MeaningfulValidation.validateFieldUI(e.target.id);
-        return;
-      }
       if (e.target.classList.contains('is-invalid') && e.target.value.trim()) {
-        e.target.classList.remove('is-invalid');
+        const fieldErrorMap = {
+          'f1_title': 'e_title',
+          'f1_venue': 'e_venue',
+          'f1_target_participants': 'e_target_participants',
+          'f1_venue_address': 'e_venue_address',
+          'f1_theme': 'e_theme',
+          'f2_general_objectives': 'e_general_objectives',
+          'f2_specific_objectives': 'e_specific_objectives',
+          'f2_involved_subjects': 'e_involved_subjects',
+          'f2_rationale': 'e_rationale',
+          'f3_floor_plan_notes': 'e_floor_plan_notes',
+          'f7_mechanics': 'e_mechanics',
+          'f7_criteria': 'e_criteria',
+          'f7_scoring': 'e_scoring',
+          'f7_awards': 'e_awards'
+        };
+        if (fieldErrorMap[e.target.id]) {
+          checkField(e.target.id, fieldErrorMap[e.target.id]);
+        } else if (e.target.type === 'text' || e.target.tagName === 'TEXTAREA') {
+          if (!hasGibberishText(e.target.value)) {
+            e.target.classList.remove('is-invalid');
+          }
+        } else {
+          e.target.classList.remove('is-invalid');
+        }
       }
     });
     document.addEventListener('change', e => {
@@ -3040,12 +3139,32 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         validateTimeFields(false);
         return;
       }
-      if (typeof MeaningfulValidation !== 'undefined' && MeaningfulValidation.isMonitoredField(e.target.id)) {
-        MeaningfulValidation.validateFieldUI(e.target.id);
-        return;
-      }
       if (e.target.classList.contains('is-invalid') && e.target.value.trim()) {
-        e.target.classList.remove('is-invalid');
+        const fieldErrorMap = {
+          'f1_title': 'e_title',
+          'f1_venue': 'e_venue',
+          'f1_target_participants': 'e_target_participants',
+          'f1_venue_address': 'e_venue_address',
+          'f1_theme': 'e_theme',
+          'f2_general_objectives': 'e_general_objectives',
+          'f2_specific_objectives': 'e_specific_objectives',
+          'f2_involved_subjects': 'e_involved_subjects',
+          'f2_rationale': 'e_rationale',
+          'f3_floor_plan_notes': 'e_floor_plan_notes',
+          'f7_mechanics': 'e_mechanics',
+          'f7_criteria': 'e_criteria',
+          'f7_scoring': 'e_scoring',
+          'f7_awards': 'e_awards'
+        };
+        if (fieldErrorMap[e.target.id]) {
+          checkField(e.target.id, fieldErrorMap[e.target.id]);
+        } else if (e.target.type === 'text' || e.target.tagName === 'TEXTAREA') {
+          if (!hasGibberishText(e.target.value)) {
+            e.target.classList.remove('is-invalid');
+          }
+        } else {
+          e.target.classList.remove('is-invalid');
+        }
       }
     });
 

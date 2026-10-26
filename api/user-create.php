@@ -78,6 +78,17 @@ if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     respondError('invalid_email', 'A valid email address is required.', $isJsonRequest, $redirectUrl);
 }
 
+// Validate Department (Optional, but if provided must be one of the 4 approved options)
+$allowedDepartments = [
+    'IT Department',
+    'G.E. Department',
+    'THM Department',
+    'Administration',
+];
+if ($department !== '' && !in_array($department, $allowedDepartments, true)) {
+    respondError('invalid_department', 'Invalid department selected. Must be IT Department, G.E. Department, THM Department, or Administration.', $isJsonRequest, $redirectUrl, 422);
+}
+
 // 5. Authoritative Role Hierarchy & Permission Validation
 $assignedRole = '';
 if ($currentUser['role'] === 'dean') {

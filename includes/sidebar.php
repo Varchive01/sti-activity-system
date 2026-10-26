@@ -116,7 +116,7 @@ if (!function_exists('sidebarIcon')) {
   (function() {
     try {
       const collapsed = localStorage.getItem('sidebar-collapsed') === 'true';
-      if (collapsed) {
+      if (collapsed && window.innerWidth >= 1024) {
         document.documentElement.classList.add('sidebar-collapsed');
         if (document.body) {
           document.body.classList.add('sidebar-collapsed');
@@ -129,54 +129,215 @@ if (!function_exists('sidebarIcon')) {
 </script>
 
 <style>
-  /* Ensure shared sidebar uses a light color scheme ONLY when application is in dark mode */
-  [data-theme="dark"] .sidebar {
+  /* ── Light Mode Sidebar (Default & Explicit) ── */
+  html:not([data-theme="dark"]) .sidebar,
+  [data-theme="light"] .sidebar {
     background: #FFFFFF !important;
     border-right: 1px solid #E2E8F0 !important;
-    box-shadow: 2px 0 16px rgba(0, 0, 0, 0.25) !important;
+    box-shadow: 2px 0 16px rgba(0, 0, 0, 0.05) !important;
   }
-  [data-theme="dark"] .sidebar-logo {
+  html:not([data-theme="dark"]) .sidebar-logo,
+  [data-theme="light"] .sidebar-logo {
     border-bottom: 1px solid #E2E8F0 !important;
   }
-  [data-theme="dark"] .sidebar-logo .brand {
+  html:not([data-theme="dark"]) .sidebar-logo .brand,
+  [data-theme="light"] .sidebar-logo .brand {
     color: #0A1628 !important;
   }
-  [data-theme="dark"] .sidebar-logo .brand span {
+  html:not([data-theme="dark"]) .sidebar-logo .brand span,
+  [data-theme="light"] .sidebar-logo .brand span {
     color: var(--sti-gold, #F4A900) !important;
   }
-  [data-theme="dark"] .sidebar-logo .sub {
+  html:not([data-theme="dark"]) .sidebar-logo .sub,
+  [data-theme="light"] .sidebar-logo .sub {
     color: #64748B !important;
   }
-  [data-theme="dark"] .sidebar-toggle {
+  html:not([data-theme="dark"]) .sidebar-toggle,
+  [data-theme="light"] .sidebar-toggle {
     color: #475569 !important;
   }
-  [data-theme="dark"] .sidebar-toggle:hover {
+  html:not([data-theme="dark"]) .sidebar-toggle:hover,
+  [data-theme="light"] .sidebar-toggle:hover {
     background: #F1F5F9 !important;
     color: #0A1628 !important;
   }
-  [data-theme="dark"] .sidebar-nav::-webkit-scrollbar-thumb {
+  html:not([data-theme="dark"]) .sidebar-nav::-webkit-scrollbar-thumb,
+  [data-theme="light"] .sidebar-nav::-webkit-scrollbar-thumb {
     background: rgba(0, 0, 0, 0.12) !important;
     border-radius: 9999px;
   }
-  [data-theme="dark"] .sidebar-nav::-webkit-scrollbar-thumb:hover {
+  html:not([data-theme="dark"]) .sidebar-nav::-webkit-scrollbar-thumb:hover,
+  [data-theme="light"] .sidebar-nav::-webkit-scrollbar-thumb:hover {
     background: rgba(0, 0, 0, 0.22) !important;
   }
-  [data-theme="dark"] .sidebar-nav .nav-label {
+  html:not([data-theme="dark"]) .sidebar-nav .nav-label,
+  [data-theme="light"] .sidebar-nav .nav-label {
     color: #64748B !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-nav a.sidebar-nav-item,
+  html:not([data-theme="dark"]) .sidebar-nav a,
+  [data-theme="light"] .sidebar-nav a.sidebar-nav-item,
+  [data-theme="light"] .sidebar-nav a {
+    color: #334155 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-nav a svg,
+  [data-theme="light"] .sidebar-nav a svg {
+    color: #64748B !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-nav a:hover,
+  [data-theme="light"] .sidebar-nav a:hover {
+    background: #F1F5F9 !important;
+    color: #0284C7 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-nav a:hover svg,
+  [data-theme="light"] .sidebar-nav a:hover svg {
+    color: #0284C7 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-nav a.active,
+  html:not([data-theme="dark"]) aside.sidebar .sidebar-nav a.active,
+  [data-theme="light"] .sidebar-nav a.active,
+  [data-theme="light"] aside.sidebar .sidebar-nav a.active {
+    background: #0284C7 !important;
+    color: #FFFFFF !important;
+    font-weight: 600 !important;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35) !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-nav a.active svg,
+  html:not([data-theme="dark"]) .sidebar-nav a.active .nav-icon svg,
+  [data-theme="light"] .sidebar-nav a.active svg,
+  [data-theme="light"] .sidebar-nav a.active .nav-icon svg {
+    color: #FFFFFF !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-bottom,
+  [data-theme="light"] .sidebar-bottom {
+    border-top: 1px solid #E2E8F0 !important;
+    background: #F8FAFC !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-bottom-btn,
+  [data-theme="light"] .sidebar-bottom-btn {
+    color: #334155 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-bottom-btn svg,
+  [data-theme="light"] .sidebar-bottom-btn svg {
+    color: #64748B !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-bottom-btn:hover,
+  [data-theme="light"] .sidebar-bottom-btn:hover {
+    background: #E2E8F0 !important;
+    color: #0A1628 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-bottom-btn:hover svg,
+  [data-theme="light"] .sidebar-bottom-btn:hover svg {
+    color: #0A1628 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-help-btn:hover,
+  [data-theme="light"] .sidebar-help-btn:hover {
+    color: #0284C7 !important;
+    background: #E0F2FE !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-help-btn:hover svg,
+  [data-theme="light"] .sidebar-help-btn:hover svg {
+    color: #0284C7 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar .notif-bell-btn.sidebar-bottom-btn,
+  [data-theme="light"] .sidebar .notif-bell-btn.sidebar-bottom-btn {
+    color: #334155 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar .notif-bell-btn.sidebar-bottom-btn:hover,
+  [data-theme="light"] .sidebar .notif-bell-btn.sidebar-bottom-btn:hover {
+    color: #0A1628 !important;
+    background: #E2E8F0 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-user:hover,
+  [data-theme="light"] .sidebar-user:hover {
+    background: #F1F5F9 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-user .uname,
+  [data-theme="light"] .sidebar-user .uname {
+    color: #0A1628 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-user .urole,
+  [data-theme="light"] .sidebar-user .urole {
+    color: #64748B !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-collapsed .sidebar-nav .nav-group:not(:last-child)::after,
+  [data-theme="light"] .sidebar-collapsed .sidebar-nav .nav-group:not(:last-child)::after {
+    background: #E2E8F0 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-collapsed .sidebar-nav a.active,
+  [data-theme="light"] .sidebar-collapsed .sidebar-nav a.active {
+    background: #0284C7 !important;
+    color: #FFFFFF !important;
+    border-radius: 12px !important;
+    box-shadow: 0 3px 12px rgba(2, 132, 199, 0.35) !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-collapsed .sidebar-nav a.active svg,
+  [data-theme="light"] .sidebar-collapsed .sidebar-nav a.active svg {
+    color: #FFFFFF !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-collapsed .sidebar-nav a:hover,
+  [data-theme="light"] .sidebar-collapsed .sidebar-nav a:hover {
+    background: #F1F5F9 !important;
+    color: #0284C7 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-collapsed .sidebar-nav a:hover svg,
+  [data-theme="light"] .sidebar-collapsed .sidebar-nav a:hover svg {
+    color: #0284C7 !important;
+  }
+  html:not([data-theme="dark"]) .sidebar-collapsed .sidebar-bottom-btn:hover,
+  [data-theme="light"] .sidebar-collapsed .sidebar-bottom-btn:hover {
+    background: #E2E8F0 !important;
+    color: #0A1628 !important;
+  }
+
+  /* ── Dark Mode Sidebar ── */
+  [data-theme="dark"] .sidebar {
+    background: #0B1524 !important;
+    border-right: 1px solid #1E2D45 !important;
+    box-shadow: 2px 0 16px rgba(0, 0, 0, 0.45) !important;
+  }
+  [data-theme="dark"] .sidebar-logo {
+    border-bottom: 1px solid #1E2D45 !important;
+  }
+  [data-theme="dark"] .sidebar-logo .brand {
+    color: #F8FAFC !important;
+  }
+  [data-theme="dark"] .sidebar-logo .brand span {
+    color: var(--sti-gold, #FBBF24) !important;
+  }
+  [data-theme="dark"] .sidebar-logo .sub {
+    color: #8899B2 !important;
+  }
+  [data-theme="dark"] .sidebar-toggle {
+    color: #CBD5E1 !important;
+  }
+  [data-theme="dark"] .sidebar-toggle:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #FFFFFF !important;
+  }
+  [data-theme="dark"] .sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-radius: 9999px;
+  }
+  [data-theme="dark"] .sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.22) !important;
+  }
+  [data-theme="dark"] .sidebar-nav .nav-label {
+    color: #8899B2 !important;
   }
   [data-theme="dark"] .sidebar-nav a.sidebar-nav-item,
   [data-theme="dark"] .sidebar-nav a {
-    color: #334155 !important;
+    color: #CBD5E1 !important;
   }
   [data-theme="dark"] .sidebar-nav a svg {
-    color: #475569 !important;
+    color: #8899B2 !important;
   }
   [data-theme="dark"] .sidebar-nav a:hover {
-    background: #F1F5F9 !important;
-    color: #0A1628 !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #FFFFFF !important;
   }
   [data-theme="dark"] .sidebar-nav a:hover svg {
-    color: #0284C7 !important;
+    color: #38BDF8 !important;
   }
   [data-theme="dark"] .sidebar-nav a.active,
   [data-theme="dark"] aside.sidebar .sidebar-nav a.active {
@@ -190,31 +351,47 @@ if (!function_exists('sidebarIcon')) {
     color: #FFFFFF !important;
   }
   [data-theme="dark"] .sidebar-bottom {
-    border-top: 1px solid #E2E8F0 !important;
-    background: #F8FAFC !important;
+    border-top: 1px solid #1E2D45 !important;
+    background: rgba(0, 0, 0, 0.25) !important;
   }
   [data-theme="dark"] .sidebar-bottom-btn {
-    color: #334155 !important;
+    color: #CBD5E1 !important;
   }
   [data-theme="dark"] .sidebar-bottom-btn svg {
-    color: #475569 !important;
+    color: #8899B2 !important;
   }
   [data-theme="dark"] .sidebar-bottom-btn:hover {
-    background: #E2E8F0 !important;
-    color: #0A1628 !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #FFFFFF !important;
   }
   [data-theme="dark"] .sidebar-bottom-btn:hover svg {
-    color: #0A1628 !important;
+    color: #FFFFFF !important;
   }
   [data-theme="dark"] .sidebar-help-btn:hover {
-    color: #0284C7 !important;
-    background: #E0F2FE !important;
+    color: #38BDF8 !important;
+    background: rgba(2, 132, 199, 0.20) !important;
   }
   [data-theme="dark"] .sidebar-help-btn:hover svg {
-    color: #0284C7 !important;
+    color: #38BDF8 !important;
+  }
+  [data-theme="dark"] .sidebar .notif-bell-btn.sidebar-bottom-btn {
+    color: #CBD5E1 !important;
+  }
+  [data-theme="dark"] .sidebar .notif-bell-btn.sidebar-bottom-btn:hover {
+    color: #FFFFFF !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+  }
+  [data-theme="dark"] .sidebar-user:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+  }
+  [data-theme="dark"] .sidebar-user .uname {
+    color: #F8FAFC !important;
+  }
+  [data-theme="dark"] .sidebar-user .urole {
+    color: #8899B2 !important;
   }
   [data-theme="dark"] .sidebar-collapsed .sidebar-nav .nav-group:not(:last-child)::after {
-    background: #E2E8F0 !important;
+    background: #1E2D45 !important;
   }
   [data-theme="dark"] .sidebar-collapsed .sidebar-nav a.active {
     background: #0284C7 !important;
@@ -226,19 +403,147 @@ if (!function_exists('sidebarIcon')) {
     color: #FFFFFF !important;
   }
   [data-theme="dark"] .sidebar-collapsed .sidebar-nav a:hover {
-    background: #F1F5F9 !important;
-    color: #0A1628 !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #FFFFFF !important;
   }
   [data-theme="dark"] .sidebar-collapsed .sidebar-nav a:hover svg {
-    color: #0284C7 !important;
+    color: #38BDF8 !important;
   }
   [data-theme="dark"] .sidebar-collapsed .sidebar-bottom-btn:hover {
-    background: #E2E8F0 !important;
-    color: #0A1628 !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #FFFFFF !important;
+  }
+
+  /* Mobile drawer toggle & backdrop - hidden by default on desktop (>=1024px) */
+  #mobile-nav-toggle,
+  .mobile-nav-toggle {
+    display: none !important;
+  }
+  #sidebar-backdrop,
+  .sidebar-backdrop {
+    display: none !important;
+  }
+
+  @media (max-width: 1023.98px) {
+    #mobile-nav-toggle,
+    .mobile-nav-toggle {
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .mobile-nav-toggle svg,
+    .mobile-nav-toggle path {
+      pointer-events: none !important;
+    }
+    #sidebar-backdrop,
+    .sidebar-backdrop {
+      display: none !important;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    html.mobile-drawer-open #sidebar-backdrop,
+    body.mobile-drawer-open #sidebar-backdrop,
+    html.mobile-drawer-open .sidebar-backdrop,
+    body.mobile-drawer-open .sidebar-backdrop {
+      display: block !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+      pointer-events: auto !important;
+    }
+    html.mobile-drawer-open .sidebar,
+    body.mobile-drawer-open .sidebar,
+    html.sidebar-collapsed.mobile-drawer-open .sidebar,
+    body.sidebar-collapsed.mobile-drawer-open .sidebar,
+    html.mobile-drawer-open.sidebar-collapsed .sidebar,
+    body.mobile-drawer-open.sidebar-collapsed .sidebar {
+      transform: translateX(0) !important;
+    }
+    /* Safeguard: On mobile drawer, ensure off-canvas positioning when closed and readable layout when open */
+    .sidebar,
+    .sidebar-collapsed .sidebar,
+    html.sidebar-collapsed .sidebar,
+    body.sidebar-collapsed .sidebar {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      bottom: 0 !important;
+      height: 100vh !important;
+      height: 100dvh !important;
+      width: 280px !important;
+      max-width: 85vw !important;
+      transform: translateX(-100%) !important;
+      transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.28s ease !important;
+      z-index: 1050 !important;
+      box-shadow: none !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+    }
+    .sidebar-collapsed .sidebar-logo .brand-container {
+      display: block !important;
+    }
+    .sidebar-collapsed .sidebar-nav .nav-label {
+      display: block !important;
+    }
+    .sidebar-collapsed .sidebar-nav a.sidebar-nav-item .nav-label-text {
+      display: inline !important;
+    }
+    .sidebar-collapsed .sidebar-bottom-btn .btn-label-text {
+      display: inline !important;
+    }
+    .sidebar-collapsed .sidebar-nav a.sidebar-nav-item,
+    .sidebar-collapsed .sidebar-nav a {
+      width: auto !important;
+      height: auto !important;
+      justify-content: flex-start !important;
+      padding: 11px 14px !important;
+      margin: 0 0 3px 0 !important;
+      font-size: 16px !important;
+      gap: 12px !important;
+    }
+    .sidebar-collapsed .sidebar-bottom-btn {
+      width: 100% !important;
+      height: auto !important;
+      justify-content: flex-start !important;
+      padding: 10px 14px !important;
+      gap: 12px !important;
+    }
+    .sidebar-collapsed .sidebar-tooltip {
+      display: none !important;
+    }
+    .main-wrap,
+    .sidebar-collapsed .main-wrap,
+    html.sidebar-collapsed .main-wrap,
+    body.sidebar-collapsed .main-wrap {
+      margin-left: 0 !important;
+    }
+    /* Hide only the "Close sidebar" tooltip on mobile/tablet screens (< 1024px) */
+    .sidebar-tooltip.tooltip-close {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    #mobile-nav-toggle,
+    .mobile-nav-toggle {
+      display: none !important;
+    }
+    #sidebar-backdrop,
+    .sidebar-backdrop {
+      display: none !important;
+    }
   }
 </style>
 
-<aside class="sidebar <?= $theme ?>">
+<!-- Off-canvas Mobile Drawer Backdrop -->
+<div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>
+
+<aside class="sidebar <?= $theme ?>" id="app-sidebar" aria-label="Main Navigation">
   <!-- 1. Top Header: Logo & Sidebar Toggle -->
   <div class="sidebar-logo">
     <div class="brand-container">
@@ -308,14 +613,121 @@ if (!function_exists('sidebarIcon')) {
 <script>
   (function() {
     const toggleBtn = document.getElementById('sidebar-toggle-btn');
+    const backdrop = document.getElementById('sidebar-backdrop');
+
+    function closeMobileDrawer() {
+      document.documentElement.classList.remove('mobile-drawer-open');
+      document.body.classList.remove('mobile-drawer-open');
+      const mobileToggle = document.getElementById('mobile-nav-toggle');
+      if (mobileToggle) mobileToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    function openMobileDrawer() {
+      document.documentElement.classList.add('mobile-drawer-open');
+      document.body.classList.add('mobile-drawer-open');
+      const mobileToggle = document.getElementById('mobile-nav-toggle');
+      if (mobileToggle) mobileToggle.setAttribute('aria-expanded', 'true');
+    }
+
+    function toggleMobileDrawer() {
+      const isOpen = document.body.classList.contains('mobile-drawer-open');
+      if (isOpen) {
+        closeMobileDrawer();
+      } else {
+        openMobileDrawer();
+      }
+    }
+
     if (toggleBtn) {
       toggleBtn.addEventListener('click', () => {
-        const isCollapsed = document.documentElement.classList.toggle('sidebar-collapsed');
-        if (document.body) {
-          document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+        if (window.innerWidth < 1024) {
+          // On mobile, clicking toggle inside drawer closes it
+          closeMobileDrawer();
+        } else {
+          // On desktop, toggle collapse
+          const isCollapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+          if (document.body) {
+            document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+          }
+          localStorage.setItem('sidebar-collapsed', isCollapsed ? 'true' : 'false');
         }
-        localStorage.setItem('sidebar-collapsed', isCollapsed ? 'true' : 'false');
       });
+    }
+
+    if (backdrop) {
+      let lastBackdropTouch = 0;
+      backdrop.addEventListener('touchend', (e) => {
+        lastBackdropTouch = Date.now();
+        e.preventDefault();
+        closeMobileDrawer();
+      }, { passive: false });
+      backdrop.addEventListener('click', (e) => {
+        if (Date.now() - lastBackdropTouch < 500) return;
+        closeMobileDrawer();
+      });
+    }
+
+    // Escape key closes mobile drawer
+    function handleEscape(e) {
+      if ((e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) && 
+          (document.body.classList.contains('mobile-drawer-open') || document.documentElement.classList.contains('mobile-drawer-open'))) {
+        closeMobileDrawer();
+      }
+    }
+    document.addEventListener('keydown', handleEscape, true);
+    window.addEventListener('keydown', handleEscape, true);
+
+    // Close drawer when clicking any sidebar navigation link on small screens
+    const navLinks = document.querySelectorAll('.sidebar-nav a');
+    navLinks.forEach(link => {
+      link.addEventListener('click', () => {
+        if (window.innerWidth < 1024) {
+          closeMobileDrawer();
+        }
+      });
+    });
+
+    // Automatically inject accessible hamburger toggle button into primary .topbar
+    function initMobileTopbarButton() {
+      const topbar = document.querySelector('.topbar');
+      if (!topbar || document.getElementById('mobile-nav-toggle')) return;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'mobile-nav-toggle';
+      btn.className = 'mobile-nav-toggle';
+      btn.setAttribute('aria-label', 'Toggle navigation menu');
+      btn.setAttribute('aria-expanded', 'false');
+      btn.setAttribute('aria-controls', 'app-sidebar');
+      btn.innerHTML = `
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      `;
+
+      let lastToggleTouch = 0;
+      btn.addEventListener('touchend', (e) => {
+        lastToggleTouch = Date.now();
+        e.preventDefault();
+        e.stopPropagation();
+        toggleMobileDrawer();
+      }, { passive: false });
+
+      btn.addEventListener('click', (e) => {
+        if (Date.now() - lastToggleTouch < 500) return;
+        e.preventDefault();
+        e.stopPropagation();
+        toggleMobileDrawer();
+      });
+
+      topbar.insertAdjacentElement('afterbegin', btn);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initMobileTopbarButton);
+      window.addEventListener('load', initMobileTopbarButton);
+    } else {
+      initMobileTopbarButton();
     }
   })();
 </script>

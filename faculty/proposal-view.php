@@ -24,6 +24,88 @@ $fp   = $db->prepare("SELECT * FROM floor_plans WHERE activity_id=?"); $fp->exec
 $kpiStmt = $db->prepare("SELECT * FROM kpi_evaluations WHERE activity_id=?"); $kpiStmt->execute([$id]); $kpis=$kpiStmt->fetchAll();
 
 $logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON al.reviewer_id=u.id WHERE al.activity_id=? ORDER BY al.acted_at DESC"); $logs->execute([$id]); $history=$logs->fetchAll();
+
+// Prepare structured proposal data for client-side jsPDF export
+$proposalPdfData = [
+    'id' => (int)$activity['id'],
+    'title' => $activity['title'] ?? 'Untitled Proposal',
+    'status' => ucfirst(str_replace('_', ' ', $activity['status'] ?? 'draft')),
+    'proponent' => $activity['faculty_name'] ?? 'Faculty Proponent',
+    'source' => ucfirst(str_replace('_', ' ', $activity['source'] ?? '')),
+    'event_date' => $activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—',
+    'time' => (($activity['start_time'] ?? '—') . ' – ' . ($activity['end_time'] ?? '—')),
+    'venue' => $activity['venue'] ?? '—',
+    'theme' => $activity['theme'] ?? '—',
+    'target_participants' => number_format((int)($activity['target_participants'] ?? 0)) . ' participants',
+    'revision_notes' => $activity['revision_notes'] ?? '',
+    'general_objectives' => $activity['general_objectives'] ?? '',
+    'specific_objectives' => $activity['specific_objectives'] ?? '',
+    'involved_subjects' => $activity['involved_subjects'] ?? '',
+    'rationale' => $activity['rationale'] ?? '',
+    'materials' => array_map(function($m) {
+        return [
+            $m['item_name'] ?? '',
+            $m['description'] ?? '—',
+            (string)($m['quantity'] ?? 0),
+            $m['provider'] ?? '—',
+            'PHP ' . number_format((float)($m['est_cost'] ?? 0), 2)
+        ];
+    }, $materials),
+    'manpower' => array_map(function($m) {
+        return [
+            $m['role'] ?? '',
+            $m['assigned_person'] ?? '—',
+            ucfirst($m['type'] ?? '')
+        ];
+    }, $manpower),
+    'schedules' => array_map(function($s) {
+        return [
+            $s['sched_date'] ?? '',
+            $s['event_name'] ?? '',
+            $s['venue'] ?? '—',
+            $s['organizer'] ?? '—'
+        ];
+    }, $schedules),
+    'program' => array_map(function($p) {
+        return [
+            $p['time_slot'] ?? '',
+            $p['segment'] ?? '',
+            $p['description'] ?? '—',
+            $p['person_ic'] ?? '—'
+        ];
+    }, $program),
+    'guidelines' => array_filter([
+        'Mechanics' => $guidelines['mechanics'] ?? '',
+        'Criteria for Judging' => $guidelines['criteria'] ?? '',
+        'Scoring System' => $guidelines['scoring_system'] ?? '',
+        'Special Awards' => $guidelines['special_awards'] ?? ''
+    ]),
+    'tasks' => array_map(function($f) {
+        return [
+            $f['task_title'] ?: ($f['assigned_task'] ?: 'Untitled Task'),
+            $f['committee'] ?: '—',
+            $f['assigned_user_name'] ?: ($f['faculty_name'] ?: '—'),
+            $f['role_in_event'] ?: '—',
+            !empty($f['due_date']) ? date('M j, Y', strtotime($f['due_date'])) : '—',
+            $f['status'] ?? 'Not Started'
+        ];
+    }, $ftasks),
+    'kpis' => array_map(function($k) {
+        return [
+            $k['criteria'] ?? '',
+            $k['target_value'] ?? ($k['target_metric'] ?? '—'),
+            $k['evaluation_method'] ?? '—'
+        ];
+    }, $kpis),
+    'history' => array_map(function($h) {
+        return [
+            $h['name'] ?? 'Reviewer',
+            ucfirst(str_replace('_', ' ', $h['action'] ?? '')),
+            $h['notes'] ?? '—',
+            date('M j, Y g:i A', strtotime($h['acted_at']))
+        ];
+    }, $history)
+];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -32,6 +114,9 @@ $logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON a
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>View Proposal – STI</title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <!-- jsPDF & autoTable CDN for Client-Side PDF Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <script>
     (function() {
       try {
@@ -380,6 +465,9 @@ $logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON a
     <div class="page-title">View Proposal</div>
     <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
       <a href="<?= BASE_URL ?>/faculty/activities.php" class="btn btn-outline btn-sm">← Back</a>
+      <button type="button" id="exportPdfBtn" class="btn btn-outline btn-sm" onclick="exportProposalPdf()" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+        📄 Export PDF
+      </button>
       <?php if (in_array($activity['status'],['draft','returned_for_revision'])): ?>
       <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= $id ?>" class="btn btn-primary btn-sm">Edit Proposal</a>
       <?php endif; ?>
@@ -407,6 +495,11 @@ $logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON a
           <span><?= htmlspecialchars($activity['title']) ?></span>
           <?= getStatusBadge($activity['status']) ?>
         </h2>
+        <div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="exportProposalPdf()" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+            📄 Export PDF
+          </button>
+        </div>
       </div>
       <div class="card-body">
         <div class="info-grid">
@@ -859,5 +952,364 @@ $logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON a
 
   </div><!-- content -->
 </div><!-- main-wrap -->
+
+<!-- Client-Side jsPDF Proposal Exporter -->
+<script>
+const PROPOSAL_PDF_DATA = <?= json_encode($proposalPdfData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+
+function exportProposalPdf() {
+  if (typeof window.jspdf === 'undefined' || !window.jspdf.jsPDF) {
+    alert('PDF export library is still loading or unavailable. Please check your internet connection and try again.');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const marginX = 14;
+  const contentWidth = pageWidth - (marginX * 2); // 182mm
+  let currentY = 16;
+
+  function ensureSpace(neededHeight) {
+    if (currentY + neededHeight > pageHeight - 18) {
+      doc.addPage();
+      currentY = 18;
+    }
+  }
+
+  function addSectionHeading(title) {
+    ensureSpace(14);
+    currentY += 3;
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(marginX, currentY - 4.5, contentWidth, 8, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(0, 56, 118); // STI Blue
+    doc.text(title, marginX + 3, currentY + 1);
+    currentY += 7;
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'normal');
+  }
+
+  function addFieldBlock(label, val) {
+    if (!val || !val.trim() || val.trim() === '—') return;
+    ensureSpace(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(label, marginX, currentY);
+    currentY += 3.8;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59);
+    const splitLines = doc.splitTextToSize(val, contentWidth);
+    for (let i = 0; i < splitLines.length; i++) {
+      ensureSpace(4.5);
+      doc.text(splitLines[i], marginX, currentY);
+      currentY += 4.2;
+    }
+    currentY += 1.5;
+  }
+
+  // --- HEADER BANNER ---
+  doc.setFillColor(0, 56, 118);
+  doc.rect(marginX, currentY - 2, contentWidth, 2, 'F');
+  currentY += 4;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(0, 56, 118);
+  doc.text('STI ACTIVITY & RESOURCE MANAGEMENT SYSTEM (STI-ARMES)', marginX, currentY);
+
+  currentY += 6;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(15, 23, 42);
+  const titleLines = doc.splitTextToSize(PROPOSAL_PDF_DATA.title || 'Activity Proposal', contentWidth - 45);
+  for (let i = 0; i < titleLines.length; i++) {
+    doc.text(titleLines[i], marginX, currentY);
+    currentY += 6;
+  }
+
+  // Status Badge on top right
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  const statusStr = 'Status: ' + (PROPOSAL_PDF_DATA.status || 'Draft');
+  doc.text(statusStr, pageWidth - marginX, currentY - (titleLines.length * 6) + 4, { align: 'right' });
+
+  // Thin separator
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.4);
+  doc.line(marginX, currentY, pageWidth - marginX, currentY);
+  currentY += 4;
+
+  // --- REVISION NOTES IF PRESENT ---
+  if (PROPOSAL_PDF_DATA.revision_notes && PROPOSAL_PDF_DATA.revision_notes.trim()) {
+    ensureSpace(14);
+    doc.setFillColor(254, 243, 199);
+    doc.setDrawColor(245, 158, 11);
+    const revLines = doc.splitTextToSize('Revision Notes: ' + PROPOSAL_PDF_DATA.revision_notes, contentWidth - 6);
+    const boxH = (revLines.length * 4) + 6;
+    doc.roundedRect(marginX, currentY, contentWidth, boxH, 1.5, 1.5, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(180, 83, 9);
+    for (let i = 0; i < revLines.length; i++) {
+      doc.text(revLines[i], marginX + 3, currentY + 4 + (i * 4));
+    }
+    currentY += boxH + 4;
+  }
+
+  // --- BASIC INFORMATION GRID ---
+  addSectionHeading('Activity Overview');
+  const basicInfoBody = [
+    [
+      { content: 'Event Date:', styles: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 26 } },
+      { content: PROPOSAL_PDF_DATA.event_date || '—', styles: { cellWidth: 65 } },
+      { content: 'Proponent:', styles: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 26 } },
+      { content: PROPOSAL_PDF_DATA.proponent || '—', styles: { cellWidth: 65 } }
+    ],
+    [
+      { content: 'Time Slot:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
+      { content: PROPOSAL_PDF_DATA.time || '—' },
+      { content: 'Source:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
+      { content: PROPOSAL_PDF_DATA.source || '—' }
+    ],
+    [
+      { content: 'Venue:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
+      { content: PROPOSAL_PDF_DATA.venue || '—' },
+      { content: 'Participants:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
+      { content: PROPOSAL_PDF_DATA.target_participants || '—' }
+    ],
+    [
+      { content: 'Theme:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
+      { content: PROPOSAL_PDF_DATA.theme || '—', colSpan: 3 }
+    ]
+  ];
+
+  doc.autoTable({
+    startY: currentY,
+    margin: { left: marginX, right: marginX },
+    body: basicInfoBody,
+    theme: 'plain',
+    styles: { fontSize: 8.5, cellPadding: 1.8, textColor: [30, 41, 59] },
+    columnStyles: {
+      0: { cellWidth: 25 },
+      1: { cellWidth: 66 },
+      2: { cellWidth: 25 },
+      3: { cellWidth: 66 }
+    }
+  });
+  currentY = doc.lastAutoTable.finalY + 4;
+
+  // --- OBJECTIVES & ALIGNMENT ---
+  if (PROPOSAL_PDF_DATA.general_objectives || PROPOSAL_PDF_DATA.specific_objectives || PROPOSAL_PDF_DATA.rationale) {
+    addSectionHeading('Objectives & Academic Alignment');
+    addFieldBlock('General Objectives:', PROPOSAL_PDF_DATA.general_objectives);
+    addFieldBlock('Specific Objectives:', PROPOSAL_PDF_DATA.specific_objectives);
+    addFieldBlock('Involved Subjects:', PROPOSAL_PDF_DATA.involved_subjects);
+    addFieldBlock('Rationale:', PROPOSAL_PDF_DATA.rationale);
+  }
+
+  // --- GUIDELINES ---
+  if (PROPOSAL_PDF_DATA.guidelines && Object.keys(PROPOSAL_PDF_DATA.guidelines).length > 0) {
+    addSectionHeading('Event Guidelines');
+    for (const [gLabel, gVal] of Object.entries(PROPOSAL_PDF_DATA.guidelines)) {
+      addFieldBlock(gLabel + ':', gVal);
+    }
+  }
+
+  // --- SCHEDULE OF ACTIVITIES ---
+  if (PROPOSAL_PDF_DATA.schedules && PROPOSAL_PDF_DATA.schedules.length > 0) {
+    addSectionHeading('Schedule of Activities');
+    doc.autoTable({
+      startY: currentY,
+      margin: { left: marginX, right: marginX },
+      head: [['Date', 'Event Name', 'Venue', 'Organizer']],
+      body: PROPOSAL_PDF_DATA.schedules,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
+      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 32 },
+        1: { cellWidth: 65 },
+        2: { cellWidth: 45 },
+        3: { cellWidth: 40 }
+      }
+    });
+    currentY = doc.lastAutoTable.finalY + 4;
+  }
+
+  // --- PROGRAM SEQUENCE ---
+  if (PROPOSAL_PDF_DATA.program && PROPOSAL_PDF_DATA.program.length > 0) {
+    addSectionHeading('Program Flow & Sequence');
+    doc.autoTable({
+      startY: currentY,
+      margin: { left: marginX, right: marginX },
+      head: [['Time Slot', 'Segment', 'Description', 'Person In-Charge']],
+      body: PROPOSAL_PDF_DATA.program,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
+      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 32 },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 65 },
+        3: { cellWidth: 40 }
+      }
+    });
+    currentY = doc.lastAutoTable.finalY + 4;
+  }
+
+  // --- COMMITTEE TASKS & ASSIGNMENTS ---
+  if (PROPOSAL_PDF_DATA.tasks && PROPOSAL_PDF_DATA.tasks.length > 0) {
+    addSectionHeading('Committee Tasks & Role Assignments');
+    doc.autoTable({
+      startY: currentY,
+      margin: { left: marginX, right: marginX },
+      head: [['Task Title', 'Committee', 'Assigned Member', 'Role in Event', 'Target Date', 'Status']],
+      body: PROPOSAL_PDF_DATA.tasks,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
+      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 47 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 35 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 18 }
+      }
+    });
+    currentY = doc.lastAutoTable.finalY + 4;
+  }
+
+  // --- MANPOWER ---
+  if (PROPOSAL_PDF_DATA.manpower && PROPOSAL_PDF_DATA.manpower.length > 0) {
+    addSectionHeading('Manpower Allocation');
+    doc.autoTable({
+      startY: currentY,
+      margin: { left: marginX, right: marginX },
+      head: [['Role / Responsibility', 'Assigned Person', 'Type']],
+      body: PROPOSAL_PDF_DATA.manpower,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
+      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 72 },
+        1: { cellWidth: 70 },
+        2: { cellWidth: 40 }
+      }
+    });
+    currentY = doc.lastAutoTable.finalY + 4;
+  }
+
+  // --- MATERIALS NEEDED ---
+  if (PROPOSAL_PDF_DATA.materials && PROPOSAL_PDF_DATA.materials.length > 0) {
+    addSectionHeading('Materials & Resources Needed');
+    doc.autoTable({
+      startY: currentY,
+      margin: { left: marginX, right: marginX },
+      head: [['Item Name', 'Description', 'Qty', 'Provider', 'Est. Cost']],
+      body: PROPOSAL_PDF_DATA.materials,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
+      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 42 },
+        1: { cellWidth: 60 },
+        2: { cellWidth: 15, halign: 'center' },
+        3: { cellWidth: 35 },
+        4: { cellWidth: 30, halign: 'right' }
+      }
+    });
+    currentY = doc.lastAutoTable.finalY + 4;
+  }
+
+  // --- KPI & EVALUATION ---
+  if (PROPOSAL_PDF_DATA.kpis && PROPOSAL_PDF_DATA.kpis.length > 0) {
+    addSectionHeading('KPI & Evaluation Alignment');
+    doc.autoTable({
+      startY: currentY,
+      margin: { left: marginX, right: marginX },
+      head: [['Indicator / Criteria', 'Target Metric', 'Evaluation Method']],
+      body: PROPOSAL_PDF_DATA.kpis,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
+      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 70 },
+        1: { cellWidth: 50 },
+        2: { cellWidth: 62 }
+      }
+    });
+    currentY = doc.lastAutoTable.finalY + 4;
+  }
+
+  // --- APPROVAL HISTORY ---
+  if (PROPOSAL_PDF_DATA.history && PROPOSAL_PDF_DATA.history.length > 0) {
+    addSectionHeading('Approval & Review History');
+    doc.autoTable({
+      startY: currentY,
+      margin: { left: marginX, right: marginX },
+      head: [['Reviewer', 'Action Taken', 'Remarks / Notes', 'Date & Time']],
+      body: PROPOSAL_PDF_DATA.history,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
+      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 40 },
+        1: { cellWidth: 32 },
+        2: { cellWidth: 68 },
+        3: { cellWidth: 42 }
+      }
+    });
+    currentY = doc.lastAutoTable.finalY + 4;
+  }
+
+  // --- FOOTERS ON ALL PAGES ---
+  const totalPages = doc.internal.getNumberOfPages();
+  const exportTimestamp = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(marginX, pageHeight - 12, pageWidth - marginX, pageHeight - 12);
+    doc.text('STI Activity & Resource Management System (STI-ARMES) — Official Proposal Export', marginX, pageHeight - 8);
+    doc.text('Page ' + p + ' of ' + totalPages + ' (' + exportTimestamp + ')', pageWidth - marginX, pageHeight - 8, { align: 'right' });
+  }
+
+  // --- SANITIZE FILENAME & DOWNLOAD ---
+  let safeTitle = (PROPOSAL_PDF_DATA.title || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_\-\s]/g, '')
+    .replace(/\s+/g, '_')
+    .substring(0, 50);
+
+  if (!safeTitle) {
+    safeTitle = 'Proposal_' + (PROPOSAL_PDF_DATA.id || 'Export');
+  }
+  const filename = safeTitle + '_Proposal.pdf';
+
+  doc.save(filename);
+}
+</script>
 </body>
 </html>

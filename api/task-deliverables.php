@@ -137,6 +137,9 @@ if ($action === 'upload') {
     ]);
 
     $deliverableId = (int)$db->lastInsertId();
+    if ($deliverableId && function_exists('syncOneDriveMetadataToRecord')) {
+        syncOneDriveMetadataToRecord($db, 'task_deliverables', $deliverableId, $savedPath, (int)$task['activity_id']);
+    }
 
     // If task was 'Not Started', advance to 'In Progress' upon deliverable submission
     if ($task['status'] === 'Not Started') {
@@ -357,21 +360,24 @@ if ($action === 'review') {
         } else {
             $newPct = ($currentPct >= 100) ? 50 : $currentPct;
         }
-        $newStatus = $isOverdue ? 'Delayed' : 'In Progress';
+        $newStatus = ($currentStatus === 'Completed') ? 'In Progress' : $currentStatus;
+        if ($newStatus === 'Not Started' && $newPct > 0) {
+            $newStatus = 'In Progress';
+        }
     } elseif ($completionPctInput !== null) {
         $newPct = max(0, min(100, $completionPctInput));
         if ($newPct === 100) {
             $newStatus = 'Completed';
         } elseif ($newPct === 0) {
-            $newStatus = $isOverdue ? 'Delayed' : 'Not Started';
+            $newStatus = 'Not Started';
         } else {
-            $newStatus = $isOverdue ? 'Delayed' : 'In Progress';
+            $newStatus = 'In Progress';
         }
     } else {
         // Default when approved without explicit %
         if ($reviewStatus === 'approved') {
             $newPct = max(50, $currentPct);
-            $newStatus = ($newPct === 100) ? 'Completed' : ($isOverdue ? 'Delayed' : 'In Progress');
+            $newStatus = ($newPct === 100) ? 'Completed' : 'In Progress';
         } else {
             $newPct = $currentPct;
             $newStatus = $currentStatus;

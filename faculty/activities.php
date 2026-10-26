@@ -30,9 +30,31 @@ $activities = $acts->fetchAll();
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Activities – STI Activity System</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
 <style>
+  @media (max-width: 640px) {
+    .activity-table td .btn {
+      height: 38px;
+      min-height: 38px;
+      padding: 6px 14px;
+      font-size: 0.78rem;
+    }
+    .act-actions {
+      gap: 8px;
+    }
+    .filters .form-control,
+    .filters input[type="text"],
+    .filters input[type="search"],
+    .filters select,
+    .filters select.form-control,
+    .filters .btn {
+      height: 42px;
+      min-height: 42px;
+    }
+  }
+
   /* ── Filter Controls ── */
   .filters {
     display: flex;

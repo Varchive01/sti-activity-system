@@ -260,6 +260,7 @@ if ($activity['source'] === 'student_org' && $activity['status'] === 'under_revi
               $tRole = $f['role_in_event'] ?: '—';
               $tDue = !empty($f['due_date']) ? date('M j, Y', strtotime($f['due_date'])) : '—';
               $tStatus = in_array($f['status'], ['Not Started', 'In Progress', 'Completed', 'Delayed']) ? $f['status'] : 'Not Started';
+              $isOverdue = (!empty($f['due_date']) && date('Y-m-d', strtotime($f['due_date'])) < date('Y-m-d') && $tStatus !== 'Completed');
             ?>
             <tr>
               <td>
@@ -271,7 +272,18 @@ if ($activity['source'] === 'student_org' && $activity['status'] === 'under_revi
               <td><?= $tCommittee !== '—' ? '<span class="badge badge-secondary">'.htmlspecialchars($tCommittee).'</span>' : '—' ?></td>
               <td><strong><?= htmlspecialchars($tPerson) ?></strong></td>
               <td><?= htmlspecialchars($tRole) ?></td>
-              <td><?= $tDue !== '—' ? '<span class="time-badge">📅 '.htmlspecialchars($tDue).'</span>' : '—' ?></td>
+              <td>
+                <?php if ($tDue !== '—'): ?>
+                  <span class="time-badge" style="<?= $isOverdue ? 'color:#ef4444;border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.08);' : '' ?>">
+                    📅 <?= htmlspecialchars($tDue) ?>
+                  </span>
+                  <?php if ($isOverdue): ?>
+                    <span class="badge badge-danger" style="background:#ef4444;color:#fff;font-size:0.68rem;margin-left:4px;">Overdue</span>
+                  <?php endif; ?>
+                <?php else: ?>
+                  —
+                <?php endif; ?>
+              </td>
               <td><?= getTaskStatusBadge($tStatus) ?></td>
             </tr>
             <?php endforeach; ?>

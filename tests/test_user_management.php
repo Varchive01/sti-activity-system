@@ -28,6 +28,10 @@ echo "========================================================================\n
 
 $db = getDB();
 
+$runUid = bin2hex(random_bytes(4));
+$createdTestUserIds = [];
+$createdTestEmails = [];
+
 $totalTests = 0;
 $passedTests = 0;
 $failedTests = 0;
@@ -247,7 +251,7 @@ echo "\n--- SECTION 2: ROLE CREATION & HIERARCHY PERMISSIONS ---\n";
 $testDefaultPassword = 'InitialDefaultPass2026!';
 
 // 6. Dean can create Faculty
-$emailDeanFac = 'test_u_dean_fac_' . time() . '@sti.edu';
+$emailDeanFac = 'test_u_dean_fac_' . time() . '_' . $runUid . '@sti.edu';
 $res = runIsolatedScript(__DIR__ . '/../api/user-create.php', $deanSession, [
     'csrf_token' => $testCsrfToken,
     'name'       => 'Dean Created Faculty',
@@ -257,6 +261,10 @@ $res = runIsolatedScript(__DIR__ . '/../api/user-create.php', $deanSession, [
     'password'   => $testDefaultPassword
 ], ['REQUEST_METHOD' => 'POST', 'HTTP_ACCEPT' => 'application/json']);
 $data = json_decode($res['body'], true);
+if (!empty($data['user_id'])) {
+    $createdTestUserIds[] = (int)$data['user_id'];
+}
+$createdTestEmails[] = $emailDeanFac;
 recordResult(
     'Dean can create Faculty account',
     $res['status'] === 201 && isset($data['role']) && $data['role'] === 'faculty',
@@ -264,16 +272,20 @@ recordResult(
 );
 
 // 7. Dean can create Admin1
-$emailDeanAdmin1 = 'test_u_dean_a1_' . time() . '@sti.edu';
+$emailDeanAdmin1 = 'test_u_dean_a1_' . time() . '_' . $runUid . '@sti.edu';
 $res = runIsolatedScript(__DIR__ . '/../api/user-create.php', $deanSession, [
     'csrf_token' => $testCsrfToken,
     'name'       => 'Dean Created Admin1',
     'email'      => $emailDeanAdmin1,
-    'department' => 'Student Affairs',
+    'department' => 'G.E. Department',
     'role'       => 'admin1',
     'password'   => $testDefaultPassword
 ], ['REQUEST_METHOD' => 'POST', 'HTTP_ACCEPT' => 'application/json']);
 $data = json_decode($res['body'], true);
+if (!empty($data['user_id'])) {
+    $createdTestUserIds[] = (int)$data['user_id'];
+}
+$createdTestEmails[] = $emailDeanAdmin1;
 recordResult(
     'Dean can create Admin1 account',
     $res['status'] === 201 && isset($data['role']) && $data['role'] === 'admin1',
@@ -281,16 +293,20 @@ recordResult(
 );
 
 // 8. Dean can create Admin2
-$emailDeanAdmin2 = 'test_u_dean_a2_' . time() . '@sti.edu';
+$emailDeanAdmin2 = 'test_u_dean_a2_' . time() . '_' . $runUid . '@sti.edu';
 $res = runIsolatedScript(__DIR__ . '/../api/user-create.php', $deanSession, [
     'csrf_token' => $testCsrfToken,
     'name'       => 'Dean Created Admin2',
     'email'      => $emailDeanAdmin2,
-    'department' => 'Events Committee',
+    'department' => 'THM Department',
     'role'       => 'admin2',
     'password'   => $testDefaultPassword
 ], ['REQUEST_METHOD' => 'POST', 'HTTP_ACCEPT' => 'application/json']);
 $data = json_decode($res['body'], true);
+if (!empty($data['user_id'])) {
+    $createdTestUserIds[] = (int)$data['user_id'];
+}
+$createdTestEmails[] = $emailDeanAdmin2;
 recordResult(
     'Dean can create Admin2 account',
     $res['status'] === 201 && isset($data['role']) && $data['role'] === 'admin2',
@@ -301,7 +317,7 @@ recordResult(
 $res = runIsolatedScript(__DIR__ . '/../api/user-create.php', $deanSession, [
     'csrf_token' => $testCsrfToken,
     'name'       => 'Attempted Second Dean',
-    'email'      => 'test_second_dean_' . time() . '@sti.edu',
+    'email'      => 'test_second_dean_' . time() . '_' . $runUid . '@sti.edu',
     'department' => 'Administration',
     'role'       => 'dean',
     'password'   => $testDefaultPassword
@@ -313,16 +329,20 @@ recordResult(
 );
 
 // 10. Admin2 can create Faculty
-$emailAdmin2Fac = 'test_u_adm2_fac_' . time() . '@sti.edu';
+$emailAdmin2Fac = 'test_u_adm2_fac_' . time() . '_' . $runUid . '@sti.edu';
 $res = runIsolatedScript(__DIR__ . '/../api/user-create.php', $admin2Session, [
     'csrf_token' => $testCsrfToken,
     'name'       => 'Admin2 Created Faculty',
     'email'      => $emailAdmin2Fac,
-    'department' => 'Computer Science',
+    'department' => 'IT Department',
     'role'       => 'faculty',
     'password'   => $testDefaultPassword
 ], ['REQUEST_METHOD' => 'POST', 'HTTP_ACCEPT' => 'application/json']);
 $data = json_decode($res['body'], true);
+if (!empty($data['user_id'])) {
+    $createdTestUserIds[] = (int)$data['user_id'];
+}
+$createdTestEmails[] = $emailAdmin2Fac;
 recordResult(
     'Admin2 can create Faculty account',
     $res['status'] === 201 && isset($data['role']) && $data['role'] === 'faculty',
@@ -480,6 +500,9 @@ echo "\n--- SECTION 4: DEFAULT PASSWORD & FIRST-LOGIN FLOW ---\n";
 $stmt = $db->prepare('SELECT * FROM users WHERE email = ?');
 $stmt->execute([$emailDeanFac]);
 $targetFacultyUser = $stmt->fetch(PDO::FETCH_ASSOC);
+if (!empty($targetFacultyUser['id'])) {
+    $createdTestUserIds[] = (int)$targetFacultyUser['id'];
+}
 
 // 21. Creator-provided default password is accepted
 recordResult(
@@ -640,12 +663,29 @@ recordResult(
 echo "\n--- SECTION 5: USER EDITING & PERMISSION RESTRICTIONS ---\n";
 
 // 37. Dean can edit Faculty account details
-$res = runIsolatedScript(__DIR__ . '/../api/user-update.php', $deanSession, [
+// First assert that an invalid legacy department is rejected with 422:
+$resInvalid = runIsolatedScript(__DIR__ . '/../api/user-update.php', $deanSession, [
     'csrf_token' => $testCsrfToken,
     'user_id'    => (int)$targetFacultyUser['id'],
     'name'       => 'Dean Updated Faculty Name',
     'email'      => $emailDeanFac,
     'department' => 'Engineering',
+    'role'       => 'faculty'
+], ['REQUEST_METHOD' => 'POST', 'HTTP_ACCEPT' => 'application/json']);
+$dataInvalid = json_decode($resInvalid['body'], true);
+recordResult(
+    'Rejection of invalid legacy department on Faculty edit (HTTP 422)',
+    $resInvalid['status'] === 422 && ($dataInvalid['error_code'] ?? '') === 'invalid_department',
+    "HTTP {$resInvalid['status']}, Code: " . ($dataInvalid['error_code'] ?? 'none')
+);
+
+// Now perform valid edit with permitted department:
+$res = runIsolatedScript(__DIR__ . '/../api/user-update.php', $deanSession, [
+    'csrf_token' => $testCsrfToken,
+    'user_id'    => (int)$targetFacultyUser['id'],
+    'name'       => 'Dean Updated Faculty Name',
+    'email'      => $emailDeanFac,
+    'department' => 'G.E. Department',
     'role'       => 'faculty'
 ], ['REQUEST_METHOD' => 'POST', 'HTTP_ACCEPT' => 'application/json']);
 $data = json_decode($res['body'], true);
@@ -658,12 +698,33 @@ recordResult(
 // 38. Dean can edit Admin 1 account details
 $stmt->execute([$emailDeanAdmin1]);
 $targetAdmin1 = $stmt->fetch(PDO::FETCH_ASSOC);
-$res = runIsolatedScript(__DIR__ . '/../api/user-update.php', $deanSession, [
+if (!empty($targetAdmin1['id'])) {
+    $createdTestUserIds[] = (int)$targetAdmin1['id'];
+}
+
+// First assert rejection of invalid legacy department on Admin 1:
+$resInvalidA1 = runIsolatedScript(__DIR__ . '/../api/user-update.php', $deanSession, [
     'csrf_token' => $testCsrfToken,
     'user_id'    => (int)$targetAdmin1['id'],
     'name'       => 'Dean Updated Admin1 Name',
     'email'      => $emailDeanAdmin1,
     'department' => 'Student Affairs Head',
+    'role'       => 'admin1'
+], ['REQUEST_METHOD' => 'POST', 'HTTP_ACCEPT' => 'application/json']);
+$dataInvalidA1 = json_decode($resInvalidA1['body'], true);
+recordResult(
+    'Rejection of invalid legacy department on Admin 1 edit (HTTP 422)',
+    $resInvalidA1['status'] === 422 && ($dataInvalidA1['error_code'] ?? '') === 'invalid_department',
+    "HTTP {$resInvalidA1['status']}, Code: " . ($dataInvalidA1['error_code'] ?? 'none')
+);
+
+// Valid edit with permitted department:
+$res = runIsolatedScript(__DIR__ . '/../api/user-update.php', $deanSession, [
+    'csrf_token' => $testCsrfToken,
+    'user_id'    => (int)$targetAdmin1['id'],
+    'name'       => 'Dean Updated Admin1 Name',
+    'email'      => $emailDeanAdmin1,
+    'department' => 'THM Department',
     'role'       => 'admin1'
 ], ['REQUEST_METHOD' => 'POST', 'HTTP_ACCEPT' => 'application/json']);
 $data = json_decode($res['body'], true);
@@ -676,12 +737,15 @@ recordResult(
 // 39. Dean can edit Admin 2 account details
 $stmt->execute([$emailDeanAdmin2]);
 $targetAdmin2 = $stmt->fetch(PDO::FETCH_ASSOC);
+if (!empty($targetAdmin2['id'])) {
+    $createdTestUserIds[] = (int)$targetAdmin2['id'];
+}
 $res = runIsolatedScript(__DIR__ . '/../api/user-update.php', $deanSession, [
     'csrf_token' => $testCsrfToken,
     'user_id'    => (int)$targetAdmin2['id'],
     'name'       => 'Dean Updated Admin2 Name',
     'email'      => $emailDeanAdmin2,
-    'department' => 'Operations Committee',
+    'department' => 'Administration',
     'role'       => 'admin2'
 ], ['REQUEST_METHOD' => 'POST', 'HTTP_ACCEPT' => 'application/json']);
 $data = json_decode($res['body'], true);
@@ -724,12 +788,15 @@ recordResult(
 // 42. Admin 2 can edit Faculty account details
 $stmt->execute([$emailAdmin2Fac]);
 $targetAdmin2CreatedFac = $stmt->fetch(PDO::FETCH_ASSOC);
+if (!empty($targetAdmin2CreatedFac['id'])) {
+    $createdTestUserIds[] = (int)$targetAdmin2CreatedFac['id'];
+}
 $res = runIsolatedScript(__DIR__ . '/../api/user-update.php', $admin2Session, [
     'csrf_token' => $testCsrfToken,
     'user_id'    => (int)$targetAdmin2CreatedFac['id'],
     'name'       => 'Admin2 Updated Faculty Name',
     'email'      => $emailAdmin2Fac,
-    'department' => 'General Education',
+    'department' => 'IT Department',
     'role'       => 'faculty'
 ], ['REQUEST_METHOD' => 'POST', 'HTTP_ACCEPT' => 'application/json']);
 $data = json_decode($res['body'], true);
@@ -1020,9 +1087,14 @@ recordResult(
 // 63. Safe HTML output escaping protects against XSS in user directory
 $xssName = 'Dr. <script>alert("xss")</script> Test';
 $xssDept = '<b>IT Department</b>';
-$xssEmail = 'xss_test_' . time() . '@sti.edu';
+$xssEmail = 'xss_test_' . time() . '_' . $runUid . '@sti.edu';
 $insStmt = $db->prepare('INSERT INTO users (name, email, password, role, must_change_password, department) VALUES (?, ?, ?, ?, 0, ?)');
 $insStmt->execute([$xssName, $xssEmail, password_hash('Pass1234!', PASSWORD_DEFAULT), 'faculty', $xssDept]);
+$xssId = (int)$db->lastInsertId();
+if ($xssId > 0) {
+    $createdTestUserIds[] = $xssId;
+}
+$createdTestEmails[] = $xssEmail;
 
 $res = runIsolatedScript(__DIR__ . '/../dean/users.php', $deanSession);
 $rawScriptFound = str_contains($res['body'], '<script>alert("xss")</script>');
@@ -1038,12 +1110,36 @@ recordResult(
 // -------------------------------------------------------------------------
 echo "\n--- SECTION 9: TEST ACCOUNT CLEANUP ---\n";
 
-$delWildcard = $db->query("DELETE FROM users WHERE id > 4 OR email LIKE 'test_%' OR email LIKE 'xss_%'");
-$deletedCount = $delWildcard->rowCount();
+$createdTestUserIds = array_values(array_unique(array_filter($createdTestUserIds, fn($id) => is_int($id) && $id > 4)));
+$createdTestEmails = array_values(array_unique(array_filter($createdTestEmails, fn($em) => is_string($em) && (str_starts_with($em, 'test_') || str_starts_with($em, 'xss_')))));
+
+$deletedCount = 0;
+// 1. Delete explicitly created test users by their tracked IDs (never deletes IDs <= 4 or untracked accounts)
+$delStmt = $db->prepare('DELETE FROM users WHERE id = ?');
+foreach ($createdTestUserIds as $testId) {
+    try {
+        $delStmt->execute([$testId]);
+        $deletedCount += $delStmt->rowCount();
+    } catch (Throwable $e) {
+        // Safe catch
+    }
+}
+
+// 2. Safe fallback cleanup for specific tracked test emails created during this test run
+$delEmailStmt = $db->prepare('DELETE FROM users WHERE email = ?');
+foreach ($createdTestEmails as $testEmail) {
+    try {
+        $delEmailStmt->execute([$testEmail]);
+        $deletedCount += $delEmailStmt->rowCount();
+    } catch (Throwable $e) {
+        // Safe catch
+    }
+}
+
 recordResult(
-    'Automated test accounts cleaned up completely',
+    'Automated test accounts cleaned up safely and completely',
     $deletedCount >= 0,
-    "Cleaned up {$deletedCount} temporary test user account(s)"
+    "Safely cleaned up {$deletedCount} explicitly created test account(s)"
 );
 
 echo "\n========================================================================\n";

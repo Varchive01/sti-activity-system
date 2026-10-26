@@ -281,6 +281,11 @@ $csrfToken = generateCsrfToken();
                               $canDelete = ($u['role'] === 'faculty');
                           }
                       }
+
+                      // Hide Set Default Password button specifically for ar-jay.agbayani@marikina.sti.edu.ph
+                      if (strtolower(trim($u['email'] ?? '')) === 'ar-jay.agbayani@marikina.sti.edu.ph') {
+                          $canResetPassword = false;
+                      }
                     ?>
                     <tr>
                       <td>
@@ -293,7 +298,7 @@ $csrfToken = generateCsrfToken();
                         <span class="role-badge <?= $badgeClass ?>"><?= htmlspecialchars($roleLabel, ENT_QUOTES, 'UTF-8') ?></span>
                       </td>
                       <td style="color:var(--text-muted);">
-                        <?= htmlspecialchars($u['department'] ?? '—', ENT_QUOTES, 'UTF-8') ?>
+                        <?= !empty($u['department']) ? htmlspecialchars($u['department'], ENT_QUOTES, 'UTF-8') : '—' ?>
                       </td>
                       <td style="font-size:0.825rem; color:var(--text-muted); white-space:nowrap;">
                         <?= !empty($u['created_at']) ? htmlspecialchars(date('M j, Y', strtotime($u['created_at'])), ENT_QUOTES, 'UTF-8') : '—' ?>
@@ -364,15 +369,9 @@ $csrfToken = generateCsrfToken();
             <select name="department" id="add_department" class="form-control">
               <option value="">Select Department (Optional)...</option>
               <option value="IT Department">IT Department</option>
-              <option value="Computer Science">Computer Science</option>
-              <option value="Business Administration">Business Administration</option>
-              <option value="Hospitality Management">Hospitality Management</option>
-              <option value="Tourism Management">Tourism Management</option>
-              <option value="Engineering">Engineering</option>
-              <option value="General Education">General Education</option>
+              <option value="G.E. Department">G.E. Department</option>
+              <option value="THM Department">THM Department</option>
               <option value="Administration">Administration</option>
-              <option value="Student Affairs">Student Affairs</option>
-              <option value="Events Committee">Events Committee</option>
             </select>
           </div>
 
@@ -444,15 +443,9 @@ $csrfToken = generateCsrfToken();
             <select name="department" id="edit_department" class="form-control">
               <option value="">Select Department (Optional)...</option>
               <option value="IT Department">IT Department</option>
-              <option value="Computer Science">Computer Science</option>
-              <option value="Business Administration">Business Administration</option>
-              <option value="Hospitality Management">Hospitality Management</option>
-              <option value="Tourism Management">Tourism Management</option>
-              <option value="Engineering">Engineering</option>
-              <option value="General Education">General Education</option>
+              <option value="G.E. Department">G.E. Department</option>
+              <option value="THM Department">THM Department</option>
               <option value="Administration">Administration</option>
-              <option value="Student Affairs">Student Affairs</option>
-              <option value="Events Committee">Events Committee</option>
             </select>
           </div>
 
@@ -584,7 +577,22 @@ $csrfToken = generateCsrfToken();
       document.getElementById('edit_user_id').value = userId;
       document.getElementById('edit_name').value = name;
       document.getElementById('edit_email').value = email;
-      document.getElementById('edit_department').value = department;
+      
+      const deptSelect = document.getElementById('edit_department');
+      if (deptSelect) {
+        const prevLegacy = deptSelect.querySelector('option[data-legacy="1"]');
+        if (prevLegacy) prevLegacy.remove();
+
+        deptSelect.value = department || '';
+        if (department && deptSelect.value !== department) {
+          const legacyOpt = document.createElement('option');
+          legacyOpt.value = department;
+          legacyOpt.textContent = department;
+          legacyOpt.setAttribute('data-legacy', '1');
+          deptSelect.appendChild(legacyOpt);
+          deptSelect.value = department;
+        }
+      }
       
       const roleSelect = document.getElementById('edit_role');
       if (roleSelect) {

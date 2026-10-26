@@ -57,24 +57,85 @@ $cacheStmt = $db->prepare("SELECT * FROM institutional_kpi_analytics WHERE year 
 $cacheStmt->execute([$filterYear, $filterPeriod]);
 $cache = $cacheStmt->fetch(PDO::FETCH_ASSOC);
 
-$action = $_POST['action'] ?? 'check';
+$action = $_POST['action'] ?? $_GET['action'] ?? 'check';
 
-if ($action === 'check') {
-    if (!$cache) {
-        echo json_encode([
-            'status' => 'not_generated',
-            'stats' => $summary
-        ]);
-    } else {
-        $isOutdated = ($cache['data_hash'] !== $currentHash);
+if ($action === 'check' || $action === 'auto') {
+    // 1. Fresh cache: Return immediately without calling AI API
+    if ($cache && $cache['data_hash'] === $currentHash) {
         echo json_encode([
             'status' => 'generated',
-            'is_outdated' => $isOutdated,
+            'is_outdated' => false,
+            'insight_type' => 'ai_generated',
             'last_updated' => $cache['updated_at'],
             'stats' => $summary,
             'analytics' => json_decode($cache['analytics_json'], true)
         ]);
+        exit;
     }
+
+    // 2. No cache or stale cache: Automatically generate / refresh via Gemini
+    $apiKey = defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '';
+    $service = new GeminiKpiAnalyticsService($apiKey);
+    $analyticsResult = $service->analyzeInstitutionalKpis($summary);
+
+    if ($analyticsResult !== null) {
+        try {
+            $saveStmt = $db->prepare("
+                INSERT INTO institutional_kpi_analytics (year, period, analytics_json, data_hash)
+                VALUES (?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE 
+                    analytics_json = VALUES(analytics_json),
+                    data_hash = VALUES(data_hash),
+                    updated_at = CURRENT_TIMESTAMP()
+            ");
+            $saveStmt->execute([
+                $filterYear,
+                $filterPeriod,
+                json_encode($analyticsResult),
+                $currentHash
+            ]);
+
+            $cacheStmt->execute([$filterYear, $filterPeriod]);
+            $refreshedCache = $cacheStmt->fetch(PDO::FETCH_ASSOC);
+            $lastUpdated = $refreshedCache['updated_at'] ?? date('Y-m-d H:i:s');
+
+            echo json_encode([
+                'status' => 'generated',
+                'is_outdated' => false,
+                'insight_type' => 'ai_generated',
+                'refreshed' => true,
+                'last_updated' => $lastUpdated,
+                'stats' => $summary,
+                'analytics' => $analyticsResult
+            ]);
+            exit;
+        } catch (Exception $e) {
+            error_log("Database error saving AI institutional KPI analysis: " . $e->getMessage());
+        }
+    }
+
+    // AI service failed / quota exhausted / offline:
+    if ($cache) {
+        // Preserve existing insights and indicate status
+        echo json_encode([
+            'status' => 'generated',
+            'is_outdated' => true,
+            'insight_type' => 'ai_generated_cached',
+            'warning' => 'AI refresh temporarily unavailable. Showing previously saved insights.',
+            'last_updated' => $cache['updated_at'],
+            'stats' => $summary,
+            'analytics' => json_decode($cache['analytics_json'], true)
+        ]);
+        exit;
+    }
+
+    // No existing cache and AI generation failed
+    http_response_code(503);
+    echo json_encode([
+        'status' => 'unavailable',
+        'error' => 'AI insights are temporarily unavailable.',
+        'stats' => $summary
+    ]);
     exit;
 }
 
@@ -85,6 +146,8 @@ if ($action === 'analyze') {
     if ($cache && $cache['data_hash'] === $currentHash && !isset($_POST['force'])) {
         echo json_encode([
             'status' => 'success',
+            'is_outdated' => false,
+            'insight_type' => 'ai_generated',
             'last_updated' => $cache['updated_at'],
             'stats' => $summary,
             'analytics' => json_decode($cache['analytics_json'], true)
@@ -96,11 +159,13 @@ if ($action === 'analyze') {
     $analyticsResult = $service->analyzeInstitutionalKpis($summary);
 
     if ($analyticsResult === null) {
-        // Handle Gemini API failure strictly: do not fabricate data!
-        // Return 503 with clean error while preserving deterministic stats
+        // Handle Gemini API failure strictly: do not fabricate data! Preserve existing insights if available
         http_response_code(503);
         echo json_encode([
             'error' => 'AI insights are temporarily unavailable.',
+            'status' => 'error',
+            'preserved_analytics' => $cache ? json_decode($cache['analytics_json'], true) : null,
+            'last_updated' => $cache ? $cache['updated_at'] : null,
             'stats' => $summary
         ]);
         exit;
@@ -113,7 +178,7 @@ if ($action === 'analyze') {
         $checkStmt->execute([$filterYear, $filterPeriod]);
         $storedHash = $checkStmt->fetchColumn();
 
-        if ($storedHash && $storedHash !== $currentHash) {
+        if ($storedHash && $storedHash !== $currentHash && !isset($_POST['force'])) {
             http_response_code(409);
             echo json_encode([
                 'error' => 'Institutional KPI analytics have been updated with newer data while generation was in progress and cannot be overwritten.',
@@ -137,10 +202,16 @@ if ($action === 'analyze') {
             $currentHash
         ]);
 
+        $cacheStmt->execute([$filterYear, $filterPeriod]);
+        $refreshedCache = $cacheStmt->fetch(PDO::FETCH_ASSOC);
+        $lastUpdated = $refreshedCache['updated_at'] ?? date('Y-m-d H:i:s');
+
         http_response_code(200);
         echo json_encode([
             'status' => 'success',
-            'last_updated' => date('Y-m-d H:i:s'),
+            'is_outdated' => false,
+            'insight_type' => 'ai_generated',
+            'last_updated' => $lastUpdated,
             'stats' => $summary,
             'analytics' => $analyticsResult
         ]);

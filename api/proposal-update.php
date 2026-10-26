@@ -182,11 +182,11 @@ if ($action === 'submit') {
         exit;
     }
 
-    // Authoritative server-side meaningful-input validation for submissions
-    require_once __DIR__ . '/../includes/meaningful_validation.php';
-    $meaningfulCheck = validateProposalMeaningfulInput($_POST, $s1Editable);
-    if (!$meaningfulCheck['valid']) {
-        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_meaningful_input");
+    // Authoritative server-side gibberish detection for submissions
+    require_once __DIR__ . '/../includes/gibberish_detector.php';
+    $gibberishCheck = validateProposalGibberish($_POST, $s1Editable);
+    if (!$gibberishCheck['valid']) {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_text_input");
         exit;
     }
 
@@ -342,14 +342,72 @@ try {
         sanitize($_POST['guidelines_scoring']??''),sanitize($_POST['guidelines_awards']??'')
     ]);
 
-    $db->prepare("DELETE FROM faculty_tasks WHERE activity_id=?")->execute([$id]);
-    if (!empty($_POST['ft_name'])) {
-        $ft = $db->prepare("INSERT INTO faculty_tasks(activity_id,faculty_name,assigned_task,task_title,contribution_desc,task_description,role_in_event,created_by)VALUES(?,?,?,?,?,?,?,?)");
-        foreach ($_POST['ft_name'] as $i=>$name) {
-            if (!trim($name)) continue;
-            $tTitle = sanitize($_POST['ft_task'][$i]??'');
-            $tDesc = sanitize($_POST['ft_contribution'][$i]??'');
-            $ft->execute([$id,sanitize($name),$tTitle,$tTitle,$tDesc,$tDesc,sanitize($_POST['ft_role'][$i]??''),$user['id']??null]);
+    // Faculty Tasks Reconciliation
+    $s8Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['faculty_tasks']);
+    if ($s8Editable) {
+        $existingTasksStmt = $db->prepare("SELECT id FROM faculty_tasks WHERE activity_id = ?");
+        $existingTasksStmt->execute([$id]);
+        $existingTaskIds = $existingTasksStmt->fetchAll(PDO::FETCH_COLUMN);
+        $existingTaskIdsMap = array_flip($existingTaskIds);
+
+        $submittedKeepIds = [];
+
+        $updateTaskStmt = $db->prepare("
+            UPDATE faculty_tasks 
+            SET faculty_name = ?,
+                assigned_task = ?,
+                task_title = ?,
+                contribution_desc = ?,
+                task_description = ?,
+                role_in_event = ?
+            WHERE id = ? AND activity_id = ?
+        ");
+
+        $insertTaskStmt = $db->prepare("
+            INSERT INTO faculty_tasks (
+                activity_id, faculty_name, assigned_task, task_title, contribution_desc, task_description, role_in_event, created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+
+        if (!empty($_POST['ft_name']) && is_array($_POST['ft_name'])) {
+            foreach ($_POST['ft_name'] as $i => $name) {
+                if (!trim($name)) continue;
+                $tTitle = sanitize($_POST['ft_task'][$i] ?? '');
+                $tDesc  = sanitize($_POST['ft_contribution'][$i] ?? '');
+                $tRole  = sanitize($_POST['ft_role'][$i] ?? '');
+                $rawTaskId = isset($_POST['ft_id'][$i]) ? (int)$_POST['ft_id'][$i] : 0;
+
+                if ($rawTaskId > 0 && isset($existingTaskIdsMap[$rawTaskId])) {
+                    $updateTaskStmt->execute([
+                        sanitize($name), $tTitle, $tTitle, $tDesc, $tDesc, $tRole, $rawTaskId, $id
+                    ]);
+                    $submittedKeepIds[] = $rawTaskId;
+                } else {
+                    $insertTaskStmt->execute([
+                        $id, sanitize($name), $tTitle, $tTitle, $tDesc, $tDesc, $tRole, $user['id'] ?? null
+                    ]);
+                }
+            }
+        }
+
+        // Handle omitted tasks: only delete if the task has NO deliverables and NO reminder logs
+        $checkDeliv = $db->prepare("SELECT COUNT(*) FROM task_deliverables WHERE task_id = ?");
+        $checkRemind = $db->prepare("SELECT COUNT(*) FROM task_reminder_logs WHERE task_id = ?");
+        $deleteTaskStmt = $db->prepare("DELETE FROM faculty_tasks WHERE id = ? AND activity_id = ?");
+
+        foreach ($existingTaskIds as $oldTaskId) {
+            if (!in_array($oldTaskId, $submittedKeepIds, true)) {
+                $checkDeliv->execute([$oldTaskId]);
+                $hasDeliv = ((int)$checkDeliv->fetchColumn() > 0);
+
+                $checkRemind->execute([$oldTaskId]);
+                $hasRemind = ((int)$checkRemind->fetchColumn() > 0);
+
+                if (!$hasDeliv && !$hasRemind) {
+                    $deleteTaskStmt->execute([$oldTaskId, $id]);
+                }
+                // If it has deliverables or reminder logs, preserve the task to prevent orphaned records and history loss
+            }
         }
     }
 

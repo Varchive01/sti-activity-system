@@ -926,8 +926,15 @@ label, input, button, select, textarea {
                     <span style="font-size: 0.84rem; color: var(--text-main);"><?= htmlspecialchars($tRole) ?></span>
                   </td>
                   <td>
-                    <?php if ($tDue !== '—'): ?>
-                      <span class="time-badge" style="font-size: 0.78rem;">📅 <?= htmlspecialchars($tDue) ?></span>
+                    <?php if ($tDue !== '—'): 
+                      $isOverdue = (!empty($f['due_date']) && date('Y-m-d', strtotime($f['due_date'])) < date('Y-m-d') && $tStatus !== 'Completed');
+                    ?>
+                      <span class="time-badge" style="font-size: 0.78rem;<?= $isOverdue ? 'color:#ef4444;border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.08);' : '' ?>">
+                        📅 <?= htmlspecialchars($tDue) ?>
+                      </span>
+                      <?php if ($isOverdue): ?>
+                        <span class="badge badge-danger" style="background:#ef4444;color:#fff;font-size:0.68rem;margin-left:4px;">Overdue</span>
+                      <?php endif; ?>
                     <?php else: ?>
                       <span style="color: var(--text-muted); font-size: 0.82rem;">—</span>
                     <?php endif; ?>

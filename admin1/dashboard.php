@@ -664,6 +664,10 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
       position: relative;
       width: 100%;
       user-select: none;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      padding-bottom: 4px;
     }
     .trends-chart-svg {
       width: 100%;
@@ -1101,6 +1105,66 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     }
 
     @media (max-width: 640px) {
+      .topbar {
+        height: auto !important;
+        min-height: 56px !important;
+        max-height: none !important;
+        padding: 10px 14px !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+      }
+      .topbar-right {
+        width: 100%;
+        justify-content: flex-end;
+      }
+      .topbar-filter-form {
+        width: 100% !important;
+        order: 10;
+        margin-top: 4px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 6px;
+      }
+      .topbar-filter-form select[name="year"] {
+        flex: 1 1 75px;
+        min-width: 70px;
+        height: 42px !important;
+        min-height: 42px !important;
+        font-size: 0.82rem !important;
+        padding: 6px 8px !important;
+        box-sizing: border-box !important;
+      }
+      .topbar-filter-form select[name="period"] {
+        flex: 2 1 125px;
+        min-width: 110px;
+        height: 42px !important;
+        min-height: 42px !important;
+        font-size: 0.82rem !important;
+        padding: 6px 8px !important;
+        box-sizing: border-box !important;
+      }
+      .topbar-filter-form .btn {
+        flex: 0 0 auto;
+        height: 42px !important;
+        min-height: 42px !important;
+        font-size: 0.80rem !important;
+        padding: 0 10px !important;
+        box-sizing: border-box !important;
+      }
+      .activity-table td .btn {
+        height: 38px;
+        min-height: 38px;
+        padding: 6px 12px;
+        font-size: 0.78rem;
+      }
+      .act-actions {
+        gap: 8px;
+      }
+      .trends-chart-svg {
+        min-width: 500px;
+        height: 190px;
+      }
       .content {
         padding: 16px;
       }
@@ -1152,7 +1216,7 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
       <div class="page-title">Review Dashboard — Sir Ar-jay</div>
       <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
         <!-- Year and Reporting Period Filter -->
-        <form method="GET" style="display:flex;gap:6px;align-items:center;">
+        <form method="GET" class="topbar-filter-form" style="display:flex;gap:6px;align-items:center;">
           <select name="year" class="form-control" style="width:90px;padding:5px 8px;font-size:0.82rem;">
             <?php foreach ($availableYears as $y): ?>
               <option value="<?= $y ?>" <?= $selectedYear === $y ? 'selected' : '' ?>><?= $y ?></option>

@@ -34,6 +34,23 @@ $recent = $db->prepare("
 $recent->execute([$user['id']]);
 $activities = $recent->fetchAll();
 
+// Upcoming activities derived from existing activities
+$upcomingActivities = [];
+foreach ($activities as $act) {
+  if (in_array($act['status'], ['approved', 'endorsed', 'submitted', 'under_review', 'pending_final_approval', 'resubmitted'])) {
+    $upcomingActivities[] = $act;
+  }
+}
+usort($upcomingActivities, function($a, $b) {
+  $tA = !empty($a['event_date']) ? strtotime($a['event_date']) : 9999999999;
+  $tB = !empty($b['event_date']) ? strtotime($b['event_date']) : 9999999999;
+  return $tA - $tB;
+});
+$upcomingList = array_slice($upcomingActivities, 0, 2);
+if (empty($upcomingList) && !empty($activities)) {
+  $upcomingList = array_slice($activities, 0, 2);
+}
+
 // Stagnant proposals check (3 days without update in pending review status)
 checkProposalEscalations($db, $user['id'], $user['role']);
 
@@ -85,298 +102,611 @@ function timeAgo($datetime)
         } else {
           document.documentElement.dataset.theme = 'light';
         }
+        // Force expanded sidebar on desktop as per visual design target
+        if (window.innerWidth >= 1024) {
+          localStorage.setItem('sidebar-collapsed', 'false');
+          document.documentElement.classList.remove('sidebar-collapsed');
+        }
       } catch (e) {}
     })();
   </script>
   <style>
-    /* Topbar notification and theme styles loaded from notification-topbar-widget.php */
-    /* ── Phase 2G: Faculty Dashboard Visual Refinements ── */
+    /* ── Desktop Sidebar Expanded Enforcement ── */
+    @media (min-width: 1024px) {
+      .sidebar {
+        width: 260px !important;
+      }
+      .main-wrap {
+        margin-left: 260px !important;
+      }
+      .sidebar .brand-container,
+      .sidebar .nav-label,
+      .sidebar .nav-label-text,
+      .sidebar .btn-label-text {
+        display: block !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+    }
+
+    /* ── Compact Dashboard Layout ── */
     .content {
-      padding: 24px;
+      padding: 16px 22px 28px;
+      max-width: 1440px;
+      margin: 0 auto;
+      box-sizing: border-box;
     }
 
     .dashboard-layout {
+      display: grid;
       grid-template-columns: 1fr;
-      gap: 20px;
+      gap: 14px;
+      width: 100%;
     }
 
     .dashboard-main {
-      gap: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
       width: 100%;
     }
 
-    /* 1. Compact Horizontal KPI Stat Cards - Exact Reference Match */
+    /* ── 1. Compact Hero Header with STI Building Image ── */
+    .faculty-hero-banner {
+      background: #0A192F;
+      border-radius: 12px;
+      padding: 18px 24px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 4px 16px rgba(10, 22, 40, 0.08);
+      position: relative;
+      overflow: hidden;
+      min-height: 116px;
+      box-sizing: border-box;
+      margin-bottom: 18px;
+    }
+
+    .faculty-hero-bg-img {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 44%;
+      height: 100%;
+      background-image: url('<?= BASE_URL ?>/assets/img/sti-marikina-building.jpg');
+      background-size: cover;
+      background-position: center 18%;
+      pointer-events: none;
+      z-index: 0;
+      mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.8) 35%, rgba(0,0,0,1) 100%);
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.8) 35%, rgba(0,0,0,1) 100%);
+    }
+
+    .faculty-hero-banner::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, #0A192F 0%, #0A192F 50%, rgba(10, 25, 47, 0.65) 75%, rgba(10, 25, 47, 0.2) 100%);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    [data-theme="dark"] .faculty-hero-banner {
+      background: #070E18;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    [data-theme="dark"] .faculty-hero-banner::before {
+      background: linear-gradient(90deg, #070E18 0%, #070E18 50%, rgba(7, 14, 24, 0.7) 75%, rgba(7, 14, 24, 0.3) 100%);
+    }
+
+    .faculty-hero-text {
+      position: relative;
+      z-index: 2;
+    }
+
+    .faculty-hero-greeting {
+      font-size: 0.66rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #F59E0B;
+      margin-bottom: 4px;
+    }
+
+    .faculty-hero-title {
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin: 0 0 3px 0;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .faculty-hero-subtitle {
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.85);
+      margin: 0;
+      font-weight: 500;
+      line-height: 1.35;
+    }
+
+    .faculty-hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 2;
+    }
+
+    .btn-hero-primary {
+      background: #F4A900;
+      color: #0A1628 !important;
+      font-weight: 700;
+      font-size: 0.78rem;
+      padding: 8px 15px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none !important;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      border: none;
+      transition: all 0.18s ease;
+    }
+
+    .btn-hero-primary:hover {
+      background: #FFB914;
+      transform: translateY(-1px);
+    }
+
+    .btn-hero-secondary {
+      background: #FFFFFF;
+      color: #0A1628 !important;
+      font-weight: 600;
+      font-size: 0.78rem;
+      padding: 8px 14px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none !important;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      transition: all 0.18s ease;
+    }
+
+    .btn-hero-secondary:hover {
+      background: #F8FAFC;
+      transform: translateY(-1px);
+    }
+
+    /* ── 2. Five Summary Metric Cards (White Cards with Thin Bottom Accent) ── */
     .stat-grid {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 10px;
+      gap: 12px;
       align-items: stretch;
       width: 100%;
-      margin-bottom: 0 !important;
     }
 
     .stat-card,
     a.stat-card,
     .stat-grid a.stat-card {
       position: relative;
-      background: var(--bg-card);
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm);
-      padding: 9px 8px 11px;
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      justify-content: flex-start;
-      text-align: left;
+      background: #FFFFFF !important;
+      border: 1px solid var(--border, #E2E8F0) !important;
+      border-radius: 12px !important;
+      box-shadow: 0 1px 3px rgba(10, 22, 40, 0.04) !important;
+      padding: 14px 16px 13px !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: flex-start !important;
+      align-items: flex-start !important;
       text-decoration: none !important;
       color: inherit !important;
       cursor: pointer;
-      width: 100%;
-      min-width: 0;
-      min-height: 72px;
+      min-height: 114px;
       box-sizing: border-box;
-      gap: 7px;
-      overflow: hidden;
-      transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, border-color 0.18s ease;
+      overflow: hidden !important;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      outline: none !important;
     }
 
     .stat-card:hover,
     a.stat-card:hover,
     .stat-grid a.stat-card:hover {
       transform: translateY(-2px);
-      box-shadow: var(--shadow);
-      border-color: var(--accent, var(--sti-blue));
+      box-shadow: 0 4px 12px rgba(10, 22, 40, 0.08) !important;
+      border-color: #CBD5E1 !important;
     }
 
-    .stat-icon {
-      width: 26px;
-      height: 26px;
-      min-width: 26px;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      margin-bottom: 0;
-    }
-
-    .stat-icon svg {
-      width: 13px;
-      height: 13px;
-    }
-
-    /* Light mode / default icon badges */
-    .stat-card-total .stat-icon { background: rgba(2, 132, 199, 0.1); }
-    .stat-card-total .stat-icon svg { color: var(--accent, #0284c7); }
-    .stat-card-pending .stat-icon { background: rgba(245, 158, 11, 0.12); }
-    .stat-card-pending .stat-icon svg { color: #d97706; }
-    .stat-card-approved .stat-icon { background: rgba(16, 185, 129, 0.12); }
-    .stat-card-approved .stat-icon svg { color: #059669; }
-    .stat-card-revision .stat-icon { background: rgba(100, 116, 139, 0.12); }
-    .stat-card-revision .stat-icon svg { color: #475569; }
-    .stat-card-completed .stat-icon { background: rgba(2, 132, 199, 0.1); }
-    .stat-card-completed .stat-icon svg { color: var(--accent, #0284c7); }
-
-    /* Dark mode icon badges */
-    [data-theme="dark"] .stat-card-total .stat-icon { background: rgba(56, 189, 248, 0.15); }
-    [data-theme="dark"] .stat-card-total .stat-icon svg { color: #38bdf8; }
-    [data-theme="dark"] .stat-card-pending .stat-icon { background: rgba(251, 191, 36, 0.15); }
-    [data-theme="dark"] .stat-card-pending .stat-icon svg { color: #fbbf24; }
-    [data-theme="dark"] .stat-card-approved .stat-icon { background: rgba(52, 211, 153, 0.15); }
-    [data-theme="dark"] .stat-card-approved .stat-icon svg { color: #34d399; }
-    [data-theme="dark"] .stat-card-revision .stat-icon { background: rgba(148, 163, 184, 0.15); }
-    [data-theme="dark"] .stat-card-revision .stat-icon svg { color: #94a3b8; }
-    [data-theme="dark"] .stat-card-completed .stat-icon { background: rgba(56, 189, 248, 0.15); }
-    [data-theme="dark"] .stat-card-completed .stat-icon svg { color: #38bdf8; }
-
-    .stat-card > div:not(.stat-icon):not(.stat-strip) {
-      min-width: 0;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      justify-content: center;
-      text-align: left;
-    }
-
-    a.stat-card .stat-val,
-    .stat-grid a.stat-card .stat-val {
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 1.25rem;
-      font-weight: 800;
-      line-height: 1.1;
-      color: var(--text-main) !important;
-      letter-spacing: -0.02em;
-    }
-
-    a.stat-card .stat-label,
-    .stat-grid a.stat-card .stat-label {
-      font-size: 0.68rem;
-      font-weight: 600;
-      color: var(--text-muted) !important;
-      line-height: 1.2;
-      margin-top: 2px;
-      white-space: normal;
-      word-break: normal;
-      text-align: left;
-    }
-
-    /* Bottom accent strip */
-    .stat-strip {
+    /* Thin colored bottom accent line */
+    .stat-card::after,
+    a.stat-card::after,
+    .stat-grid a.stat-card::after {
+      content: '';
       position: absolute;
       bottom: 0;
       left: 0;
       right: 0;
-      height: 2.5px;
+      height: 3px;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* 1. All Time: multi-segment accent (amber, green, blue) */
+    .stat-card.stat-card-total::after,
+    .stat-grid a.stat-card.stat-card-total::after {
+      background: linear-gradient(90deg, #F59E0B 0%, #F59E0B 33.3%, #10B981 33.3%, #10B981 66.6%, #0284C7 66.6%, #0284C7 100%) !important;
+    }
+
+    /* 2. In Review: amber accent */
+    .stat-card.stat-card-pending::after,
+    .stat-grid a.stat-card.stat-card-pending::after {
+      background: #F59E0B !important;
+    }
+
+    /* 3. Ready: green accent */
+    .stat-card.stat-card-approved::after,
+    .stat-grid a.stat-card.stat-card-approved::after {
+      background: #10B981 !important;
+    }
+
+    /* 4. Action Required: slate accent */
+    .stat-card.stat-card-revision::after,
+    .stat-grid a.stat-card.stat-card-revision::after {
+      background: #64748B !important;
+    }
+
+    /* 5. Finished: blue accent */
+    .stat-card.stat-card-completed::after,
+    .stat-grid a.stat-card.stat-card-completed::after {
+      background: #0284C7 !important;
+    }
+
+    /* Dark Mode Card Background & Borders */
+    [data-theme="dark"] .stat-card,
+    [data-theme="dark"] a.stat-card,
+    [data-theme="dark"] .stat-grid a.stat-card {
+      background: #0F172A !important;
+      border-color: rgba(255, 255, 255, 0.08) !important;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
+    }
+    [data-theme="dark"] .stat-card:hover,
+    [data-theme="dark"] a.stat-card:hover,
+    [data-theme="dark"] .stat-grid a.stat-card:hover {
+      border-color: rgba(255, 255, 255, 0.16) !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+    }
+
+    /* Compact Soft-Tinted Icon Containers */
+    .stat-icon {
+      width: 28px !important;
+      height: 28px !important;
+      min-width: 28px !important;
+      border-radius: 7px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      margin-bottom: 10px !important;
+      flex-shrink: 0 !important;
+    }
+
+    .stat-icon svg {
+      width: 15px !important;
+      height: 15px !important;
+    }
+
+    .stat-card-total .stat-icon     { background: rgba(2, 132, 199, 0.12) !important; color: #0284C7 !important; }
+    .stat-card-pending .stat-icon   { background: rgba(245, 158, 11, 0.14) !important; color: #D97706 !important; }
+    .stat-card-approved .stat-icon  { background: rgba(16, 185, 129, 0.14) !important; color: #059669 !important; }
+    .stat-card-revision .stat-icon  { background: rgba(100, 116, 139, 0.12) !important; color: #475569 !important; }
+    .stat-card-completed .stat-icon { background: rgba(2, 132, 199, 0.12) !important; color: #0284C7 !important; }
+
+    [data-theme="dark"] .stat-card-total .stat-icon     { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; }
+    [data-theme="dark"] .stat-card-pending .stat-icon   { background: rgba(251, 191, 36, 0.18) !important; color: #fbbf24 !important; }
+    [data-theme="dark"] .stat-card-approved .stat-icon  { background: rgba(52, 211, 153, 0.15) !important; color: #34d399 !important; }
+    [data-theme="dark"] .stat-card-revision .stat-icon  { background: rgba(148, 163, 184, 0.15) !important; color: #94a3b8 !important; }
+    [data-theme="dark"] .stat-card-completed .stat-icon { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; }
+
+    .stat-card-info {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 100% !important;
+    }
+
+    .stat-card-meta {
+      font-size: 0.65rem !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.04em !important;
+      text-transform: uppercase !important;
+      color: #64748B !important;
+      margin-bottom: 3px !important;
+      line-height: 1.2 !important;
+    }
+    [data-theme="dark"] .stat-card-meta {
+      color: #94A3B8 !important;
+    }
+
+    .stat-card-row {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      width: 100% !important;
+      margin-bottom: 2px !important;
+    }
+
+    .stat-val {
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      font-size: 1.65rem !important;
+      font-weight: 800 !important;
+      line-height: 1.1 !important;
+      color: #0A1628 !important;
+      letter-spacing: -0.025em !important;
+    }
+    [data-theme="dark"] .stat-val {
+      color: #F8FAFC !important;
+    }
+
+    /* Trend icons are hidden to match reference image */
+    .stat-card-trend {
+      display: none !important;
+    }
+
+    .stat-label,
+    .label-default,
+    .label-amber,
+    .label-green,
+    .label-purple {
+      font-size: 0.72rem !important;
+      font-weight: 500 !important;
+      line-height: 1.25 !important;
+      color: #64748B !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+    }
+    [data-theme="dark"] .stat-label,
+    [data-theme="dark"] .label-default,
+    [data-theme="dark"] .label-amber,
+    [data-theme="dark"] .label-green,
+    [data-theme="dark"] .label-purple {
+      color: #94A3B8 !important;
+    }
+
+    /* ── 3. Upcoming Activities Card (Full Width) ── */
+    .upcoming-card {
+      background: var(--bg-card, #FFFFFF);
+      border-radius: 12px;
+      border: 1px solid var(--border, #E2E8F0);
+      box-shadow: 0 1px 3px rgba(10, 22, 40, 0.04);
+      padding: 14px 18px;
       display: flex;
-      border-bottom-left-radius: 9px;
-      border-bottom-right-radius: 9px;
+      flex-direction: column;
+      box-sizing: border-box;
+      min-width: 0;
+      width: 100%;
+    }
+
+    [data-theme="dark"] .upcoming-card {
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    }
+
+    .upcoming-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .overview-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .overview-header-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      background: rgba(2, 132, 199, 0.1);
+      color: #0284c7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    [data-theme="dark"] .overview-header-icon {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+    }
+
+    .overview-title {
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--text-main, #0A1628);
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    .overview-subtitle {
+      font-size: 0.72rem;
+      color: var(--text-muted, #64748B);
+      margin: 2px 0 0 0;
+    }
+
+    .btn-compact-outline {
+      padding: 4px 11px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #0284C7;
+      background: transparent;
+      border: 1px solid var(--border, #E2E8F0);
+      border-radius: 6px;
+      text-decoration: none !important;
+      transition: all 0.16s ease;
+      white-space: nowrap;
+    }
+
+    .btn-compact-outline:hover {
+      border-color: #0284C7;
+      background: rgba(2, 132, 199, 0.06);
+    }
+
+    /* Upcoming Activities List */
+    .upcoming-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+      width: 100%;
+    }
+
+    .upcoming-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: var(--border-light, #F8FAFD);
+      border: 1px solid var(--border, #E2E8F0);
+      gap: 10px;
+      min-width: 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    [data-theme="dark"] .upcoming-row {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .upcoming-row-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .upcoming-row-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      background: var(--bg-card, #FFFFFF);
+      border: 1px solid var(--border, #E2E8F0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted, #64748B);
+      flex-shrink: 0;
+    }
+
+    .upcoming-row-info {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .upcoming-row-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-main, #0A1628);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.25;
+    }
+
+    .upcoming-row-meta {
+      font-size: 0.7rem;
+      color: var(--text-muted, #64748B);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.3;
+      margin-top: 1px;
+    }
+
+    .upcoming-row-status {
+      flex-shrink: 0;
+    }
+
+    /* ── 4. Recent Activities Card & Table ── */
+    .activity-card {
+      background: var(--bg-card, #FFFFFF);
+      border-radius: 12px;
+      border: 1px solid var(--border, #E2E8F0);
+      box-shadow: 0 1px 3px rgba(10, 22, 40, 0.04);
       overflow: hidden;
     }
 
-    .stat-strip-total {
-      background: rgba(203, 213, 225, 0.4);
-    }
-    [data-theme="dark"] .stat-strip-total {
-      background: rgba(148, 163, 184, 0.2);
-    }
-    .stat-strip-total span {
-      height: 100%;
-      display: block;
-    }
-    .stat-strip-pending { background: #f59e0b; }
-    .stat-strip-approved { background: #10b981; }
-    .stat-strip-revision { background: #64748b; }
-    .stat-strip-completed { background: #0284c7; }
-    [data-theme="dark"] .stat-strip-completed { background: #38bdf8; }
-
-    /* 2. Recent Activities Section Refinement (Phase 2G-1) */
-    .dashboard-main .card {
-      background: var(--bg-card);
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm);
-      overflow: hidden;
+    [data-theme="dark"] .activity-card {
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
     }
 
-    .dashboard-main .card-header {
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border);
+    .activity-card-header {
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--border, #E2E8F0);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      background: var(--bg-card);
-      flex-wrap: wrap;
+      background: var(--bg-card, #FFFFFF);
     }
 
-    .dashboard-main .card-header h2 {
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 1.02rem;
-      font-weight: 700;
-      color: var(--text-main);
-      margin: 0;
-      letter-spacing: -0.01em;
-    }
-
-    .dashboard-main .card-header-actions {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .dashboard-main .card-header .btn-primary {
-      padding: 4px 12px;
-      height: 28px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      border-radius: 7px;
-      border: 1px solid var(--accent, var(--sti-blue));
-      color: #fff;
-      background: var(--accent, var(--sti-blue));
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      text-decoration: none;
-      transition: all 0.15s ease;
-      white-space: nowrap;
-    }
-
-    .dashboard-main .card-header .btn-primary:hover {
-      filter: brightness(1.08);
-      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.25);
-    }
-
-    .dashboard-main .card-header .btn-outline {
-      padding: 4px 12px;
-      height: 28px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      border-radius: 7px;
-      border: 1px solid var(--border);
-      color: var(--text-secondary);
-      background: transparent;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      text-decoration: none;
-      transition: all 0.15s ease;
-      white-space: nowrap;
-    }
-
-    .dashboard-main .card-header .btn-outline:hover {
-      border-color: var(--accent, var(--sti-blue));
-      color: var(--accent, var(--sti-blue));
-      background: var(--accent-lt, rgba(2, 132, 199, 0.08));
-    }
-
-    .dashboard-main .table-wrap {
+    .table-wrap {
       border: none;
       border-radius: 0;
       background: transparent;
       overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
       scrollbar-width: thin;
+      width: 100%;
     }
 
     .activity-table {
       width: 100%;
+      min-width: 760px;
       border-collapse: collapse;
       table-layout: fixed;
       box-sizing: border-box;
     }
 
-    .activity-table th,
-    .activity-table td {
-      box-sizing: border-box;
-      overflow: hidden;
-    }
-
     .activity-table th {
-      padding: 9px 8px;
-      font-size: 0.74rem;
+      padding: 9px 14px;
+      font-size: 0.7rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: var(--text-muted);
-      border-bottom: 1px solid var(--border);
+      color: var(--text-muted, #64748B);
+      border-bottom: 1px solid var(--border, #E2E8F0);
       background: var(--border-light, #F8FAFD);
       text-align: left;
       white-space: nowrap;
     }
 
     [data-theme="dark"] .activity-table th {
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(255, 255, 255, 0.025);
     }
 
     .activity-table td {
-      padding: 9px 8px;
-      border-bottom: 1px solid var(--border);
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border, #E2E8F0);
       vertical-align: middle;
-      color: var(--text-main);
-      font-size: 0.85rem;
+      color: var(--text-main, #0A1628);
+      font-size: 0.82rem;
       transition: background 0.12s ease;
     }
 
@@ -388,47 +718,24 @@ function timeAgo($datetime)
       background: rgba(2, 132, 199, 0.03);
     }
 
-    [data-theme="dark"] .activity-table tbody tr:hover td {
-      background: rgba(255, 255, 255, 0.03);
-    }
-
-    /* Column Widths & Proportions */
-    .col-title {
-      width: 33%;
-    }
-
-    .col-date {
-      width: 13%;
-    }
-
-    .col-venue {
-      width: 14%;
-    }
-
-    .col-source {
-      width: 10%;
-    }
-
-    .col-status {
-      width: 16%;
-    }
-
-    .col-actions {
-      width: 14%;
-      text-align: right;
-    }
+    /* Column widths */
+    .col-title { width: 30%; min-width: 170px; }
+    .col-date { width: 13%; min-width: 105px; }
+    .col-venue { width: 23%; min-width: 145px; }
+    .col-source { width: 10%; min-width: 80px; }
+    .col-status { width: 11%; min-width: 95px; }
+    .col-actions { width: 13%; min-width: 125px; text-align: right; }
 
     .activity-table th.col-actions,
     .activity-table td.col-actions {
       text-align: right;
-      padding-right: 12px;
+      padding-right: 18px;
     }
 
-    /* Content styling within cells */
     .act-title {
-      font-size: 0.90rem;
+      font-size: 0.84rem;
       font-weight: 600;
-      color: var(--text-main);
+      color: var(--text-main, #0A1628);
       line-height: 1.3;
       display: -webkit-box;
       -webkit-line-clamp: 2;
@@ -438,65 +745,72 @@ function timeAgo($datetime)
     }
 
     .act-date {
-      color: var(--text-secondary);
-      font-size: 0.85rem;
+      color: var(--text-secondary, #334155);
+      font-size: 0.8rem;
       font-weight: 500;
       line-height: 1.25;
       white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
     }
 
     .act-venue {
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      line-height: 1.25;
-      display: block;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      color: var(--text-muted, #64748B);
+      font-size: 0.8rem;
+      line-height: 1.35;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    .act-venue svg {
+      flex-shrink: 0;
+      color: var(--text-muted, #64748B);
+      opacity: 0.7;
+      margin-top: 2px;
     }
 
     .act-actions {
       display: inline-flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 4px;
-      white-space: nowrap;
+      gap: 5px;
+      flex-wrap: nowrap;
     }
 
     .activity-table td .btn {
-      padding: 3px 8px;
-      height: 26px;
+      padding: 4px 10px;
+      height: 27px;
       font-size: 0.72rem;
       font-weight: 600;
       border-radius: 6px;
-      gap: 3px;
+      gap: 4px;
       box-sizing: border-box;
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      text-decoration: none;
+      transition: all 0.16s ease;
+    }
+
+    .activity-table td .btn:hover {
+      transform: translateY(-1px);
     }
 
     .activity-table td .btn-outline {
-      border-color: var(--border);
-      color: var(--text-main);
-      background: transparent;
+      border: 1px solid var(--border, #E2E8F0);
+      color: var(--text-main, #0A1628);
+      background: var(--bg-card, #FFFFFF);
     }
 
     .activity-table td .btn-outline:hover {
-      border-color: var(--accent, var(--sti-blue));
-      color: var(--accent, var(--sti-blue));
-      background: var(--accent-lt, rgba(2, 132, 199, 0.08));
-    }
-
-    .activity-table td .btn-primary {
-      background: var(--accent, var(--sti-blue));
-      border-color: var(--accent, var(--sti-blue));
-      color: #fff;
-    }
-
-    .activity-table td .btn-primary:hover {
-      filter: brightness(1.1);
-      box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+      border-color: #0284C7;
+      color: #0284C7;
+      background: rgba(2, 132, 199, 0.06);
     }
 
     .activity-table td .btn-success {
@@ -506,121 +820,104 @@ function timeAgo($datetime)
     }
 
     .activity-table td .btn-success:hover {
-      filter: brightness(1.08);
-      box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25);
-    }
-
-    [data-theme="dark"] .activity-table td .btn-success {
-      background: rgba(34, 197, 94, 0.18);
-      border-color: rgba(74, 222, 128, 0.35);
-      color: #4ADE80;
-    }
-
-    [data-theme="dark"] .activity-table td .btn-success:hover {
-      background: rgba(34, 197, 94, 0.28);
-      color: #86EFAC;
+      background: #15803d;
     }
 
     .activity-table .badge {
-      padding: 2.5px 8px;
-      font-size: 0.74rem;
+      padding: 3px 8px;
+      font-size: 0.7rem;
       font-weight: 700;
       border-radius: 999px;
       white-space: nowrap;
-      line-height: 1.3;
+      line-height: 1.25;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
     }
 
-    /* Responsive adjustments */
-    @media (max-width: 1200px) {
+    .activity-table .badge-secondary {
+      background: rgba(100, 116, 139, 0.1);
+      color: #475569;
+      border: 1px solid rgba(100, 116, 139, 0.15);
+    }
+
+    /* ── Responsive Rules ── */
+    @media (max-width: 1024px) {
       .stat-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
         gap: 10px;
       }
     }
 
-    @media (max-width: 1024px) {
-      .stat-grid {
-        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-        gap: 10px;
+    @media (max-width: 900px) {
+      .content {
+        padding: 14px 14px 24px;
       }
-      .stat-card,
-      a.stat-card,
-      .stat-grid a.stat-card {
+      .faculty-hero-banner {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 16px;
+        gap: 12px;
+      }
+      .faculty-hero-bg-img {
+        opacity: 0.25;
         width: 100%;
-        min-width: 0;
-        min-height: 68px;
-        padding: 8px 10px 10px;
       }
-      .stat-icon {
-        width: 26px;
-        height: 26px;
-        min-width: 26px;
+      .faculty-hero-actions {
+        width: 100%;
       }
-      .stat-icon svg {
-        width: 13px;
-        height: 13px;
-      }
-      a.stat-card .stat-val,
-      .stat-grid a.stat-card .stat-val {
-        font-size: 1.20rem;
-      }
-      a.stat-card .stat-label,
-      .stat-grid a.stat-card .stat-label {
-        font-size: 0.68rem;
-      }
-      .dashboard-layout {
-        grid-template-columns: 1fr;
-        gap: 20px;
-      }
-    }
-
-    @media (max-width: 768px) {
       .stat-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        gap: 10px;
+        gap: 8px;
       }
     }
 
     @media (max-width: 640px) {
-      .content {
-        padding: 16px;
-      }
       .stat-grid {
-        display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        gap: 10px;
+        gap: 8px;
+      }
+      .faculty-hero-actions {
+        flex-direction: column;
+      }
+      .btn-hero-primary,
+      .btn-hero-secondary {
+        width: 100%;
+        justify-content: center;
+      }
+      .activity-table td .btn {
+        height: 38px;
+        min-height: 38px;
+        padding: 6px 14px;
+        font-size: 0.78rem;
+      }
+      .act-actions {
+        gap: 8px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .upcoming-card {
+        padding: 12px 14px;
+      }
+      .upcoming-row {
+        padding: 8px 10px;
+        gap: 8px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .stat-grid {
+        grid-template-columns: 1fr !important;
       }
       .stat-card,
       a.stat-card,
       .stat-grid a.stat-card {
-        width: 100%;
-        min-width: 0;
-        min-height: 64px;
-        padding: 8px 8px 10px;
-      }
-      .stat-icon {
-        width: 24px;
-        height: 24px;
-        min-width: 24px;
-      }
-      .stat-icon svg {
-        width: 12px;
-        height: 12px;
-      }
-      a.stat-card .stat-val,
-      .stat-grid a.stat-card .stat-val {
-        font-size: 1.15rem;
-      }
-      a.stat-card .stat-label,
-      .stat-grid a.stat-card .stat-label {
-        font-size: 0.66rem;
-      }
-      .dashboard-main .card-header {
-        gap: 10px;
+        padding: 8px 10px;
       }
     }
 
-    /* ── Typography Consistency: All Visible Text on Faculty Dashboard uses Plus Jakarta Sans ── */
+    /* ── Typography Consistency ── */
     body.theme-faculty,
     body.theme-faculty *,
     body.theme-faculty *::before,
@@ -630,36 +927,14 @@ function timeAgo($datetime)
     .page-title,
     .topbar .page-title,
     .brand,
-    .sidebar-logo .brand,
-    .card-header h2,
-    .card-header h3,
-    .dashboard-main .card-header h2,
     .stat-val,
-    a.stat-card .stat-val,
-    .stat-grid a.stat-card .stat-val,
     .stat-label,
-    a.stat-card .stat-label,
-    .stat-grid a.stat-card .stat-label,
     th, td,
-    .activity-table th,
-    .activity-table td,
     .act-title,
     .act-date,
     .act-venue,
     .badge,
-    .btn,
-    .topbar-user-name,
-    .topbar-user-role,
-    .notif-dropdown,
-    .notif-header h3,
-    .notif-modal h3,
-    .notif-msg,
-    .notif-time,
-    label,
-    input,
-    button,
-    select,
-    textarea {
+    .btn {
       font-family: 'Plus Jakarta Sans', sans-serif !important;
     }
   </style>
@@ -681,80 +956,179 @@ function timeAgo($datetime)
 
     <div class="content">
 
+      <!-- Hero Header Section with STI College Building Image -->
+      <div class="faculty-hero-banner">
+        <div class="faculty-hero-bg-img"></div>
+        <div class="faculty-hero-text">
+          <div class="faculty-hero-greeting">FACULTY ACTIVITY PORTAL</div>
+          <h1 class="faculty-hero-title">Welcome back, <?= htmlspecialchars(trim($user['name'])) ?>!</h1>
+          <p class="faculty-hero-subtitle">Manage your activity proposals, track their progress, and complete post-event requirements.</p>
+        </div>
+        <div class="faculty-hero-actions">
+          <a href="<?= BASE_URL ?>/faculty/proposal-create.php" class="btn-hero-primary">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="15" height="15">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>New Activity Proposal</span>
+          </a>
+          <a href="<?= BASE_URL ?>/faculty/calendar.php" class="btn-hero-secondary">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="15" height="15" style="color:#0284c7;">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <span>Calendar</span>
+          </a>
+        </div>
+      </div>
+
       <div class="dashboard-layout">
-        <!-- Main Work Area (~68%) -->
         <div class="dashboard-main">
 
-          <!-- Stats -->
-          <div class="stat-grid" style="margin-bottom:0;">
+          <!-- 1. Five Summary Metric Cards -->
+          <div class="stat-grid">
+            <!-- All Time -->
             <a href="<?= BASE_URL ?>/faculty/activities.php" class="stat-card stat-card-total">
-              <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="stat-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg></div>
-              <div>
-                <div class="stat-val"><?= $s['total'] ?></div>
-                <div class="stat-label">Total</div>
+                </svg>
               </div>
-              <div class="stat-strip stat-strip-total">
-                <span style="width:<?= $pPending ?>%;background:#f59e0b;"></span>
-                <span style="width:<?= $pApproved ?>%;background:#10b981;"></span>
-                <span style="width:<?= $pCompleted ?>%;background:#0284c7;"></span>
+              <div class="stat-card-info">
+                <div class="stat-card-meta">ALL TIME</div>
+                <div class="stat-card-row">
+                  <div class="stat-val"><?= $s['total'] ?></div>
+                </div>
+                <div class="stat-label label-default">Total Proposals</div>
               </div>
             </a>
+
+            <!-- In Review -->
             <a href="<?= BASE_URL ?>/faculty/pending.php" class="stat-card stat-card-pending">
-              <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="stat-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg></div>
-              <div>
-                <div class="stat-val"><?= $s['pending'] ?></div>
-                <div class="stat-label">Pending</div>
+                </svg>
               </div>
-              <div class="stat-strip stat-strip-pending"></div>
+              <div class="stat-card-info">
+                <div class="stat-card-meta">IN REVIEW</div>
+                <div class="stat-card-row">
+                  <div class="stat-val"><?= $s['pending'] ?></div>
+                </div>
+                <div class="stat-label label-amber">Pending Review</div>
+              </div>
             </a>
+
+            <!-- Ready / Approved -->
             <a href="<?= BASE_URL ?>/faculty/approved.php" class="stat-card stat-card-approved">
-              <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="stat-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg></div>
-              <div>
-                <div class="stat-val"><?= $s['approved'] ?></div>
-                <div class="stat-label">Approved</div>
+                </svg>
               </div>
-              <div class="stat-strip stat-strip-approved"></div>
+              <div class="stat-card-info">
+                <div class="stat-card-meta">READY</div>
+                <div class="stat-card-row">
+                  <div class="stat-val"><?= $s['approved'] ?></div>
+                </div>
+                <div class="stat-label label-green">Approved</div>
+              </div>
             </a>
+
+            <!-- Action Required -->
             <a href="<?= BASE_URL ?>/faculty/returned.php" class="stat-card stat-card-revision">
-              <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="stat-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg></div>
-              <div>
-                <div class="stat-val"><?= $s['revisions'] ?></div>
-                <div class="stat-label">Revision</div>
+                </svg>
               </div>
-              <div class="stat-strip stat-strip-revision"></div>
+              <div class="stat-card-info">
+                <div class="stat-card-meta">ACTION REQUIRED</div>
+                <div class="stat-card-row">
+                  <div class="stat-val"><?= $s['revisions'] ?></div>
+                </div>
+                <div class="stat-label label-default">Revision Needed</div>
+              </div>
             </a>
+
+            <!-- Finished / Completed -->
             <a href="<?= BASE_URL ?>/faculty/activities.php?status=completed" class="stat-card stat-card-completed">
-              <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="stat-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                </svg></div>
-              <div>
-                <div class="stat-val"><?= $s['completed'] ?></div>
-                <div class="stat-label">Completed</div>
+                </svg>
               </div>
-              <div class="stat-strip stat-strip-completed"></div>
+              <div class="stat-card-info">
+                <div class="stat-card-meta">FINISHED</div>
+                <div class="stat-card-row">
+                  <div class="stat-val"><?= $s['completed'] ?></div>
+                </div>
+                <div class="stat-label label-purple">Completed</div>
+              </div>
             </a>
           </div>
 
-          <!-- Recent Activities -->
-          <div class="card">
-            <div class="card-header">
-              <h2>Recent Activities</h2>
-              <div class="card-header-actions">
-                <a href="<?= BASE_URL ?>/faculty/proposal-create.php" class="btn btn-primary btn-sm">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          <!-- 2. Upcoming Activities Card (Full Width) -->
+          <div class="upcoming-card">
+            <div class="upcoming-card-header">
+              <div class="overview-header-left">
+                <div class="overview-header-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                   </svg>
-                  New Activity Proposal
-                </a>
-                <a href="<?= BASE_URL ?>/faculty/activities.php" class="btn btn-outline btn-sm">View All</a>
+                </div>
+                <div>
+                  <h2 class="overview-title">Upcoming Activities</h2>
+                  <p class="overview-subtitle">Your nearest upcoming activities</p>
+                </div>
+              </div>
+              <a href="<?= BASE_URL ?>/faculty/calendar.php" class="btn-compact-outline">View Calendar</a>
+            </div>
+            <div class="upcoming-list">
+              <?php if (empty($upcomingList)): ?>
+                <div style="text-align:center;padding:22px;color:var(--text-muted);font-size:0.82rem;">
+                  No upcoming activities scheduled.
+                </div>
+              <?php else: foreach ($upcomingList as $uAct): ?>
+                <div class="upcoming-row">
+                  <div class="upcoming-row-left">
+                    <div class="upcoming-row-icon">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="15" height="15">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                      </svg>
+                    </div>
+                    <div class="upcoming-row-info">
+                      <div class="upcoming-row-title"><?= htmlspecialchars($uAct['title']) ?></div>
+                      <div class="upcoming-row-meta">
+                        <?= $uAct['event_date'] ? date('M j, Y', strtotime($uAct['event_date'])) : 'TBD' ?>
+                        <?php if (!empty($uAct['venue'])): ?>
+                          • <?= htmlspecialchars($uAct['venue']) ?>
+                        <?php endif; ?>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="upcoming-row-status">
+                    <?= getStatusBadge($uAct['status']) ?>
+                  </div>
+                </div>
+              <?php endforeach; endif; ?>
+            </div>
+          </div>
+
+          <!-- 3. Recent Activities Card -->
+          <div class="activity-card">
+            <div class="activity-card-header">
+              <div class="overview-header-left">
+                <div class="overview-header-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 class="overview-title">Recent Activities</h2>
+                  <p class="overview-subtitle">Track proposal progress, reviews, and post-event requirements</p>
+                </div>
+              </div>
+              <div>
+                <a href="<?= BASE_URL ?>/faculty/activities.php" class="btn-compact-outline">View All</a>
               </div>
             </div>
             <div class="card-body" style="padding:0;">
@@ -773,15 +1147,33 @@ function timeAgo($datetime)
                   <tbody>
                     <?php if (empty($activities)): ?>
                       <tr>
-                        <td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">
-                          No activities yet. <a href="<?= BASE_URL ?>/faculty/proposal-create.php">Create your first proposal →</a>
+                        <td colspan="6" style="text-align:center;padding:36px 20px;color:var(--text-muted);">
+                          <div style="font-size:1.8rem;margin-bottom:6px;opacity:0.5;">📋</div>
+                          <div style="font-weight:600;font-size:0.95rem;color:var(--text-main);margin-bottom:2px;">No activities found</div>
+                          <p style="margin:0 0 10px;font-size:0.8rem;">You haven't submitted any activity proposals yet.</p>
+                          <a href="<?= BASE_URL ?>/faculty/proposal-create.php" class="btn btn-primary btn-sm">Create your first proposal →</a>
                         </td>
                       </tr>
                       <?php else: foreach ($activities as $act): ?>
                         <tr>
                           <td class="col-title"><div class="act-title"><?= htmlspecialchars($act['title']) ?></div></td>
-                          <td class="col-date"><span class="act-date"><?= $act['event_date'] ? date('M j, Y', strtotime($act['event_date'])) : '—' ?></span></td>
-                          <td class="col-venue"><span class="act-venue" title="<?= htmlspecialchars($act['venue'] ?? '') ?>"><?= htmlspecialchars($act['venue'] ?? '—') ?></span></td>
+                          <td class="col-date">
+                            <span class="act-date">
+                              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="13" height="13" style="opacity:0.6;flex-shrink:0;">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                              </svg>
+                              <?= $act['event_date'] ? date('M j, Y', strtotime($act['event_date'])) : '—' ?>
+                            </span>
+                          </td>
+                          <td class="col-venue">
+                            <span class="act-venue" title="<?= htmlspecialchars($act['venue'] ?? '') ?>">
+                              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="13" height="13">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                              </svg>
+                              <?= htmlspecialchars($act['venue'] ?? '—') ?>
+                            </span>
+                          </td>
                           <td class="col-source"><span class="badge badge-secondary"><?= ucfirst(str_replace('_', ' ', $act['source'])) ?></span></td>
                           <td class="col-status"><?= getStatusBadge($act['status']) ?></td>
                           <td class="col-actions">
@@ -809,6 +1201,14 @@ function timeAgo($datetime)
 
     </div><!-- content -->
   </div><!-- main-wrap -->
+
+  <script>
+    // Ensure sidebar remains expanded on desktop
+    if (window.innerWidth >= 1024) {
+      document.documentElement.classList.remove('sidebar-collapsed');
+      if (document.body) document.body.classList.remove('sidebar-collapsed');
+    }
+  </script>
 </body>
 
 </html>

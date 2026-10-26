@@ -49,7 +49,18 @@ function calculateTaskTiming(string $status, ?string $dueDate): array {
 
     $today = date('Y-m-d');
 
-    // Explicit Delayed status or past due date
+    // Incomplete task past due date is Overdue
+    if (!empty($dueDate) && $dueDate < $today) {
+        return [
+            'key'      => 'Delayed',
+            'label'    => 'Delayed',
+            'badge'    => '<span class="badge badge-danger" style="background:#ef4444;color:#fff;">Delayed (Overdue)</span>',
+            'color'    => '#ef4444',
+            'bg_light' => 'rgba(239, 68, 68, 0.14)'
+        ];
+    }
+
+    // Explicit Delayed status without being past due date
     if ($status === 'Delayed') {
         return [
             'key'      => 'Delayed',
@@ -61,16 +72,6 @@ function calculateTaskTiming(string $status, ?string $dueDate): array {
     }
 
     if (!empty($dueDate)) {
-        if ($dueDate < $today) {
-            return [
-                'key'      => 'Delayed',
-                'label'    => 'Delayed',
-                'badge'    => '<span class="badge badge-danger" style="background:#ef4444;color:#fff;">Delayed (Overdue)</span>',
-                'color'    => '#ef4444',
-                'bg_light' => 'rgba(239, 68, 68, 0.14)'
-            ];
-        }
-
         // Target date approaching within 3 days
         $diffDays = (int)ceil((strtotime($dueDate) - strtotime($today)) / 86400);
         if ($diffDays >= 0 && $diffDays <= 3) {

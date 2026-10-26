@@ -686,6 +686,13 @@ $actions = $recent_actions->fetchAll();
     }
 
     /* ── Proposal Approval Trends Chart ── */
+    .month-chart-scroll-wrap {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      padding-bottom: 4px;
+    }
     .month-bar-wrap {
       display: flex;
       align-items: flex-end;
@@ -1014,6 +1021,65 @@ $actions = $recent_actions->fetchAll();
     }
 
     @media (max-width: 640px) {
+      .topbar {
+        height: auto !important;
+        min-height: 56px !important;
+        max-height: none !important;
+        padding: 10px 14px !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+      }
+      .topbar-right {
+        width: 100%;
+        justify-content: flex-end;
+      }
+      .topbar-filter-form {
+        width: 100% !important;
+        order: 10;
+        margin-top: 4px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 6px;
+      }
+      .topbar-filter-form select[name="year"] {
+        flex: 1 1 75px;
+        min-width: 70px;
+        height: 42px !important;
+        min-height: 42px !important;
+        font-size: 0.82rem !important;
+        padding: 6px 8px !important;
+        box-sizing: border-box !important;
+      }
+      .topbar-filter-form select[name="period"] {
+        flex: 2 1 125px;
+        min-width: 110px;
+        height: 42px !important;
+        min-height: 42px !important;
+        font-size: 0.82rem !important;
+        padding: 6px 8px !important;
+        box-sizing: border-box !important;
+      }
+      .topbar-filter-form .btn {
+        flex: 0 0 auto;
+        height: 42px !important;
+        min-height: 42px !important;
+        font-size: 0.80rem !important;
+        padding: 0 10px !important;
+        box-sizing: border-box !important;
+      }
+      .activity-table td .btn {
+        height: 38px;
+        min-height: 38px;
+        padding: 6px 12px;
+        font-size: 0.78rem;
+      }
+      .act-actions {
+        gap: 8px;
+      }
+      .month-bar-wrap {
+        min-width: 500px;
+      }
       .content {
         padding: 16px;
       }
@@ -1068,7 +1134,7 @@ $actions = $recent_actions->fetchAll();
     <div class="page-title">Review Dashboard — Sir Ian</div>
     <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
       <!-- Year and Reporting Period Filter -->
-      <form method="GET" style="display:flex;gap:6px;align-items:center;">
+      <form method="GET" class="topbar-filter-form" style="display:flex;gap:6px;align-items:center;">
         <select name="year" class="form-control" style="width:90px;padding:5px 8px;font-size:0.82rem;">
           <?php foreach ($availableYears as $y): ?>
             <option value="<?= $y ?>" <?= $selectedYear === $y ? 'selected' : '' ?>><?= $y ?></option>
@@ -1171,30 +1237,32 @@ $actions = $recent_actions->fetchAll();
             </span>
           </div>
           <div class="card-body chart-body">
-            <div class="month-bar-wrap">
-              <?php foreach ($approvalTrends['months'] as $tm): 
-                $appH = $approvalTrends['max_count'] > 0 ? max(round(($tm['approved'] / $approvalTrends['max_count']) * 100), ($tm['approved'] > 0 ? 8 : 0)) : 0;
-                $retH = $approvalTrends['max_count'] > 0 ? max(round(($tm['returned'] / $approvalTrends['max_count']) * 100), ($tm['returned'] > 0 ? 8 : 0)) : 0;
-              ?>
-                <div class="month-bar-col">
-                  <div class="month-bar-inner">
-                    <?php if ($tm['approved'] > 0): ?>
-                      <div class="month-bar approved" style="height:<?= $appH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['approved'] ?> Approved">
-                        <span class="month-val"><?= $tm['approved'] ?></span>
-                      </div>
-                    <?php endif; ?>
-                    <?php if ($tm['returned'] > 0): ?>
-                      <div class="month-bar returned" style="height:<?= $retH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['returned'] ?> Returned/Rejected">
-                        <span class="month-val" style="color:#DC2626;"><?= $tm['returned'] ?></span>
-                      </div>
-                    <?php endif; ?>
-                    <?php if ($tm['approved'] == 0 && $tm['returned'] == 0): ?>
-                      <div style="height:4px;width:10px;background:var(--border);border-radius:2px;"></div>
-                    <?php endif; ?>
+            <div class="month-chart-scroll-wrap">
+              <div class="month-bar-wrap">
+                <?php foreach ($approvalTrends['months'] as $tm): 
+                  $appH = $approvalTrends['max_count'] > 0 ? max(round(($tm['approved'] / $approvalTrends['max_count']) * 100), ($tm['approved'] > 0 ? 8 : 0)) : 0;
+                  $retH = $approvalTrends['max_count'] > 0 ? max(round(($tm['returned'] / $approvalTrends['max_count']) * 100), ($tm['returned'] > 0 ? 8 : 0)) : 0;
+                ?>
+                  <div class="month-bar-col">
+                    <div class="month-bar-inner">
+                      <?php if ($tm['approved'] > 0): ?>
+                        <div class="month-bar approved" style="height:<?= $appH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['approved'] ?> Approved">
+                          <span class="month-val"><?= $tm['approved'] ?></span>
+                        </div>
+                      <?php endif; ?>
+                      <?php if ($tm['returned'] > 0): ?>
+                        <div class="month-bar returned" style="height:<?= $retH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['returned'] ?> Returned/Rejected">
+                          <span class="month-val" style="color:#DC2626;"><?= $tm['returned'] ?></span>
+                        </div>
+                      <?php endif; ?>
+                      <?php if ($tm['approved'] == 0 && $tm['returned'] == 0): ?>
+                        <div style="height:4px;width:10px;background:var(--border);border-radius:2px;"></div>
+                      <?php endif; ?>
+                    </div>
+                    <div class="month-label"><?= $tm['month_name'] ?></div>
                   </div>
-                  <div class="month-label"><?= $tm['month_name'] ?></div>
-                </div>
-              <?php endforeach; ?>
+                <?php endforeach; ?>
+              </div>
             </div>
             <div class="flex gap-3 text-xs" style="margin-top:10px;justify-content:center;">
               <span><span class="legend-dot approved-dot"></span>Approved Proposals</span>

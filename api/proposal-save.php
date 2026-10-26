@@ -115,11 +115,11 @@ if ($action === 'submit') {
         exit;
     }
 
-    // Authoritative server-side meaningful-input validation for submissions
-    require_once __DIR__ . '/../includes/meaningful_validation.php';
-    $meaningfulCheck = validateProposalMeaningfulInput($_POST, true);
-    if (!$meaningfulCheck['valid']) {
-        header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_meaningful_input");
+    // Authoritative server-side gibberish detection for submissions
+    require_once __DIR__ . '/../includes/gibberish_detector.php';
+    $gibberishCheck = validateProposalGibberish($_POST, true);
+    if (!$gibberishCheck['valid']) {
+        header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_text_input");
         exit;
     }
 

@@ -1,6 +1,8 @@
 <?php
 date_default_timezone_set('Asia/Manila');
-define('BASE_URL', 'http://localhost/sti-activity-system');
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+define('BASE_URL', $protocol . $host . '/sti-activity-system');
 define('UPLOAD_PATH', __DIR__ . '/../uploads/');
 define('MAX_FILE_SIZE', 10 * 1024 * 1024); // 10 MB
 define('ALLOWED_EXTENSIONS', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif', 'webp']);

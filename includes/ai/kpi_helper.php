@@ -20,15 +20,15 @@ if (!function_exists('getKpiStatus')) {
             return 'Insufficient Data';
         }
         
-        // Exact centralized thresholds
+        // Exact centralized thresholds standardized to school template labels
         if ($achievementPct >= KPI_THRESHOLD_EXCEEDED) {
-            return 'Exceeded Target';
+            return 'Exceeded the Target';
         } elseif ($achievementPct >= KPI_THRESHOLD_MET) {
-            return 'Met Target';
+            return 'Met the Target';
         } elseif ($achievementPct >= KPI_THRESHOLD_NEAR) {
-            return 'Near Target';
+            return 'Closed to the target';
         } else {
-            return 'Below Target';
+            return 'Did not meet the target';
         }
     }
 }
@@ -36,16 +36,23 @@ if (!function_exists('getKpiStatus')) {
 if (!function_exists('getKpiStatusClass')) {
     /**
      * Returns the appropriate badge class for a given KPI status.
+     * Supports both standardized school labels and legacy aliases.
      */
     function getKpiStatusClass(string $status): string
     {
         switch ($status) {
+            case 'Exceeded the Target':
             case 'Exceeded Target':
                 return 'badge-success';
+            case 'Met the Target':
             case 'Met Target':
                 return 'badge-info';
+            case 'Closed to the target':
+            case 'Close to Target':
             case 'Near Target':
                 return 'badge-warning';
+            case 'Did not meet the target':
+            case 'Did Not Meet Target':
             case 'Below Target':
                 return 'badge-danger';
             default:
@@ -89,12 +96,16 @@ if (!function_exists('calculateActivityKpis')) {
         $achievementScores = [];
 
         // --- A. Attendance KPI ---
+        // School Template: Acceptable attendance benchmark is 95% of expected attendees.
+        // Capped at 100.0% when meeting/exceeding acceptable target.
+        // Example: target = 40, actual = 38 => acceptable target = 38 => achievement = 100.0%.
         $targetAttendance = !empty($postEvent['target_attendance']) ? (int)$postEvent['target_attendance'] : (!empty($activity['target_participants']) ? (int)$activity['target_participants'] : 0);
         $actualAttendance = isset($postEvent['actual_attendance']) ? (int)$postEvent['actual_attendance'] : null;
         
         $attPct = null;
         if ($targetAttendance > 0 && $actualAttendance !== null) {
-            $attPct = round(($actualAttendance / $targetAttendance) * 100, 1);
+            $acceptableTarget = $targetAttendance * 0.95;
+            $attPct = min(100.0, round(($actualAttendance / $acceptableTarget) * 100, 1));
             $achievementScores[] = $attPct;
         }
         $attStatus = getKpiStatus($attPct);
@@ -102,6 +113,7 @@ if (!function_exists('calculateActivityKpis')) {
         $kpis['attendance'] = [
             'indicator' => 'Participant Attendance',
             'target' => $targetAttendance > 0 ? (string)$targetAttendance : '—',
+            'acceptable_target' => $targetAttendance > 0 ? (string)round($targetAttendance * 0.95) : '—',
             'actual' => $actualAttendance !== null ? (string)$actualAttendance : '—',
             'achievement' => $attPct !== null ? $attPct . '%' : '—',
             'achievement_val' => $attPct,
@@ -129,13 +141,23 @@ if (!function_exists('calculateActivityKpis')) {
         ];
 
         // --- C. Criteria ratings from evaluations ---
+        // School Template Note: The school template specifies a weighted average for Survey/Feedback.
+        // Legitimate weights are not yet defined by the school, so criteria ratings are currently
+        // calculated as an unweighted average (each weight defaults to 1.0). Weighted formula architecture
+        // is preserved so legitimate weights can be supplied without changing the calculation engine.
         $kpis['criteria'] = [];
+        $totalWeight = 0;
+        $weightedCriteriaSum = 0;
         foreach ($criteriaRatings as $cr) {
             $critName = trim($cr['criteria']);
             $targetRating = 3.0; // Benchmark target out of 4.0 stars
             $actualRating = (float)$cr['avg_rating'];
+            // Smallest safe change: allow weight if provided in data/config, default to 1.0 (unweighted)
+            $weight = isset($cr['weight']) && is_numeric($cr['weight']) && (float)$cr['weight'] > 0 ? (float)$cr['weight'] : 1.0;
 
             $critPct = round(($actualRating / $targetRating) * 100, 1);
+            $totalWeight += $weight;
+            $weightedCriteriaSum += ($critPct * $weight);
             $achievementScores[] = $critPct;
             $critStatus = getKpiStatus($critPct);
 
@@ -144,12 +166,20 @@ if (!function_exists('calculateActivityKpis')) {
                 'criteria_name' => $critName,
                 'target' => number_format($targetRating, 1) . ' / 4.0',
                 'actual' => number_format($actualRating, 1) . ' / 4.0',
+                'weight' => $weight,
                 'achievement' => $critPct . '%',
                 'achievement_val' => $critPct,
                 'status' => $critStatus,
                 'response_count' => (int)$cr['response_count']
             ];
         }
+        $surveyScore = $totalWeight > 0 ? round($weightedCriteriaSum / $totalWeight, 1) : null;
+        $kpis['survey_summary'] = [
+            'calculation_type' => 'unweighted',
+            'note' => 'Calculated as unweighted average; official survey weights pending confirmation',
+            'score' => $surveyScore,
+            'status' => getKpiStatus($surveyScore)
+        ];
 
         // Calculate Overall Activity Performance
         $overallPct = null;
@@ -318,7 +348,8 @@ if (!function_exists('getInstitutionalKpiSummary')) {
 
         $avgKpiRating = $kpiRatingsCount > 0 ? round($kpiRatingsSum / $kpiRatingsCount, 2) : null;
         $avgSatisfaction = $satisfactionCount > 0 ? round($satisfactionSum / $satisfactionCount, 1) : null;
-        $overallAttendanceRate = $attendanceTargetSum > 0 ? round(($attendanceActualSum / $attendanceTargetSum) * 100, 1) : null;
+        $rawAttendanceRate = $attendanceTargetSum > 0 ? round(($attendanceActualSum / $attendanceTargetSum) * 100, 1) : null;
+        $overallAttendanceRate = $attendanceTargetSum > 0 ? min(100.0, round(($attendanceActualSum / ($attendanceTargetSum * 0.95)) * 100, 1)) : null;
         $overallKpiPerformance = !empty($overallPerfScores) ? round(array_sum($overallPerfScores) / count($overallPerfScores), 1) : null;
 
         // Deterministic signature for cache freshness
@@ -360,6 +391,8 @@ if (!function_exists('getInstitutionalKpiSummary')) {
                 'avg_kpi_rating' => $avgKpiRating !== null ? number_format($avgKpiRating, 2) : '—',
                 'avg_satisfaction' => $avgSatisfaction !== null ? number_format($avgSatisfaction, 1) : '—',
                 'attendance_rate' => $overallAttendanceRate !== null ? $overallAttendanceRate . '%' : '—',
+                'raw_attendance_rate' => $rawAttendanceRate !== null ? $rawAttendanceRate . '%' : '—',
+                'attendance_status' => getKpiStatus($overallAttendanceRate),
                 'has_data' => $completedWithKpiCount > 0
             ],
             'activities' => $anonymizedActivities,

@@ -142,6 +142,65 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
       font-weight: 700;
       white-space: nowrap;
     }
+
+    .month-chart-scroll-wrap {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      padding-bottom: 4px;
+    }
+    .kpi-reports-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+      min-width: 0;
+      width: 100%;
+    }
+    .kpi-reports-grid .card,
+    .card {
+      min-width: 0;
+    }
+    @media (max-width: 900px) {
+      .kpi-reports-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+      }
+    }
+    @media (max-width: 640px) {
+      .topbar {
+        height: auto !important;
+        min-height: 56px !important;
+        max-height: none !important;
+        padding: 10px 14px !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+      }
+      .topbar-right {
+        width: 100%;
+        justify-content: flex-end;
+      }
+      .topbar-filter-form {
+        width: 100% !important;
+        order: 10;
+        margin-top: 4px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 6px;
+      }
+      .topbar-filter-form select[name="year"] {
+        flex: 1;
+        min-width: 75px;
+      }
+      .topbar-filter-form .btn {
+        flex-shrink: 0;
+      }
+      .month-bar-wrap {
+        min-width: 480px;
+      }
+    }
   </style>
 </head>
 
@@ -152,7 +211,7 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
       <div class="page-title">KPI Reports</div>
       <div class="topbar-right">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
-        <form method="GET" style="display:flex;gap:8px;align-items:center;">
+        <form method="GET" class="topbar-filter-form" style="display:flex;gap:8px;align-items:center;">
           <select name="year" class="form-control" style="width:100px;">
             <?php foreach (range(date('Y'), date('Y') - 4) as $y): ?>
               <option <?= $year === $y ? 'selected' : '' ?>><?= $y ?></option><?php endforeach; ?>
@@ -173,7 +232,7 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
         <div class="card-body">
           <div style="display:flex; gap:12px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
-            <div class="form-group" style="margin:0; min-width:300px;">
+            <div class="form-group" style="margin:0; min-width:0; flex:1;">
               <label class="form-label" style="font-weight:600; margin-bottom:4px; display:block;">Select Activity to Analyze</label>
               <select id="activity-selector" class="form-control">
                 <option value="">-- Choose a Completed / Approved Activity --</option>
@@ -208,7 +267,7 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+      <div class="kpi-reports-grid">
         <!-- By Source -->
         <div class="card">
           <div class="card-header">
@@ -253,27 +312,29 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($monthly as $m) $monthlyMap[$m['m']] = $m;
             $maxCnt = max(array_map(fn($m) => $m['cnt'], $monthly ?: [['cnt' => 1]]), 1);
             ?>
-            <div class="month-bar-wrap">
-              <?php for ($m = 1; $m <= 12; $m++):
-                $data = $monthlyMap[$m] ?? ['cnt' => 0, 'avg_kpi' => null];
-                $cnt = isset($data['cnt']) ? (int)$data['cnt'] : 0;
-                $max = isset($maxCnt) && !is_array($maxCnt) ? (int)$maxCnt : 1;
+            <div class="month-chart-scroll-wrap">
+              <div class="month-bar-wrap">
+                <?php for ($m = 1; $m <= 12; $m++):
+                  $data = $monthlyMap[$m] ?? ['cnt' => 0, 'avg_kpi' => null];
+                  $cnt = isset($data['cnt']) ? (int)$data['cnt'] : 0;
+                  $max = isset($maxCnt) && !is_array($maxCnt) ? (int)$maxCnt : 1;
 
-                $h = max(round(($cnt / $max) * 100), 4);
-                $avgKpi = $data['avg_kpi'];
-                $col = $avgKpi !== null
-                  ? ($avgKpi >= 3.5 ? '#16A34A' : ($avgKpi >= 2.5 ? '#0284C7' : '#D97706'))
-                  : '#E5E7EB';
-              ?>
-                <div style="flex:1;display:flex;flex-direction:column;align-items:center;">
-                  <div style="flex:1;width:100%;display:flex;align-items:flex-end;">
-                    <div class="month-bar" style="width:100%;height:<?= $h ?>%;background:<?= $col ?>;position:relative;" title="<?= date('F', mktime(0, 0, 0, $m, 1)) ?>: <?= $data['cnt'] ?> events<?= $data['avg_kpi'] ? ' · KPI ' . number_format($data['avg_kpi'], 1) : '' ?>">
-                      <?php if ($data['cnt'] > 0): ?><span class="month-val"><?= $data['cnt'] ?></span><?php endif; ?>
+                  $h = max(round(($cnt / $max) * 100), 4);
+                  $avgKpi = $data['avg_kpi'];
+                  $col = $avgKpi !== null
+                    ? ($avgKpi >= 3.5 ? '#16A34A' : ($avgKpi >= 2.5 ? '#0284C7' : '#D97706'))
+                    : '#E5E7EB';
+                ?>
+                  <div style="flex:1;display:flex;flex-direction:column;align-items:center;">
+                    <div style="flex:1;width:100%;display:flex;align-items:flex-end;">
+                      <div class="month-bar" style="width:100%;height:<?= $h ?>%;background:<?= $col ?>;position:relative;" title="<?= date('F', mktime(0, 0, 0, $m, 1)) ?>: <?= $data['cnt'] ?> events<?= $data['avg_kpi'] ? ' · KPI ' . number_format($data['avg_kpi'], 1) : '' ?>">
+                        <?php if ($data['cnt'] > 0): ?><span class="month-val"><?= $data['cnt'] ?></span><?php endif; ?>
+                      </div>
                     </div>
+                    <div class="month-label"><?= date('M', mktime(0, 0, 0, $m, 1)) ?></div>
                   </div>
-                  <div class="month-label"><?= date('M', mktime(0, 0, 0, $m, 1)) ?></div>
-                </div>
-              <?php endfor; ?>
+                <?php endfor; ?>
+              </div>
             </div>
           </div>
         </div>
@@ -285,42 +346,44 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
           <h2>🏆 Top Performing Events — <?= $year ?></h2>
         </div>
         <div class="card-body" style="padding:0;">
-          <table>
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Activity</th>
-                <th>Faculty</th>
-                <th>Date</th>
-                <th>KPI Avg</th>
-                <th>Satisfaction</th>
-                <th>Attendance %</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php if (empty($topPerf)): ?><tr>
-                  <td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">No KPI data for <?= $year ?>.</td>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Activity</th>
+                  <th>Faculty</th>
+                  <th>Date</th>
+                  <th>KPI Avg</th>
+                  <th>Satisfaction</th>
+                  <th>Attendance %</th>
                 </tr>
-                <?php else: foreach ($topPerf as $i => $tp):
-                  $attPct = $tp['target_attendance'] > 0 ? round(($tp['actual_attendance'] / $tp['target_attendance']) * 100) : null;
-                  $medal = $i === 0 ? '🥇' : ($i === 1 ? '🥈' : ($i === 2 ? '🥉' : ''));
-                ?>
-                  <tr>
-                    <td style="text-align:center;font-size:1.1rem;"><?= $medal ?: $i + 1 ?></td>
-                    <td><strong><?= htmlspecialchars($tp['title']) ?></strong></td>
-                    <td><?= htmlspecialchars($tp['fn']) ?></td>
-                    <td><?= $tp['event_date'] ? date('M j, Y', strtotime($tp['event_date'])) : '—' ?></td>
-                    <td><?php
-                        $k = $tp['avg_kpi'];
-                        $cls = $k >= 3.5 ? 'badge-success' : ($k >= 2.5 ? 'badge-info' : ($k >= 1.5 ? 'badge-warning' : 'badge-danger'));
-                        ?><span class="badge <?= $cls ?>"><?= number_format($k, 2) ?></span></td>
-                    <td><?= $tp['satisfaction_score'] ? number_format($tp['satisfaction_score'], 1) . '/5' : '—' ?></td>
-                    <td><?= $attPct !== null ? '<strong>' . $attPct . '%</strong>' : '—' ?></td>
+              </thead>
+              <tbody>
+                <?php if (empty($topPerf)): ?><tr>
+                    <td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">No KPI data for <?= $year ?>.</td>
                   </tr>
-              <?php endforeach;
-              endif; ?>
-            </tbody>
-          </table>
+                  <?php else: foreach ($topPerf as $i => $tp):
+                    $attPct = $tp['target_attendance'] > 0 ? round(($tp['actual_attendance'] / $tp['target_attendance']) * 100) : null;
+                    $medal = $i === 0 ? '🥇' : ($i === 1 ? '🥈' : ($i === 2 ? '🥉' : ''));
+                  ?>
+                    <tr>
+                      <td style="text-align:center;font-size:1.1rem;"><?= $medal ?: $i + 1 ?></td>
+                      <td><strong><?= htmlspecialchars($tp['title']) ?></strong></td>
+                      <td><?= htmlspecialchars($tp['fn']) ?></td>
+                      <td><?= $tp['event_date'] ? date('M j, Y', strtotime($tp['event_date'])) : '—' ?></td>
+                      <td><?php
+                          $k = $tp['avg_kpi'];
+                          $cls = $k >= 3.5 ? 'badge-success' : ($k >= 2.5 ? 'badge-info' : ($k >= 1.5 ? 'badge-warning' : 'badge-danger'));
+                          ?><span class="badge <?= $cls ?>"><?= number_format($k, 2) ?></span></td>
+                      <td><?= $tp['satisfaction_score'] ? number_format($tp['satisfaction_score'], 1) . '/5' : '—' ?></td>
+                      <td><?= $attPct !== null ? '<strong>' . $attPct . '%</strong>' : '—' ?></td>
+                    </tr>
+                <?php endforeach;
+                endif; ?>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -574,9 +637,15 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
 
     function getBadgeClass(status) {
       switch (status) {
+        case 'Exceeded the Target':
         case 'Exceeded Target': return 'badge-success';
+        case 'Met the Target':
         case 'Met Target': return 'badge-info';
+        case 'Closed to the target':
+        case 'Close to Target':
         case 'Near Target': return 'badge-warning';
+        case 'Did not meet the target':
+        case 'Did Not Meet Target':
         case 'Below Target': return 'badge-danger';
         default: return 'badge-secondary';
       }

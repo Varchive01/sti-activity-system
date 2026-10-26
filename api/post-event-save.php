@@ -44,7 +44,13 @@ try {
                 'error'    => $_FILES['post_event_files']['error'][$i],
             ];
             $path = uploadFile($file, 'post-event', $id);
-            if ($path) $docStmt->execute([$id, 'post_event', $fname, $path, $user['id']]);
+            if ($path) {
+                $docStmt->execute([$id, 'post_event', $fname, $path, $user['id']]);
+                $newDocId = (int)$db->lastInsertId();
+                if ($newDocId && function_exists('syncOneDriveMetadataToRecord')) {
+                    syncOneDriveMetadataToRecord($db, 'documents', $newDocId, $path, $id);
+                }
+            }
         }
     }
 

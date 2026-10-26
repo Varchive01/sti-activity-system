@@ -351,9 +351,15 @@ $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JO
 
   function getBadgeClass(status) {
     switch (status) {
+      case 'Exceeded the Target':
       case 'Exceeded Target': return 'badge-success';
+      case 'Met the Target':
       case 'Met Target': return 'badge-info';
+      case 'Closed to the target':
+      case 'Close to Target':
       case 'Near Target': return 'badge-warning';
+      case 'Did not meet the target':
+      case 'Did Not Meet Target':
       case 'Below Target': return 'badge-danger';
       default: return 'badge-secondary';
     }

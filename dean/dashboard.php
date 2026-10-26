@@ -239,6 +239,24 @@ if (empty($recent_all)) {
       background: var(--accent-lt, rgba(2, 132, 199, 0.08));
     }
 
+    /* Theme-specific text color guarantees */
+    html:not([data-theme="dark"]) .topbar .page-title,
+    html:not([data-theme="dark"]) #ai-insights-card strong[style*="INSTITUTIONAL"] {
+      color: #111111 !important;
+    }
+    html:not([data-theme="dark"]) #ai-insights-body p,
+    html:not([data-theme="dark"]) #ai-insights-body li {
+      color: #374151 !important;
+    }
+    [data-theme="dark"] .topbar .page-title,
+    [data-theme="dark"] #ai-insights-card strong[style*="INSTITUTIONAL"] {
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] #ai-insights-body p,
+    [data-theme="dark"] #ai-insights-body li {
+      color: #E2E8F0 !important;
+    }
+
     /* Dark Mode Topbar Form Controls */
     [data-theme="dark"] select,
     [data-theme="dark"] input,
@@ -741,6 +759,84 @@ if (empty($recent_all)) {
       .topbar-right .text-sm.text-muted {
         display: none;
       }
+    }
+
+    @media (max-width: 640px) {
+      .topbar {
+        padding: 8px 12px 10px !important;
+        gap: 6px 8px !important;
+        flex-wrap: wrap !important;
+        min-height: auto !important;
+        height: auto !important;
+      }
+      .topbar .page-title {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        font-size: 0.95rem !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        margin: 0 !important;
+      }
+      .topbar-right {
+        display: contents !important;
+      }
+      .topbar-right > #topbar-notif-widget,
+      .topbar-right > .notif-topbar-wrapper,
+      .topbar-right > .theme-toggle-btn,
+      .topbar-right > .topbar-profile {
+        order: 2 !important;
+        flex-shrink: 0 !important;
+      }
+      .topbar-filter-form {
+        width: 100% !important;
+        order: 10 !important;
+        margin-top: 4px !important;
+        padding-top: 8px !important;
+        border-top: 1px solid var(--border) !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+      }
+      .topbar-filter-form select[name="year"] {
+        flex: 1 1 75px !important;
+        min-width: 70px !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        font-size: 0.82rem !important;
+        padding: 6px 8px !important;
+        box-sizing: border-box !important;
+      }
+      .topbar-filter-form select[name="period"] {
+        flex: 2 1 125px !important;
+        min-width: 110px !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        font-size: 0.80rem !important;
+        padding: 6px 8px !important;
+        box-sizing: border-box !important;
+      }
+      .topbar-filter-form .btn {
+        flex: 0 0 auto !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        min-width: 52px !important;
+        font-size: 0.80rem !important;
+        padding: 0 10px !important;
+        box-sizing: border-box !important;
+      }
+      .activity-table td .btn {
+        height: 38px !important;
+        min-height: 38px !important;
+        padding: 6px 12px !important;
+        font-size: 0.78rem !important;
+      }
+      .act-actions {
+        gap: 8px !important;
+      }
+      .month-bar-wrap {
+        min-width: 500px;
+      }
       .kpi-target-strip {
         grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
       }
@@ -826,6 +922,13 @@ if (empty($recent_all)) {
     }
 
     /* ── Proposal Approval Trends Chart ── */
+    .month-chart-scroll-wrap {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      padding-bottom: 4px;
+    }
     .month-bar-wrap {
       display: flex;
       align-items: stretch;
@@ -942,7 +1045,7 @@ if (empty($recent_all)) {
     <div class="page-title">Dean's Overview Dashboard</div>
     <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
         <!-- Year and Reporting Period Filter -->
-        <form method="GET" style="display:flex;gap:6px;align-items:center;">
+        <form method="GET" class="topbar-filter-form" style="display:flex;gap:6px;align-items:center;">
           <select name="year" class="form-control" style="width:85px;padding:3px 8px;font-size:0.78rem;height:28px;">
             <?php foreach ($availableYears as $y): ?>
               <option value="<?= $y ?>" <?= $selectedYear === $y ? 'selected' : '' ?>><?= $y ?></option>
@@ -1043,35 +1146,37 @@ if (empty($recent_all)) {
               }
               $plotMax = max(1, $chartMaxVal);
             ?>
-            <div class="month-bar-wrap">
-              <?php foreach ($approvalTrends['months'] as $tm): 
-                $appH = $tm['approved'] > 0 ? max(round(($tm['approved'] / $plotMax) * 88), 10) : 0;
-                $retH = $tm['returned'] > 0 ? max(round(($tm['returned'] / $plotMax) * 88), 10) : 0;
-              ?>
-                <div class="month-bar-col">
-                  <div class="month-bar-inner">
-                    <?php if ($tm['approved'] > 0): ?>
-                      <div class="month-bar approved" style="height:<?= $appH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['approved'] ?> Approved">
-                        <span class="month-val approved"><?= $tm['approved'] ?></span>
-                      </div>
-                    <?php else: ?>
-                      <div class="month-bar approved zero-bar" title="<?= $tm['month_name'] ?>: 0 Approved">
-                        <span class="month-val approved">0</span>
-                      </div>
-                    <?php endif; ?>
-                    <?php if ($tm['returned'] > 0): ?>
-                      <div class="month-bar returned" style="height:<?= $retH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['returned'] ?> Returned/Rejected">
-                        <span class="month-val returned"><?= $tm['returned'] ?></span>
-                      </div>
-                    <?php else: ?>
-                      <div class="month-bar returned zero-bar" title="<?= $tm['month_name'] ?>: 0 Returned/Rejected">
-                        <span class="month-val returned">0</span>
-                      </div>
-                    <?php endif; ?>
+            <div class="month-chart-scroll-wrap">
+              <div class="month-bar-wrap">
+                <?php foreach ($approvalTrends['months'] as $tm): 
+                  $appH = $tm['approved'] > 0 ? max(round(($tm['approved'] / $plotMax) * 88), 10) : 0;
+                  $retH = $tm['returned'] > 0 ? max(round(($tm['returned'] / $plotMax) * 88), 10) : 0;
+                ?>
+                  <div class="month-bar-col">
+                    <div class="month-bar-inner">
+                      <?php if ($tm['approved'] > 0): ?>
+                        <div class="month-bar approved" style="height:<?= $appH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['approved'] ?> Approved">
+                          <span class="month-val approved"><?= $tm['approved'] ?></span>
+                        </div>
+                      <?php else: ?>
+                        <div class="month-bar approved zero-bar" title="<?= $tm['month_name'] ?>: 0 Approved">
+                          <span class="month-val approved">0</span>
+                        </div>
+                      <?php endif; ?>
+                      <?php if ($tm['returned'] > 0): ?>
+                        <div class="month-bar returned" style="height:<?= $retH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['returned'] ?> Returned/Rejected">
+                          <span class="month-val returned"><?= $tm['returned'] ?></span>
+                        </div>
+                      <?php else: ?>
+                        <div class="month-bar returned zero-bar" title="<?= $tm['month_name'] ?>: 0 Returned/Rejected">
+                          <span class="month-val returned">0</span>
+                        </div>
+                      <?php endif; ?>
+                    </div>
+                    <div class="month-label"><?= $tm['month_name'] ?></div>
                   </div>
-                  <div class="month-label"><?= $tm['month_name'] ?></div>
-                </div>
-              <?php endforeach; ?>
+                <?php endforeach; ?>
+              </div>
             </div>
             <div class="flex gap-3 text-xs" style="margin-top:10px;justify-content:center;">
               <span><span class="legend-dot" style="background:#16A34A;"></span>Approved Proposals</span>
@@ -1096,31 +1201,31 @@ if (empty($recent_all)) {
             <div class="kpi-target-strip">
               <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
                 <div>
-                  <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Overall KPI Score</div>
+                  <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Attendance KPI (95% Target)</div>
                   <div style="font-size:1.8rem;font-weight:800;color:var(--accent);margin-top:2px;">
-                    <?= $kpiPerf['overall_performance'] !== null ? ($kpiPerf['overall_performance'] . '%') : '—' ?>
+                    <?= $kpiPerf['attendance_rate'] ?>
                   </div>
                 </div>
                 <div>
-                  <span class="badge <?= getKpiStatusClass($kpiPerf['overall_status']) ?>"><?= $kpiPerf['overall_status'] ?></span>
+                  <span class="badge <?= getKpiStatusClass($kpiPerf['attendance_status'] ?? $kpiPerf['overall_status']) ?>"><?= $kpiPerf['attendance_status'] ?? $kpiPerf['overall_status'] ?></span>
                 </div>
               </div>
               <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center;">
-                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Meeting Target (&ge;90%)</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Met the Target</div>
                 <div style="font-size:1.6rem;font-weight:800;color:#16A34A;margin-top:2px;">
                   <?= $kpiPerf['meeting_targets'] ?>
                 </div>
                 <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">activities</div>
               </div>
               <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center;">
-                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Near Target (70–89%)</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Closed to the target</div>
                 <div style="font-size:1.6rem;font-weight:800;color:#D97706;margin-top:2px;">
                   <?= $kpiPerf['near_targets'] ?>
                 </div>
                 <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">activities</div>
               </div>
               <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center;">
-                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Below Target (&lt;70%)</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Did not meet the target</div>
                 <div style="font-size:1.6rem;font-weight:800;color:#DC2626;margin-top:2px;">
                   <?= $kpiPerf['below_targets'] ?>
                 </div>
@@ -1132,15 +1237,15 @@ if (empty($recent_all)) {
             <div class="kpi-metrics-row">
               <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
                 <div style="font-size:2rem;font-weight:800;color:var(--accent);"><?= $kpiPerf['avg_kpi_rating'] ?></div>
-                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;margin-top:4px;">Avg KPI Rating (out of 4.0)</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;margin-top:4px;">Avg Survey Rating (out of 4.0, Unweighted)</div>
               </div>
               <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
                 <div style="font-size:2rem;font-weight:800;color:var(--accent);"><?= $kpiPerf['avg_satisfaction'] ?></div>
-                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;margin-top:4px;">Avg Satisfaction Score (out of 5.0)</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;margin-top:4px;">Avg Participant Satisfaction (out of 5.0)</div>
               </div>
               <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
-                <div style="font-size:2rem;font-weight:800;color:var(--accent);"><?= $kpiPerf['attendance_rate'] ?></div>
-                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;margin-top:4px;">Overall Attendance Rate</div>
+                <div style="font-size:2rem;font-weight:800;color:var(--accent);"><?= $kpiPerf['raw_attendance_rate'] ?? $kpiPerf['attendance_rate'] ?></div>
+                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;margin-top:4px;">Actual Turnout vs Expected Headcount</div>
               </div>
             </div>
           </div>
@@ -1151,7 +1256,8 @@ if (empty($recent_all)) {
           <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <div style="display:flex;align-items:center;gap:8px;">
               <h2>🤖 AI KPI &amp; Institutional Analytics</h2>
-              <span id="ai-stale-badge" class="badge badge-warning" style="display:none;">Outdated Data</span>
+              <span id="ai-type-badge" class="badge badge-primary" style="display:none; font-size:0.75rem;">AI Generated</span>
+              <span id="ai-stale-badge" class="badge badge-warning" style="display:none; font-size:0.75rem;">Outdated Data</span>
             </div>
             <button id="update-insights-btn" class="btn btn-outline btn-sm" style="display:none;">Update AI Insights</button>
           </div>
@@ -1161,7 +1267,7 @@ if (empty($recent_all)) {
               <div class="text-sm text-muted">Checking institutional insights...</div>
             </div>
           </div>
-          <div style="font-size:0.75rem; color:var(--text-muted); text-align:center; padding-bottom:12px; font-style:italic;">
+          <div class="ai-disclaimer" style="font-size:0.75rem; color:var(--text-muted); text-align:center; padding-bottom:12px; font-style:italic;">
             * AI-generated insights are advisory only and should be reviewed by authorized administrators before making decisions.
           </div>
         </div>
@@ -1337,15 +1443,18 @@ if (empty($recent_all)) {
           throw new Error(d.error || 'Server status ' + res.status);
         }
 
+        const typeBadge = document.getElementById('ai-type-badge');
         if (d.status === 'empty') {
           updateBtn.style.display = 'none';
           if (staleBadge) staleBadge.style.display = 'none';
+          if (typeBadge) typeBadge.style.display = 'none';
           insightsBody.innerHTML = `<div class="text-muted text-sm" style="text-align:center; padding:24px;">
             ${escapeHtml(d.message || 'No completed activity KPI data is available for AI analysis yet.')}
           </div>`;
         } else if (d.status === 'not_generated') {
           updateBtn.style.display = 'none';
           if (staleBadge) staleBadge.style.display = 'none';
+          if (typeBadge) typeBadge.style.display = 'none';
           insightsBody.innerHTML = `<div style="text-align:center; padding:24px;">
             <p class="text-muted text-sm" style="margin-bottom:12px;">Institutional KPI insights have not been generated for this reporting period.</p>
             <button id="generate-insights-btn" class="btn btn-primary btn-sm">Generate AI Insights</button>
@@ -1353,10 +1462,28 @@ if (empty($recent_all)) {
           document.getElementById('generate-insights-btn')?.addEventListener('click', () => loadAiInsights('analyze'));
         } else if (d.status === 'generated' || d.status === 'success') {
           const insights = d.analytics;
+
+          if (typeBadge) {
+            typeBadge.style.display = 'inline-block';
+            if (d.insight_type === 'fallback') {
+              typeBadge.textContent = 'Deterministic Summary';
+              typeBadge.className = 'badge badge-secondary';
+            } else if (d.insight_type === 'ai_generated_cached' || d.warning) {
+              typeBadge.textContent = 'AI Advisory (Preserved)';
+              typeBadge.className = 'badge badge-warning';
+            } else {
+              typeBadge.textContent = 'AI Generated';
+              typeBadge.className = 'badge badge-primary';
+            }
+          }
+
           if (d.is_outdated) {
             updateBtn.style.display = 'inline-block';
-            updateBtn.textContent = 'New Data Available — Update Insights';
-            if (staleBadge) staleBadge.style.display = 'inline-block';
+            updateBtn.textContent = 'Refresh AI Insights';
+            if (staleBadge) {
+              staleBadge.style.display = 'inline-block';
+              staleBadge.textContent = d.warning ? 'AI Offline (Cached)' : 'Outdated Data';
+            }
           } else {
             updateBtn.style.display = 'none';
             if (staleBadge) staleBadge.style.display = 'none';
@@ -1365,6 +1492,7 @@ if (empty($recent_all)) {
           let strengthsList = (insights.strengths || []).map(s => `<li>✓ ${escapeHtml(s)}</li>`).join('');
           let attentionList = (insights.areas_of_attention || []).map(a => `<li>⚠ ${escapeHtml(a)}</li>`).join('');
           let recsList = (insights.recommendations || []).map((r, i) => `<li>${i+1}. ${escapeHtml(r)}</li>`).join('');
+          const sourceLabel = d.insight_type === 'fallback' ? 'Deterministic Rule-Based' : (d.insight_type === 'ai_generated_cached' ? 'AI Advisory (Cached)' : 'AI Advisory (Verified Data)');
 
           insightsBody.innerHTML = `
             <div style="margin-bottom:16px;">
@@ -1392,8 +1520,8 @@ if (empty($recent_all)) {
               </ul>
             </div>
             <div style="margin-top:14px; font-size:0.75rem; color:var(--text-muted); border-top:1px solid var(--border); padding-top:8px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-              <span><strong>Confidence:</strong> ${escapeHtml(insights.confidence_note || 'Evaluated from verified database records.')}</span>
-              <span>Last updated: ${escapeHtml(d.last_updated || 'Just now')}</span>
+              <span><strong>Source:</strong> ${escapeHtml(sourceLabel)} | <strong>Confidence:</strong> ${escapeHtml(insights.confidence_note || 'Evaluated from verified database records.')}</span>
+              <span><strong>Last updated:</strong> ${escapeHtml(formatDate(d.last_updated))}</span>
             </div>
           `;
         }
@@ -1402,13 +1530,15 @@ if (empty($recent_all)) {
         console.error('AI Insights Error:', err);
         updateBtn.style.display = 'none';
         if (staleBadge) staleBadge.style.display = 'none';
+        const typeBadge = document.getElementById('ai-type-badge');
+        if (typeBadge) typeBadge.style.display = 'none';
         insightsBody.innerHTML = `<div style="text-align:center; padding:24px;">
           <div style="font-size:1.8rem; margin-bottom:8px;">⚠️</div>
           <p class="text-sm" style="margin-bottom:6px; font-weight:600; color:var(--text);">AI insights are temporarily unavailable.</p>
           <p class="text-xs text-muted" style="margin-bottom:12px;">Statistical and KPI metrics remain fully available.</p>
           <button id="retry-insights-btn" class="btn btn-outline btn-sm">Retry</button>
         </div>`;
-        document.getElementById('retry-insights-btn')?.addEventListener('click', () => loadAiInsights('check'));
+        document.getElementById('retry-insights-btn')?.addEventListener('click', () => loadAiInsights('analyze'));
       });
     }
 
@@ -1428,8 +1558,10 @@ if (empty($recent_all)) {
     loadAiInsights('check');
 
     function formatDate(str) {
-      const d = new Date(str);
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' +
+      if (!str) return 'Just now';
+      const d = new Date(str.replace ? str.replace(/-/g, '/') : str);
+      if (isNaN(d.getTime())) return str;
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' +
              d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     }
   })();

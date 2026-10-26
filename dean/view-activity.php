@@ -314,7 +314,20 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
               <td><?= $tCommittee !== '—' ? '<span class="badge badge-secondary">'.htmlspecialchars($tCommittee).'</span>' : '—' ?></td>
               <td><strong><?= htmlspecialchars($tPerson) ?></strong></td>
               <td><?= htmlspecialchars($tRole) ?></td>
-              <td><?= $tDue !== '—' ? '<span class="time-badge">📅 '.htmlspecialchars($tDue).'</span>' : '—' ?></td>
+              <td>
+                <?php if ($tDue !== '—'): 
+                  $isOverdue = (!empty($f['due_date']) && date('Y-m-d', strtotime($f['due_date'])) < date('Y-m-d') && $tStatus !== 'Completed');
+                ?>
+                  <span class="time-badge" style="<?= $isOverdue ? 'color:#ef4444;border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.08);' : '' ?>">
+                    📅 <?= htmlspecialchars($tDue) ?>
+                  </span>
+                  <?php if ($isOverdue): ?>
+                    <span class="badge badge-danger" style="background:#ef4444;color:#fff;font-size:0.68rem;margin-left:4px;">Overdue</span>
+                  <?php endif; ?>
+                <?php else: ?>
+                  <span style="color:var(--text-muted);font-size:0.80rem;">—</span>
+                <?php endif; ?>
+              </td>
               <td>
                 <div style="display:flex;align-items:center;gap:6px;">
                   <div style="flex:1;height:6px;background:var(--border,#e5e7eb);border-radius:999px;overflow:hidden;min-width:40px;">

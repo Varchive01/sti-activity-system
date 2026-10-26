@@ -193,6 +193,153 @@ function uploadFile(array $file, string $subdir, int $activityId, ?OneDriveServi
 }
 
 /**
+ * Global cache accessor for OneDrive sync metadata within the request lifecycle.
+ */
+function getOneDriveSyncMetadata(string $pathOrFilename): ?array
+{
+    global $__onedrive_sync_cache;
+    if (!is_array($__onedrive_sync_cache)) {
+        return null;
+    }
+    $clean = str_replace('\\', '/', $pathOrFilename);
+    $base = basename($clean);
+    return $__onedrive_sync_cache[$clean] 
+        ?? $__onedrive_sync_cache[$base] 
+        ?? null;
+}
+
+/**
+ * Persists OneDrive sync metadata to an existing document or activity deliverable record.
+ */
+function persistOneDriveFileMetadata(int $activityId, string $localRelPath, array $metadata): bool
+{
+    try {
+        if (!function_exists('getDB')) {
+            require_once __DIR__ . '/../config/database.php';
+        }
+        $db = getDB();
+        if (!$db) return false;
+
+        $fileName = basename($localRelPath);
+        $cleanRel = ltrim(str_replace('\\', '/', $localRelPath), '/');
+
+        // Check if documents table has onedrive columns
+        $checkCol = $db->query("SHOW COLUMNS FROM `documents` LIKE 'onedrive_status'")->fetch();
+        if (!$checkCol) {
+            return false;
+        }
+
+        // 1. Look for existing record in documents table
+        $stmt = $db->prepare("
+            SELECT id FROM documents 
+            WHERE activity_id = ? AND (file_path = ? OR file_path = ? OR file_path LIKE ?)
+            ORDER BY id DESC LIMIT 1
+        ");
+        $stmt->execute([$activityId, $localRelPath, $cleanRel, '%' . $fileName]);
+        $docId = $stmt->fetchColumn();
+
+        if ($docId) {
+            $up = $db->prepare("
+                UPDATE documents 
+                SET onedrive_item_id = ?,
+                    onedrive_web_url = ?,
+                    onedrive_status = ?,
+                    onedrive_synced_at = ?,
+                    onedrive_error = ?
+                WHERE id = ?
+            ");
+            $up->execute([
+                $metadata['item_id'] ?? null,
+                $metadata['web_url'] ?? null,
+                $metadata['status'] ?? 'pending',
+                $metadata['synced_at'] ?? null,
+                $metadata['error'] ?? null,
+                $docId
+            ]);
+            return true;
+        }
+
+        // 2. Also check task_deliverables if relevant
+        $delivCheck = $db->query("SHOW TABLES LIKE 'task_deliverables'")->fetch();
+        if ($delivCheck) {
+            $delivStmt = $db->prepare("
+                SELECT id FROM task_deliverables 
+                WHERE activity_id = ? AND (file_path = ? OR file_path = ? OR file_path LIKE ?)
+                ORDER BY id DESC LIMIT 1
+            ");
+            $delivStmt->execute([$activityId, $localRelPath, $cleanRel, '%' . $fileName]);
+            $delivId = $delivStmt->fetchColumn();
+
+            if ($delivId) {
+                $upD = $db->prepare("
+                    UPDATE task_deliverables 
+                    SET onedrive_item_id = ?,
+                        onedrive_web_url = ?,
+                        onedrive_status = ?,
+                        onedrive_synced_at = ?,
+                        onedrive_error = ?
+                    WHERE id = ?
+                ");
+                $upD->execute([
+                    $metadata['item_id'] ?? null,
+                    $metadata['web_url'] ?? null,
+                    $metadata['status'] ?? 'pending',
+                    $metadata['synced_at'] ?? null,
+                    $metadata['error'] ?? null,
+                    $delivId
+                ]);
+                return true;
+            }
+        }
+
+        return false;
+    } catch (\Throwable $t) {
+        // Safe isolation: DB persistence error must not crash caller
+        error_log("Failed persisting OneDrive metadata: " . $t->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Links cached OneDrive sync metadata to a newly inserted document/deliverable row.
+ */
+function syncOneDriveMetadataToRecord(PDO $db, string $table, int $recordId, string $localRelPath, int $activityId): bool
+{
+    try {
+        $meta = getOneDriveSyncMetadata($localRelPath);
+        if (!$meta) {
+            $meta = getOneDriveSyncMetadata(basename($localRelPath));
+        }
+
+        // Check if onedrive_status column exists in the target table
+        $checkCol = $db->query("SHOW COLUMNS FROM `{$table}` LIKE 'onedrive_status'")->fetch();
+        if (!$checkCol) {
+            return false;
+        }
+
+        $itemId   = $meta['item_id'] ?? null;
+        $webUrl   = $meta['web_url'] ?? null;
+        $status   = $meta['status'] ?? 'pending';
+        $syncedAt = $meta['synced_at'] ?? null;
+        $error    = $meta['error'] ?? null;
+
+        $stmt = $db->prepare("
+            UPDATE `{$table}`
+            SET onedrive_item_id = ?,
+                onedrive_web_url = ?,
+                onedrive_status = ?,
+                onedrive_synced_at = ?,
+                onedrive_error = ?
+            WHERE id = ?
+        ");
+        return $stmt->execute([$itemId, $webUrl, $status, $syncedAt, $error, $recordId]);
+    } catch (\Throwable $t) {
+        error_log("Failed syncing OneDrive metadata to record: " . $t->getMessage());
+        return false;
+    }
+}
+
+/**
  * Attempts an optional non-blocking archive copy of a successfully saved local file to OneDrive.
  * Local storage remains authoritative. Any failure here is safely caught and ignored.
  *
@@ -210,9 +357,13 @@ function attemptOneDriveArchiveCopy(
     int $activityId,
     ?OneDriveService $service = null
 ): ?array {
+    global $__onedrive_sync_cache;
+    if (!is_array($__onedrive_sync_cache)) {
+        $__onedrive_sync_cache = [];
+    }
     static $syncedFiles = [];
 
-    // Avoid duplicate archive uploads if called multiple times for the same file in a request
+    $localRelPath = trim($subdir, '/\\') . '/' . $fileName;
     $cacheKey = $fullLocalPath . '|' . $fileName;
     if (isset($syncedFiles[$cacheKey])) {
         return $syncedFiles[$cacheKey];
@@ -226,6 +377,22 @@ function attemptOneDriveArchiveCopy(
 
         // Respect ONEDRIVE_ENABLED
         if (!$service->isEnabled()) {
+            $disabledMeta = [
+                'item_id'     => null,
+                'name'        => $fileName,
+                'size'        => @filesize($fullLocalPath) ?: 0,
+                'web_url'     => null,
+                'folder_path' => trim($subdir, '/\\'),
+                'status'      => 'disabled',
+                'error'       => null,
+                'activity_id' => $activityId,
+                'synced_at'   => null,
+            ];
+            $syncedFiles[$cacheKey] = $disabledMeta;
+            $__onedrive_sync_cache[$cacheKey] = $disabledMeta;
+            $__onedrive_sync_cache[$localRelPath] = $disabledMeta;
+            $__onedrive_sync_cache[$fileName] = $disabledMeta;
+            persistOneDriveFileMetadata($activityId, $localRelPath, $disabledMeta);
             return null;
         }
 
@@ -243,19 +410,64 @@ function attemptOneDriveArchiveCopy(
                 'status'      => 'synced',
                 'activity_id' => $activityId,
                 'synced_at'   => date('Y-m-d H:i:s'),
+                'error'       => null,
             ];
 
             $syncedFiles[$cacheKey] = $metadata;
+            $__onedrive_sync_cache[$cacheKey] = $metadata;
+            $__onedrive_sync_cache[$localRelPath] = $metadata;
+            $__onedrive_sync_cache[$fileName] = $metadata;
+
+            // Persist to database if record already exists
+            persistOneDriveFileMetadata($activityId, $localRelPath, $metadata);
+
             return $metadata;
         } else {
             // Safe logging without credentials, secrets, or raw payloads
             $safeError = preg_replace('/[^\w\s\.\-_:]/', '', (string)($result['error'] ?? 'Unknown error'));
+            $failureMetadata = [
+                'item_id'     => null,
+                'name'        => $fileName,
+                'size'        => @filesize($fullLocalPath) ?: 0,
+                'web_url'     => null,
+                'folder_path' => $targetCategory,
+                'status'      => 'failed',
+                'error'       => $safeError,
+                'activity_id' => $activityId,
+                'synced_at'   => null,
+            ];
+
+            $syncedFiles[$cacheKey] = $failureMetadata;
+            $__onedrive_sync_cache[$cacheKey] = $failureMetadata;
+            $__onedrive_sync_cache[$localRelPath] = $failureMetadata;
+            $__onedrive_sync_cache[$fileName] = $failureMetadata;
+
+            persistOneDriveFileMetadata($activityId, $localRelPath, $failureMetadata);
+
             error_log("OneDrive archive notice: Archive upload skipped or failed [{$safeError}]. Local file preserved.");
             return null;
         }
     } catch (\Throwable $e) {
         // Absolute isolation: OneDrive failure must NEVER disrupt local upload
         $safeMsg = preg_replace('/[^\w\s\.\-_:]/', '', $e->getMessage());
+        $failureMetadata = [
+            'item_id'     => null,
+            'name'        => $fileName,
+            'size'        => @filesize($fullLocalPath) ?: 0,
+            'web_url'     => null,
+            'folder_path' => trim($subdir, '/\\'),
+            'status'      => 'failed',
+            'error'       => $safeMsg,
+            'activity_id' => $activityId,
+            'synced_at'   => null,
+        ];
+        $syncedFiles[$cacheKey] = $failureMetadata;
+        $__onedrive_sync_cache[$cacheKey] = $failureMetadata;
+        $__onedrive_sync_cache[$localRelPath] = $failureMetadata;
+        $__onedrive_sync_cache[$fileName] = $failureMetadata;
+
+        persistOneDriveFileMetadata($activityId, $localRelPath, $failureMetadata);
+
         error_log("OneDrive archive notice: Exception during archive upload [{$safeMsg}]. Local file preserved.");
         return null;
     }

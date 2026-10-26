@@ -82,28 +82,93 @@ $cacheStmt = $db->prepare("SELECT * FROM activity_kpi_analytics WHERE activity_i
 $cacheStmt->execute([$activityId]);
 $cache = $cacheStmt->fetch(PDO::FETCH_ASSOC);
 
-$action = $_POST['action'] ?? 'check';
+$action = $_POST['action'] ?? $_GET['action'] ?? 'check';
 
-if ($action === 'check') {
-    if (!$cache) {
-        echo json_encode([
-            'status' => 'not_generated',
-            'kpis' => $kpiResults['kpis'],
-            'overall_performance' => $kpiResults['overall_performance'],
-            'overall_status' => $kpiResults['overall_status']
-        ]);
-    } else {
-        $isOutdated = ($cache['data_hash'] !== $currentHash);
+if ($action === 'check' || $action === 'auto') {
+    // 1. Fresh cache: Return immediately without calling AI API
+    if ($cache && $cache['data_hash'] === $currentHash) {
         echo json_encode([
             'status' => 'generated',
-            'is_outdated' => $isOutdated,
+            'is_outdated' => false,
+            'insight_type' => 'ai_generated',
             'last_updated' => $cache['updated_at'],
             'kpis' => $kpiResults['kpis'],
             'overall_performance' => $kpiResults['overall_performance'],
             'overall_status' => $kpiResults['overall_status'],
             'analytics' => json_decode($cache['analytics_json'], true)
         ]);
+        exit;
     }
+
+    // 2. No cache or stale cache: Automatically generate / refresh via Gemini
+    $apiKey = defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '';
+    $feedbackStmt = $db->prepare("SELECT analysis_json FROM activity_feedback_analysis WHERE activity_id = ?");
+    $feedbackStmt->execute([$activityId]);
+    $feedbackRow = $feedbackStmt->fetch(PDO::FETCH_ASSOC);
+    $feedbackAnalysis = $feedbackRow ? json_decode($feedbackRow['analysis_json'], true) : null;
+
+    $service = new GeminiKpiAnalyticsService($apiKey);
+    $analyticsResult = $service->analyzeActivityKpis($kpiResults, $feedbackAnalysis);
+
+    if ($analyticsResult !== null) {
+        try {
+            $saveStmt = $db->prepare("
+                INSERT INTO activity_kpi_analytics (activity_id, analytics_json, data_hash)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE 
+                    analytics_json = VALUES(analytics_json),
+                    data_hash = VALUES(data_hash),
+                    updated_at = CURRENT_TIMESTAMP()
+            ");
+            $saveStmt->execute([
+                $activityId,
+                json_encode($analyticsResult),
+                $currentHash
+            ]);
+
+            $cacheStmt->execute([$activityId]);
+            $refreshedCache = $cacheStmt->fetch(PDO::FETCH_ASSOC);
+            $lastUpdated = $refreshedCache['updated_at'] ?? date('Y-m-d H:i:s');
+
+            echo json_encode([
+                'status' => 'generated',
+                'is_outdated' => false,
+                'insight_type' => 'ai_generated',
+                'refreshed' => true,
+                'last_updated' => $lastUpdated,
+                'kpis' => $kpiResults['kpis'],
+                'overall_performance' => $kpiResults['overall_performance'],
+                'overall_status' => $kpiResults['overall_status'],
+                'analytics' => $analyticsResult
+            ]);
+            exit;
+        } catch (Exception $e) {
+            error_log("Database error saving AI KPI analysis: " . $e->getMessage());
+        }
+    }
+
+    // AI service failed / quota exhausted / offline:
+    if ($cache) {
+        echo json_encode([
+            'status' => 'generated',
+            'is_outdated' => true,
+            'insight_type' => 'ai_generated_cached',
+            'warning' => 'AI refresh temporarily unavailable. Showing previously saved insights.',
+            'last_updated' => $cache['updated_at'],
+            'kpis' => $kpiResults['kpis'],
+            'overall_performance' => $kpiResults['overall_performance'],
+            'overall_status' => $kpiResults['overall_status'],
+            'analytics' => json_decode($cache['analytics_json'], true)
+        ]);
+        exit;
+    }
+
+    echo json_encode([
+        'status' => 'not_generated',
+        'kpis' => $kpiResults['kpis'],
+        'overall_performance' => $kpiResults['overall_performance'],
+        'overall_status' => $kpiResults['overall_status']
+    ]);
     exit;
 }
 
@@ -114,6 +179,8 @@ if ($action === 'analyze') {
     if ($cache && $cache['data_hash'] === $currentHash && !isset($_POST['force'])) {
         echo json_encode([
             'status' => 'success',
+            'is_outdated' => false,
+            'insight_type' => 'ai_generated',
             'last_updated' => $cache['updated_at'],
             'kpis' => $kpiResults['kpis'],
             'overall_performance' => $kpiResults['overall_performance'],
@@ -133,13 +200,15 @@ if ($action === 'analyze') {
     $analyticsResult = $service->analyzeActivityKpis($kpiResults, $feedbackAnalysis);
 
     if ($analyticsResult === null) {
-        // Handle Gemini API failure strictly: do not fabricate data!
+        // Handle Gemini API failure strictly: do not fabricate data! Preserve existing insights if available
         http_response_code(503);
         echo json_encode([
             'error' => 'AI insights are temporarily unavailable.',
             'kpis' => $kpiResults['kpis'],
             'overall_performance' => $kpiResults['overall_performance'],
-            'overall_status' => $kpiResults['overall_status']
+            'overall_status' => $kpiResults['overall_status'],
+            'preserved_analytics' => $cache ? json_decode($cache['analytics_json'], true) : null,
+            'last_updated' => $cache ? $cache['updated_at'] : null
         ]);
         exit;
     }

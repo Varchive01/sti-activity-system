@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/ai/kpi_helper.php';
 requireRole('faculty');
 $user = currentUser();
 $db   = getDB();
@@ -27,12 +28,11 @@ function kpiClass($avg) {
     return ['Needs Improvement','badge-danger'];
 }
 function attendanceClass($actual, $target) {
-    if (!$target) return ['—','badge-secondary'];
-    $pct = ($actual / $target) * 100;
-    if ($pct >= 100) return ['Exceeded Target','badge-success'];
-    if ($pct >= 90)  return ['Met Target','badge-info'];
-    if ($pct >= 70)  return ['Close to Target','badge-warning'];
-    return ['Did Not Meet Target','badge-danger'];
+    if (!$target || $actual === null) return ['—','badge-secondary'];
+    $acceptableTarget = $target * 0.95;
+    $pct = min(100.0, round(($actual / $acceptableTarget) * 100, 1));
+    $status = getKpiStatus($pct);
+    return [$status, getKpiStatusClass($status)];
 }
 ?>
 <!DOCTYPE html>
@@ -83,7 +83,7 @@ function attendanceClass($actual, $target) {
     <?php foreach ($allReports as $r):
       [$kpiLabel, $kpiClass] = kpiClass($r['avg_kpi'] ?? 0);
       [$attLabel, $attClass] = attendanceClass($r['actual_attendance'], $r['target_attendance']);
-      $attPct = $r['target_attendance'] > 0 ? min(round(($r['actual_attendance']/$r['target_attendance'])*100),100) : 0;
+      $attPct = $r['target_attendance'] > 0 ? min(100, round(($r['actual_attendance']/($r['target_attendance'] * 0.95))*100)) : 0;
       $kpiPct = $r['avg_kpi'] > 0 ? round(($r['avg_kpi']/4)*100) : 0;
 
       // Get individual KPI breakdown

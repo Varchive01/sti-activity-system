@@ -181,7 +181,14 @@ if (empty($error)) {
     }
 
     body {
-      background: var(--sti-navy, #0A1628);
+      background-color: var(--sti-navy, #0A1628);
+      background-image: 
+        linear-gradient(rgba(10, 22, 40, 0.72), rgba(10, 22, 40, 0.72)),
+        url('<?= BASE_URL ?>/assets/img/sti-marikina-building.jpg');
+      background-size: cover;
+      background-position: center 32%;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
       font-family: 'Plus Jakarta Sans', sans-serif;
       color: var(--text-main);
       display: flex;
@@ -190,6 +197,12 @@ if (empty($error)) {
       min-height: 100vh;
       margin: 0;
       padding: 20px;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        background-position: center 12%;
+      }
     }
 
     .auth-page-body {
