@@ -137,6 +137,13 @@ if (!empty($_FILES['poster_file']['name'])) {
     }
 }
 
+if (!empty($_FILES['floor_plan_file']['name'])) {
+    if (!isValidFloorPlanFile($_FILES['floor_plan_file'])) {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_floor_plan_format");
+        exit;
+    }
+}
+
 // Server-side required-field and KPI validation for submissions
 if ($action === 'submit') {
     $title              = isset($_POST['title']) && is_string($_POST['title']) ? trim($_POST['title']) : '';
@@ -259,6 +266,64 @@ if ($action === 'submit') {
 $source = sanitize($_POST['source'] ?? 'faculty');
 $evalQuestions = isset($_POST['evaluation_questions']) ? $_POST['evaluation_questions'] : $activity['evaluation_questions'];
 
+// Server-side validation of floor plan requirement choice
+$rawFpReq = $_POST['floor_plan_required'] ?? ($activity['floor_plan_required'] ?? 1);
+$floorPlanRequired = true; // default Yes for existing behavior & backward compatibility
+if (is_string($rawFpReq)) {
+    $rawFpReqLower = strtolower(trim($rawFpReq));
+    if ($rawFpReqLower === 'no' || $rawFpReqLower === '0' || $rawFpReqLower === 'false') {
+        $floorPlanRequired = false;
+    } elseif ($rawFpReqLower === 'yes' || $rawFpReqLower === '1' || $rawFpReqLower === 'true') {
+        $floorPlanRequired = true;
+    }
+} elseif (is_numeric($rawFpReq)) {
+    $floorPlanRequired = ((int)$rawFpReq === 1);
+}
+$fpRequiredInt = $floorPlanRequired ? 1 : 0;
+
+// Authoritative server-side floor plan validation when required for submission
+if ($action === 'submit' && $floorPlanRequired) {
+    $existingFpStmt = $db->prepare("SELECT file_path, notes, canvas_json FROM floor_plans WHERE activity_id=?");
+    $existingFpStmt->execute([$id]);
+    $existingFp = $existingFpStmt->fetch();
+
+    $fpNotes = trim($_POST['floor_plan_notes'] ?? ($existingFp['notes'] ?? ''));
+    $hasFpFile = !empty($_FILES['floor_plan_file']['name']) || !empty($existingFp['file_path']);
+    $hasFpImage = !empty($_POST['floor_plan_image']);
+    $hasFpCanvas = false;
+    $jsonToCheck = !empty($_POST['floor_plan_json']) ? $_POST['floor_plan_json'] : ($existingFp['canvas_json'] ?? '');
+    if (!empty($jsonToCheck)) {
+        $parsedFp = json_decode($jsonToCheck, true);
+        if (is_array($parsedFp)) {
+            if (!empty($parsedFp['shapes']) && is_array($parsedFp['shapes']) && count($parsedFp['shapes']) > 0) {
+                $hasFpCanvas = true;
+            } elseif (!empty($parsedFp['floors']) && is_array($parsedFp['floors'])) {
+                foreach ($parsedFp['floors'] as $fl) {
+                    if (is_array($fl) && !empty($fl['shapes']) && is_array($fl['shapes']) && count($fl['shapes']) > 0) {
+                        $hasFpCanvas = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    $hasAnyFloorPlan = $hasFpFile || $hasFpImage || $hasFpCanvas;
+    if (!$hasAnyFloorPlan) {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=missing_fields");
+        exit;
+    }
+
+    // When using the integrated creator (and no file uploaded or existing), notes/description is strictly required
+    if (!$hasFpFile && ($hasFpImage || $hasFpCanvas) && $fpNotes === '') {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=missing_fields");
+        exit;
+    }
+}
+
+$newlyCreatedDiskPath = null;
+$previousFloorPlanPath = null;
+
 try {
     $db->beginTransaction();
 
@@ -267,7 +332,7 @@ try {
             title=?,theme=?,venue=?,venue_address=?,event_date=?,start_time=?,end_time=?,
             target_participants=?,general_objectives=?,specific_objectives=?,
             involved_subjects=?,rationale=?,evaluation_method=?,source=?,
-            status=?,evaluation_questions=?,revision_notes=NULL,revision_sections=NULL,submitted_at=?,updated_at=NOW()
+            status=?,evaluation_questions=?,floor_plan_required=?,revision_notes=NULL,revision_sections=NULL,submitted_at=?,updated_at=NOW()
             WHERE id=?")->execute([
             sanitize($_POST['title']??''), sanitize($_POST['theme']??''), sanitize($_POST['venue']??''), sanitize($_POST['venue_address']??''),
             $saveEventDate, $saveStartTime, $saveEndTime,
@@ -277,6 +342,7 @@ try {
             sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? '')),
             $source, $newStatus,
             $evalQuestions,
+            $fpRequiredInt,
             date('Y-m-d H:i:s'), $id
         ]);
     } else {
@@ -284,7 +350,7 @@ try {
             title=?,theme=?,venue=?,venue_address=?,event_date=?,start_time=?,end_time=?,
             target_participants=?,general_objectives=?,specific_objectives=?,
             involved_subjects=?,rationale=?,evaluation_method=?,source=?,
-            status=?,evaluation_questions=?,updated_at=NOW()
+            status=?,evaluation_questions=?,floor_plan_required=?,updated_at=NOW()
             WHERE id=?")->execute([
             sanitize($_POST['title']??''), sanitize($_POST['theme']??''), sanitize($_POST['venue']??''), sanitize($_POST['venue_address']??''),
             $saveEventDate, $saveStartTime, $saveEndTime,
@@ -294,6 +360,7 @@ try {
             sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? '')),
             $source, $newStatus,
             $evalQuestions,
+            $fpRequiredInt,
             $id
         ]);
     }
@@ -345,47 +412,107 @@ try {
     // Faculty Tasks Reconciliation
     $s8Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['faculty_tasks']);
     if ($s8Editable) {
-        $existingTasksStmt = $db->prepare("SELECT id FROM faculty_tasks WHERE activity_id = ?");
+        $existingTasksStmt = $db->prepare("SELECT id, assigned_user_id FROM faculty_tasks WHERE activity_id = ?");
         $existingTasksStmt->execute([$id]);
-        $existingTaskIds = $existingTasksStmt->fetchAll(PDO::FETCH_COLUMN);
-        $existingTaskIdsMap = array_flip($existingTaskIds);
+        $existingTaskRows = $existingTasksStmt->fetchAll(PDO::FETCH_ASSOC);
+        $existingTaskIdsMap = [];
+        $existingTaskAssigneesMap = [];
+        foreach ($existingTaskRows as $er) {
+            $existingTaskIdsMap[(int)$er['id']] = true;
+            $existingTaskAssigneesMap[(int)$er['id']] = $er['assigned_user_id'] ? (int)$er['assigned_user_id'] : null;
+        }
 
         $submittedKeepIds = [];
 
         $updateTaskStmt = $db->prepare("
             UPDATE faculty_tasks 
-            SET faculty_name = ?,
+            SET assigned_user_id = ?,
+                faculty_name = ?,
                 assigned_task = ?,
                 task_title = ?,
                 contribution_desc = ?,
                 task_description = ?,
-                role_in_event = ?
+                role_in_event = ?,
+                due_date = ?
             WHERE id = ? AND activity_id = ?
         ");
 
         $insertTaskStmt = $db->prepare("
             INSERT INTO faculty_tasks (
-                activity_id, faculty_name, assigned_task, task_title, contribution_desc, task_description, role_in_event, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                activity_id, assigned_user_id, faculty_name, assigned_task,
+                task_title, contribution_desc, task_description, role_in_event,
+                due_date, status, created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Not Started', ?)
         ");
 
-        if (!empty($_POST['ft_name']) && is_array($_POST['ft_name'])) {
-            foreach ($_POST['ft_name'] as $i => $name) {
-                if (!trim($name)) continue;
+        $facultyLookupStmt = $db->prepare("SELECT id, name FROM users WHERE id = ? AND role = 'faculty' LIMIT 1");
+
+        $taskItems = !empty($_POST['ft_task']) && is_array($_POST['ft_task'])
+            ? $_POST['ft_task']
+            : (!empty($_POST['ft_name']) && is_array($_POST['ft_name']) ? $_POST['ft_name'] : []);
+
+        if (!empty($taskItems)) {
+            foreach ($taskItems as $i => $itemVal) {
                 $tTitle = sanitize($_POST['ft_task'][$i] ?? '');
+                $rawTaskId = isset($_POST['ft_id'][$i]) ? (int)$_POST['ft_id'][$i] : 0;
+                $rawUserId = isset($_POST['ft_user_id'][$i]) && is_numeric($_POST['ft_user_id'][$i]) ? (int)$_POST['ft_user_id'][$i] : 0;
+                $submittedName = sanitize($_POST['ft_name'][$i] ?? '');
+
+                if ($tTitle === '' && $submittedName === '' && $rawUserId === 0 && $rawTaskId === 0) {
+                    continue;
+                }
+
+                $assignedUserId = null;
+                $facultyName = $submittedName !== '' ? $submittedName : null;
+
+                if ($rawUserId > 0) {
+                    $facultyLookupStmt->execute([$rawUserId]);
+                    $fUser = $facultyLookupStmt->fetch(PDO::FETCH_ASSOC);
+                    if ($fUser) {
+                        $assignedUserId = (int)$fUser['id'];
+                        $facultyName = $fUser['name'];
+                    } else {
+                        $db->rollBack();
+                        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id=" . $id . "&error=invalid_faculty_assignment");
+                        exit;
+                    }
+                }
+
                 $tDesc  = sanitize($_POST['ft_contribution'][$i] ?? '');
                 $tRole  = sanitize($_POST['ft_role'][$i] ?? '');
-                $rawTaskId = isset($_POST['ft_id'][$i]) ? (int)$_POST['ft_id'][$i] : 0;
+
+                // Validate optional due date (YYYY-MM-DD)
+                $dueDate = null;
+                if (!empty($_POST['ft_due_date'][$i])) {
+                    $rawDate = trim($_POST['ft_due_date'][$i]);
+                    $dObj = DateTime::createFromFormat('Y-m-d', $rawDate);
+                    if ($dObj && $dObj->format('Y-m-d') === $rawDate) {
+                        $dueDate = $rawDate;
+                    } else {
+                        $db->rollBack();
+                        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id=" . $id . "&error=invalid_task_deadline");
+                        exit;
+                    }
+                }
 
                 if ($rawTaskId > 0 && isset($existingTaskIdsMap[$rawTaskId])) {
+                    $prevAssignee = $existingTaskAssigneesMap[$rawTaskId] ?? null;
                     $updateTaskStmt->execute([
-                        sanitize($name), $tTitle, $tTitle, $tDesc, $tDesc, $tRole, $rawTaskId, $id
+                        $assignedUserId, $facultyName, $tTitle, $tTitle, $tDesc, $tDesc, $tRole, $dueDate, $rawTaskId, $id
                     ]);
                     $submittedKeepIds[] = $rawTaskId;
+
+                    // Notify new assignee if task was newly assigned or reassigned to a different person
+                    if ($assignedUserId && $assignedUserId !== $prevAssignee) {
+                        sendTaskAssignmentNotification($db, $assignedUserId, $id, $tTitle, $dueDate);
+                    }
                 } else {
                     $insertTaskStmt->execute([
-                        $id, sanitize($name), $tTitle, $tTitle, $tDesc, $tDesc, $tRole, $user['id'] ?? null
+                        $id, $assignedUserId, $facultyName, $tTitle, $tTitle, $tDesc, $tDesc, $tRole, $dueDate, $user['id'] ?? null
                     ]);
+                    if ($assignedUserId) {
+                        sendTaskAssignmentNotification($db, $assignedUserId, $id, $tTitle, $dueDate);
+                    }
                 }
             }
         }
@@ -395,7 +522,7 @@ try {
         $checkRemind = $db->prepare("SELECT COUNT(*) FROM task_reminder_logs WHERE task_id = ?");
         $deleteTaskStmt = $db->prepare("DELETE FROM faculty_tasks WHERE id = ? AND activity_id = ?");
 
-        foreach ($existingTaskIds as $oldTaskId) {
+        foreach (array_keys($existingTaskIdsMap) as $oldTaskId) {
             if (!in_array($oldTaskId, $submittedKeepIds, true)) {
                 $checkDeliv->execute([$oldTaskId]);
                 $hasDeliv = ((int)$checkDeliv->fetchColumn() > 0);
@@ -412,10 +539,21 @@ try {
     }
 
     // Floor plan update
+    $checkFp = $db->prepare("SELECT id, file_path, notes, canvas_json FROM floor_plans WHERE activity_id=?");
+    $checkFp->execute([$id]);
+    $existingFpRecord = $checkFp->fetch();
+    $previousFloorPlanPath = $existingFpRecord['file_path'] ?? null;
+
     $path = null;
     $hasNewImage = false;
     if (!empty($_FILES['floor_plan_file']['name'])) {
         $path = uploadFile($_FILES['floor_plan_file'], 'floorplans', $id);
+        if ($path === false) {
+            $db->rollBack();
+            header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=upload_failed");
+            exit;
+        }
+        $newlyCreatedDiskPath = UPLOAD_PATH . $path;
         $hasNewImage = true;
     } elseif (!empty($_POST['floor_plan_image'])) {
         $data = $_POST['floor_plan_image'];
@@ -426,21 +564,31 @@ try {
         $uploadDir = __DIR__ . '/../uploads/floorplans/';
         if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
         file_put_contents($uploadDir . $filename, $data);
+        $newlyCreatedDiskPath = $uploadDir . $filename;
         $path = 'uploads/floorplans/' . $filename;
         $hasNewImage = true;
     }
 
+    $saveFpNotes = sanitize($_POST['floor_plan_notes'] ?? '');
+    $saveFpJson = $_POST['floor_plan_json'] ?? null;
+
     if ($hasNewImage) {
-        $db->prepare("DELETE FROM floor_plans WHERE activity_id=?")->execute([$id]);
-        $fp = $db->prepare("INSERT INTO floor_plans(activity_id,file_path,notes,canvas_json) VALUES (?,?,?,?)");
-        $fp->execute([$id, $path, sanitize($_POST['floor_plan_notes']??''), $_POST['floor_plan_json'] ?? null]);
-    } else {
-        if (!empty($_POST['floor_plan_json'])) {
-            $db->prepare("UPDATE floor_plans SET notes=?, canvas_json=? WHERE activity_id=?")
-               ->execute([sanitize($_POST['floor_plan_notes']??''), $_POST['floor_plan_json'], $id]);
+        if ($existingFpRecord) {
+            $db->prepare("UPDATE floor_plans SET file_path=?, notes=?, canvas_json=? WHERE activity_id=?")
+               ->execute([$path, ($saveFpNotes !== '' ? $saveFpNotes : ($existingFpRecord['notes'] ?? '')), ($saveFpJson ? $saveFpJson : ($existingFpRecord['canvas_json'] ?? null)), $id]);
         } else {
-            $db->prepare("UPDATE floor_plans SET notes=? WHERE activity_id=?")
-               ->execute([sanitize($_POST['floor_plan_notes']??''), $id]);
+            $fp = $db->prepare("INSERT INTO floor_plans(activity_id,file_path,notes,canvas_json) VALUES (?,?,?,?)");
+            $fp->execute([$id, $path, $saveFpNotes, $saveFpJson]);
+        }
+    } else {
+        if ($existingFpRecord) {
+            $finalNotes = ($saveFpNotes !== '') ? $saveFpNotes : $existingFpRecord['notes'];
+            $finalJson = ($saveFpJson !== null && $saveFpJson !== '') ? $saveFpJson : $existingFpRecord['canvas_json'];
+            $db->prepare("UPDATE floor_plans SET notes=?, canvas_json=? WHERE activity_id=?")
+               ->execute([$finalNotes, $finalJson, $id]);
+        } elseif ($floorPlanRequired && ($saveFpNotes !== '' || ($saveFpJson !== null && $saveFpJson !== ''))) {
+            $fp = $db->prepare("INSERT INTO floor_plans(activity_id,file_path,notes,canvas_json) VALUES (?,?,?,?)");
+            $fp->execute([$id, null, $saveFpNotes, $saveFpJson]);
         }
     }
 
@@ -521,6 +669,51 @@ try {
 
     $db->commit();
 
+    // Safely remove superseded floor plan file after successful replacement
+    if ($hasNewImage && !empty($previousFloorPlanPath)) {
+        try {
+            $floorplansDir = realpath(UPLOAD_PATH . 'floorplans');
+            $oldClean = str_replace('\\', '/', $previousFloorPlanPath);
+            if (str_starts_with($oldClean, 'uploads/floorplans/')) {
+                $oldCand = __DIR__ . '/../' . $oldClean;
+            } elseif (str_starts_with($oldClean, 'floorplans/')) {
+                $oldCand = UPLOAD_PATH . $oldClean;
+            } else {
+                $oldCand = UPLOAD_PATH . 'floorplans/' . basename($oldClean);
+            }
+
+            $realOld = realpath($oldCand);
+            $realNew = !empty($newlyCreatedDiskPath) ? realpath($newlyCreatedDiskPath) : null;
+
+            if ($floorplansDir && $realOld && str_starts_with($realOld, $floorplansDir) && is_file($realOld)) {
+                if (!$realNew || $realOld !== $realNew) {
+                    $oldBase = basename($realOld);
+                    // Confirm not referenced by any other floor_plans record
+                    $refCheck = $db->prepare("SELECT COUNT(*) FROM floor_plans WHERE file_path LIKE ?");
+                    $refCheck->execute(['%' . $oldBase]);
+                    $refCount = (int)$refCheck->fetchColumn();
+                    if ($refCount === 0) {
+                        @unlink($realOld);
+                    } else {
+                        error_log("Floor plan cleanup skipped for activity {$id}: old file {$oldBase} is still referenced ({$refCount}).");
+                    }
+                }
+            }
+        } catch (\Throwable $cleanEx) {
+            error_log("Floor plan cleanup skipped for activity {$id}: " . $cleanEx->getMessage());
+        }
+    }
+
+    // Automatically generate and archive proposal PDF snapshot to OneDrive upon submission/resubmission
+    if ($action === 'submit') {
+        try {
+            $trigger = ($currStatus === 'returned_for_revision') ? 'resubmitted' : 'submitted';
+            syncProposalPdfSnapshot($id, $trigger, (int)$user['id']);
+        } catch (\Throwable $snapEx) {
+            error_log("Failed to create proposal snapshot on update: " . $snapEx->getMessage());
+        }
+    }
+
     // Persist verified AI validation record to database
     if ($newStatus === 'submitted' && !empty($cachedValidation)) {
         try {
@@ -563,7 +756,30 @@ try {
     header("Location: ".BASE_URL."/faculty/proposal-view.php?id={$id}&updated=1");
     exit;
 } catch (Exception $e) {
-    $db->rollBack();
+    if ($db->inTransaction()) {
+        $db->rollBack();
+    }
+    // Clean up newly created orphaned floor plan file if transaction failed
+    if (!empty($newlyCreatedDiskPath) && file_exists($newlyCreatedDiskPath)) {
+        try {
+            $floorplansDir = realpath(UPLOAD_PATH . 'floorplans');
+            $realNew = realpath($newlyCreatedDiskPath);
+            if ($floorplansDir && $realNew && str_starts_with($realNew, $floorplansDir) && is_file($realNew)) {
+                $newBase = basename($realNew);
+                $prevBase = !empty($previousFloorPlanPath) ? basename($previousFloorPlanPath) : null;
+                // Never delete the previous floor plan file during rollback
+                if ($newBase !== $prevBase) {
+                    $refCheck = $db->prepare("SELECT COUNT(*) FROM floor_plans WHERE file_path LIKE ?");
+                    $refCheck->execute(['%' . $newBase]);
+                    if ((int)$refCheck->fetchColumn() === 0) {
+                        @unlink($realNew);
+                    }
+                }
+            }
+        } catch (\Throwable $rollEx) {
+            error_log("Failed to clean up orphaned floor plan on rollback: " . $rollEx->getMessage());
+        }
+    }
     header("Location: ".BASE_URL."/faculty/proposal-edit.php?id={$id}&error=1");
     exit;
 }

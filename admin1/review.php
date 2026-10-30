@@ -105,7 +105,8 @@ label, input, button, select, textarea {
 
 /* ── Content & Container Spacing ── */
 .content {
-  padding: 24px;
+  padding: var(--content-padding-y, 28px) var(--content-padding-x, 32px);
+  box-sizing: border-box;
 }
 
 /* ── Free-Standing Topbar Icons (No Permanent Box) ── */
@@ -978,7 +979,16 @@ label, input, button, select, textarea {
 
     <!-- ── SECTION 4: Floor Plan ── -->
     <?php renderSectionHeader('floor_plan', '🗺️ Floor Plan', $stagedComments); ?>
+      <?php $floorPlanRequired = isset($activity['floor_plan_required']) ? (int)$activity['floor_plan_required'] : 1; ?>
+      <?php if ($floorPlanRequired === 0): ?>
+        <div style="padding:14px 16px; background:var(--bg-base); border:1px dashed var(--border); border-radius:8px; color:var(--text-muted); font-size:0.88rem; margin-bottom:<?= $fp ? '14px' : '0' ?>;">
+          ℹ️ Floor plan not required for this activity.
+        </div>
+      <?php endif; ?>
       <?php if ($fp): ?>
+        <?php if ($floorPlanRequired === 0): ?>
+          <div class="sl" style="margin-bottom:8px;">Saved Floor Plan Record</div>
+        <?php endif; ?>
         <?php
           $floorsList = [];
           if (!empty($fp['canvas_json'])) {
@@ -1003,13 +1013,16 @@ label, input, button, select, textarea {
         <?php endif; ?>
         <div class="sl">Floor Plan File</div>
         <?php $ext = strtolower(pathinfo($fp['file_path'] ?? '', PATHINFO_EXTENSION)); $isImg = in_array($ext,['png','jpg','jpeg','gif','webp']); ?>
-        <?php $fpUrl = !empty($fp['file_path']) ? (str_starts_with($fp['file_path'], 'http') ? $fp['file_path'] : BASE_URL . '/' . $fp['file_path']) : ''; ?>
+        <?php $fpUrl = !empty($fp['file_path']) ? (str_starts_with($fp['file_path'], 'http') ? $fp['file_path'] : BASE_URL . '/api/document-download.php?activity_id=' . $id . '&type=floorplan') : ''; ?>
         <?php if($isImg && $fpUrl): ?>
         <div style="text-align:center; padding:16px; background:var(--bg-base); border-radius:10px; border:1px solid var(--border); margin-bottom:12px;">
           <img src="<?= htmlspecialchars($fpUrl) ?>" style="max-width:100%; max-height:480px; border-radius:8px; object-fit:contain;" alt="Floor Plan">
         </div>
-        <?php elseif($fpUrl): ?>
-        <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm" style="margin-bottom:12px;">📎 View Floor Plan File</a>
+        <?php endif; ?>
+        <?php if($fpUrl): ?>
+        <div style="margin-bottom:12px;">
+          <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm">📎 View Floor Plan File</a>
+        </div>
         <?php endif; ?>
         <?php if (!empty($fp['notes'])): ?>
           <div class="sl" style="margin-top:12px;">Notes</div>
@@ -1019,7 +1032,9 @@ label, input, button, select, textarea {
           <div class="sl" style="margin-top:12px;">Interactive Layout Data</div>
           <p class="text-muted text-sm">Canvas layout saved (<?= strlen($fp['canvas_json']) ?> bytes)</p>
         <?php endif; ?>
-      <?php else: ?><p class="text-muted">No floor plan uploaded.</p><?php endif; ?>
+      <?php elseif ($floorPlanRequired !== 0): ?>
+        <p class="text-muted">No floor plan uploaded.</p>
+      <?php endif; ?>
     <?php renderSectionClose('floor_plan', $stagedComments, $id); ?>
 
     <!-- ── SECTION 5: People & Manpower ── -->

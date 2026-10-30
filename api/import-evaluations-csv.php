@@ -471,6 +471,6 @@ try {
     error_log("CSV Import Exception for activity {$activityId}: " . $e->getMessage());
     sendImportJsonResponse(500, [
         'success' => false,
-        'error'   => 'A database error occurred during CSV import: ' . $e->getMessage()
+        'error'   => 'A database error occurred during CSV import. Please try again or contact support.'
     ]);
 }

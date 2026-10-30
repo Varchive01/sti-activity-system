@@ -1,11 +1,18 @@
 <?php
 /**
+ * database/migrations/migrate-referential-integrity.php
+ *
  * Migration script: Fix Objective 5 referential integrity for
  * notifications.activity_id and proposal_ai_validation.proposal_id.
  */
 
-require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../config/database.php';
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    die('Forbidden: Migration scripts can only be executed via CLI.');
+}
+
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../config/database.php';
 
 $db = getDB();
 

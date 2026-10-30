@@ -57,6 +57,8 @@
   /* Dimensions & Radius */
   --sidebar-w:           260px;
   --sidebar-collapsed-w: 68px;
+  --content-padding-x:   32px;
+  --content-padding-y:   28px;
   --radius:              14px;
   --radius-sm:           8px;
 
@@ -811,6 +813,14 @@ body:not(.sidebar-collapsed) .sidebar-bottom .sidebar-tooltip {
   transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Wide monitors (Desktop >= 1440px) */
+@media (min-width: 1440px) {
+  :root {
+    --content-padding-x: 36px;
+    --content-padding-y: 32px;
+  }
+}
+
 /* Collapsed sidebar states (Desktop >= 1024px) */
 @media (min-width: 1024px) {
   html.sidebar-collapsed .sidebar,
@@ -1135,7 +1145,7 @@ body:not(.sidebar-collapsed) .sidebar-bottom .sidebar-tooltip {
   min-height: 64px;
   max-height: 64px;
   box-sizing: border-box;
-  padding: 0 28px;
+  padding: 0 var(--content-padding-x, 32px);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1320,7 +1330,13 @@ body:not(.sidebar-collapsed) .sidebar-bottom .sidebar-tooltip {
 }
 .notif-btn .badge { position: absolute; top: 0; right: 0; background: var(--sti-red); color: #fff; font-size: .6rem; border-radius: 999px; padding: 1px 5px; }
 
-.content { padding: 28px; flex: 1; }
+.content {
+  padding: var(--content-padding-y, 28px) var(--content-padding-x, 32px);
+  flex: 1;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+}
 
 /* ============================================================
    Shared Dashboard Layout Foundation (Phase 2B)
@@ -2289,6 +2305,14 @@ textarea:disabled {
     max-width: 100% !important;
     min-width: 0 !important;
     box-sizing: border-box !important;
+  }
+
+  .topbar {
+    padding: 0 24px !important;
+  }
+
+  .content {
+    padding: 24px !important;
   }
 }
 

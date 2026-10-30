@@ -120,7 +120,8 @@ label, input, button, select, textarea {
 }
 
 .content {
-  padding: 24px;
+  padding: var(--content-padding-y, 28px) var(--content-padding-x, 32px);
+  box-sizing: border-box;
 }
 
 /* ── Detail Page Scoped System ── */
@@ -989,7 +990,7 @@ label, input, button, select, textarea {
                     <?php endif; ?>
                   </td>
                   <td id="status-cell-<?= (int)$f['id'] ?>">
-                    <?php if ($isLeader): ?>
+                    <?php if ($isLeader || ((int)($f['assigned_user_id'] ?? 0) === (int)$user['id'])): ?>
                       <select class="form-control form-control-sm" style="padding: 3px 6px; font-size: 0.76rem; border-radius: 6px; width: auto; font-weight: 600;" onchange="updateTaskStatus(<?= (int)$f['id'] ?>, this.value)">
                         <option value="Not Started" <?= $tStatus === 'Not Started' ? 'selected' : '' ?>>Not Started</option>
                         <option value="In Progress" <?= $tStatus === 'In Progress' ? 'selected' : '' ?>>In Progress</option>

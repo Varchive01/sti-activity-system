@@ -20,16 +20,33 @@ if (!function_exists('isGibberishToken')) {
         // Allow ordinal numbers (e.g. '1st', '2nd', '3rd', '4th')
         if (preg_match('/^\d+(st|nd|rd|th)$/i', $token)) return false;
 
-        // Allow all-uppercase abbreviations up to 6 characters (e.g. 'JPCS', 'AWS', 'STI', 'PDRRMC', 'SSG', 'UNESCO')
-        if (strlen($token) <= 6 && ctype_upper($token)) return false;
+        // Allow all-uppercase abbreviations up to 6 characters and common pluralized acronyms (e.g. 'JPCS', 'AWS', 'STI', 'PDRRMC', 'SSG', 'UNESCO', 'SDGs', 'KPIs')
+        if (preg_match('/^[A-Z]{2,6}s?$/', $token)) return false;
+
+        // For hyphenated compounds (e.g. 'world-class', 'well-structured', 'peer-to-peer', 'hands-on'),
+        // evaluate each hyphen-separated component so letters are not concatenated across word boundaries.
+        if (strpos($token, '-') !== false) {
+            $subTokens = array_filter(explode('-', $token), fn($p) => strlen($p) > 0);
+            foreach ($subTokens as $sub) {
+                if (strlen($sub) >= 3 && isGibberishToken($sub)) {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         $lower = strtolower($token);
         // Extract letter portion for checks when numbers or symbols are appended (e.g. 'fsdfsd123', 'asdd99')
         $letters = preg_replace('/[^a-z]/', '', $lower);
 
-        // 1. Must contain at least one vowel (a, e, i, o, u, y) if length of letters >= 3
+        // 1. Must contain at least one vowel (a, e, i, o, u, y) if length of letters >= 3.
+        // If only 'y' is present (no a, e, i, o, u) and length >= 6, it is gibberish unless whitelisted (e.g. 'rhythm', 'rhythms').
         if (strlen($letters) >= 3 && !preg_match('/[aeiouy]/', $letters)) {
             return true;
+        }
+        if (strlen($letters) >= 6 && !preg_match('/[aeiou]/', $letters)) {
+            $yWhitelist = ['rhythm', 'rhythms'];
+            if (!in_array($letters, $yWhitelist, true)) return true;
         }
 
         // 2. Obvious keyboard walks / mashing runs (3+ char runs)
@@ -39,7 +56,7 @@ if (!function_exists('isGibberishToken')) {
 
         // 3. Repeated characters: 3+ identical characters (e.g. 'aaa', 'zzz') or repeated pairs (e.g. 'asdasd', 'fsdfsd')
         if (preg_match('/(.)\1{2,}/i', $lower)) return true;
-        if (preg_match('/(.{2,3})\1{1,}/i', $letters)) {
+        if (preg_match('/(.{2,3})\1{2,}/i', $letters)) {
             return true;
         }
 
@@ -52,14 +69,21 @@ if (!function_exists('isGibberishToken')) {
 
         // 5. Pure home-row letters [asdfghjkl] (length >= 3)
         if (strlen($letters) >= 3 && preg_match('/^[asdfghjkl]+$/', $letters)) {
-            $homeWhitelist = ['all', 'ask', 'had', 'has', 'gas', 'glad', 'hall', 'half', 'fall', 'dash', 'flag', 'lass', 'salad', 'shall', 'flash', 'flask', 'glass'];
+            $homeWhitelist = ['add', 'adds', 'all', 'ask', 'asks', 'dash', 'fall', 'falls', 'flag', 'flags', 'flash', 'flask', 'flasks', 'gas', 'glad', 'glass', 'had', 'half', 'hall', 'halls', 'has', 'lass', 'salad', 'salads', 'shall'];
             if (!in_array($letters, $homeWhitelist, true)) return true;
         }
 
         // 6. Pure top-row letters [qwertyuiop] (length >= 3)
         if (strlen($letters) >= 3 && preg_match('/^[qwertyuiop]+$/', $letters)) {
-            $topWhitelist = ['per', 'pie', 'pot', 'our', 'out', 'put', 'pet', 'pit', 'tie', 'toe', 'tip', 'top', 'toy', 'two', 'wet', 'who', 'you', 'yet', 'pure', 'pour', 'poor', 'port', 'pert', 'pipe', 'peer', 'prop', 'quit', 'quiz', 'root', 'rope', 'ripe', 'riot', 'tour', 'trip', 'true', 'tree', 'type', 'wire', 'wipe', 'wept', 'were', 'your', 'write', 'wrote', 'writer', 'power', 'tower', 'route', 'quiet', 'quite', 'quote', 'equip', 'upper', 'piper', 'outer', 'priority', 'prior', 'proper', 'property', 'error', 'tier'];
-            if (!in_array($letters, $topWhitelist, true)) return true;
+            if (in_array($letters, ['queue', 'queuer'], true)) return false;
+            // Flag structural keyboard-mash characteristics:
+            // - 3+ consecutive top-row consonants (e.g. 'qwtp', 'prtq', 'wrtp' - never occurring in English words)
+            // - 'q' not followed by 'u' (e.g. 'qwer', 'qwe', 'tq', 'qpo')
+            // - 4+ consecutive vowels (e.g. 'uioe', 'eouy')
+            // - top-row keyboard walks
+            if (preg_match('/[wrtpq]{3,}/i', $letters) || preg_match('/q(?!u)/i', $letters) || preg_match('/[aeiouy]{4,}/i', $letters) || preg_match('/werty|trewq|poiuy|uytre/i', $letters)) {
+                return true;
+            }
         }
 
         return false;

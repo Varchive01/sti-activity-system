@@ -61,8 +61,7 @@ try {
     error_log("Exception in check-schedule-conflict: " . $e->getMessage());
     http_response_code(500);
     echo json_encode([
-        'error' => 'Internal server error occurred.',
-        'details' => $e->getMessage()
+        'error' => 'Internal server error occurred while checking schedule conflicts.'
     ]);
     exit;
 }

@@ -67,8 +67,9 @@ $isAdmin = in_array($user['role'], ['admin1', 'admin2']);
 $validStatuses = ['Not Started', 'In Progress', 'Completed', 'Delayed'];
 
 // ── Check Access ───────────────────────────────────────────────
-if (in_array($action, ['create', 'update', 'delete', 'update_status'])) {
-    // Only the activity leader can mutate task assignments
+// ── Check Access ───────────────────────────────────────────────
+if (in_array($action, ['create', 'update', 'delete'])) {
+    // Only the activity leader can create, update, or delete task assignments
     if (!$isLeader) {
         http_response_code(403);
         echo json_encode([
@@ -77,17 +78,59 @@ if (in_array($action, ['create', 'update', 'delete', 'update_status'])) {
         ]);
         exit;
     }
+} elseif ($action === 'update_status') {
+    // Activity leader or the assigned member can update task status
+    if (!$isLeader) {
+        if (!in_array($user['role'], ['faculty', 'admin1', 'admin2'], true)) {
+            http_response_code(403);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Unauthorized: Only assigned members can update task status.'
+            ]);
+            exit;
+        }
+
+        $targetTaskId = (int)($params['id'] ?? $params['task_id'] ?? 0);
+        if (!$targetTaskId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Missing task ID.']);
+            exit;
+        }
+
+        $chkTaskAssigned = $db->prepare("SELECT assigned_user_id FROM faculty_tasks WHERE id = ? AND activity_id = ?");
+        $chkTaskAssigned->execute([$targetTaskId, $activityId]);
+        $taskAssignedUserId = $chkTaskAssigned->fetchColumn();
+
+        if ($taskAssignedUserId === false) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Task assignment not found.']);
+            exit;
+        }
+
+        if ((int)$taskAssignedUserId !== (int)$user['id']) {
+            http_response_code(403);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Unauthorized: You can only update the status of tasks assigned to you.'
+            ]);
+            exit;
+        }
+    }
 } else {
     // Read access check
     if ($user['role'] === 'faculty' && !$isLeader) {
-        http_response_code(403);
-        echo json_encode([
-            'success' => false,
-            'error' => 'Unauthorized: You do not have access to view assignments for this activity.'
-        ]);
-        exit;
+        $chkAssigned = $db->prepare("SELECT COUNT(*) FROM faculty_tasks WHERE activity_id = ? AND assigned_user_id = ?");
+        $chkAssigned->execute([$activityId, $user['id']]);
+        if ((int)$chkAssigned->fetchColumn() === 0) {
+            http_response_code(403);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Unauthorized: You do not have access to view assignments for this activity.'
+            ]);
+            exit;
+        }
     }
-    if (!$isLeader && !$isDean && !$isAdmin) {
+    if (!$isLeader && !$isDean && !$isAdmin && !($user['role'] === 'faculty')) {
         http_response_code(403);
         echo json_encode([
             'success' => false,
@@ -251,6 +294,10 @@ if ($action === 'create') {
 
     $newTaskId = (int)$db->lastInsertId();
 
+    if ($assignedUserId) {
+        sendTaskAssignmentNotification($db, $assignedUserId, $activityId, $taskTitle, $dueDate);
+    }
+
     echo json_encode([
         'success' => true,
         'message' => 'Task assignment created successfully.',
@@ -283,13 +330,15 @@ if ($action === 'update') {
     }
 
     // Verify task exists and belongs to this activity
-    $checkTask = $db->prepare("SELECT id FROM faculty_tasks WHERE id = ? AND activity_id = ?");
+    $checkTask = $db->prepare("SELECT id, assigned_user_id FROM faculty_tasks WHERE id = ? AND activity_id = ?");
     $checkTask->execute([$taskId, $activityId]);
-    if (!$checkTask->fetch()) {
+    $existingTask = $checkTask->fetch(PDO::FETCH_ASSOC);
+    if (!$existingTask) {
         http_response_code(404);
         echo json_encode(['success' => false, 'error' => 'Task assignment not found for this activity.']);
         exit;
     }
+    $prevAssignee = $existingTask['assigned_user_id'] ? (int)$existingTask['assigned_user_id'] : null;
 
     $taskTitle = cleanText($params['task_title'] ?? $params['assigned_task'] ?? '');
     if ($taskTitle === '') {
@@ -361,6 +410,11 @@ if ($action === 'update') {
     // Check task progress reminders
     checkTaskProgressReminders($db, null, null, $activityId);
 
+    // Notify new assignee if task was newly assigned or reassigned
+    if ($assignedUserId && $assignedUserId !== $prevAssignee) {
+        sendTaskAssignmentNotification($db, $assignedUserId, $activityId, $taskTitle, $dueDate);
+    }
+
     echo json_encode([
         'success' => true,
         'message' => 'Task assignment updated successfully.',
@@ -399,11 +453,16 @@ if ($action === 'update_status') {
         exit;
     }
 
-    if ($newStatus === 'Completed') {
-        $statusStmt = $db->prepare("UPDATE faculty_tasks SET status = ?, completion_pct = 100 WHERE id = ? AND activity_id = ?");
-    } elseif ($newStatus === 'Not Started') {
-        $statusStmt = $db->prepare("UPDATE faculty_tasks SET status = ?, completion_pct = 0 WHERE id = ? AND activity_id = ?");
+    if ($isLeader) {
+        if ($newStatus === 'Completed') {
+            $statusStmt = $db->prepare("UPDATE faculty_tasks SET status = ?, completion_pct = 100 WHERE id = ? AND activity_id = ?");
+        } elseif ($newStatus === 'Not Started') {
+            $statusStmt = $db->prepare("UPDATE faculty_tasks SET status = ?, completion_pct = 0 WHERE id = ? AND activity_id = ?");
+        } else {
+            $statusStmt = $db->prepare("UPDATE faculty_tasks SET status = ? WHERE id = ? AND activity_id = ?");
+        }
     } else {
+        // Assigned faculty updates status without modifying reviewer-controlled completion percentage
         $statusStmt = $db->prepare("UPDATE faculty_tasks SET status = ? WHERE id = ? AND activity_id = ?");
     }
     $statusStmt->execute([$newStatus, $taskId, $activityId]);

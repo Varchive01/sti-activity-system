@@ -1,12 +1,17 @@
 <?php
 /**
- * api/migrate-profile-picture.php
+ * database/migrations/migrate-profile-picture.php
  *
  * Idempotent migration script ensuring the `profile_picture` column exists
  * on the `users` table.
  */
 
-require_once __DIR__ . '/../config/database.php';
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    die('Forbidden: Migration scripts can only be executed via CLI.');
+}
+
+require_once __DIR__ . '/../../config/database.php';
 
 try {
     $db = getDB();
@@ -21,23 +26,12 @@ try {
     }
 
     // Ensure uploads/avatars directory exists
-    $avatarsDir = __DIR__ . '/../uploads/avatars';
+    $avatarsDir = __DIR__ . '/../../uploads/avatars';
     if (!is_dir($avatarsDir)) {
         mkdir($avatarsDir, 0755, true);
     }
 
-    if (php_sapi_name() === 'cli') {
-        echo json_encode($result, JSON_PRETTY_PRINT) . PHP_EOL;
-    } else {
-        header('Content-Type: application/json');
-        echo json_encode($result);
-    }
+    echo json_encode($result, JSON_PRETTY_PRINT) . PHP_EOL;
 } catch (Exception $e) {
-    if (php_sapi_name() === 'cli') {
-        echo "Migration failed: " . $e->getMessage() . PHP_EOL;
-    } else {
-        http_response_code(500);
-        header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-    }
+    echo "Migration failed: " . $e->getMessage() . PHP_EOL;
 }

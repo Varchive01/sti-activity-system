@@ -267,22 +267,24 @@ if (!empty($batchResult['replies']) && is_array($batchResult['replies'])) {
         if (!empty($reply['itemId'])) {
             $q['google_item_id'] = (string)$reply['itemId'];
         }
+        $q['google_form_id'] = $formId;
     }
     unset($q);
 
     if ($hasQuestionsWrapper) {
         $decodedQuestions['questions'] = $questionsList;
+        $decodedQuestions['google_form_id'] = $formId;
         $updatedQuestionsJson = json_encode($decodedQuestions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     } else {
         $updatedQuestionsJson = json_encode($questionsList, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
-    $updateStmt = $db->prepare("UPDATE activities SET evaluation_method = ?, evaluation_questions = ?, updated_at = NOW() WHERE id = ?");
-    $updateStmt->execute([$responderUri, $updatedQuestionsJson, $activityId]);
+    $updateStmt = $db->prepare("UPDATE activities SET evaluation_method = ?, google_form_link = ?, evaluation_questions = ?, updated_at = NOW() WHERE id = ?");
+    $updateStmt->execute([$responderUri, $formId, $updatedQuestionsJson, $activityId]);
 } else {
-    // 11. Store returned Google Form responder URL in activities.evaluation_method field
-    $updateStmt = $db->prepare("UPDATE activities SET evaluation_method = ?, updated_at = NOW() WHERE id = ?");
-    $updateStmt->execute([$responderUri, $activityId]);
+    // 11. Store returned Google Form responder URL in activities.evaluation_method and API form ID in google_form_link
+    $updateStmt = $db->prepare("UPDATE activities SET evaluation_method = ?, google_form_link = ?, updated_at = NOW() WHERE id = ?");
+    $updateStmt->execute([$responderUri, $formId, $activityId]);
 }
 
 // Respond with success and non-sensitive information

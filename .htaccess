@@ -1,0 +1,33 @@
+# =====================================================================
+# STI-ARMES: Production Root Security & Access Control
+# Target: Apache 2.4+ (InfinityFree / Cloud Hosting)
+# =====================================================================
+
+# 1. Disable directory browsing
+Options -Indexes
+
+# 2. Set default index file
+DirectoryIndex index.php
+
+# 3. Block direct web access to sensitive environment configuration files
+<FilesMatch "^\.env">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 4. Block direct web access to dependency manifests, lock files, and logs
+<FilesMatch "(composer\.(json|lock)|package(-lock)?\.json|\.git.*|\.log)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+

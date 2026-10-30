@@ -22,45 +22,35 @@ if (!$input) {
     exit;
 }
 
-$title = $input['title'] ?? '';
-$source = $input['source'] ?? '';
-$target_participants = $input['target_participants'] ?? '';
-$theme = $input['theme'] ?? '';
-$involved_subjects = $input['involved_subjects'] ?? '';
-$rationale = $input['rationale'] ?? '';
-$general_objectives = $input['general_objectives'] ?? '';
-$specific_objectives = $input['specific_objectives'] ?? '';
-$kpis = $input['kpis'] ?? [];
+$title = trim($input['title'] ?? '');
+$theme = trim($input['theme'] ?? '');
+$general_objectives = trim($input['general_objectives'] ?? '');
+$specific_objectives = trim($input['specific_objectives'] ?? '');
 
-// Format KPIs for the prompt
-$kpisFormatted = '';
-if (is_array($kpis) && !empty($kpis)) {
-    foreach ($kpis as $idx => $kpi) {
-        $kpisFormatted .= "\n- Criterion " . ($idx + 1) . ": " . ($kpi['criteria'] ?? $kpi['indicator'] ?? '') . " (Target: " . ($kpi['rating'] ?? $kpi['target'] ?? '3') . ")";
-    }
-} else {
-    $kpisFormatted = 'None provided.';
+// Strict validation: non-empty title (>=4 chars), theme, and at least one objective
+if (empty($title) || strlen($title) < 4 || empty($theme) || (empty($general_objectives) && empty($specific_objectives))) {
+    http_response_code(400);
+    echo json_encode([
+        'error' => 'Activity title (at least 4 characters), theme, and at least one objective (general or specific) are required to generate evaluation questions.',
+        'success' => false
+    ]);
+    exit;
 }
 
-// Build the prompt
+// Build the prompt focused solely on Title, Theme, and Objectives
 $prompt = "Act as an academic evaluation expert and systems analyst. Analyze the following college activity proposal details and generate a highly tailored activity-specific evaluation questionnaire/tool for participants.
 
 ACTIVITY DETAILS:
 - Title: " . $title . "
-- Source/Organizer: " . $source . "
-- Target Participants: " . $target_participants . "
 - Theme: " . $theme . "
-- Rationale: " . $rationale . "
-- Involved Subjects: " . $involved_subjects . "
-- General Objective: " . $general_objectives . "
-- Specific Objectives: " . $specific_objectives . "
-- KPIs (Key Performance Indicators): " . $kpisFormatted . "
+- General Objective: " . ($general_objectives ?: 'None specified') . "
+- Specific Objectives: " . ($specific_objectives ?: 'None specified') . "
 
 CRITICAL GUIDELINES:
-1. **Objective & KPI Alignment is Mandatory**: Evaluation questions must primarily measure whether the activity's General Objectives, Specific Objectives, and KPIs/Success Indicators were actually achieved.
-2. **At Least One Question Per Goal**: For every single General Objective, Specific Objective, and KPI listed above, you MUST generate at least one specific, direct evaluation question that can gather concrete evidence of its achievement.
-3. **No Generic/Boilerplate Questions**: Do not generate generic event questions (e.g., \"Did you find the topic interesting?\", \"How would you rate the event?\") merely because they relate to the topic. Every core question must align with a specific objective or KPI.
-4. **Supplementary Questions Limit**: Questions assessing general satisfaction, facilitator performance, presentation quality, venue, or organization are strictly supplementary. They must NOT replace or dominate the objective/KPI-aligned questions.
+1. **Objective Alignment is Mandatory**: Evaluation questions must primarily measure whether the activity's General Objectives and Specific Objectives were actually achieved within the context of the title and theme.
+2. **At Least One Question Per Goal**: For every General Objective and Specific Objective listed above, you MUST generate at least one specific, direct evaluation question that can gather concrete evidence of its achievement.
+3. **No Generic/Boilerplate Questions**: Do not generate generic event questions (e.g., \"Did you find the topic interesting?\", \"How would you rate the event?\") merely because they relate to the topic. Every core question must align with a specific objective or the stated theme.
+4. **Supplementary Questions Limit**: Questions assessing general satisfaction, facilitator performance, presentation quality, venue, or organization are strictly supplementary. They must NOT replace or dominate the objective-aligned questions.
 5. **Appropriate Question Types**: Do not force every question to use the same type. Use exactly one of these two question types:
    - Use rating-scale questions (type: \"rating\") for structured, scalable feedback where quantitative metrics are helpful (e.g. agreement level or frequency).
    - Use open-ended text questions (type: \"open_ended\") for qualitative feedback, suggestions, detailed explanations, or descriptive evidence of achievement.
@@ -70,7 +60,7 @@ CRITICAL GUIDELINES:
   \"questions\": [
     {
       \"id\": \"q1\",
-      \"question\": \"[Direct question measuring achievement of specific objective or KPI]\",
+      \"question\": \"[Direct question measuring achievement of specific objective or theme]\",
       \"type\": \"rating\",
       \"required\": true
     },

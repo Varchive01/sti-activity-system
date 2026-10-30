@@ -14,6 +14,32 @@ checkProposalEscalations($db, $user['id'], $user['role']);
 // Task progress reminders check
 checkTaskProgressReminders($db, $user['id'], $user['role']);
 
+// Assigned tasks summary strictly for this authenticated admin
+$myTaskCounts = ['total' => 0, 'completed' => 0, 'in_progress' => 0, 'delayed' => 0];
+try {
+    $myTasksStmt = $db->prepare("
+        SELECT
+            COUNT(*) as total,
+            SUM(status = 'Completed') as completed,
+            SUM(status = 'In Progress') as in_progress,
+            SUM(status = 'Delayed' OR (due_date IS NOT NULL AND due_date < ? AND status != 'Completed')) as delayed
+        FROM faculty_tasks
+        WHERE assigned_user_id = ?
+    ");
+    $myTasksStmt->execute([date('Y-m-d'), (int)$user['id']]);
+    $countsRow = $myTasksStmt->fetch(PDO::FETCH_ASSOC);
+    if ($countsRow) {
+        $myTaskCounts = [
+            'total'       => (int)($countsRow['total'] ?? 0),
+            'completed'   => (int)($countsRow['completed'] ?? 0),
+            'in_progress' => (int)($countsRow['in_progress'] ?? 0),
+            'delayed'     => (int)($countsRow['delayed'] ?? 0),
+        ];
+    }
+} catch (Exception $e) {
+    // Graceful fallback
+}
+
 // Period and Year Filter (Preserving existing semester conventions)
 $selectedYear = (int)($_GET['year'] ?? date('Y'));
 $selectedPeriod = sanitize($_GET['period'] ?? 'all');
@@ -192,7 +218,8 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
     /* ── Content & Container Spacing ── */
     .content {
-      padding: 24px;
+      padding: var(--content-padding-y, 28px) var(--content-padding-x, 32px);
+      box-sizing: border-box;
     }
 
     .dashboard-layout {
@@ -1481,6 +1508,32 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
               <?php else: ?>
                 No completed student organization evaluations for the selected period
               <?php endif; ?>
+            </div>
+          </div>
+
+          <!-- My Assigned Tasks Card -->
+          <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+              <h2 style="font-size:0.95rem;margin:0;display:flex;align-items:center;gap:6px;">
+                <span>📋</span> My Assigned Tasks
+              </h2>
+              <a href="<?= BASE_URL ?>/admin1/tasks.php" class="btn btn-outline btn-sm" style="padding: 3px 8px; font-size: 0.75rem;">View All</a>
+            </div>
+            <div class="card-body" style="padding: 14px 16px;">
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center;">
+                <a href="<?= BASE_URL ?>/admin1/tasks.php" style="text-decoration:none; color:inherit; background: var(--bg-base); padding: 10px 8px; border-radius: 8px; border: 1px solid var(--border); display:block;">
+                  <div style="font-size: 1.25rem; font-weight: 800; color: var(--text-main);"><?= $myTaskCounts['total'] ?></div>
+                  <div style="font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Total</div>
+                </a>
+                <a href="<?= BASE_URL ?>/admin1/tasks.php?status=In+Progress" style="text-decoration:none; color:inherit; background: var(--bg-base); padding: 10px 8px; border-radius: 8px; border: 1px solid var(--border); display:block;">
+                  <div style="font-size: 1.25rem; font-weight: 800; color: #0284c7;"><?= $myTaskCounts['in_progress'] ?></div>
+                  <div style="font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Active</div>
+                </a>
+                <a href="<?= BASE_URL ?>/admin1/tasks.php?status=Delayed" style="text-decoration:none; color:inherit; background: var(--bg-base); padding: 10px 8px; border-radius: 8px; border: 1px solid var(--border); display:block;">
+                  <div style="font-size: 1.25rem; font-weight: 800; color: <?= $myTaskCounts['delayed'] > 0 ? '#ef4444' : '#10b981' ?>;"><?= $myTaskCounts['delayed'] ?></div>
+                  <div style="font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Delayed</div>
+                </a>
+              </div>
             </div>
           </div>
 

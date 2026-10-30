@@ -254,8 +254,10 @@ class OneDriveAuthService
             $error = $data['error'] ?? '';
             $desc = $data['error_description'] ?? '';
             if (!empty($error) || !empty($desc)) {
-                $safeError = preg_replace('/[^\w\s\.\-_:]/', '', (string)$error);
-                $firstLineDesc = strtok((string)$desc, "\r\n");
+                $errorStr = is_array($error) ? ($error['message'] ?? $error['code'] ?? json_encode($error)) : (string)$error;
+                $safeError = preg_replace('/[^\w\s\.\-_:]/', '', $errorStr);
+                $descStr = is_array($desc) ? json_encode($desc) : (string)$desc;
+                $firstLineDesc = strtok($descStr, "\r\n");
                 $safeDesc = preg_replace('/[^\w\s\.\-_:\(\)]/', '', (string)$firstLineDesc);
                 return "Microsoft OAuth error [{$safeError}]: {$safeDesc}";
             }

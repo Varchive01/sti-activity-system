@@ -121,9 +121,17 @@ function extractFormId(?string $url): ?string
     }
     $url = trim($url);
 
+    // If it's a public respondent URL with a 1FAIpQL... hash under /forms/d/e/,
+    // this is a respondent slug, NOT the API form ID!
+    if (preg_match('#/forms/d/e/1FAIpQL#i', $url)) {
+        return null;
+    }
+
     // Standard Google Forms URL patterns
     if (preg_match('#/forms/d/(?:e/)?([a-zA-Z0-9_\-]+)#', $url, $m)) {
-        return $m[1];
+        if ($m[1] !== 'e') {
+            return $m[1];
+        }
     }
 
     // Direct alphanumeric ID
@@ -217,12 +225,60 @@ if ($user['role'] === 'faculty' && (int)$activity['faculty_id'] !== (int)$user['
     ]);
 }
 
-// 4. Obtain Google Form ID
-$formId = extractFormId($activity['evaluation_method'] ?? '');
-if (!$formId) {
+// 4. Obtain Google Form API ID
+$formId = null;
+
+// Priority 1: Check activities.google_form_link column (dedicated storage for API Form ID)
+if (!empty($activity['google_form_link'])) {
+    $val = trim((string)$activity['google_form_link']);
+    if (preg_match('/^[a-zA-Z0-9_\-]{15,}$/', $val)) {
+        $formId = $val;
+    } elseif ($extracted = extractFormId($val)) {
+        $formId = $extracted;
+    }
+}
+
+// Priority 2: Check activities.evaluation_questions JSON metadata
+if (empty($formId) && !empty($activity['evaluation_questions'])) {
+    $rawQ = $activity['evaluation_questions'];
+    $parsedQ = json_decode($rawQ, true);
+    if (is_array($parsedQ)) {
+        if (!empty($parsedQ['google_form_id']) && is_string($parsedQ['google_form_id'])) {
+            $formId = trim($parsedQ['google_form_id']);
+        } elseif (isset($parsedQ['questions']) && is_array($parsedQ['questions'])) {
+            foreach ($parsedQ['questions'] as $q) {
+                if (!empty($q['google_form_id']) && is_string($q['google_form_id'])) {
+                    $formId = trim($q['google_form_id']);
+                    break;
+                }
+            }
+        } elseif (isset($parsedQ[0])) {
+            foreach ($parsedQ as $q) {
+                if (is_array($q) && !empty($q['google_form_id']) && is_string($q['google_form_id'])) {
+                    $formId = trim($q['google_form_id']);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// Priority 3: Fallback check of explicit POST/JSON parameter 'form_id'
+if (empty($formId)) {
     $fallbackFormId = trim((string)($_POST['form_id'] ?? ($jsonData['form_id'] ?? '')));
     if (!empty($fallbackFormId)) {
-        $formId = extractFormId($fallbackFormId);
+        $extracted = extractFormId($fallbackFormId);
+        if ($extracted) {
+            $formId = $extracted;
+        }
+    }
+}
+
+// Priority 4: Legacy fallback from evaluation_method ONLY if it contains an actual Form ID (not /d/e/ slug)
+if (empty($formId) && !empty($activity['evaluation_method'])) {
+    $extracted = extractFormId($activity['evaluation_method']);
+    if ($extracted) {
+        $formId = $extracted;
     }
 }
 

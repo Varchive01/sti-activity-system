@@ -90,6 +90,13 @@ if (!empty($_FILES['poster_file']['name'])) {
     }
 }
 
+if (!empty($_FILES['floor_plan_file']['name'])) {
+    if (!isValidFloorPlanFile($_FILES['floor_plan_file'])) {
+        header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_floor_plan_format");
+        exit;
+    }
+}
+
 // Server-side required-field and KPI validation for submissions
 if ($action === 'submit') {
     $title              = isset($_POST['title']) && is_string($_POST['title']) ? trim($_POST['title']) : '';
@@ -193,6 +200,56 @@ $saveEventDate = ($eventDate !== '') ? $eventDate : null;
 $saveStartTime = ($startTime !== '') ? $startTime : null;
 $saveEndTime   = ($endTime !== '') ? $endTime : null;
 
+// Server-side validation of floor plan requirement choice
+$rawFpReq = $_POST['floor_plan_required'] ?? 'yes';
+$floorPlanRequired = true; // default Yes for existing behavior & backward compatibility
+if (is_string($rawFpReq)) {
+    $rawFpReqLower = strtolower(trim($rawFpReq));
+    if ($rawFpReqLower === 'no' || $rawFpReqLower === '0' || $rawFpReqLower === 'false') {
+        $floorPlanRequired = false;
+    } elseif ($rawFpReqLower === 'yes' || $rawFpReqLower === '1' || $rawFpReqLower === 'true') {
+        $floorPlanRequired = true;
+    }
+}
+$fpRequiredInt = $floorPlanRequired ? 1 : 0;
+
+// Authoritative server-side floor plan validation when required for submission
+if ($action === 'submit' && $floorPlanRequired) {
+    $fpNotes = trim($_POST['floor_plan_notes'] ?? '');
+    $hasFpFile = !empty($_FILES['floor_plan_file']['name']);
+    $hasFpImage = !empty($_POST['floor_plan_image']);
+    $hasFpCanvas = false;
+    if (!empty($_POST['floor_plan_json'])) {
+        $parsedFp = json_decode($_POST['floor_plan_json'], true);
+        if (is_array($parsedFp)) {
+            if (!empty($parsedFp['shapes']) && is_array($parsedFp['shapes']) && count($parsedFp['shapes']) > 0) {
+                $hasFpCanvas = true;
+            } elseif (!empty($parsedFp['floors']) && is_array($parsedFp['floors'])) {
+                foreach ($parsedFp['floors'] as $fl) {
+                    if (is_array($fl) && !empty($fl['shapes']) && is_array($fl['shapes']) && count($fl['shapes']) > 0) {
+                        $hasFpCanvas = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    $hasAnyFloorPlan = $hasFpFile || $hasFpImage || $hasFpCanvas;
+    if (!$hasAnyFloorPlan) {
+        header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=missing_fields");
+        exit;
+    }
+
+    // When using the integrated creator (and no file uploaded), notes/description is strictly required
+    if (!$hasFpFile && ($hasFpImage || $hasFpCanvas) && $fpNotes === '') {
+        header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=missing_fields");
+        exit;
+    }
+}
+
+$newlyCreatedDiskPath = null;
+
 try {
     $db->beginTransaction();
 
@@ -225,6 +282,16 @@ try {
         $_POST['evaluation_questions'] ?? null,
     ]);
     $actId = $db->lastInsertId();
+
+    // Safely persist floor plan requirement if the schema column exists
+    try {
+        $colCheck = $db->query("SHOW COLUMNS FROM activities LIKE 'floor_plan_required'")->fetch();
+        if ($colCheck) {
+            $db->prepare("UPDATE activities SET floor_plan_required = ? WHERE id = ?")->execute([$fpRequiredInt, $actId]);
+        }
+    } catch (Exception $e) {
+        // Schema migration pending; handled gracefully
+    }
 
     // 2. Materials
     if (!empty($_POST['mat_item'])) {
@@ -272,35 +339,125 @@ try {
         sanitize($_POST['guidelines_scoring']??''), sanitize($_POST['guidelines_awards']??'')]);
 
     // 7. Faculty Tasks
-    if (!empty($_POST['ft_name'])) {
-        $ft = $db->prepare("INSERT INTO faculty_tasks (activity_id,faculty_name,assigned_task,task_title,contribution_desc,task_description,role_in_event,created_by) VALUES (?,?,?,?,?,?,?,?)");
-        foreach ($_POST['ft_name'] as $i => $name) {
-            if (!trim($name)) continue;
-            $tTitle = sanitize($_POST['ft_task'][$i]??'');
-            $tDesc = sanitize($_POST['ft_contribution'][$i]??'');
-            $ft->execute([$actId, sanitize($name), $tTitle, $tTitle,
-                $tDesc, $tDesc, sanitize($_POST['ft_role'][$i]??''), $user['id'] ?? null]);
+    $taskItems = !empty($_POST['ft_task']) && is_array($_POST['ft_task'])
+        ? $_POST['ft_task']
+        : (!empty($_POST['ft_name']) && is_array($_POST['ft_name']) ? $_POST['ft_name'] : []);
+
+    if (!empty($taskItems)) {
+        $ft = $db->prepare("
+            INSERT INTO faculty_tasks (
+                activity_id, assigned_user_id, faculty_name, assigned_task,
+                task_title, contribution_desc, task_description, role_in_event,
+                due_date, status, created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Not Started', ?)
+        ");
+
+        $facultyLookupStmt = $db->prepare("SELECT id, name FROM users WHERE id = ? AND role = 'faculty' LIMIT 1");
+
+        foreach ($taskItems as $i => $itemVal) {
+            $tTitle = sanitize($_POST['ft_task'][$i] ?? '');
+            $rawUserId = isset($_POST['ft_user_id'][$i]) && is_numeric($_POST['ft_user_id'][$i]) ? (int)$_POST['ft_user_id'][$i] : 0;
+            $submittedName = sanitize($_POST['ft_name'][$i] ?? '');
+
+            // Skip row if task title, submitted name, and user ID are all completely empty
+            if ($tTitle === '' && $submittedName === '' && $rawUserId === 0) {
+                continue;
+            }
+
+            $assignedUserId = null;
+            $facultyName = $submittedName !== '' ? $submittedName : null;
+
+            if ($rawUserId > 0) {
+                $facultyLookupStmt->execute([$rawUserId]);
+                $fUser = $facultyLookupStmt->fetch(PDO::FETCH_ASSOC);
+                if ($fUser) {
+                    $assignedUserId = (int)$fUser['id'];
+                    $facultyName = $fUser['name'];
+                } else {
+                    $db->rollBack();
+                    header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_faculty_assignment");
+                    exit;
+                }
+            }
+
+            $tDesc = sanitize($_POST['ft_contribution'][$i] ?? '');
+            $tRole = sanitize($_POST['ft_role'][$i] ?? '');
+
+            // Validate optional due date (YYYY-MM-DD)
+            $dueDate = null;
+            if (!empty($_POST['ft_due_date'][$i])) {
+                $rawDate = trim($_POST['ft_due_date'][$i]);
+                $dObj = DateTime::createFromFormat('Y-m-d', $rawDate);
+                if ($dObj && $dObj->format('Y-m-d') === $rawDate) {
+                    $dueDate = $rawDate;
+                }
+            }
+
+            $ft->execute([
+                $actId,
+                $assignedUserId,
+                $facultyName,
+                $tTitle,
+                $tTitle,
+                $tDesc,
+                $tDesc,
+                $tRole,
+                $dueDate,
+                $user['id'] ?? null
+            ]);
+
+            if ($assignedUserId) {
+                sendTaskAssignmentNotification($db, $assignedUserId, $actId, $tTitle, $dueDate);
+            }
         }
     }
 
     // 8. Floor Plan upload
     $path = null;
-    if (!empty($_FILES['floor_plan_file']['name'])) {
-        $path = uploadFile($_FILES['floor_plan_file'], 'floorplans', $actId);
-    } elseif (!empty($_POST['floor_plan_image'])) {
-        // Base64 image
-        $data = $_POST['floor_plan_image'];
-        list($type, $data) = explode(';', $data);
-        list(, $data)      = explode(',', $data);
-        $data = base64_decode($data);
-        $filename = 'fp_' . $actId . '_' . time() . '.png';
-        $uploadDir = __DIR__ . '/../uploads/floorplans/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
-        file_put_contents($uploadDir . $filename, $data);
-        $path = 'uploads/floorplans/' . $filename;
+    if ($floorPlanRequired || !empty($_FILES['floor_plan_file']['name']) || !empty($_POST['floor_plan_image'])) {
+        if (!empty($_FILES['floor_plan_file']['name'])) {
+            $path = uploadFile($_FILES['floor_plan_file'], 'floorplans', $actId);
+            if ($path === false) {
+                $db->rollBack();
+                header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=upload_failed");
+                exit;
+            }
+            $newlyCreatedDiskPath = UPLOAD_PATH . $path;
+        } elseif (!empty($_POST['floor_plan_image'])) {
+            // Base64 image
+            $data = $_POST['floor_plan_image'];
+            list($type, $data) = explode(';', $data);
+            list(, $data)      = explode(',', $data);
+            $data = base64_decode($data);
+            $filename = 'fp_' . $actId . '_' . time() . '.png';
+            $uploadDir = __DIR__ . '/../uploads/floorplans/';
+            if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+            file_put_contents($uploadDir . $filename, $data);
+            $newlyCreatedDiskPath = $uploadDir . $filename;
+            $path = 'uploads/floorplans/' . $filename;
+        }
     }
     
-    if ($path || !empty($_POST['floor_plan_json'])) {
+    // Only insert a floor_plans record if a floor plan is required or if actual content was provided
+    $hasCanvasShapes = false;
+    if (!empty($_POST['floor_plan_json'])) {
+        $cj = json_decode($_POST['floor_plan_json'], true);
+        if (is_array($cj)) {
+            if (!empty($cj['shapes']) && is_array($cj['shapes']) && count($cj['shapes']) > 0) {
+                $hasCanvasShapes = true;
+            } elseif (!empty($cj['floors']) && is_array($cj['floors'])) {
+                foreach ($cj['floors'] as $fl) {
+                    if (is_array($fl) && !empty($fl['shapes']) && is_array($fl['shapes']) && count($fl['shapes']) > 0) {
+                        $hasCanvasShapes = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    $hasFpNotes = trim($_POST['floor_plan_notes'] ?? '') !== '';
+
+    if ($path || $hasCanvasShapes || ($floorPlanRequired && ($hasFpNotes || !empty($_POST['floor_plan_json'])))) {
         $fp = $db->prepare("INSERT INTO floor_plans (activity_id,file_path,notes,canvas_json) VALUES (?,?,?,?)");
         $fp->execute([$actId, $path, sanitize($_POST['floor_plan_notes']??''), $_POST['floor_plan_json'] ?? null]);
     }
@@ -368,6 +525,15 @@ try {
 
     $db->commit();
 
+    // Automatically generate and archive proposal PDF snapshot to OneDrive upon submission
+    if ($status === 'submitted') {
+        try {
+            syncProposalPdfSnapshot($actId, 'submitted', (int)$user['id']);
+        } catch (\Throwable $snapEx) {
+            error_log("Failed to create proposal snapshot on save: " . $snapEx->getMessage());
+        }
+    }
+
     // Persist verified AI validation record to database
     if ($status === 'submitted' && !empty($cachedValidation)) {
         try {
@@ -409,7 +575,26 @@ try {
     exit;
 
 } catch (Exception $e) {
-    $db->rollBack();
+    if ($db->inTransaction()) {
+        $db->rollBack();
+    }
+    // Clean up newly created orphaned floor plan file if creation transaction failed
+    if (!empty($newlyCreatedDiskPath) && file_exists($newlyCreatedDiskPath)) {
+        try {
+            $floorplansDir = realpath(UPLOAD_PATH . 'floorplans');
+            $realNew = realpath($newlyCreatedDiskPath);
+            if ($floorplansDir && $realNew && str_starts_with($realNew, $floorplansDir) && is_file($realNew)) {
+                $newBase = basename($realNew);
+                $refCheck = $db->prepare("SELECT COUNT(*) FROM floor_plans WHERE file_path LIKE ?");
+                $refCheck->execute(['%' . $newBase]);
+                if ((int)$refCheck->fetchColumn() === 0) {
+                    @unlink($realNew);
+                }
+            }
+        } catch (\Throwable $rollEx) {
+            error_log("Failed to clean up orphaned floor plan on creation rollback: " . $rollEx->getMessage());
+        }
+    }
     header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=1");
     exit;
 }

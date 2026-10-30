@@ -24,6 +24,7 @@ $navs = [
       ['icon' => 'home', 'label' => 'Dashboard', 'href' => BASE_URL . '/faculty/dashboard.php'],
       ['icon' => 'plus-circle', 'label' => 'New Proposal', 'href' => BASE_URL . '/faculty/proposal-create.php'],
       ['icon' => 'list', 'label' => 'My Activities', 'href' => BASE_URL . '/faculty/activities.php'],
+      ['icon' => 'check-circle', 'label' => 'My Tasks', 'href' => BASE_URL . '/faculty/tasks.php'],
       ['icon' => 'calendar', 'label' => 'Calendar', 'href' => BASE_URL . '/faculty/calendar.php'],
     ]],
     ['group' => 'Post-Event', 'links' => [
@@ -39,6 +40,7 @@ $navs = [
       ['icon' => 'x-circle', 'label' => 'Returned / Rejected', 'href' => BASE_URL . '/admin1/returned.php'],
     ]],
     ['group' => 'Monitoring', 'links' => [
+      ['icon' => 'check-circle', 'label' => 'My Tasks', 'href' => BASE_URL . '/admin1/tasks.php'],
       ['icon' => 'calendar', 'label' => 'Calendar', 'href' => BASE_URL . '/admin1/calendar.php'],
       ['icon' => 'activity', 'label' => 'All Activities', 'href' => BASE_URL . '/admin1/activities.php'],
     ]],
@@ -53,11 +55,14 @@ $navs = [
       ['icon' => 'check-circle', 'label' => 'Approved', 'href' => BASE_URL . '/admin2/approved.php'],
       ['icon' => 'x-circle', 'label' => 'Returned / Rejected', 'href' => BASE_URL . '/admin2/returned.php'],
     ]],
+    ['group' => 'Monitoring', 'links' => [
+      ['icon' => 'check-circle', 'label' => 'My Tasks', 'href' => BASE_URL . '/admin2/tasks.php'],
+      ['icon' => 'calendar', 'label' => 'Calendar', 'href' => BASE_URL . '/admin2/calendar.php'],
+      ['icon' => 'activity', 'label' => 'All Activities', 'href' => BASE_URL . '/admin2/activities.php'],
+    ]],
     ['group' => 'Reports', 'links' => [
       ['icon' => 'bar-chart', 'label' => 'KPI Overview', 'href' => BASE_URL . '/admin2/kpi-overview.php'],
       ['icon' => 'file-text', 'label' => 'Generate Report', 'href' => BASE_URL . '/dean/generate-report.php'],
-      ['icon' => 'calendar', 'label' => 'Calendar', 'href' => BASE_URL . '/admin2/calendar.php'],
-      ['icon' => 'activity', 'label' => 'All Activities', 'href' => BASE_URL . '/admin2/activities.php'],
     ]],
     ['group' => 'Administration', 'links' => [
       ['icon' => 'users', 'label' => 'User Management', 'href' => BASE_URL . '/admin2/users.php'],

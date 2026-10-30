@@ -131,7 +131,7 @@ function timeAgo($datetime)
 
     /* ── Compact Dashboard Layout ── */
     .content {
-      padding: 16px 22px 28px;
+      padding: var(--content-padding-y, 28px) var(--content-padding-x, 32px);
       max-width: 1440px;
       margin: 0 auto;
       box-sizing: border-box;

@@ -128,6 +128,8 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
 
     <?php if ($activeTab === 'overview'): ?>
 
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+
       <div>
         <h1 style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;"><?= htmlspecialchars($activity['title']) ?></h1>
         <div class="text-sm text-muted" style="margin-top:4px;">Submitted by <?= htmlspecialchars($activity['fn']) ?> · <?= $activity['submitted_at'] ? date('F j, Y', strtotime($activity['submitted_at'])) : 'Not yet submitted' ?></div>

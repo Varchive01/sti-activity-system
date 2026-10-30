@@ -2,6 +2,68 @@
               <input type="hidden" name="floor_plan_json" id="fp-canvas-data">
               <input type="hidden" name="floor_plan_image" id="fp-canvas-image">
 
+              <!-- Optional Floor Plan File Upload -->
+              <div class="fp-upload-card" id="fpUploadCard" style="margin-bottom:16px; padding:14px 16px; background:var(--bg-base, #f8fafc); border:1px solid var(--border, #e2e8f0); border-radius:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
+                  <label for="floor_plan_file" style="font-weight:700; font-size:0.92rem; color:var(--text-main, #1e293b); cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                    📁 Upload Existing Floor Plan <span style="font-size:0.8rem; font-weight:400; color:var(--text-muted, #64748b);">(Optional)</span>
+                  </label>
+                  <span style="font-size:0.78rem; color:var(--text-muted, #64748b);">Supported formats: PNG, JPG, JPEG, PDF</span>
+                </div>
+                <p style="font-size:0.82rem; color:var(--text-muted, #64748b); margin:0 0 10px 0; line-height:1.45;">
+                  Have a pre-made floor plan or architectural layout? You can upload your file here as an alternative to drawing on the canvas below.
+                </p>
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                  <input type="file" name="floor_plan_file" id="floor_plan_file" accept=".png,.jpg,.jpeg,.pdf" style="display:none;" onchange="handleFloorPlanFileSelect(this)">
+                  <label for="floor_plan_file" class="btn btn-outline btn-sm" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px; margin:0; padding:6px 14px; font-weight:600;">
+                    📎 Choose Floor Plan File
+                  </label>
+                  <div id="fp-selected-file-info" style="display:none; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-main, #334155); background:var(--bg-card, #ffffff); border:1px solid var(--border, #cbd5e1); padding:4px 10px; border-radius:6px;">
+                    <span id="fp-selected-filename" style="font-weight:600; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+                    <button type="button" onclick="clearSelectedFloorPlanFile()" style="background:none; border:none; color:#ef4444; font-weight:700; cursor:pointer; padding:0 4px; font-size:0.9rem;" title="Remove / change file">✕</button>
+                  </div>
+                </div>
+              </div>
+
+              <script>
+              function handleFloorPlanFileSelect(input) {
+                const infoWrap = document.getElementById('fp-selected-file-info');
+                const nameEl = document.getElementById('fp-selected-filename');
+                const notesAsterisk = document.getElementById('fp_notes_asterisk');
+                const notesOpt = document.getElementById('fp_notes_optional_hint');
+                const notesErr = document.getElementById('e_floor_plan_notes');
+                const notesEl = document.getElementById('f3_floor_plan_notes');
+                const wrap = document.getElementById('fp-canvas-invalid-wrap');
+
+                if (input && input.files && input.files[0]) {
+                  const file = input.files[0];
+                  if (nameEl) nameEl.textContent = file.name;
+                  if (infoWrap) infoWrap.style.display = 'inline-flex';
+                  if (notesAsterisk) notesAsterisk.style.display = 'none';
+                  if (notesOpt) notesOpt.style.display = 'inline';
+                  if (notesErr) notesErr.style.display = 'none';
+                  if (notesEl) notesEl.classList.remove('is-invalid');
+                  if (wrap) wrap.classList.remove('fp-canvas-invalid');
+                } else {
+                  if (infoWrap) infoWrap.style.display = 'none';
+                  if (nameEl) nameEl.textContent = '';
+                  const hasExisting = document.getElementById('has_existing_floor_plan_file')?.value === '1';
+                  if (!hasExisting) {
+                    if (notesAsterisk) notesAsterisk.style.display = 'inline';
+                    if (notesOpt) notesOpt.style.display = 'none';
+                  }
+                }
+              }
+
+              function clearSelectedFloorPlanFile() {
+                const input = document.getElementById('floor_plan_file');
+                if (input) {
+                  input.value = '';
+                  handleFloorPlanFileSelect(input);
+                }
+              }
+              </script>
+
               <div id="fp-canvas-invalid-wrap">
                 <!-- ── Drawing Tool ── -->
                 <div class="fp-wrap" id="fpWrap">

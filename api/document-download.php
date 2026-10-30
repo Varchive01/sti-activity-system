@@ -111,9 +111,13 @@ if ($deliverableId > 0) {
     }
 
     if (in_array($role, ['admin1', 'admin2', 'dean'], true)) {
+        // Institutional administrators/evaluators and Dean have read-only access
         $isAuthorized = true;
     } elseif ($role === 'faculty') {
-        $isAuthorized = true;
+        // Faculty can only access floor plans for activities they own
+        if ((int)$fp['faculty_id'] === (int)$user['id']) {
+            $isAuthorized = true;
+        }
     }
 
     if (!$isAuthorized) {

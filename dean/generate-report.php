@@ -633,6 +633,9 @@ if ($activityId > 0) {
         .kpi-table th, .kpi-table td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
         .kpi-table th { background: var(--bg-base); }
       </style>
+      <!-- jsPDF & autoTable CDN for Client-Side PDF Export -->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     </head>
     <?php
     $themeMap = ['faculty' => 'theme-faculty', 'admin1' => 'theme-arjay', 'admin2' => 'theme-ian', 'dean' => 'theme-dean'];
@@ -645,7 +648,7 @@ if ($activityId > 0) {
           <div class="page-title">KPI Report Generator</div>
           <div class="topbar-right">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
-            <button class="btn btn-primary" id="exportPdfBtn" onclick="window.print()">📄 Export PDF</button>
+            <button class="btn btn-primary" id="exportPdfBtn" onclick="exportReportToPdf()">📄 Export PDF</button>
             <a href="?activity_id=<?= $activityId ?>&export=csv" class="btn btn-outline">📥 Export CSV</a>
             <a href="javascript:window.close()" class="btn btn-outline">Close</a>
       <!-- User Profile Control -->
@@ -1194,6 +1197,237 @@ if ($activityId > 0) {
           </div>
         </div>
       </div>
+      <?php
+      $activityReportPdfData = [
+          'title' => 'Academic Activity KPI Report',
+          'system_name' => 'STI Activity & Resource Management System (STI-ARMES)',
+          'institution' => 'STI College Marikina · Academic Affairs',
+          'activity_id' => (string)$activityId,
+          'activity_title' => $activity['title'],
+          'faculty_name' => $activity['faculty_name'],
+          'event_date' => $activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—',
+          'venue' => $activity['venue'] ?? '—',
+          'status' => ucfirst($activity['status']),
+          'overall_performance' => $kpiResults['overall_performance'] !== null ? $kpiResults['overall_performance'] . '%' : '—',
+          'overall_status' => $kpiResults['overall_status'] ?? '—',
+          'generated_at' => date('F j, Y g:i A'),
+          'preparer_name' => $user['name'],
+          'preparer_role' => ucfirst($user['role']),
+          'tasks_total' => (string)($reportTasksTotal ?? 0),
+          'tasks_completed' => (string)($reportTasksCompleted ?? 0),
+          'tasks_in_progress' => (string)($reportTasksInProgress ?? 0),
+          'tasks_delayed' => (string)($reportTasksDelayed ?? 0),
+          'tasks_rate' => (string)($reportTasksRate ?? '0.0%'),
+          'kpis' => array_values(array_map(function($k) {
+              return [
+                  'name' => $k['name'] ?? '',
+                  'target' => (string)($k['target'] ?? '—'),
+                  'actual' => (string)($k['actual'] ?? '—'),
+                  'rating' => (string)($k['rating'] ?? '—'),
+                  'weight' => (string)($k['weight'] ?? '—'),
+                  'status' => $k['status'] ?? '—'
+              ];
+          }, $allKpiRows ?? [])),
+          'approval_logs' => array_values(array_map(function($l) {
+              return [
+                  'action' => ucfirst(str_replace('_', ' ', $l['action'] ?? '')),
+                  'reviewer' => ($l['reviewer_name'] ?? 'System') . ' (' . ucfirst($l['reviewer_role'] ?? '') . ')',
+                  'acted_at' => $l['acted_at'] ? date('M j, Y g:i A', strtotime($l['acted_at'])) : '—',
+                  'comments' => $l['comments'] ?? '—'
+              ];
+          }, $approvalLogs ?? [])),
+          'documents' => array_values(array_map(function($d) {
+              return [
+                  'type' => ucfirst(str_replace('_', ' ', $d['doc_type'] ?? '')),
+                  'filename' => $d['file_name'] ?? '—',
+                  'uploader' => $d['uploader_name'] ?? '—',
+                  'uploaded_at' => $d['uploaded_at'] ? date('M j, Y g:i A', strtotime($d['uploaded_at'])) : '—'
+              ];
+          }, $activityDocs ?? []))
+      ];
+      ?>
+      <script>
+      const ACT_REPORT_PDF_DATA = <?= json_encode($activityReportPdfData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+
+      function exportReportToPdf() {
+        if (typeof window.jspdf === 'undefined' || !window.jspdf.jsPDF) {
+          alert('PDF export library is still loading or unavailable. Please check your internet connection and try again.');
+          return;
+        }
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        });
+
+        const pageWidth = 210;
+        const pageHeight = 297;
+        const marginX = 14;
+        const contentWidth = pageWidth - (marginX * 2); // 182mm
+        let currentY = 16;
+
+        function ensureSpace(neededHeight) {
+          if (currentY + neededHeight > pageHeight - 16) {
+            doc.addPage();
+            currentY = 16;
+          }
+        }
+
+        function addSectionHeading(title) {
+          ensureSpace(12);
+          currentY += 2;
+          doc.setFillColor(241, 245, 249);
+          doc.rect(marginX, currentY - 4, contentWidth, 7, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9.5);
+          doc.setTextColor(15, 46, 94);
+          doc.text(title, marginX + 3, currentY + 1.2);
+          currentY += 7;
+          doc.setTextColor(30, 41, 59);
+          doc.setFont('helvetica', 'normal');
+        }
+
+        // Header accent
+        doc.setFillColor(15, 46, 94);
+        doc.rect(marginX, currentY - 2, contentWidth, 2.5, 'F');
+        currentY += 4.5;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(15, 46, 94);
+        doc.text(ACT_REPORT_PDF_DATA.institution.toUpperCase(), marginX, currentY);
+        currentY += 5;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(15, 23, 42);
+        doc.text(ACT_REPORT_PDF_DATA.title, marginX, currentY);
+        currentY += 5;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+        doc.text('Activity #' + ACT_REPORT_PDF_DATA.activity_id + '   |   Generated: ' + ACT_REPORT_PDF_DATA.generated_at + '   |   Preparer: ' + ACT_REPORT_PDF_DATA.preparer_name, marginX, currentY);
+        currentY += 3;
+
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.4);
+        doc.line(marginX, currentY, pageWidth - marginX, currentY);
+        currentY += 4;
+
+        // Activity Overview Grid
+        addSectionHeading('Activity Information');
+        doc.autoTable({
+          startY: currentY,
+          margin: { left: marginX, right: marginX },
+          tableWidth: contentWidth,
+          theme: 'grid',
+          styles: { font: 'helvetica', fontSize: 8, cellPadding: 2.2 },
+          body: [
+            [
+              { content: 'Activity Title:', styles: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 32 } },
+              { content: ACT_REPORT_PDF_DATA.activity_title, styles: { cellWidth: 59 } },
+              { content: 'Faculty In-Charge:', styles: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 32 } },
+              { content: ACT_REPORT_PDF_DATA.faculty_name, styles: { cellWidth: 59 } }
+            ],
+            [
+              { content: 'Event Date:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
+              { content: ACT_REPORT_PDF_DATA.event_date },
+              { content: 'Venue:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
+              { content: ACT_REPORT_PDF_DATA.venue }
+            ],
+            [
+              { content: 'Status:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
+              { content: ACT_REPORT_PDF_DATA.status },
+              { content: 'Overall Score:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
+              { content: ACT_REPORT_PDF_DATA.overall_performance + ' (' + ACT_REPORT_PDF_DATA.overall_status + ')' }
+            ]
+          ]
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+
+        // Task & Performance Summary
+        addSectionHeading('Task & Performance Summary');
+        doc.autoTable({
+          startY: currentY,
+          margin: { left: marginX, right: marginX },
+          tableWidth: contentWidth,
+          theme: 'grid',
+          styles: { font: 'helvetica', fontSize: 8, cellPadding: 2.5, halign: 'center' },
+          headStyles: { fillColor: [248, 250, 252], textColor: [100, 116, 139], fontStyle: 'bold', fontSize: 7.5 },
+          head: [['TOTAL TASKS', 'COMPLETED', 'IN PROGRESS', 'DELAYED', 'COMPLETION RATE']],
+          body: [[
+            { content: ACT_REPORT_PDF_DATA.tasks_total, styles: { fontStyle: 'bold', fontSize: 10, textColor: [15, 46, 94] } },
+            { content: ACT_REPORT_PDF_DATA.tasks_completed, styles: { fontStyle: 'bold', fontSize: 10, textColor: [16, 185, 129] } },
+            { content: ACT_REPORT_PDF_DATA.tasks_in_progress, styles: { fontStyle: 'bold', fontSize: 10, textColor: [2, 132, 199] } },
+            { content: ACT_REPORT_PDF_DATA.tasks_delayed, styles: { fontStyle: 'bold', fontSize: 10, textColor: [239, 68, 68] } },
+            { content: ACT_REPORT_PDF_DATA.tasks_rate, styles: { fontStyle: 'bold', fontSize: 10, textColor: [15, 46, 94] } }
+          ]]
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+
+        // KPI Breakdown Table
+        if (ACT_REPORT_PDF_DATA.kpis && ACT_REPORT_PDF_DATA.kpis.length > 0) {
+          addSectionHeading('Key Performance Indicators (KPIs)');
+          const kpiRows = ACT_REPORT_PDF_DATA.kpis.map(function(k) {
+            return [k.name, k.target, k.actual, k.rating, k.weight, k.status];
+          });
+          doc.autoTable({
+            startY: currentY,
+            margin: { left: marginX, right: marginX },
+            tableWidth: contentWidth,
+            theme: 'grid',
+            styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 2 },
+            headStyles: { fillColor: [15, 46, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
+            head: [['KPI Criteria', 'Target', 'Actual', 'Rating', 'Weight', 'Status']],
+            body: kpiRows
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+
+        // Approval History
+        if (ACT_REPORT_PDF_DATA.approval_logs && ACT_REPORT_PDF_DATA.approval_logs.length > 0) {
+          addSectionHeading('Approval & Endorsement History');
+          const logRows = ACT_REPORT_PDF_DATA.approval_logs.map(function(l) {
+            return [l.action, l.reviewer, l.acted_at, l.comments];
+          });
+          doc.autoTable({
+            startY: currentY,
+            margin: { left: marginX, right: marginX },
+            tableWidth: contentWidth,
+            theme: 'grid',
+            styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 2 },
+            headStyles: { fillColor: [15, 46, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
+            head: [['Action', 'Reviewer', 'Date & Time', 'Comments']],
+            body: logRows
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+
+        // Footers
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let p = 1; p <= totalPages; p++) {
+          doc.setPage(p);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(148, 163, 184);
+          doc.setDrawColor(226, 232, 240);
+          doc.setLineWidth(0.3);
+          doc.line(marginX, pageHeight - 10, pageWidth - marginX, pageHeight - 10);
+          doc.text('STI Activity & Resource Management System (STI-ARMES) · Activity Report', marginX, pageHeight - 6);
+          doc.text('Page ' + p + ' of ' + totalPages + '   ·   Generated ' + ACT_REPORT_PDF_DATA.generated_at, pageWidth - marginX, pageHeight - 6, { align: 'right' });
+        }
+
+        let safeTitle = (ACT_REPORT_PDF_DATA.activity_title || 'Activity')
+          .replace(/[^a-zA-Z0-9]/g, '_')
+          .substring(0, 40);
+        let filename = 'KPI_Report_' + ACT_REPORT_PDF_DATA.activity_id + '_' + safeTitle + '.pdf';
+        filename = filename.replace(/_+/g, '_');
+        doc.save(filename);
+      }
+      </script>
     </body>
     </html>
     <?php
@@ -1321,6 +1555,9 @@ $years = [2026];
   </script>
 <title>Generate Report – STI Activity System</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
+<!-- jsPDF & autoTable CDN for Client-Side PDF Export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
 .filter-bar{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;margin-bottom:20px;display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;}
 .filter-bar .form-group{margin-bottom:0;min-width:160px;}
@@ -1328,8 +1565,14 @@ $years = [2026];
 .summary-item{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center;}
 .summary-item .n{font-family:'Plus Jakarta Sans',sans-serif !important;font-size:1.5rem;font-weight:800;color:var(--accent, var(--sti-blue));line-height:1.1;}
 .summary-item .l{font-size:.7rem;text-transform:uppercase;letter-spacing:.3px;color:var(--text-muted);font-weight:700;}
-.stat-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px;}
-@media (max-width: 900px){.stat-grid-2{grid-template-columns:1fr;}}
+.stat-grid-2{display:grid;grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);gap:18px;margin-bottom:20px;width:100%;max-width:100%;}
+.stat-grid-2 > .card{min-width:0;max-width:100%;display:flex;flex-direction:column;}
+.stat-grid-2 .card-body{min-width:0;width:100%;}
+.stat-grid-2 .table-wrap{min-width:0;width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.stat-grid-2 table{width:100%;table-layout:auto;min-width:100%;}
+.stat-grid-2 th{padding:10px 12px;font-size:0.75rem;letter-spacing:0.3px;white-space:normal;line-height:1.25;}
+.stat-grid-2 td{padding:10px 12px;font-size:0.82rem;}
+@media (max-width: 1100px){.stat-grid-2{grid-template-columns:minmax(0, 1fr);}}
 @page {
   size: A4 landscape;
   margin: 12mm 14mm 16mm 14mm;
@@ -2083,11 +2326,421 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
     </div>
     <?php endif; ?>
 
-  </div>
-</div>
+<?php
+// Prepare structured report data for client-side jsPDF export
+$reportSummaryText = "During Calendar Year {$filterYear}, a total of {$total} " . ($total === 1 ? 'activity was' : 'activities were') . " tracked in STI-ARMES under the selected criteria. The institutional execution pipeline achieved an overall {$completionRate} completion rate, with registered activities reaching an attendance turnout of {$attendanceRate}. Average KPI rating is " . ($avgKpi !== null ? number_format($avgKpi, 2) . '/4.0' : 'No data') . " and participant satisfaction score stands at " . ($avgSat !== null ? number_format($avgSat, 2) . ' / 5.0' : 'No data') . ".";
+
+$reportPdfData = [
+    'title' => 'Institutional Activity Performance and Compliance Report',
+    'system_name' => 'STI Activity & Resource Management System (STI-ARMES)',
+    'institution' => 'STI College Marikina · Office of the Dean',
+    'year' => (string)$filterYear,
+    'status_filter' => ($filterStatus && $filterStatus !== 'all') ? ucfirst(str_replace('_',' ',$filterStatus)) : 'All Statuses',
+    'source_filter' => ($filterSource && $filterSource !== 'all') ? ($sourceList[$filterSource] ?? ucfirst(str_replace('_',' ',$filterSource))) : 'All Sources',
+    'generated_at' => date('F j, Y g:i A'),
+    'preparer_name' => $user['name'],
+    'preparer_role' => ucfirst($user['role']),
+    'summary_text' => $reportSummaryText,
+    'total_activities' => (string)$total,
+    'completion_rate' => $completionRate,
+    'attendance_rate' => $attendanceRate,
+    'avg_kpi' => $avgKpi !== null ? number_format($avgKpi, 2) . '/4.0' : 'No data',
+    'avg_satisfaction' => $avgSat !== null ? number_format($avgSat, 2) . ' / 5.0' : 'No data',
+    'status_breakdown' => [
+        ['category' => 'Completed', 'count' => (string)$completedCount, 'dist' => $total > 0 ? number_format(($completedCount / $total) * 100, 1) . '%' : '0.0%'],
+        ['category' => 'Approved', 'count' => (string)$approvedCount, 'dist' => $total > 0 ? number_format(($approvedCount / $total) * 100, 1) . '%' : '0.0%'],
+        ['category' => 'Returned for Revision', 'count' => (string)$returnedCount, 'dist' => $total > 0 ? number_format(($returnedCount / $total) * 100, 1) . '%' : '0.0%'],
+        ['category' => 'Rejected', 'count' => (string)$rejectedCount, 'dist' => $total > 0 ? number_format(($rejectedCount / $total) * 100, 1) . '%' : '0.0%'],
+        ['category' => 'Total Monitored', 'count' => (string)$total, 'dist' => '100.0%']
+    ],
+    'source_breakdown' => array_values(array_map(function($sb) {
+        return [
+            'label' => $sb['label'],
+            'total' => (string)$sb['total'],
+            'completed' => (string)$sb['completed'],
+            'completion_rate' => (string)$sb['completion_rate'],
+            'avg_kpi' => (string)$sb['avg_kpi'],
+            'avg_sat' => (string)$sb['avg_sat']
+        ];
+    }, $sourceBreakdown)),
+    'detailed_activities' => array_values(array_map(function($i, $a) {
+        $attPct = $a['target_attendance'] > 0 ? round(($a['actual_attendance'] / $a['target_attendance']) * 100) : null;
+        $attStr = ($a['actual_attendance'] !== null && $a['target_attendance'] !== null)
+            ? $a['actual_attendance'] . '/' . $a['target_attendance'] . ($attPct !== null ? " ({$attPct}%)" : '')
+            : 'No data';
+        return [
+            'num' => (string)($i + 1),
+            'title' => $a['title'] . ($a['venue'] ? " (Venue: " . $a['venue'] . ")" : ''),
+            'faculty' => $a['faculty_name'],
+            'date' => $a['event_date'] ? date('M j, Y', strtotime($a['event_date'])) : '—',
+            'source' => ucfirst(str_replace('_', ' ', $a['source'] ?? '')),
+            'status' => ucfirst(str_replace('_', ' ', $a['status'] ?? '')),
+            'attendance' => $attStr,
+            'avg_kpi' => $a['avg_kpi'] ? number_format($a['avg_kpi'], 2) : 'No data',
+            'satisfaction' => ($a['satisfaction_score'] !== null && $a['satisfaction_score'] !== '') ? number_format($a['satisfaction_score'], 1) . '/5' : 'No data'
+        ];
+    }, array_keys($activities), $activities)),
+    'completed_details' => array_values(array_map(function($ci, $ca) {
+        $cAttPct = $ca['target_attendance'] > 0 ? round(($ca['actual_attendance'] / $ca['target_attendance']) * 100, 1) : null;
+        return [
+            'num' => (string)($ci + 1),
+            'title' => $ca['title'] . ($ca['venue'] ? " (Venue: " . $ca['venue'] . ")" : ''),
+            'faculty' => $ca['faculty_name'],
+            'date' => $ca['event_date'] ? date('M j, Y', strtotime($ca['event_date'])) : '—',
+            'target_att' => $ca['target_attendance'] !== null ? (string)$ca['target_attendance'] : 'No data',
+            'actual_att' => $ca['actual_attendance'] !== null ? (string)$ca['actual_attendance'] : 'No data',
+            'turnout_pct' => $cAttPct !== null ? $cAttPct . '%' : 'No data',
+            'kpi_score' => $ca['avg_kpi'] ? number_format($ca['avg_kpi'], 2) : 'No data',
+            'satisfaction' => ($ca['satisfaction_score'] !== null && $ca['satisfaction_score'] !== '') ? number_format($ca['satisfaction_score'], 1) . '/5' : 'No data',
+            'recommendations' => $ca['recommendations'] ?? 'No data'
+        ];
+    }, array_keys($completedDetails), $completedDetails)),
+    'findings' => [
+        "Activity Pipeline & Execution: A total of {$total} " . ($total === 1 ? 'activity is' : 'activities are') . " recorded for year {$filterYear}. Currently, {$completedCount} (" . ($total > 0 ? round(($completedCount/$total)*100, 1) : 0) . "%) is completed, {$approvedCount} (" . ($total > 0 ? round(($approvedCount/$total)*100, 1) : 0) . "%) is approved and queued for execution, {$returnedCount} (" . ($total > 0 ? round(($returnedCount/$total)*100, 1) : 0) . "%) is under revision, and {$rejectedCount} (" . ($total > 0 ? round(($rejectedCount/$total)*100, 1) : 0) . "%) is rejected.",
+        "Channel Distribution: " . implode('; ', array_map(fn($sb) => "{$sb['label']} accounts for {$sb['total']} event(s) with {$sb['completed']} completed ({$sb['completion_rate']} completion rate)", $sourceBreakdown)),
+        $totalTarget > 0 ? "Turnout & Participation: Overall attendance turnout reached {$attendanceRate} across events with registered participant targets ({$totalAtt} actual of {$totalTarget} targeted participants)." : "Turnout & Participation: Attendance targets and participant turnout records have not yet been logged for the filtered activities.",
+        $evaluatedKpiCount > 0 ? "Evaluation & Quality Scoring: Evaluated events achieved an average KPI score of " . number_format($avgKpi, 2) . "/4.0." : "Evaluation & Quality Scoring: Formal KPI rubrics are currently pending submission for the recorded activities."
+    ],
+    'follow_up_actions' => array_values(array_filter([
+        $approvedCount > 0 ? "Upcoming Approved Activities ({$approvedCount}): Coordinate with responsible faculty organizers to ensure logistics, venue bookings, and attendance sheets are prepared prior to scheduled event dates." : null,
+        $returnedCount > 0 ? "Revision Follow-Up ({$returnedCount}): Prompt proponents of returned proposals to address reviewer comments and resubmit updated plans in STI-ARMES." : null,
+        "Post-Event Evaluation Compliance: Follow up on completed activities without submitted evaluation rubrics to collect participant feedback and finalize official documentation within the required window.",
+        "Institutional Audit: Continue routine monitoring of activity timelines and resource utilization through the Dean and Academic Administration dashboards."
+    ])),
+    'ai_insights' => $yearInsights ? [
+        'summary' => $yearInsights['overall_insight'] ?? '',
+        'strengths' => $yearInsights['strengths'] ?? [],
+        'attention' => $yearInsights['areas_of_attention'] ?? [],
+        'recommendations' => $yearInsights['recommendations'] ?? []
+    ] : null
+];
+?>
 <script>
+const REPORT_PDF_DATA = <?= json_encode($reportPdfData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+
 function exportReportToPdf() {
-  window.print();
+  if (typeof window.jspdf === 'undefined' || !window.jspdf.jsPDF) {
+    alert('PDF export library is still loading or unavailable. Please check your internet connection and try again.');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = 297;
+  const pageHeight = 210;
+  const marginX = 14;
+  const contentWidth = pageWidth - (marginX * 2); // 269mm
+  let currentY = 14;
+
+  function ensureSpace(neededHeight) {
+    if (currentY + neededHeight > pageHeight - 16) {
+      doc.addPage();
+      currentY = 16;
+    }
+  }
+
+  function addSectionHeading(title) {
+    ensureSpace(12);
+    currentY += 2;
+    doc.setFillColor(241, 245, 249);
+    doc.rect(marginX, currentY - 4, contentWidth, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 46, 94); // STI Navy
+    doc.text(title, marginX + 3, currentY + 1.2);
+    currentY += 7;
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'normal');
+  }
+
+  // Top Navy accent line
+  doc.setFillColor(15, 46, 94);
+  doc.rect(marginX, currentY - 2, contentWidth, 2.5, 'F');
+  currentY += 4.5;
+
+  // Header Title & Institution
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(15, 46, 94);
+  doc.text(REPORT_PDF_DATA.institution.toUpperCase(), marginX, currentY);
+  currentY += 5.5;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(15, 23, 42);
+  doc.text(REPORT_PDF_DATA.title, marginX, currentY);
+  currentY += 5;
+
+  // Metadata / Filter strip
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  const metaText = 'Reporting Year: CY ' + REPORT_PDF_DATA.year + '   |   Status: ' + REPORT_PDF_DATA.status_filter + '   |   Source: ' + REPORT_PDF_DATA.source_filter + '   |   Generated: ' + REPORT_PDF_DATA.generated_at + '   |   Preparer: ' + REPORT_PDF_DATA.preparer_name + ' (' + REPORT_PDF_DATA.preparer_role + ')';
+  doc.text(metaText, marginX, currentY);
+  currentY += 3;
+
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.4);
+  doc.line(marginX, currentY, pageWidth - marginX, currentY);
+  currentY += 4;
+
+  // 1. Executive Summary
+  addSectionHeading('1. Executive Summary');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(51, 65, 85);
+  const summaryLines = doc.splitTextToSize(REPORT_PDF_DATA.summary_text, contentWidth);
+  for (let i = 0; i < summaryLines.length; i++) {
+    ensureSpace(4);
+    doc.text(summaryLines[i], marginX, currentY);
+    currentY += 4;
+  }
+  currentY += 2;
+
+  // KPI Summary Strip Grid
+  doc.autoTable({
+    startY: currentY,
+    margin: { left: marginX, right: marginX },
+    tableWidth: contentWidth,
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: 8, cellPadding: 2.5, halign: 'center' },
+    headStyles: { fillColor: [248, 250, 252], textColor: [100, 116, 139], fontStyle: 'bold', fontSize: 7.5 },
+    head: [['TOTAL ACTIVITIES', 'COMPLETION RATE', 'ATTENDANCE RATE', 'AVERAGE KPI', 'AVG SATISFACTION']],
+    body: [[
+      { content: REPORT_PDF_DATA.total_activities, styles: { fontStyle: 'bold', fontSize: 11, textColor: [15, 46, 94] } },
+      { content: REPORT_PDF_DATA.completion_rate, styles: { fontStyle: 'bold', fontSize: 11, textColor: [16, 185, 129] } },
+      { content: REPORT_PDF_DATA.attendance_rate, styles: { fontStyle: 'bold', fontSize: 11, textColor: [2, 132, 199] } },
+      { content: REPORT_PDF_DATA.avg_kpi, styles: { fontStyle: 'bold', fontSize: 11, textColor: [15, 46, 94] } },
+      { content: REPORT_PDF_DATA.avg_satisfaction, styles: { fontStyle: 'bold', fontSize: 11, textColor: [217, 119, 6] } }
+    ]]
+  });
+  currentY = doc.lastAutoTable.finalY + 4;
+
+  // 2. Statistical Breakdown
+  addSectionHeading('2. Statistical Breakdown by Status and Source');
+
+  const statusRows = REPORT_PDF_DATA.status_breakdown.map(function(s) { return [s.category, s.count, s.dist]; });
+  doc.autoTable({
+    startY: currentY,
+    margin: { left: marginX, right: marginX },
+    tableWidth: (contentWidth / 2) - 2,
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 2 },
+    headStyles: { fillColor: [15, 46, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
+    head: [['Status Category', 'Count', 'Distribution']],
+    body: statusRows,
+    columnStyles: {
+      0: { cellWidth: 55 },
+      1: { cellWidth: 35, halign: 'center' },
+      2: { cellWidth: 42, halign: 'right' }
+    }
+  });
+  const statusTableEndY = doc.lastAutoTable.finalY;
+
+  const sourceRows = REPORT_PDF_DATA.source_breakdown.map(function(sb) {
+    return [sb.label, sb.total, sb.completed, sb.completion_rate, sb.avg_kpi, sb.avg_sat];
+  });
+  doc.autoTable({
+    startY: currentY,
+    margin: { left: marginX + (contentWidth / 2) + 2, right: marginX },
+    tableWidth: (contentWidth / 2) - 2,
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 2 },
+    headStyles: { fillColor: [15, 46, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
+    head: [['Activity Source', 'Events', 'Completed', 'Comp %', 'Avg KPI', 'Sat.']],
+    body: sourceRows,
+    columnStyles: {
+      0: { cellWidth: 42 },
+      1: { cellWidth: 18, halign: 'center' },
+      2: { cellWidth: 20, halign: 'center' },
+      3: { cellWidth: 20, halign: 'center' },
+      4: { cellWidth: 16, halign: 'right' },
+      5: { cellWidth: 16, halign: 'right' }
+    }
+  });
+  const sourceTableEndY = doc.lastAutoTable.finalY;
+  currentY = Math.max(statusTableEndY, sourceTableEndY) + 5;
+
+  // 3. Detailed Activity Register
+  addSectionHeading('3. Detailed Activity Register — Year ' + REPORT_PDF_DATA.year + ' (' + REPORT_PDF_DATA.total_activities + ' Activities)');
+  const actRows = REPORT_PDF_DATA.detailed_activities.length > 0
+    ? REPORT_PDF_DATA.detailed_activities.map(function(a) {
+        return [a.num, a.title, a.faculty, a.date, a.source, a.status, a.attendance, a.avg_kpi, a.satisfaction];
+      })
+    : [['—', 'No activities match the selected filters.', '—', '—', '—', '—', '—', '—', '—']];
+
+  doc.autoTable({
+    startY: currentY,
+    margin: { left: marginX, right: marginX },
+    tableWidth: contentWidth,
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
+    headStyles: { fillColor: [15, 46, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
+    head: [['#', 'Activity Title & Venue', 'Responsible Faculty', 'Date', 'Source', 'Status', 'Attendance', 'KPI Avg', 'Satisfaction']],
+    body: actRows,
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 64 },
+      2: { cellWidth: 38 },
+      3: { cellWidth: 22 },
+      4: { cellWidth: 32 },
+      5: { cellWidth: 26 },
+      6: { cellWidth: 35 },
+      7: { cellWidth: 20, halign: 'center' },
+      8: { cellWidth: 24, halign: 'center' }
+    }
+  });
+  currentY = doc.lastAutoTable.finalY + 5;
+
+  // 4. Completed Activity Performance Details
+  if (REPORT_PDF_DATA.completed_details && REPORT_PDF_DATA.completed_details.length > 0) {
+    addSectionHeading('4. Completed Activity Performance Details (' + REPORT_PDF_DATA.completed_details.length + ' Completed)');
+    const compRows = REPORT_PDF_DATA.completed_details.map(function(ca) {
+      return [ca.num, ca.title, ca.faculty, ca.date, ca.target_att, ca.actual_att, ca.turnout_pct, ca.kpi_score, ca.satisfaction, ca.recommendations];
+    });
+
+    doc.autoTable({
+      startY: currentY,
+      margin: { left: marginX, right: marginX },
+      tableWidth: contentWidth,
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 7, cellPadding: 1.8, overflow: 'linebreak' },
+      headStyles: { fillColor: [15, 46, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
+      head: [['#', 'Activity Title', 'Proponent', 'Date', 'Target', 'Actual', 'Turnout', 'KPI', 'Sat.', 'Post-Event Recommendations']],
+      body: compRows,
+      columnStyles: {
+        0: { cellWidth: 8, halign: 'center' },
+        1: { cellWidth: 48 },
+        2: { cellWidth: 30 },
+        3: { cellWidth: 20 },
+        4: { cellWidth: 15, halign: 'center' },
+        5: { cellWidth: 15, halign: 'center' },
+        6: { cellWidth: 16, halign: 'center' },
+        7: { cellWidth: 14, halign: 'center' },
+        8: { cellWidth: 15, halign: 'center' },
+        9: { cellWidth: 88 }
+      }
+    });
+    currentY = doc.lastAutoTable.finalY + 5;
+  }
+
+  // 5. Findings & Recommended Follow-Up Actions
+  addSectionHeading('5. Institutional Findings & Recommended Follow-Up Actions');
+
+  ensureSpace(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 46, 94);
+  doc.text('A. Data-Based Institutional Findings', marginX + 1, currentY);
+  currentY += 4.5;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(51, 65, 85);
+  for (let i = 0; i < REPORT_PDF_DATA.findings.length; i++) {
+    const fLines = doc.splitTextToSize('• ' + REPORT_PDF_DATA.findings[i], contentWidth - 4);
+    for (let l = 0; l < fLines.length; l++) {
+      ensureSpace(3.8);
+      doc.text(fLines[l], marginX + 2, currentY);
+      currentY += 3.8;
+    }
+  }
+  currentY += 2;
+
+  ensureSpace(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 46, 94);
+  doc.text('B. Recommended Follow-Up Actions', marginX + 1, currentY);
+  currentY += 4.5;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(51, 65, 85);
+  for (let i = 0; i < REPORT_PDF_DATA.follow_up_actions.length; i++) {
+    const aLines = doc.splitTextToSize('• ' + REPORT_PDF_DATA.follow_up_actions[i], contentWidth - 4);
+    for (let l = 0; l < aLines.length; l++) {
+      ensureSpace(3.8);
+      doc.text(aLines[l], marginX + 2, currentY);
+      currentY += 3.8;
+    }
+  }
+  currentY += 3;
+
+  // AI Insights if available
+  if (REPORT_PDF_DATA.ai_insights && REPORT_PDF_DATA.ai_insights.summary) {
+    addSectionHeading('6. AI Institutional Insights (Advisory Only)');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    const aiSumLines = doc.splitTextToSize('Summary: ' + REPORT_PDF_DATA.ai_insights.summary, contentWidth);
+    for (let l = 0; l < aiSumLines.length; l++) {
+      ensureSpace(3.8);
+      doc.text(aiSumLines[l], marginX, currentY);
+      currentY += 3.8;
+    }
+    currentY += 2;
+  }
+
+  // Formal Sign-Off Box
+  ensureSpace(24);
+  currentY += 2;
+  doc.autoTable({
+    startY: currentY,
+    margin: { left: marginX, right: marginX },
+    tableWidth: contentWidth,
+    theme: 'plain',
+    styles: { font: 'helvetica', fontSize: 8, cellPadding: 3 },
+    body: [
+      [
+        { content: 'PREPARED BY:\n\n\n' + REPORT_PDF_DATA.preparer_name + '\n' + REPORT_PDF_DATA.preparer_role + ', STI College Marikina', styles: { fontStyle: 'bold', textColor: [30, 41, 59] } },
+        { content: 'NOTED BY:\n\n\nOffice of the Academic Head\nSTI College Marikina', styles: { fontStyle: 'bold', textColor: [30, 41, 59] } }
+      ]
+    ]
+  });
+
+  // Footer on all pages
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+
+    // Header on pages > 1
+    if (p > 1) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text('STI College Marikina · Institutional Activity Performance and Compliance Report (CY ' + REPORT_PDF_DATA.year + ')', marginX, 8);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.2);
+      doc.line(marginX, 10, pageWidth - marginX, 10);
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(marginX, pageHeight - 10, pageWidth - marginX, pageHeight - 10);
+    doc.text('STI Activity & Resource Management System (STI-ARMES) · Official Report Export', marginX, pageHeight - 6);
+    doc.text('Page ' + p + ' of ' + totalPages + '   ·   Generated ' + REPORT_PDF_DATA.generated_at, pageWidth - marginX, pageHeight - 6, { align: 'right' });
+  }
+
+  // Filename sanitation and download
+  let safeYear = String(REPORT_PDF_DATA.year || '2026').trim();
+  let safeStatus = (REPORT_PDF_DATA.status_filter || 'All').replace(/[^a-zA-Z0-9]/g, '_');
+  let safeSource = (REPORT_PDF_DATA.source_filter || 'All').replace(/[^a-zA-Z0-9]/g, '_');
+  let filename = 'Institutional_Activity_Report_' + safeYear + '_' + safeStatus + '_' + safeSource + '.pdf';
+  filename = filename.replace(/_+/g, '_');
+  if (!filename || filename === '.pdf') {
+    filename = 'STI_ARMES_Institutional_Report.pdf';
+  }
+
+  doc.save(filename);
 }
 </script>
 </body>

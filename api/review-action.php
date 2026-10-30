@@ -259,6 +259,15 @@ try {
     }
 
     $db->commit();
+
+    // Automatically generate and archive final approved proposal PDF snapshot to OneDrive
+    if ($newStatus === 'approved') {
+        try {
+            syncProposalPdfSnapshot($actId, 'approved', (int)$user['id']);
+        } catch (\Throwable $snapEx) {
+            error_log("Failed to create approved proposal snapshot: " . $snapEx->getMessage());
+        }
+    }
 } catch (Exception $e) {
     error_log("Review Action Error: " . $e->getMessage());
     if ($db->inTransaction()) {

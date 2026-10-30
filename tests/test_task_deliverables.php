@@ -47,6 +47,38 @@ $taskApiUrl   = BASE_URL . '/api/task-assignment.php';
 $downloadUrl  = BASE_URL . '/api/document-download.php';
 $rootDir      = realpath(__DIR__ . '/..');
 
+/**
+ * Generates a structurally valid PDF-1.4 file with correct byte offsets, xref table, and trailer.
+ */
+function generateValidPdfFixture(string $text = "Deliverable Content"): string {
+    $header = "%PDF-1.4\n";
+    $obj1 = "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
+    $obj2 = "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n";
+    $streamContent = "BT\n/F1 12 Tf\n72 712 Td\n(" . addcslashes($text, "()\\") . ") Tj\nET\n";
+    $streamLen = strlen($streamContent);
+    $obj3 = "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n";
+    $obj4 = "4 0 obj\n<< /Length {$streamLen} >>\nstream\n{$streamContent}endstream\nendobj\n";
+
+    $off1 = strlen($header);
+    $off2 = $off1 + strlen($obj1);
+    $off3 = $off2 + strlen($obj2);
+    $off4 = $off3 + strlen($obj3);
+
+    $body = $header . $obj1 . $obj2 . $obj3 . $obj4;
+    $startXref = strlen($body);
+
+    $xref = "xref\n0 5\n"
+          . "0000000000 65535 f \n"
+          . sprintf("%010d 00000 n \n", $off1)
+          . sprintf("%010d 00000 n \n", $off2)
+          . sprintf("%010d 00000 n \n", $off3)
+          . sprintf("%010d 00000 n \n", $off4);
+
+    $trailer = "trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n{$startXref}\n%%EOF\n";
+
+    return $body . $xref . $trailer;
+}
+
 // Helper for HTTP requests
 function httpRequest(string $url, string $method = 'GET', $data = null, ?string $cookie = null, array $extraHeaders = []): array {
     $ch = curl_init($url);
@@ -56,7 +88,7 @@ function httpRequest(string $url, string $method = 'GET', $data = null, ?string 
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
-    $headers = $extraHeaders;
+    $headers = array_merge(['X-Test-Environment: 1'], $extraHeaders);
     if (!empty($cookie)) {
         curl_setopt($ch, CURLOPT_COOKIE, $cookie);
     }
@@ -194,7 +226,7 @@ try {
     // -------------------------------------------------------------
     echo "\n--- 2. Upload Deliverable as Assigned User ---\n";
     $tempFile1 = sys_get_temp_dir() . '/security_vulnerability_report.pdf';
-    file_put_contents($tempFile1, "%PDF-1.4 Mock Deliverable Content for Task {$taskId}");
+    file_put_contents($tempFile1, generateValidPdfFixture("Mock Deliverable Content for Task {$taskId}"));
 
     $uploadRes = httpRequest($delivApiUrl . '?action=upload', 'POST', [
         'task_id'          => $taskId,
@@ -280,7 +312,7 @@ try {
     // -------------------------------------------------------------
     echo "\n--- 6. Return Deliverable for Improvement ---\n";
     $tempFile2 = sys_get_temp_dir() . '/network_topology_v2.pdf';
-    file_put_contents($tempFile2, "%PDF-1.4 Mock Deliverable 2 Topology");
+    file_put_contents($tempFile2, generateValidPdfFixture("Mock Deliverable 2 Topology"));
 
     $upload2Res = httpRequest($delivApiUrl . '?action=upload', 'POST', [
         'task_id'          => $taskId,

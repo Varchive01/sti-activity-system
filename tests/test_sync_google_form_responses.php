@@ -51,18 +51,23 @@ if (!$faculty2) {
 }
 
 // 2. Helper to create a test activity
-function createTestSyncActivity(PDO $db, int $facultyId, string $title, ?string $evalQuestions, ?string $evalMethod): int
+function createTestSyncActivity(PDO $db, int $facultyId, string $title, ?string $evalQuestions, ?string $evalMethod, ?string $formLink = null): int
 {
+    if ($evalMethod && $formLink === null) {
+        if (preg_match('#/forms/d/(?:e/)?([a-zA-Z0-9_\-]+)#', $evalMethod, $m)) {
+            $formLink = $m[1];
+        }
+    }
     $stmt = $db->prepare("
         INSERT INTO activities (
             faculty_id, title, description, theme, venue, event_date,
-            start_time, end_time, source, status, evaluation_questions, evaluation_method
+            start_time, end_time, source, status, evaluation_questions, evaluation_method, google_form_link
         ) VALUES (
             ?, ?, 'Test Description', 'AI & Cloud', 'Auditorium', '2026-11-20',
-            '09:00:00', '16:00:00', 'faculty', 'approved', ?, ?
+            '09:00:00', '16:00:00', 'faculty', 'approved', ?, ?, ?
         )
     ");
-    $stmt->execute([$facultyId, $title, $evalQuestions, $evalMethod]);
+    $stmt->execute([$facultyId, $title, $evalQuestions, $evalMethod, $formLink]);
     return (int)$db->lastInsertId();
 }
 
@@ -525,6 +530,41 @@ try {
     assertTest("10.3 Rating record matched by google_question_id with rating=4", $regRatingRow !== null && (int)$regRatingRow['rating'] === 4);
     assertTest("10.4 Open-ended record matched by google_question_id with comments text", $regOpenRow !== null && str_contains($regOpenRow['comments'], 'insightful and actionable'));
     assertTest("10.5 Respondent email and responseId tagged in evaluator_name", str_contains($regRatingRow['evaluator_name'] ?? '', 'attendee.real@sti.edu') && str_contains($regRatingRow['evaluator_name'] ?? '', 'real_resp_101'));
+
+    // -------------------------------------------------------------------------
+    // 11. Form ID Extraction Priority & Rejection of Public /d/e/ Slugs
+    // -------------------------------------------------------------------------
+    echo "\n--- 11. Form ID Extraction & /d/e/ Public Slug Protection ---\n";
+
+    // 11.1 Activity with ONLY a public /d/e/1FAIpQL... responder slug and NO stored Form ID is rejected
+    $actSlugOnly = createTestSyncActivity($db, (int)$faculty1['id'], 'Slug Only Activity', json_encode($regressionQuestions), "https://docs.google.com/forms/d/e/1FAIpQLSdX_dummy_slug_999/viewform", "");
+    $createdActivityIds[] = $actSlugOnly;
+    $resSlugOnly = executeSyncGoogleForms(['activity_id' => $actSlugOnly], $faculty1, []);
+    assertTest("11.1 Public /d/e/1FAIpQL... slug without stored Form ID rejected safely", ($resSlugOnly['data']['success'] ?? true) === false && str_contains($resSlugOnly['data']['error'] ?? '', 'No Google Form'));
+
+    // 11.2 Activity with google_form_link populated uses the stored API Form ID
+    $actWithLink = createTestSyncActivity($db, (int)$faculty1['id'], 'Link Stored Activity', json_encode($regressionQuestions), "https://docs.google.com/forms/d/e/1FAIpQLSdX_dummy_slug_999/viewform");
+    $createdActivityIds[] = $actWithLink;
+    $db->prepare("UPDATE activities SET google_form_link = ? WHERE id = ?")->execute(['actual_api_form_id_777', $actWithLink]);
+
+    $mockLinkResponses = [
+        [
+            'status' => 200,
+            'body'   => ['responses' => []],
+        ],
+    ];
+    $resWithLink = executeSyncGoogleForms(['activity_id' => $actWithLink], $faculty1, $mockLinkResponses);
+    assertTest("11.2 Stored google_form_link used over public responder slug", ($resWithLink['data']['success'] ?? false) === true);
+
+    // 11.3 Activity with google_form_id in evaluation_questions metadata used as fallback
+    $questionsWithMeta = [
+        'google_form_id' => 'actual_api_form_id_888',
+        'questions'      => $regressionQuestions
+    ];
+    $actWithMeta = createTestSyncActivity($db, (int)$faculty1['id'], 'Meta Stored Activity', json_encode($questionsWithMeta), "https://docs.google.com/forms/d/e/1FAIpQLSdX_dummy_slug_999/viewform");
+    $createdActivityIds[] = $actWithMeta;
+    $resWithMeta = executeSyncGoogleForms(['activity_id' => $actWithMeta], $faculty1, $mockLinkResponses);
+    assertTest("11.3 Stored google_form_id in evaluation_questions metadata used over public responder slug", ($resWithMeta['data']['success'] ?? false) === true);
 
 } finally {
     // Teardown

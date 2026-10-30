@@ -10,6 +10,49 @@ window.ScheduleConflictUI = (function () {
   let selectedAlternative = null;
   let successTimer = null;
   let currentRequestId = 0;
+  let cachedKey = null;
+  let cachedResult = null; // { conflict: boolean, data: object }
+  let inFlightPromise = null;
+  let inFlightKey = null;
+  let inFlightAbortController = null;
+
+  function getScheduleKey() {
+    const venue = (document.getElementById(settings.venueId)?.value || '').trim();
+    const date  = (document.getElementById(settings.dateId)?.value || '').trim();
+    const start = (document.getElementById(settings.startId)?.value || '').trim();
+    const end   = (document.getElementById(settings.endId)?.value || '').trim();
+    const actId = settings.activityId || 0;
+
+    if (!venue || !date || !start || !end) return null;
+    return `${venue.toLowerCase()}|${date}|${start}|${end}|${actId}`;
+  }
+
+  function areScheduleInputsValid() {
+    const venue = (document.getElementById(settings.venueId)?.value || '').trim();
+    const date  = (document.getElementById(settings.dateId)?.value || '').trim();
+    const start = (document.getElementById(settings.startId)?.value || '').trim();
+    const end   = (document.getElementById(settings.endId)?.value || '').trim();
+
+    if (!venue || !date || !start || !end) return false;
+
+    // Check date against min attribute if present
+    const dateEl = document.getElementById(settings.dateId);
+    if (dateEl && dateEl.min && date < dateEl.min) {
+      return false;
+    }
+
+    // Check start < end
+    if (start >= end) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function invalidateCache() {
+    cachedKey = null;
+    cachedResult = null;
+  }
 
   function init(opts) {
     settings = Object.assign({
@@ -38,21 +81,54 @@ window.ScheduleConflictUI = (function () {
     // Automatically check on input/change of schedule fields
     const schedFields = [settings.venueId, settings.dateId, settings.startId, settings.endId];
     let debounceTimer = null;
+
+    function handleFieldChange(immediate = false) {
+      const currentKey = getScheduleKey();
+      if (currentKey && currentKey === cachedKey && cachedResult !== null) {
+        // Schedule inputs have not changed and we already have a valid cached result: no duplicate request
+        return;
+      }
+
+      if (currentKey !== cachedKey) {
+        invalidateCache();
+        const successMsg = document.getElementById(settings.successMessageId);
+        if (successMsg) {
+          successMsg.style.display = 'none';
+          if (successTimer) clearTimeout(successTimer);
+        }
+      }
+
+      if (debounceTimer) clearTimeout(debounceTimer);
+
+      if (!areScheduleInputsValid()) {
+        if (inFlightAbortController) {
+          inFlightAbortController.abort();
+        }
+        showCheckingIndicator(false);
+        return;
+      }
+
+      if (immediate) {
+        checkSchedule();
+      } else {
+        debounceTimer = setTimeout(() => {
+          checkSchedule();
+        }, 350);
+      }
+    }
+
     schedFields.forEach(id => {
       const el = document.getElementById(id);
       if (el) {
-        el.addEventListener('change', () => {
-          if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(checkSchedule, 300);
-        });
-        if (el.tagName === 'INPUT' && el.type === 'text') {
-          el.addEventListener('input', () => {
-            if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(checkSchedule, 1000);
-          });
-        }
+        el.addEventListener('change', () => handleFieldChange(true));
+        el.addEventListener('input', () => handleFieldChange(false));
       }
     });
+
+    // If schedule inputs are already filled and valid on load (e.g. edit proposal), run initial check to populate cache
+    if (areScheduleInputsValid()) {
+      checkSchedule();
+    }
 
     // Redefine window.nextStep to intercept Step 1 transition
     if (window.nextStep) {
@@ -62,28 +138,50 @@ window.ScheduleConflictUI = (function () {
                         (window.currentStep === 1) ||
                         (document.getElementById('panel-1') && document.getElementById('panel-1').classList.contains('active'));
         if (isStep1) {
-          // Verify fields are valid locally first
+          // 1. Verify required fields locally first
           if (typeof validateStep === 'function' && !validateStep(1)) {
             return;
           }
 
-          // Disable Next button and show loading state
-          const nextBtn = document.querySelector('#panel-1 .nav-btns button');
-          const originalText = nextBtn ? nextBtn.innerHTML : 'Next: Objectives →';
-          if (nextBtn) {
-            nextBtn.disabled = true;
-            nextBtn.innerHTML = 'Checking conflicts...';
-          }
-
-          try {
-            const hasConflict = await checkSchedule();
-            if (hasConflict) {
-              return; // block advancing
+          const key = getScheduleKey();
+          if (key) {
+            // 2. If already checked and cached for the current parameters:
+            if (cachedKey === key && cachedResult !== null) {
+              if (cachedResult.conflict) {
+                // Block advancing and show existing conflict modal
+                const venue = (document.getElementById(settings.venueId)?.value || '').trim();
+                const date  = (document.getElementById(settings.dateId)?.value || '').trim();
+                const start = (document.getElementById(settings.startId)?.value || '').trim();
+                const end   = (document.getElementById(settings.endId)?.value || '').trim();
+                showConflictModal(cachedResult.data, { venue, date, start, end });
+                return;
+              }
+              // Valid and no conflict: proceed immediately without duplicate request!
+              originalNextStep();
+              return;
             }
-          } finally {
-            if (nextBtn) {
-              nextBtn.disabled = false;
-              nextBtn.innerHTML = originalText;
+
+            // 3. If an availability check is already in-flight from a date input change, await it (do not start duplicate request)
+            if (inFlightPromise) {
+              const nextBtn = document.querySelector('#panel-1 .nav-btns button');
+              const originalText = nextBtn ? nextBtn.innerHTML : 'Next: Objectives →';
+              if (nextBtn) {
+                nextBtn.disabled = true;
+                nextBtn.innerHTML = 'Checking conflicts...';
+              }
+              try {
+                const hasConflict = await inFlightPromise;
+                if (hasConflict) {
+                  return; // block advancing
+                }
+              } finally {
+                if (nextBtn) {
+                  nextBtn.disabled = false;
+                  nextBtn.innerHTML = originalText;
+                }
+              }
+              originalNextStep();
+              return;
             }
           }
         }
@@ -118,6 +216,7 @@ window.ScheduleConflictUI = (function () {
               setTimeout(() => el.style.background = '', 1500);
             }
           });
+          handleFieldChange(true);
         }
       });
     }
@@ -126,7 +225,7 @@ window.ScheduleConflictUI = (function () {
     const step9Btn = document.getElementById('scuStep9ResolveBtn');
     if (step9Btn) {
       step9Btn.addEventListener('click', () => {
-        checkSchedule();
+        checkSchedule(true);
       });
     }
   }
@@ -154,17 +253,42 @@ window.ScheduleConflictUI = (function () {
     }
   }
 
-  async function checkSchedule() {
-    const venue = document.getElementById(settings.venueId)?.value || '';
-    const date = document.getElementById(settings.dateId)?.value || '';
-    const start = document.getElementById(settings.startId)?.value || '';
-    const end = document.getElementById(settings.endId)?.value || '';
+  async function checkSchedule(force = false) {
+    const venue = (document.getElementById(settings.venueId)?.value || '').trim();
+    const date  = (document.getElementById(settings.dateId)?.value || '').trim();
+    const start = (document.getElementById(settings.startId)?.value || '').trim();
+    const end   = (document.getElementById(settings.endId)?.value || '').trim();
 
-    // Guard: ensure all 4 fields are present
-    if (!venue || !date || !start || !end) {
+    // Guard: ensure all 4 fields are present and valid
+    if (!areScheduleInputsValid()) {
+      showCheckingIndicator(false);
       return false;
     }
 
+    const key = getScheduleKey();
+    if (!key) {
+      showCheckingIndicator(false);
+      return false;
+    }
+
+    // Reuse valid cached result if inputs have not changed
+    if (!force && cachedKey === key && cachedResult !== null) {
+      return cachedResult.conflict;
+    }
+
+    // If an identical check is already in-flight, return the existing promise (do not duplicate)
+    if (inFlightKey === key && inFlightPromise) {
+      return await inFlightPromise;
+    }
+
+    // If a check for an older key was running, abort it
+    if (inFlightAbortController) {
+      inFlightAbortController.abort();
+    }
+
+    const abortController = new AbortController();
+    inFlightAbortController = abortController;
+    inFlightKey = key;
     const thisRequestId = ++currentRequestId;
 
     // Clear previous success message
@@ -176,62 +300,69 @@ window.ScheduleConflictUI = (function () {
 
     showCheckingIndicator(true);
 
-    try {
-      const response = await fetch(settings.baseUrl + '/api/check-schedule-conflict.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          venue: venue,
-          event_date: date,
-          start_time: start,
-          end_time: end,
-          activity_id: settings.activityId
-        })
-      });
+    inFlightPromise = (async () => {
+      try {
+        const response = await fetch(settings.baseUrl + '/api/check-schedule-conflict.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: abortController.signal,
+          body: JSON.stringify({
+            venue: venue,
+            event_date: date,
+            start_time: start,
+            end_time: end,
+            activity_id: settings.activityId
+          })
+        });
 
-      if (!response.ok) {
-        throw new Error('API server returned error ' + response.status);
-      }
-
-      const data = await response.json();
-
-      // Discard stale responses: check request sequence ID
-      if (thisRequestId !== currentRequestId) {
-        return false;
-      }
-
-      // Verify that current DOM values still match the values used by this request
-      const currentVenue = document.getElementById(settings.venueId)?.value || '';
-      const currentDate = document.getElementById(settings.dateId)?.value || '';
-      const currentStart = document.getElementById(settings.startId)?.value || '';
-      const currentEnd = document.getElementById(settings.endId)?.value || '';
-
-      if (currentVenue !== venue || currentDate !== date || currentStart !== start || currentEnd !== end) {
-        return false;
-      }
-
-      if (data.conflict === true) {
-        showConflictModal(data, { venue, date, start, end });
-        return true; // conflict exists
-      } else {
-        // Show success message
-        if (successMsg) {
-          successMsg.style.display = 'block';
-          successTimer = setTimeout(() => {
-            successMsg.style.display = 'none';
-          }, 4000);
+        if (!response.ok) {
+          throw new Error('API server returned error ' + response.status);
         }
-        return false; // no conflict
+
+        const data = await response.json();
+
+        // Discard stale responses: check request sequence ID and current key
+        if (thisRequestId !== currentRequestId || getScheduleKey() !== key) {
+          return false;
+        }
+
+        // Cache the successful check
+        cachedKey = key;
+        cachedResult = { conflict: (data.conflict === true), data: data };
+
+        if (data.conflict === true) {
+          showConflictModal(data, { venue, date, start, end });
+          return true; // conflict exists
+        } else {
+          // Show success message
+          if (successMsg) {
+            successMsg.style.display = 'block';
+            if (successTimer) clearTimeout(successTimer);
+            successTimer = setTimeout(() => {
+              successMsg.style.display = 'none';
+            }, 4000);
+          }
+          return false; // no conflict
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') {
+          // Safely ignored aborted request for an older date/key
+          return false;
+        }
+        console.error('Schedule Conflict check failed:', e);
+        // Fallback: don't block workflow on API failure
+        return false;
+      } finally {
+        if (thisRequestId === currentRequestId) {
+          showCheckingIndicator(false);
+          inFlightPromise = null;
+          inFlightKey = null;
+          inFlightAbortController = null;
+        }
       }
-    } catch (e) {
-      console.error('Schedule Conflict check failed:', e);
-      // Fallback: don't block workflow on API failure
-      return false;
-    } finally {
-      if (thisRequestId === currentRequestId) {
-        showCheckingIndicator(false);
-      }
-    }
+    })();
+
+    return await inFlightPromise;
   }
 
   function showConflictModal(data, proposed) {

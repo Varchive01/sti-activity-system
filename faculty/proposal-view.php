@@ -148,7 +148,8 @@ $proposalPdfData = [
 
     /* ── Content & Container Spacing ── */
     .content {
-      padding: 24px;
+      padding: var(--content-padding-y, 28px) var(--content-padding-x, 32px);
+      box-sizing: border-box;
     }
 
     /* ── Cards Design Token Integration ── */

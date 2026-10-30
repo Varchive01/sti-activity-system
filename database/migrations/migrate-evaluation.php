@@ -1,6 +1,10 @@
 <?php
-require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../config/database.php';
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    die('Forbidden: Migration scripts can only be executed via CLI.');
+}
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../config/database.php';
 $db = getDB();
 
 try {

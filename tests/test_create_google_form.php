@@ -241,7 +241,7 @@ try {
     // -------------------------------------------------------------------------
     echo "\n--- 2. URL & Question ID Persistence Verification ---\n";
 
-    $chkStmt = $db->prepare("SELECT evaluation_method, evaluation_questions FROM activities WHERE id = ?");
+    $chkStmt = $db->prepare("SELECT evaluation_method, google_form_link, evaluation_questions FROM activities WHERE id = ?");
     $chkStmt->execute([$actId1]);
     $actRow = $chkStmt->fetch(PDO::FETCH_ASSOC);
     $savedMethod = $actRow['evaluation_method'] ?? '';
@@ -256,6 +256,11 @@ try {
 
     assertTest("2.2 Google questionId persisted in activities.evaluation_questions", $hasGoogleQ1 && $hasGoogleQ2);
     assertTest("2.3 Original question attributes and ordering preserved", $preservedQ1 && $preservedQ2);
+
+    $savedFormLink = $actRow['google_form_link'] ?? '';
+    assertTest("2.4 API formId persisted in activities.google_form_link", $savedFormLink === $mockFormId, "Expected '{$mockFormId}', got '{$savedFormLink}'");
+    $hasGoogleFormIdOnQ = isset($savedQuestions[0]['google_form_id']) && $savedQuestions[0]['google_form_id'] === $mockFormId;
+    assertTest("2.5 API formId persisted in activities.evaluation_questions metadata", $hasGoogleFormIdOnQ);
 
     // -------------------------------------------------------------------------
     // TEST 3: Duplicate form protection

@@ -458,7 +458,16 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
     <?php renderSectionClose('materials', $stagedComments, $id); ?>
 
     <?php renderSectionHeader('floor_plan', '🗺️ Floor Plan', $stagedComments); ?>
+      <?php $floorPlanRequired = isset($activity['floor_plan_required']) ? (int)$activity['floor_plan_required'] : 1; ?>
+      <?php if ($floorPlanRequired === 0): ?>
+        <div style="padding:14px 16px; background:var(--bg-base); border:1px dashed var(--border); border-radius:8px; color:var(--text-muted); font-size:0.88rem; margin-bottom:<?= $fp ? '14px' : '0' ?>;">
+          ℹ️ Floor plan not required for this activity.
+        </div>
+      <?php endif; ?>
       <?php if ($fp): ?>
+        <?php if ($floorPlanRequired === 0): ?>
+          <div class="sl" style="margin-bottom:8px;">Saved Floor Plan Record</div>
+        <?php endif; ?>
         <?php
           $floorsList = [];
           if (!empty($fp['canvas_json'])) {
@@ -482,14 +491,19 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
           </div>
         <?php endif; ?>
         <?php $ext = strtolower(pathinfo($fp['file_path'] ?? '', PATHINFO_EXTENSION)); $isImg = in_array($ext,['png','jpg','jpeg','gif','webp']); ?>
-        <?php $fpUrl = !empty($fp['file_path']) ? (str_starts_with($fp['file_path'], 'http') ? $fp['file_path'] : BASE_URL . '/' . $fp['file_path']) : ''; ?>
+        <?php $fpUrl = !empty($fp['file_path']) ? (str_starts_with($fp['file_path'], 'http') ? $fp['file_path'] : BASE_URL . '/api/document-download.php?activity_id=' . $id . '&type=floorplan') : ''; ?>
         <?php if($isImg && $fpUrl): ?>
           <img src="<?= htmlspecialchars($fpUrl) ?>" style="max-width:100%;border-radius:8px;margin-bottom:12px;" alt="Floor Plan">
-        <?php elseif($fpUrl): ?>
-          <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm" style="margin-bottom:12px;">📎 View Floor Plan File</a>
+        <?php endif; ?>
+        <?php if($fpUrl): ?>
+          <div style="margin-bottom:12px;">
+            <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm">📎 View Floor Plan File</a>
+          </div>
         <?php endif; ?>
         <?php if (!empty($fp['notes'])): ?><div class="sl" style="margin-top:10px;">Notes</div><p><?= nl2br(htmlspecialchars($fp['notes'])) ?></p><?php endif; ?>
-      <?php else: ?><p class="text-muted">No floor plan uploaded.</p><?php endif; ?>
+      <?php elseif ($floorPlanRequired !== 0): ?>
+        <p class="text-muted">No floor plan uploaded.</p>
+      <?php endif; ?>
     <?php renderSectionClose('floor_plan', $stagedComments, $id); ?>
 
     <?php renderSectionHeader('people', '👥 People & Manpower', $stagedComments); ?>

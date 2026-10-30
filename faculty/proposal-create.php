@@ -5,6 +5,9 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('faculty');
 $user = currentUser();
+$db = getDB();
+$facultyUsersStmt = $db->query("SELECT id, name, department FROM users WHERE role = 'faculty' ORDER BY name ASC");
+$facultyUsers = $facultyUsersStmt ? $facultyUsersStmt->fetchAll(PDO::FETCH_ASSOC) : [];
 $todayManila = date('Y-m-d');
 $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 ?>
@@ -332,10 +335,10 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       top: calc(100% + 4px);
       left: 0;
       right: 0;
-      background: #15243C;
-      border: 1px solid #1E2D45;
+      background: var(--bg-card, #FFFFFF);
+      border: 1px solid var(--border, #E2E8F0);
       border-radius: 8px;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
       z-index: 50;
       padding: 4px;
       display: none;
@@ -345,7 +348,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       padding: 10px 14px;
       font-size: 0.85rem;
       line-height: 1.4;
-      color: #F8FAFC;
+      color: var(--text-secondary, #1E293B);
       border-radius: 6px;
       cursor: pointer;
       user-select: none;
@@ -356,15 +359,23 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 
     .venue-address-item:hover,
     .venue-address-item:focus {
-      background: rgba(2, 132, 199, 0.22);
-      color: #38BDF8;
+      background: #EFF6FF;
+      color: #0284C7;
       outline: none;
+    }
+
+    /* Dark Mode */
+    [data-theme="dark"] .venue-address-dropdown,
+    [data-theme="dark"] #venue_address_dropdown {
+      background: #15243C;
+      border-color: #1E2D45;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
     }
 
     [data-theme="dark"] .venue-address-item,
     [data-theme="dark"] .venue-address-dropdown .venue-address-item,
     [data-theme="dark"] #venue_address_dropdown .venue-address-item {
-      color: #FFFFFF;
+      color: #F8FAFC;
     }
 
     [data-theme="dark"] .venue-address-item:hover,
@@ -373,6 +384,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     [data-theme="dark"] .venue-address-dropdown .venue-address-item:focus,
     [data-theme="dark"] #venue_address_dropdown .venue-address-item:hover,
     [data-theme="dark"] #venue_address_dropdown .venue-address-item:focus {
+      background: #1E2D45;
       color: #38BDF8;
     }
 
@@ -612,16 +624,14 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     }
 
     .proposal-layout-grid {
-      display: grid;
-      grid-template-columns: 1.8fr 1.2fr;
-      gap: 24px;
-      align-items: start;
+      display: block;
+      width: 100%;
     }
 
-    @media (min-width: 1400px) {
+    @media (min-width: 992px) {
       .eval-question-row {
         grid-template-areas: "qtext qtype qcat qdel";
-        grid-template-columns: 1fr 120px 240px auto;
+        grid-template-columns: 1fr 140px 240px auto;
       }
       .eval-question-row .eval-question-delete {
         width: auto;
@@ -640,7 +650,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 
     @media (max-width: 1200px) {
       .proposal-layout-grid {
-        grid-template-columns: 1fr;
+        width: 100%;
       }
     }
 
@@ -732,9 +742,10 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       color: var(--text-secondary, #CBD5E1) !important;
     }
 
+    .info-alert,
     .proposal-eval-side-panel .info-alert {
-      font-size: 0.775rem;
-      padding: 10px 14px;
+      font-size: 0.85rem;
+      padding: 12px 16px;
       background: #f0f9ff;
       border: 1px solid #bae6fd;
       color: #0369a1;
@@ -743,16 +754,18 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       margin-bottom: 4px;
     }
 
+    [data-theme="dark"] .info-alert,
     [data-theme="dark"] .proposal-eval-side-panel .info-alert {
       background: rgba(2, 132, 199, 0.12) !important;
       border-color: rgba(2, 132, 199, 0.28) !important;
       color: #38bdf8 !important;
     }
 
+    .btn-add-manual-q,
     .proposal-eval-side-panel .btn-add-manual-q {
       border: 1px dashed var(--border);
-      font-size: 0.8rem;
-      padding: 7px 12px;
+      font-size: 0.85rem;
+      padding: 9px 16px;
       border-radius: var(--radius-sm, 8px);
       background: var(--bg-base);
       color: var(--text-main);
@@ -761,18 +774,20 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       align-items: center;
       justify-content: center;
       gap: 6px;
-      width: 100%;
+      width: auto;
       height: auto;
       cursor: pointer;
       transition: all 0.2s ease;
     }
 
+    .btn-add-manual-q:hover,
     .proposal-eval-side-panel .btn-add-manual-q:hover {
       border-color: var(--sti-blue);
       color: var(--sti-blue);
       background: rgba(2, 132, 199, 0.08);
     }
 
+    [data-theme="dark"] .btn-add-manual-q,
     [data-theme="dark"] .proposal-eval-side-panel .btn-add-manual-q {
       background: var(--bg-card-elevated, #15243C) !important;
       border-color: var(--border, #1E2D45) !important;
@@ -1027,6 +1042,18 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Invalid Poster Format:</strong> Event poster must be an image (JPG, PNG, WEBP, GIF). Videos and non-image files are not permitted.
         </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'invalid_floor_plan_format'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Invalid Floor Plan File:</strong> The uploaded floor plan must be a valid image (PNG, JPG/JPEG) or PDF document, and must not exceed the maximum file size of 10 MB. Videos, scripts, and other file types are not permitted.
+        </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'upload_failed'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ File Upload Failed:</strong> The floor plan file could not be uploaded or saved. Please ensure the file is not corrupted, is within the 10 MB size limit, and try again.
+        </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'floor_plan_too_large'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Floor Plan File Too Large:</strong> The selected floor plan file exceeds the maximum allowed size of 10 MB. Please compress or optimize the file and try again.
+        </div>
       <?php elseif (isset($_GET['error']) && $_GET['error'] === 'invalid_text_input'): ?>
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Meaningful Input Required:</strong> One or more fields contain random characters, keyboard mashing, or insufficient text. Please provide valid information before submitting.
@@ -1064,12 +1091,13 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           <div class="step-num">8</div>Faculty Tasks
         </div>
         <div class="wizard-step locked" data-step="9">
-          <div class="step-num">9</div>KPI
+          <div class="step-num">9</div>Evaluation
         </div>
       </div>
 
       <form id="proposalForm" method="POST" action="<?= BASE_URL ?>/api/proposal-save.php" enctype="multipart/form-data" novalidate>
         <input type="hidden" name="faculty_id" value="<?= $user['id'] ?>">
+        <input type="hidden" name="activity_id" id="proposalActivityId" value="<?= htmlspecialchars((string)($_GET['id'] ?? $_GET['activity_id'] ?? '')) ?>">
         <input type="hidden" name="action" id="proposalFormAction" value="draft">
         <!-- tracks the highest step the user has validly reached -->
         <input type="hidden" id="maxUnlockedStep" value="1">
@@ -1187,7 +1215,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
               <h2>🎯 Objectives & Academic Alignment</h2>
             </div>
             <div class="card-body">
-              <div class="step-error-banner" id="err-banner-2">⚠️ Please fill in all required fields before continuing.</div>
+              <div class="step-error-banner" id="err-banner-2" data-default-msg="⚠️ Please fill in all required fields before continuing.">⚠️ Please fill in all required fields before continuing.</div>
 
               <!-- AI Generation Status -->
               <div id="objGenStatus" style="display:none;margin-bottom:16px;padding:12px 16px;border-radius:8px;font-size:.875rem;border:1px solid transparent;"></div>
@@ -1281,18 +1309,25 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         <!-- ── STEP 4: Floor Plan ── -->
         <div class="wizard-panel" id="panel-4">
           <div class="card">
-            <div class="card-header">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
               <h2>🗺️ Floor Plan Layout</h2>
+              <button type="button" class="btn btn-outline btn-xs" onclick="openFloorPlanRequirementModal()" style="font-size:0.8rem; padding:4px 10px;">Change Requirement</button>
             </div>
             <div class="card-body">
-              <div class="step-error-banner" id="err-banner-4">⚠️ Please draw at least one element on the floor plan and fill in the description before continuing.</div>
+              <div class="step-error-banner" id="err-banner-4">⚠️ Please upload a floor plan file or draw your layout on the canvas before continuing.</div>
 
-              <?php include __DIR__ . '/../includes/floorplan-ui.php'; ?>
+              <!-- Hidden input carries floor plan requirement choice -->
+              <input type="hidden" name="floor_plan_required" id="floor_plan_required" value="yes">
 
-              <div class="form-group" style="margin-top:16px;">
-                <label class="form-label">Floor Plan Notes / Description <span class="text-danger">*</span></label>
-                <textarea name="floor_plan_notes" id="f3_floor_plan_notes" class="form-control" rows="3" placeholder="Describe the layout — exits, important areas, stage direction, seating arrangement..."></textarea>
-                <span class="field-error" id="e_floor_plan_notes">Floor plan notes are required.</span>
+              <!-- Collapsible Floor Plan Interface -->
+              <div id="floor-plan-interface-wrap">
+                <?php include __DIR__ . '/../includes/floorplan-ui.php'; ?>
+
+                <div class="form-group" style="margin-top:16px;">
+                  <label class="form-label">Floor Plan Notes / Description <span class="text-danger" id="fp_notes_asterisk">*</span> <span id="fp_notes_optional_hint" style="display:none; font-size:0.8rem; font-weight:normal; color:var(--text-muted);">(Optional when floor plan file is uploaded)</span></label>
+                  <textarea name="floor_plan_notes" id="f3_floor_plan_notes" class="form-control" rows="3" placeholder="Describe the layout — exits, important areas, stage direction, seating arrangement..."></textarea>
+                  <span class="field-error" id="e_floor_plan_notes">Floor plan notes / description are required when using the floor plan creator.</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1476,19 +1511,31 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                 <table>
                   <thead>
                     <tr>
-                      <th>Faculty Name <span class="text-danger">*</span></th>
+                      <th style="min-width: 190px;">Assigned Faculty</th>
                       <th>Assigned Task <span class="text-danger">*</span></th>
                       <th>Contribution <span class="text-danger">*</span></th>
                       <th>Role in Event <span class="text-danger">*</span></th>
+                      <th style="min-width: 140px;">Target Deadline</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody id="faculty-tasks-body">
                     <tr>
-                      <td><input type="text" name="ft_name[]" class="form-control ft-field" placeholder="Full name"></td>
+                      <td>
+                        <select name="ft_user_id[]" class="form-control ft-user-select" onchange="syncFtName(this)">
+                          <option value="">-- Unassigned / External --</option>
+                          <?php foreach ($facultyUsers as $fu): ?>
+                            <option value="<?= (int)$fu['id'] ?>" data-name="<?= htmlspecialchars($fu['name'], ENT_QUOTES) ?>">
+                              <?= htmlspecialchars($fu['name'] . (!empty($fu['department']) ? ' (' . $fu['department'] . ')' : '')) ?>
+                            </option>
+                          <?php endforeach; ?>
+                        </select>
+                        <input type="text" name="ft_name[]" class="form-control ft-name-field" style="margin-top: 4px; font-size: 0.8rem;" placeholder="External name (if unassigned)">
+                      </td>
                       <td><input type="text" name="ft_task[]" class="form-control ft-field" placeholder="Assigned task"></td>
                       <td><input type="text" name="ft_contribution[]" class="form-control ft-field" placeholder="Contribution description"></td>
                       <td><input type="text" name="ft_role[]" class="form-control ft-field" placeholder="Role"></td>
+                      <td><input type="date" name="ft_due_date[]" class="form-control ft-date-field"></td>
                       <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
                     </tr>
                   </tbody>
@@ -1498,45 +1545,84 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           </div>
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next: KPI →</button>
+            <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Evaluation →</button>
           </div>
         </div>
 
-        <!-- ── STEP 9: KPI ── -->
+        <!-- ── STEP 9: Evaluation Tool ── -->
         <div class="wizard-panel" id="panel-9">
           <div class="card">
             <div class="card-header">
-              <h2>📈 Key Performance Indicators</h2>
-              <button type="button" class="btn btn-outline btn-sm" onclick="addRow('kpi')">+ Add KPI</button>
+              <h2>
+                🤖 AI-Generated Evaluation Tool
+              </h2>
+              <span id="evalStatusBadge">
+                <span id="evalStatusIndicator"></span> <span id="evalStatusText">Empty</span>
+              </span>
             </div>
-            <div class="card-body">
-              <div class="step-error-banner" id="err-banner-9">⚠️ Please fill in all KPI fields and a valid evaluation link before submitting.</div>
-              <div class="dynamic-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Criteria / Indicator</th>
-                      <th>Target Metric</th>
-                      <th>Evaluation Method</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody id="kpi-body">
-                    <tr>
-                      <td><input type="text" name="kpi_indicator[]" class="form-control kpi-field" placeholder="e.g. Number of Attendees"></td>
-                      <td><input type="text" name="kpi_target[]" class="form-control kpi-field" placeholder="e.g. 500 Participants"></td>
-                      <td><input type="text" name="kpi_method[]" class="form-control kpi-field" placeholder="e.g. Attendance Sheet"></td>
-                      <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
-                    </tr>
-                  </tbody>
-                </table>
+            <div class="card-body" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+
+              <!-- Hidden compatibility KPI fields -->
+              <input type="hidden" name="kpi_indicator[]" value="Participant Evaluation">
+              <input type="hidden" name="kpi_target[]" value="Satisfactory Rating">
+              <input type="hidden" name="kpi_method[]" value="Evaluation Form">
+
+              <!-- Needs Update Notice -->
+              <div id="evalChangeNotice" class="alert alert-warning" style="display:none; flex-direction:column; gap:8px; font-size:0.8rem; padding:10px 14px; margin-bottom:4px; border-radius:6px; border-left: 4px solid #d97706; background: #fffbeb;">
+                <div>⚠️ <strong>Your activity details have changed.</strong> The evaluation questions may need to be updated.</div>
+                <div style="display:flex; gap:8px; margin-top:4px;">
+                  <button type="button" class="btn btn-outline btn-sm" onclick="dismissEvalChangeNotice()" style="padding: 3px 10px; font-size: 0.75rem; height:auto; line-height:1.2; background:#fff; border:1px solid #d97706; color:#d97706;">Keep Current</button>
+                  <button type="button" class="btn btn-primary btn-sm" onclick="regenerateEvaluationWithAi(true)" style="padding: 3px 10px; font-size: 0.75rem; height:auto; line-height:1.2; background: #d97706; border: none; color: white;">Regenerate with AI</button>
+                </div>
               </div>
 
-              <div style="margin-top:20px;">
+              <div class="step-error-banner" id="err-banner-9" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; background:#f8d7da; color:#842029; border:1px solid #f5c2c7; font-size:.8rem;">⚠️ Please review evaluation questions and enter a valid evaluation form link.</div>
+              <div class="step-error-banner" id="err-banner-eval-side" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; background:#f8d7da; color:#842029; border:1px solid #f5c2c7; font-size:.8rem;">⚠️ Please review and fix evaluation questions.</div>
+
+              <!-- AI Generation Loading & Status -->
+              <div id="evalGenStatus" style="display:none; margin-bottom:4px; padding:10px 14px; border-radius:6px; font-size:.85rem;"></div>
+
+              <div class="info-alert">
+                These evaluation questions are automatically generated based on your activity objectives. Review them, customize or add questions, and prepare the evaluation link for attendees.
+              </div>
+
+              <!-- Hidden JSON field -->
+              <input type="hidden" name="evaluation_questions" id="f10_evaluation_questions">
+
+              <!-- Questions list container -->
+              <div id="eval-questions-list" style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- Dynamically populated -->
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 4px;">
+                <button type="button" class="btn btn-outline btn-sm btn-add-manual-q" onclick="addManualQuestion()">
+                  + Add Question
+                </button>
+                <div class="footer-actions" style="display:flex; gap:8px;">
+                  <button type="button" class="btn btn-outline btn-sm" id="btn-regenerate-eval" onclick="regenerateEvaluationWithAi(true)" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
+                    ↻ Regenerate
+                  </button>
+                  <button type="button" class="btn btn-outline btn-sm" onclick="openPreviewModal()" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
+                    👁 Preview Tool
+                  </button>
+                </div>
+              </div>
+
+              <!-- Google Forms Evaluation Link section -->
+              <div style="margin-top:20px; padding-top:20px; border-top: 1px solid var(--border);">
                 <label class="form-label">Google Forms Evaluation Link <span class="text-danger">*</span></label>
-                <input type="url" name="eval_form_link" id="f9_eval_form_link" class="form-control" placeholder="https://forms.gle/..." required>
+                <div style="display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;">
+                  <div style="flex:1; min-width:240px;">
+                    <input type="url" name="eval_form_link" id="f9_eval_form_link" class="form-control" placeholder="https://forms.gle/..." required>
+                  </div>
+                  <button type="button" class="btn btn-outline" id="btnCreateGoogleForm" onclick="handleCreateGoogleForm()" style="white-space:nowrap; display:inline-flex; align-items:center; gap:6px; height:42px; font-weight:500;">
+                    <span id="btnCreateGoogleFormSpinner" class="spinner-border" style="display:none; width:0.9rem; height:0.9rem;"></span>
+                    <span id="btnCreateGoogleFormText">Create Google Form</span>
+                  </button>
+                </div>
+                <div id="googleFormStatusMessage" style="display:none; margin-top:8px; font-size:0.85rem; padding:8px 12px; border-radius:6px;"></div>
                 <span class="field-error" id="e_eval_form_link">A valid evaluation form link is required.</span>
-                <small style="color:var(--text-muted);display:block;margin-top:4px;">Required for attendees to provide feedback post-event.</small>
+                <small style="color:var(--text-muted);display:block;margin-top:4px;">Required for attendees to provide feedback post-event. You can create one from AI questions or paste your own.</small>
               </div>
 
               <!-- ── SCHEDULE CONFLICT BANNER (Step 9 review) ── -->
@@ -1564,60 +1650,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         </div>
 
           </div> <!-- Close proposal-wizard-container -->
-          
-          <div class="proposal-eval-side-panel">
-            <div class="card">
-              <div class="card-header">
-                <h2>
-                  🤖 AI-Generated Evaluation Tool
-                </h2>
-                <span id="evalStatusBadge">
-                  <span id="evalStatusIndicator"></span> <span id="evalStatusText">Empty</span>
-                </span>
-              </div>
-              <div class="card-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
-                
-                <!-- Needs Update Notice -->
-                <div id="evalChangeNotice" class="alert alert-warning" style="display:none; flex-direction:column; gap:8px; font-size:0.75rem; padding:10px 12px; margin-bottom:4px; border-radius:6px; border-left: 4px solid #d97706; background: #fffbeb;">
-                  <div>⚠️ <strong>Your activity details have changed.</strong> The evaluation questions may need to be updated.</div>
-                  <div style="display:flex; gap:8px; margin-top:4px;">
-                    <button type="button" class="btn btn-outline btn-sm" onclick="dismissEvalChangeNotice()" style="padding: 2px 8px; font-size: 0.7rem; height:auto; line-height:1.2; background:#fff; border:1px solid #d97706; color:#d97706;">Keep Current</button>
-                    <button type="button" class="btn btn-primary btn-sm" onclick="regenerateEvaluationWithAi(true)" style="padding: 2px 8px; font-size: 0.7rem; height:auto; line-height:1.2; background: #d97706; border: none; color: white;">Regenerate with AI</button>
-                  </div>
-                </div>
-                
-                <div class="step-error-banner" id="err-banner-eval-side" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; background:#f8d7da; color:#842029; border:1px solid #f5c2c7; font-size:.75rem;">⚠️ Please review and fix evaluation questions.</div>
-                
-                <!-- AI Generation Loading & Status -->
-                <div id="evalGenStatus" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; font-size:.775rem;"></div>
-
-                <div class="info-alert">
-                  These evaluation questions are automatically generated based on your activity objectives and KPIs. Review them and make changes if needed.
-                </div>
-
-                <!-- Hidden JSON field -->
-                <input type="hidden" name="evaluation_questions" id="f10_evaluation_questions">
-
-                <!-- Questions list container -->
-                <div id="eval-questions-list" style="display: flex; flex-direction: column; gap: 4px;">
-                  <!-- Dynamically populated -->
-                </div>
-
-                <button type="button" class="btn btn-outline btn-sm btn-add-manual-q" onclick="addManualQuestion()">
-                  + Add Question
-                </button>
-                
-                <div class="footer-actions">
-                  <button type="button" class="btn btn-outline btn-sm" id="btn-regenerate-eval" onclick="regenerateEvaluationWithAi(true)" style="font-size: 0.75rem; padding: 6px 10px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
-                    ↻ Regenerate
-                  </button>
-                  <button type="button" class="btn btn-outline btn-sm" onclick="openPreviewModal()" style="font-size: 0.75rem; padding: 6px 10px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
-                    👁 Preview Tool
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div> <!-- Close proposal-eval-side-panel -->
         </div> <!-- Close proposal-layout-grid -->
 
       </form>
@@ -1630,6 +1662,81 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     let currentStep = 1;
     const totalSteps = 9;
     let maxUnlocked = 1; // highest step the user has validly completed up to
+
+    // ── Floor Plan Requirement Modal & Navigation ─────────────────
+    function openFloorPlanRequirementModal() {
+      const modal = document.getElementById('floorPlanRequirementModal');
+      if (!modal) return;
+      const curChoice = document.getElementById('floor_plan_required')?.value || 'yes';
+      const btnYes = document.getElementById('btnFpModalYes');
+      const btnNo = document.getElementById('btnFpModalNo');
+      if (curChoice === 'no') {
+        if (btnNo) { btnNo.classList.add('btn-primary'); btnNo.classList.remove('btn-outline'); }
+        if (btnYes) { btnYes.classList.add('btn-outline'); btnYes.classList.remove('btn-primary'); }
+      } else {
+        if (btnYes) { btnYes.classList.add('btn-primary'); btnYes.classList.remove('btn-outline'); }
+        if (btnNo) { btnNo.classList.add('btn-outline'); btnNo.classList.remove('btn-primary'); }
+      }
+      modal.style.display = 'block';
+      modal.classList.add('show');
+    }
+
+    function closeFloorPlanRequirementModal() {
+      const modal = document.getElementById('floorPlanRequirementModal');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+      }
+    }
+
+    function handleFloorPlanChoice(choice) {
+      closeFloorPlanRequirementModal();
+      const fpInput = document.getElementById('floor_plan_required');
+      if (fpInput) {
+        fpInput.value = choice;
+      }
+      if (typeof toggleFloorPlanRequirement === 'function') {
+        toggleFloorPlanRequirement(choice);
+      }
+      if (choice === 'no') {
+        // Unlock Step 4 & 5
+        const s4 = document.querySelector('.wizard-step[data-step="4"]');
+        const s5 = document.querySelector('.wizard-step[data-step="5"]');
+        if (s4) s4.classList.remove('locked');
+        if (s5) s5.classList.remove('locked');
+        if (maxUnlocked < 5) maxUnlocked = 5;
+        // Automatically skip Step 4 and navigate directly to Step 5
+        showStep(5);
+      } else {
+        // Unlock Step 4 and open Step 4
+        const s4 = document.querySelector('.wizard-step[data-step="4"]');
+        if (s4) s4.classList.remove('locked');
+        if (maxUnlocked < 4) maxUnlocked = 4;
+        showStep(4);
+      }
+    }
+
+    window.openFloorPlanRequirementModal = openFloorPlanRequirementModal;
+    window.closeFloorPlanRequirementModal = closeFloorPlanRequirementModal;
+    window.handleFloorPlanChoice = handleFloorPlanChoice;
+
+    function toggleFloorPlanRequirement(val) {
+      const iface = document.getElementById('floor-plan-interface-wrap');
+      const errBanner = document.getElementById('err-banner-4');
+      const wrap = document.getElementById('fp-canvas-invalid-wrap');
+      if (val === 'no') {
+        if (iface) iface.style.display = 'none';
+        if (errBanner) errBanner.style.display = 'none';
+        if (wrap) wrap.classList.remove('fp-canvas-invalid');
+        const notesErr = document.getElementById('e_floor_plan_notes');
+        if (notesErr) notesErr.style.display = 'none';
+        const notesEl = document.getElementById('f3_floor_plan_notes');
+        if (notesEl) notesEl.classList.remove('is-invalid');
+      } else {
+        if (iface) iface.style.display = 'block';
+      }
+    }
+    window.toggleFloorPlanRequirement = toggleFloorPlanRequirement;
 
     // ── Step Navigation ──────────────────────────────────────────────
     function showStep(n) {
@@ -1652,13 +1759,17 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         top: 0,
         behavior: 'smooth'
       });
-      if (n >= 2 && typeof triggerAutomaticEvaluation === 'function' && (!questionsList || questionsList.length === 0)) {
-        triggerAutomaticEvaluation(true);
-      }
     }
 
     function nextStep() {
       if (!validateStep(currentStep)) return;
+
+      // Intercept Step 3 -> Step 4 transition to prompt for physical floor plan requirement
+      if (currentStep === 3) {
+        openFloorPlanRequirementModal();
+        return;
+      }
+
       // Unlock the next step in the indicator bar
       if (currentStep + 1 <= totalSteps) {
         const nextIndicator = document.querySelector(`.wizard-step[data-step="${currentStep + 1}"]`);
@@ -1672,6 +1783,14 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     }
 
     function prevStep() {
+      if (currentStep === 5) {
+        const fpInput = document.getElementById('floor_plan_required');
+        if (fpInput && (fpInput.value === 'no' || fpInput.value === '0')) {
+          // Skip Step 4 on backward navigation when floor plan is not required
+          showStep(3);
+          return;
+        }
+      }
       if (currentStep > 1) showStep(currentStep - 1);
     }
 
@@ -2470,6 +2589,16 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       setupAutomaticThemeGeneration();
       setupAutomaticObjectives();
       setupEvaluationAutoUpdateListeners();
+      const curTitle = (document.getElementById('f1_title')?.value || '').trim();
+      const curTheme = (document.getElementById('f1_theme')?.value || '').trim();
+      const curGen   = (document.getElementById('f2_general_objectives')?.value || '').trim();
+      const curSpec  = (document.getElementById('f2_specific_objectives')?.value || '').trim();
+      lastEvaluationHash = JSON.stringify({ curTitle, curTheme, curGen, curSpec });
+      if (!curTitle || curTitle.length < 4 || !curTheme || (!curGen && !curSpec)) {
+        if (!questionsList || questionsList.length === 0) {
+          setEvaluationState('EMPTY', 'Please complete the activity title, theme, and objectives to generate evaluation questions.');
+        }
+      }
     }
 
     if (document.readyState === 'interactive' || document.readyState === 'complete') {
@@ -2534,6 +2663,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         });
         if (!validatePosterInput('f1_poster_file', 'e_poster_file')) valid = false;
       } else if (step === 2) {
+        let hasEmptyRequired = false;
+        let hasContentError = false;
         const fields = [{
             id: 'f2_general_objectives',
             err: 'e_general_objectives'
@@ -2552,8 +2683,29 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           }
         ];
         fields.forEach(f => {
-          if (!checkField(f.id, f.err)) valid = false;
+          const el = document.getElementById(f.id);
+          const val = el ? el.value.trim() : '';
+          if (!val) {
+            hasEmptyRequired = true;
+          }
+          if (!checkField(f.id, f.err)) {
+            valid = false;
+            if (val) {
+              hasContentError = true;
+            }
+          }
         });
+        const banner2 = document.getElementById('err-banner-2');
+        if (banner2) {
+          if (!banner2.hasAttribute('data-default-msg')) {
+            banner2.setAttribute('data-default-msg', banner2.textContent);
+          }
+          if (!valid && hasContentError && !hasEmptyRequired) {
+            banner2.textContent = '⚠️ Please review your objectives and enter valid, meaningful text before continuing.';
+          } else {
+            banner2.textContent = banner2.getAttribute('data-default-msg');
+          }
+        }
       } else if (step === 3) {
         // Every text/number input in materials rows must be filled
         const rows = document.querySelectorAll('#materials-body tr');
@@ -2572,10 +2724,29 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           });
         });
       } else if (step === 4) {
+        const fpInput = document.getElementById('floor_plan_required');
+        const isFpNotRequired = fpInput && (fpInput.value === 'no' || fpInput.value === '0');
+        if (isFpNotRequired) {
+          hideBanner(4);
+          const wrap = document.getElementById('fp-canvas-invalid-wrap');
+          if (wrap) wrap.classList.remove('fp-canvas-invalid');
+          const notesEl = document.getElementById('f3_floor_plan_notes');
+          if (notesEl) notesEl.classList.remove('is-invalid');
+          const notesErr = document.getElementById('e_floor_plan_notes');
+          if (notesErr) notesErr.style.display = 'none';
+          return true;
+        }
+
+        const fileInput = document.getElementById('floor_plan_file');
+        const hasSelectedFile = fileInput && fileInput.files && fileInput.files.length > 0;
+        const hasExistingFile = document.getElementById('has_existing_floor_plan_file')
+          ? document.getElementById('has_existing_floor_plan_file').value === '1'
+          : false;
+        const hasFpFile = hasSelectedFile || hasExistingFile;
+
         if (window.fpSaveToHidden) {
           window.fpSaveToHidden();
         }
-        // Check that at least one shape has been placed across available floors (1 to 3 floors)
         const canvasData = document.getElementById('fp-canvas-data') ? document.getElementById('fp-canvas-data').value : '';
         let hasShapes = false;
         try {
@@ -2587,15 +2758,44 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         }
 
         const wrap = document.getElementById('fp-canvas-invalid-wrap');
-        if (!hasShapes) {
-          wrap.classList.add('fp-canvas-invalid');
-          valid = false;
-        } else {
-          wrap.classList.remove('fp-canvas-invalid');
+        const banner4 = document.getElementById('err-banner-4');
+        const notesEl = document.getElementById('f3_floor_plan_notes');
+        const notesErr = document.getElementById('e_floor_plan_notes');
+
+        // Case 1: User uploaded a valid floor plan file -> notes are not required
+        if (hasFpFile) {
+          hideBanner(4);
+          if (wrap) wrap.classList.remove('fp-canvas-invalid');
+          if (notesEl) notesEl.classList.remove('is-invalid');
+          if (notesErr) notesErr.style.display = 'none';
+          if (notesEl && notesEl.value.trim() !== '') {
+            if (!checkField('f3_floor_plan_notes', 'e_floor_plan_notes')) {
+              valid = false;
+            }
+          }
+          return valid;
         }
 
-        if (!checkField('f3_floor_plan_notes', 'e_floor_plan_notes')) {
+        // Case 2: Neither uploaded file nor created floor plan shapes provided -> block continuation
+        if (!hasShapes) {
+          if (wrap) wrap.classList.add('fp-canvas-invalid');
+          if (banner4) {
+            banner4.textContent = '⚠️ Please upload a floor plan file or draw your layout on the canvas before continuing.';
+          }
+          showBanner(4);
           valid = false;
+          return false;
+        }
+
+        // Case 3: Created floor plan using integrated creator -> notes/description MUST be required
+        if (wrap) wrap.classList.remove('fp-canvas-invalid');
+        if (!checkField('f3_floor_plan_notes', 'e_floor_plan_notes')) {
+          if (banner4) {
+            banner4.textContent = '⚠️ Floor plan notes / description are required when using the floor plan creator.';
+          }
+          showBanner(4);
+          valid = false;
+          return false;
         }
       } else if (step === 5) {
         const rows = document.querySelectorAll('#manpower-body tr');
@@ -2678,20 +2878,10 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           });
         });
       } else if (step === 9) {
-        // All KPI criteria inputs
-        const kpiFields = document.querySelectorAll('input.kpi-field');
-        if (kpiFields.length === 0) {
+        // Evaluation Tool questions validation
+        const evalValid = validateEvaluationSidePanel();
+        if (!evalValid) {
           valid = false;
-        } else {
-          kpiFields.forEach(inp => {
-            const v = inp.value.trim();
-            if (!v || hasGibberishText(v)) {
-              inp.classList.add('is-invalid');
-              valid = false;
-            } else {
-              inp.classList.remove('is-invalid');
-            }
-          });
         }
         // Eval form link
         const evalLink = document.getElementById('f9_eval_form_link');
@@ -2762,16 +2952,33 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       // Allow ordinal numbers (e.g. '1st', '2nd', '3rd', '4th')
       if (/^\d+(st|nd|rd|th)$/i.test(token)) return false;
 
-      // Allow all-uppercase abbreviations up to 6 characters (e.g. 'JPCS', 'AWS', 'STI', 'PDRRMC', 'SSG', 'UNESCO')
-      if (token.length <= 6 && token === token.toUpperCase() && /^[A-Z]+$/.test(token)) return false;
+      // Allow all-uppercase abbreviations up to 6 characters and common pluralized acronyms (e.g. 'JPCS', 'AWS', 'STI', 'PDRRMC', 'SSG', 'UNESCO', 'SDGs', 'KPIs')
+      if (/^[A-Z]{2,6}s?$/.test(token)) return false;
+
+      // For hyphenated compounds (e.g. 'world-class', 'well-structured', 'peer-to-peer', 'hands-on'),
+      // evaluate each hyphen-separated component so letters are not concatenated across word boundaries.
+      if (token.includes('-')) {
+        const subTokens = token.split('-').filter(p => p.length > 0);
+        for (const sub of subTokens) {
+          if (sub.length >= 3 && isGibberishToken(sub)) {
+            return true;
+          }
+        }
+        return false;
+      }
 
       const lower = token.toLowerCase();
       // Extract letter portion for checks when numbers or symbols are appended (e.g. 'fsdfsd123', 'asdd99')
       const letters = lower.replace(/[^a-z]/g, '');
 
-      // 1. Must contain at least one vowel (a, e, i, o, u, y) if length of letters >= 3
+      // 1. Must contain at least one vowel (a, e, i, o, u, y) if length of letters >= 3.
+      // If only 'y' is present (no a, e, i, o, u) and length >= 6, it is gibberish unless whitelisted (e.g. 'rhythm', 'rhythms').
       if (letters.length >= 3 && !/[aeiouy]/.test(letters)) {
         return true;
+      }
+      if (letters.length >= 6 && !/[aeiou]/.test(letters)) {
+        const yWhitelist = ['rhythm', 'rhythms'];
+        if (!yWhitelist.includes(letters)) return true;
       }
 
       // 2. Obvious keyboard walks / mashing runs (3+ char runs)
@@ -2781,7 +2988,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 
       // 3. Repeated characters: 3+ identical characters (e.g. 'aaa', 'zzz') or repeated pairs (e.g. 'asdasd', 'fsdfsd')
       if (/(.)\1{2,}/i.test(lower)) return true;
-      if (/(.{2,3})\1{1,}/i.test(letters)) {
+      if (/(.{2,3})\1{2,}/i.test(letters)) {
         return true;
       }
 
@@ -2792,16 +2999,23 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         if (!whitelist.includes(letters)) return true;
       }
 
-      // 5. Pure home-row mash (length >= 3)
+      // 5. Pure home-row mash [asdfghjkl] (length >= 3)
       if (letters.length >= 3 && /^[asdfghjkl]+$/.test(letters)) {
-        const homeWhitelist = ['all', 'ask', 'had', 'has', 'gas', 'glad', 'hall', 'half', 'fall', 'dash', 'flag', 'lass', 'salad', 'shall', 'flash', 'flask', 'glass'];
+        const homeWhitelist = ['add', 'adds', 'all', 'ask', 'asks', 'dash', 'fall', 'falls', 'flag', 'flags', 'flash', 'flask', 'flasks', 'gas', 'glad', 'glass', 'had', 'half', 'hall', 'halls', 'has', 'lass', 'salad', 'salads', 'shall'];
         if (!homeWhitelist.includes(letters)) return true;
       }
 
-      // 6. Pure top-row mash (length >= 3)
+      // 6. Pure top-row mash [qwertyuiop] (length >= 3)
       if (letters.length >= 3 && /^[qwertyuiop]+$/.test(letters)) {
-        const topWhitelist = ['per', 'pie', 'pot', 'our', 'out', 'put', 'pet', 'pit', 'tie', 'toe', 'tip', 'top', 'toy', 'two', 'wet', 'who', 'you', 'yet', 'pure', 'pour', 'poor', 'port', 'pert', 'pipe', 'peer', 'prop', 'quit', 'quiz', 'root', 'rope', 'ripe', 'riot', 'tour', 'trip', 'true', 'tree', 'type', 'wire', 'wipe', 'wept', 'were', 'your', 'write', 'wrote', 'writer', 'power', 'tower', 'route', 'quiet', 'quite', 'quote', 'equip', 'upper', 'piper', 'outer', 'priority', 'prior', 'proper', 'property', 'error', 'tier'];
-        if (!topWhitelist.includes(letters)) return true;
+        if (['queue', 'queuer'].includes(letters)) return false;
+        // Flag structural keyboard-mash characteristics:
+        // - 3+ consecutive top-row consonants (e.g. 'qwtp', 'prtq', 'wrtp' - never occurring in English words)
+        // - 'q' not followed by 'u' (e.g. 'qwer', 'qwe', 'tq', 'qpo')
+        // - 4+ consecutive vowels (e.g. 'uioe', 'eouy')
+        // - top-row keyboard walks
+        if (/[wrtpq]{3,}/i.test(letters) || /q(?!u)/i.test(letters) || /[aeiouy]{4,}/i.test(letters) || /werty|trewq|poiuy|uytre/i.test(letters)) {
+          return true;
+        }
       }
 
       return false;
@@ -2947,7 +3161,12 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 
     function hideBanner(step) {
       const b = document.getElementById('err-banner-' + step);
-      if (b) b.classList.remove('visible');
+      if (b) {
+        b.classList.remove('visible');
+        if (b.hasAttribute('data-default-msg')) {
+          b.textContent = b.getAttribute('data-default-msg');
+        }
+      }
     }
 
     function isValidUrl(str) {
@@ -3243,12 +3462,34 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 
       if (!evalValid) {
         e.preventDefault();
-        alert('⚠️ Please review the AI-Generated Evaluation Tool questions in the right-side panel before submitting.');
+        showStep(9);
+        alert('⚠️ Please review the AI-Generated Evaluation Tool questions in Step 9 before submitting.');
         return;
       }
     });
 
     // ── Dynamic row management ────────────────────────────────────────
+    const facultyOptionsHtml = `<?= addslashes(implode('', array_map(function($fu) {
+        $dept = !empty($fu['department']) ? ' (' . htmlspecialchars($fu['department'], ENT_QUOTES) . ')' : '';
+        return '<option value="' . (int)$fu['id'] . '" data-name="' . htmlspecialchars($fu['name'], ENT_QUOTES) . '">' . htmlspecialchars($fu['name'] . $dept, ENT_QUOTES) . '</option>';
+    }, $facultyUsers))) ?>`;
+
+    function syncFtName(sel) {
+      const tr = sel.closest('tr');
+      if (!tr) return;
+      const nameInput = tr.querySelector('input.ft-name-field');
+      if (!nameInput) return;
+      const opt = sel.options[sel.selectedIndex];
+      if (sel.value && opt && opt.dataset.name) {
+        nameInput.value = opt.dataset.name;
+        nameInput.readOnly = true;
+        nameInput.style.backgroundColor = 'var(--bg-muted, #f8fafc)';
+      } else {
+        nameInput.readOnly = false;
+        nameInput.style.backgroundColor = '';
+      }
+    }
+
     const rowTemplates = {
       materials: `
         <tr>
@@ -3296,10 +3537,17 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         </tr>`,
       'faculty-tasks': `
         <tr>
-          <td><input type="text" name="ft_name[]" class="form-control ft-field" placeholder="Full name"></td>
+          <td>
+            <select name="ft_user_id[]" class="form-control ft-user-select" onchange="syncFtName(this)">
+              <option value="">-- Unassigned / External --</option>
+              ${facultyOptionsHtml}
+            </select>
+            <input type="text" name="ft_name[]" class="form-control ft-name-field" style="margin-top: 4px; font-size: 0.8rem;" placeholder="External name (if unassigned)">
+          </td>
           <td><input type="text" name="ft_task[]" class="form-control ft-field" placeholder="Assigned task"></td>
           <td><input type="text" name="ft_contribution[]" class="form-control ft-field" placeholder="Contribution description"></td>
           <td><input type="text" name="ft_role[]" class="form-control ft-field" placeholder="Role"></td>
+          <td><input type="date" name="ft_due_date[]" class="form-control ft-date-field"></td>
           <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
         </tr>`,
       kpi: `
@@ -3318,12 +3566,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       tmp.innerHTML = rowTemplates[table];
       tbody.appendChild(tmp.firstElementChild);
       if (table === 'materials') updateTotal();
-      if (table === 'kpi') {
-        if (!isEvaluationEdited && typeof setEvaluationState === 'function') {
-          setEvaluationState('GENERATING');
-        }
-        triggerAutomaticEvaluation(false);
-      }
     }
 
     function removeRow(btn) {
@@ -3332,12 +3574,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       if (tbody.querySelectorAll('tr').length > 1) {
         tr.remove();
         if (tbody.id === 'materials-body') updateTotal();
-        if (tbody.id === 'kpi-body') {
-          if (!isEvaluationEdited && typeof setEvaluationState === 'function') {
-            setEvaluationState('GENERATING');
-          }
-          triggerAutomaticEvaluation(false);
-        }
       }
     }
 
@@ -3371,6 +3607,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     // ── Evaluation Tool ──────────────────────────────────────────────
     let questionsList = []; // Array of { question: "...", type: "rating"|"open_ended", category: "..." }
     let isEvaluationEdited = false;
+    let manualEditVersion = 0;
     let isGeneratingEval = false;
     let lastEvaluationState = '';
     let autoUpdateTimer = null;
@@ -3399,6 +3636,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     let lastEvaluationHash = '';
 
     function cancelPendingEvaluationGeneration() {
+      currentEvalRequestId++;
       if (evalDebounceTimer) {
         clearTimeout(evalDebounceTimer);
         evalDebounceTimer = null;
@@ -3449,8 +3687,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         curTitle: (document.getElementById('f1_title')?.value || '').trim(),
         curTheme: (document.getElementById('f1_theme')?.value || '').trim(),
         curGen: (document.getElementById('f2_general_objectives')?.value || '').trim(),
-        curSpec: (document.getElementById('f2_specific_objectives')?.value || '').trim(),
-        kpis: []
+        curSpec: (document.getElementById('f2_specific_objectives')?.value || '').trim()
       });
       lastEvaluationState = getObjectivesAndKpisState();
       setEvaluationState('READY');
@@ -3471,10 +3708,18 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       const curGen   = (genEl?.value || '').trim();
       const curSpec  = (specEl?.value || '').trim();
 
-      // Minimum requirements: Title >= 4 chars, and at least some objectives
-      if (curTitle.length < 4 || (!curGen && !curSpec)) {
+      // Requirements: non-empty title (>=4 chars), theme, and at least one objective
+      const missing = [];
+      if (!curTitle || curTitle.length < 4) missing.push('activity title (at least 4 characters)');
+      if (!curTheme) missing.push('activity theme');
+      if (!curGen && !curSpec) missing.push('activity objectives (general or specific)');
+
+      if (missing.length > 0) {
+        const msg = 'Please complete the ' + missing.join(', ') + ' before generating evaluation questions.';
         if (!questionsList || questionsList.length === 0) {
-          setEvaluationState('EMPTY');
+          setEvaluationState('EMPTY', msg);
+        } else if (forced) {
+          alert(msg);
         }
         return;
       }
@@ -3496,21 +3741,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         return;
       }
 
-      // Gather current KPIs
-      const kpis = [];
-      const criteriaInputs = document.querySelectorAll('input[name="kpi_criteria[]"], input[name="kpi_indicator[]"]');
-      const ratingSelects  = document.querySelectorAll('select[name="kpi_rating[]"], input[name="kpi_target[]"]');
-      criteriaInputs.forEach((input, index) => {
-        if (input.value.trim()) {
-          kpis.push({
-            criteria: input.value.trim(),
-            rating: ratingSelects[index]?.value || '3'
-          });
-        }
-      });
-
-      // Payload hash check to avoid duplicate calls with identical inputs
-      const currentHash = JSON.stringify({ curTitle, curTheme, curGen, curSpec, kpis });
+      // Payload hash check: depends only on title, theme, and objectives
+      const currentHash = JSON.stringify({ curTitle, curTheme, curGen, curSpec });
       if (!forced && currentHash === lastEvaluationHash && questionsList && questionsList.length > 0) {
         setEvaluationState('READY');
         return;
@@ -3522,6 +3754,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       }
       currentEvalAbortController = new AbortController();
       const requestId = ++currentEvalRequestId;
+      const requestManualVersion = manualEditVersion;
 
       isGeneratingEval = true;
       setEvaluationState('GENERATING');
@@ -3529,18 +3762,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       const payload = {
         title: curTitle,
         theme: curTheme,
-        source: (document.querySelector('[name="source"]')?.value || '').trim(),
-        target_participants: (document.querySelector('[name="target_participants"]')?.value || '').trim(),
-        event_date: (document.querySelector('[name="event_date"]')?.value || '').trim(),
-        start_time: (document.querySelector('[name="start_time"]')?.value || '').trim(),
-        end_time: (document.querySelector('[name="end_time"]')?.value || '').trim(),
-        venue: (document.querySelector('[name="venue"]')?.value || '').trim(),
-        venue_address: (document.querySelector('[name="venue_address"]')?.value || '').trim(),
-        involved_subjects: (document.querySelector('[name="involved_subjects"]')?.value || '').trim(),
-        rationale: (document.querySelector('[name="rationale"]')?.value || '').trim(),
         general_objectives: curGen,
-        specific_objectives: curSpec,
-        kpis: kpis
+        specific_objectives: curSpec
       };
 
       try {
@@ -3552,7 +3775,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         });
 
         // Stale check
-        if (requestId !== currentEvalRequestId || currentEvalAbortController.signal.aborted) {
+        if (requestId !== currentEvalRequestId || (currentEvalAbortController && currentEvalAbortController.signal.aborted) || manualEditVersion !== requestManualVersion || (!forced && isEvaluationEdited)) {
           return;
         }
 
@@ -3567,6 +3790,11 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         }
 
         if (data.success && Array.isArray(data.questions)) {
+          // Double check that request is still current and no manual question change occurred
+          if (requestId !== currentEvalRequestId || (currentEvalAbortController && currentEvalAbortController.signal.aborted) || manualEditVersion !== requestManualVersion || (!forced && isEvaluationEdited)) {
+            return;
+          }
+
           // Double check that title or theme didn't change while waiting
           const latestTitle = (titleEl?.value || '').trim();
           const latestTheme = (themeEl?.value || '').trim();
@@ -3586,7 +3814,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         }
       } catch (err) {
         if (err.name === 'AbortError') return;
-        if (requestId !== currentEvalRequestId) return;
+        if (requestId !== currentEvalRequestId || manualEditVersion !== requestManualVersion) return;
         console.warn('autoGenerateEvaluation error:', err);
         let errMsg = err.message || 'Unknown error';
         let isQuota = false;
@@ -3691,7 +3919,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           if (statusEl) {
             statusEl.style.display = 'block';
             statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#f0f9ff; color:#0369a1; border:1px solid #e0f2fe; margin-bottom:10px;';
-            statusEl.innerText = 'Complete your activity objectives to generate evaluation questions.';
+            statusEl.innerText = errorMsg || 'Please complete the activity title, theme, and objectives to generate evaluation questions.';
           }
           break;
         case 'GENERATING':
@@ -3788,6 +4016,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         return;
       }
       
+      cancelPendingEvaluationGeneration();
+      manualEditVersion++;
       questionsList[index] = {
         id: questionsList[index]?.id || `q_${Date.now()}_${index}`,
         question: textVal,
@@ -3805,6 +4035,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 
     function confirmDeleteQuestion(index) {
       if (confirm("Are you sure you want to delete this question?")) {
+        cancelPendingEvaluationGeneration();
+        manualEditVersion++;
         questionsList.splice(index, 1);
         isEvaluationEdited = true;
         renderQuestions();
@@ -3819,6 +4051,10 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         return;
       }
       
+      cancelPendingEvaluationGeneration();
+      manualEditVersion++;
+      isEvaluationEdited = true;
+
       questionsList.push({
         id: `q_${Date.now()}_${questionsList.length}`,
         question: '',
@@ -3830,7 +4066,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       editingIndex = questionsList.length - 1;
       renderQuestions();
       
-      const cardBody = document.querySelector('.proposal-eval-side-panel .card-body');
+      const cardBody = document.querySelector('#panel-9 .card-body') || document.querySelector('.proposal-eval-side-panel .card-body');
       if (cardBody) {
         setTimeout(() => {
           cardBody.scrollTop = cardBody.scrollHeight;
@@ -3856,10 +4092,10 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     }
 
     function setupEvaluationAutoUpdateListeners() {
-      // NOTE: [name="title"] and [name="theme"] are intentionally excluded here.
-      // Title and Theme trigger their own specific cascade coordinators.
+      // Evaluation questions depend solely on Title, Theme, and Objectives.
+      // Changes to KPI, rationale, target participants, and involved subjects do not trigger evaluation generation.
       const fields = [
-        '[name="rationale"]',
+        '[name="theme"]',
         '[name="general_objectives"]',
         '[name="specific_objectives"]'
       ];
@@ -3868,29 +4104,12 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         const el = document.querySelector(sel);
         if (el) {
           const handler = () => {
-            if (!isEvaluationEdited && typeof setEvaluationState === 'function') {
-              setEvaluationState('GENERATING');
-            }
             triggerAutomaticEvaluation(false);
           };
           el.addEventListener('input', handler);
           el.addEventListener('change', handler);
         }
       });
-      
-      const kpiContainer = document.getElementById('kpi-criteria') || document.getElementById('kpi-body');
-      if (kpiContainer) {
-        const kpiHandler = e => {
-          if (e.target.classList.contains('kpi-field') || e.target.name === 'kpi_criteria[]' || e.target.name === 'kpi_indicator[]' || e.target.name === 'kpi_rating[]' || e.target.name === 'kpi_target[]') {
-            if (!isEvaluationEdited && typeof setEvaluationState === 'function') {
-              setEvaluationState('GENERATING');
-            }
-            triggerAutomaticEvaluation(false);
-          }
-        };
-        kpiContainer.addEventListener('input', kpiHandler);
-        kpiContainer.addEventListener('change', kpiHandler);
-      }
     }
 
     // Modal preview controls
@@ -3945,6 +4164,97 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       if (modal) {
         modal.style.display = 'none';
         modal.classList.remove('show');
+      }
+    }
+
+    // ── Create Google Form Handler ──────────────────────────────────
+    let isCreatingGoogleForm = false;
+
+    async function handleCreateGoogleForm() {
+      if (isCreatingGoogleForm) return;
+
+      const btn = document.getElementById('btnCreateGoogleForm');
+      const spinner = document.getElementById('btnCreateGoogleFormSpinner');
+      const btnText = document.getElementById('btnCreateGoogleFormText');
+      const statusMsg = document.getElementById('googleFormStatusMessage');
+      const linkInput = document.getElementById('f9_eval_form_link');
+
+      function showStatus(text, type = 'error') {
+        if (!statusMsg) return;
+        statusMsg.style.display = 'block';
+        if (type === 'success') {
+          statusMsg.style.background = '#d1e7dd';
+          statusMsg.style.color = '#0f5132';
+          statusMsg.style.border = '1px solid #badbcc';
+          statusMsg.innerHTML = '✅ ' + text;
+        } else if (type === 'info') {
+          statusMsg.style.background = '#cff4fc';
+          statusMsg.style.color = '#055160';
+          statusMsg.style.border = '1px solid #b6effb';
+          statusMsg.innerHTML = 'ℹ️ ' + text;
+        } else {
+          statusMsg.style.background = '#fff3cd';
+          statusMsg.style.color = '#664d03';
+          statusMsg.style.border = '1px solid #ffecb5';
+          statusMsg.innerHTML = text;
+        }
+      }
+
+      // Prevent duplicate requests
+      isCreatingGoogleForm = true;
+      if (btn) btn.disabled = true;
+      if (spinner) spinner.style.display = 'inline-block';
+      if (btnText) btnText.textContent = 'Creating Form...';
+      if (statusMsg) statusMsg.style.display = 'none';
+
+      // Read activity ID if available
+      const actIdEl = document.getElementById('proposalActivityId') || document.querySelector('[name="activity_id"]');
+      const activityId = actIdEl && actIdEl.value ? parseInt(actIdEl.value, 10) : 0;
+
+      try {
+        const response = await fetch('<?= BASE_URL ?>/api/create-google-form.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ activity_id: activityId })
+        });
+
+        const data = await response.json().catch(() => null);
+
+        if (response.ok && data && data.success && (data.form_url || data.responder_uri)) {
+          const url = data.form_url || data.responder_uri;
+          if (linkInput) {
+            linkInput.value = url;
+            linkInput.classList.remove('is-invalid');
+            const errSpan = document.getElementById('e_eval_form_link');
+            if (errSpan) errSpan.style.display = 'none';
+          }
+          showStatus('Google Form created successfully! Link populated.', 'success');
+        } else {
+          // Handle response cleanly without exposing credentials or sensitive tokens
+          const errMsg = (data && data.error) ? String(data.error) : '';
+          if (errMsg.toLowerCase().includes('already been created') && (data.form_url || data.responder_uri)) {
+            if (linkInput && !linkInput.value) {
+              linkInput.value = data.form_url || data.responder_uri;
+            }
+            showStatus('A Google Form has already been created for this activity.', 'info');
+          } else if (errMsg.includes('Valid activity ID is required') || activityId <= 0) {
+            showStatus('⚠️ Please save this proposal as a draft first before creating a Google Form so your questions are stored.', 'warning');
+          } else if (errMsg.toLowerCase().includes('client id') || errMsg.toLowerCase().includes('configuration') || errMsg.toLowerCase().includes('token') || errMsg.toLowerCase().includes('googleoauth') || response.status === 500) {
+            showStatus('⚠️ Google Forms integration is not configured on this system. You can manually create a form and paste the link above.', 'warning');
+          } else {
+            showStatus('⚠️ Unable to create Google Form. Please paste your Google Form link manually.', 'warning');
+          }
+        }
+      } catch (err) {
+        showStatus('⚠️ Unable to connect to Google Forms service. Please paste your Google Form link manually.', 'warning');
+      } finally {
+        isCreatingGoogleForm = false;
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.style.display = 'none';
+        if (btnText) btnText.textContent = 'Create Google Form';
       }
     }
   </script>
@@ -4072,6 +4382,35 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         <div class="modal-footer" style="border-top: 1px solid var(--border); padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; width:100%;">
           <span style="font-size:0.75rem; color: var(--text-muted); font-style:italic;">* Submitting from preview is disabled</span>
           <button type="button" class="btn btn-outline" onclick="closePreviewModal()" style="font-size: 0.8rem; padding: 6px 14px; height:auto; line-height:1.2;">Close Preview</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- ── Floor Plan Requirement Modal ── -->
+  <div class="modal fade" id="floorPlanRequirementModal" tabindex="-1" aria-labelledby="fpReqModalLabel" aria-hidden="true" style="display:none; background:rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-dialog-centered" style="margin: 1.75rem auto; max-width: 520px;">
+      <div class="modal-content" style="border-radius:12px; overflow:hidden; border:none; box-shadow:0 12px 32px rgba(0,0,0,0.2); background:var(--bg-card, #fff);">
+        <div class="modal-header" style="padding: 16px 20px; border-bottom:1px solid var(--border, #e2e8f0); display:flex; align-items:center; justify-content:space-between;">
+          <h5 class="modal-title fw-bold" id="fpReqModalLabel" style="font-size:1.1rem; margin:0; display:flex; align-items:center; gap:8px; color:var(--text-main, #1e293b);">
+            🗺️ Floor Plan Requirement
+          </h5>
+          <button type="button" class="btn-close" onclick="closeFloorPlanRequirementModal()" aria-label="Close" style="background:none; border:none; font-size:1.3rem; color:var(--text-muted, #64748b); cursor:pointer; line-height:1;">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 24px 20px; color:var(--text-main, #334155);">
+          <p style="font-size:1.05rem; font-weight:600; margin-bottom:8px; color:var(--text-main, #1e293b);">
+            Does this activity require a physical floor plan?
+          </p>
+          <p style="font-size:0.875rem; color:var(--text-muted, #64748b); line-height:1.5; margin-bottom:0;">
+            Select <strong>Yes</strong> if this event needs venue layout, stage direction, seating arrangement, or room blueprints (you can upload a file or draw it online). Select <strong>No</strong> for online webinars or events without a physical venue setup.
+          </p>
+        </div>
+        <div class="modal-footer" style="padding: 14px 20px; border-top:1px solid var(--border, #e2e8f0); display:flex; justify-content:flex-end; gap:12px; background:var(--bg-base, #f8fafc);">
+          <button type="button" class="btn btn-outline" id="btnFpModalNo" onclick="handleFloorPlanChoice('no')" style="min-width:110px; font-weight:600;">
+            No
+          </button>
+          <button type="button" class="btn btn-primary" id="btnFpModalYes" onclick="handleFloorPlanChoice('yes')" style="min-width:110px; font-weight:600;">
+            Yes
+          </button>
         </div>
       </div>
     </div>
