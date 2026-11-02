@@ -1,7 +1,7 @@
 <?php
 // Usage: include with $role set to: faculty | admin1 | admin2 | dean
 $user = currentUser();
-$themeMap = ['faculty' => 'theme-faculty', 'admin1' => 'theme-arjay', 'admin2' => 'theme-ian', 'dean' => 'theme-dean'];
+$themeMap = ['faculty' => 'theme-faculty', 'admin1' => 'theme-arjay', 'admin2' => 'theme-ian', 'dean' => 'theme-dean', 'program_head' => 'theme-faculty'];
 $theme = $themeMap[$user['role']] ?? 'theme-faculty';
 $initial = strtoupper(substr($user['name'], 0, 1));
 
@@ -19,6 +19,25 @@ if (!function_exists('sidebarTimeAgo')) {
 }
 
 $navs = [
+  'program_head' => [
+    ['group' => 'Department Management', 'links' => [
+      ['icon' => 'home', 'label' => 'Dashboard', 'href' => BASE_URL . '/program_head/dashboard.php'],
+      ['icon' => 'plus-circle', 'label' => 'New Proposal', 'href' => BASE_URL . '/faculty/proposal-create.php'],
+      ['icon' => 'activity', 'label' => 'Department Activities', 'href' => BASE_URL . '/faculty/activities.php'],
+      ['icon' => 'inbox', 'label' => 'Pending Proposals', 'href' => BASE_URL . '/faculty/pending.php'],
+      ['icon' => 'check-circle', 'label' => 'Approved Activities', 'href' => BASE_URL . '/faculty/approved.php'],
+      ['icon' => 'x-circle', 'label' => 'Returned Proposals', 'href' => BASE_URL . '/faculty/returned.php'],
+    ]],
+    ['group' => 'Monitoring', 'links' => [
+      ['icon' => 'list', 'label' => 'Task Monitoring', 'href' => BASE_URL . '/faculty/tasks.php'],
+      ['icon' => 'calendar', 'label' => 'Calendar', 'href' => BASE_URL . '/faculty/calendar.php'],
+    ]],
+    ['group' => 'Post-Event', 'links' => [
+      ['icon' => 'upload', 'label' => 'Post-Event', 'href' => BASE_URL . '/faculty/post-event.php'],
+      ['icon' => 'bar-chart', 'label' => 'KPI and Evaluation Reports', 'href' => BASE_URL . '/faculty/kpi.php'],
+      ['icon' => 'file-text', 'label' => 'Generate Report', 'href' => BASE_URL . '/dean/generate-report.php'],
+    ]],
+  ],
   'faculty' => [
     ['group' => 'Activity Management', 'links' => [
       ['icon' => 'home', 'label' => 'Dashboard', 'href' => BASE_URL . '/faculty/dashboard.php'],
@@ -554,6 +573,11 @@ if (!function_exists('sidebarIcon')) {
     <div class="brand-container">
       <div class="brand">STI <span>Marikina</span></div>
       <div class="sub">Activity Management System</div>
+      <?php if (($user['role'] ?? '') === 'program_head' && !empty($user['dept'])): ?>
+        <div class="sidebar-dept-badge" style="font-size: 0.72rem; font-weight: 700; color: #0284c7; background: rgba(2,132,199,0.08); padding: 2px 8px; border-radius: 6px; margin-top: 4px; display: inline-block; border: 1px solid rgba(2,132,199,0.2);">
+          <?= htmlspecialchars($user['dept']) ?>
+        </div>
+      <?php endif; ?>
     </div>
     <div class="sidebar-toggle-container">
       <button type="button" id="sidebar-toggle-btn" class="sidebar-toggle" aria-label="Toggle sidebar">
@@ -605,7 +629,7 @@ if (!function_exists('sidebarIcon')) {
 
 <link rel="stylesheet" href="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/css/walkthrough.css">
 <script src="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/js/walkthrough.js"></script>
-<?php if (($user['role'] ?? '') === 'faculty'): ?>
+<?php if (in_array(($user['role'] ?? ''), ['faculty', 'program_head'], true)): ?>
 <script src="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/js/walkthrough-faculty.js"></script>
 <?php elseif (($user['role'] ?? '') === 'admin1'): ?>
 <script src="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/js/walkthrough-admin1.js"></script>

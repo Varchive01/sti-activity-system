@@ -5,7 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/ai/kpi_helper.php';
 require_once __DIR__ . '/../includes/compliance_helper.php';
-requireRole('dean', 'admin1', 'admin2', 'faculty');
+requireRole('dean', 'admin1', 'admin2', 'faculty', 'program_head');
 $user = currentUser();
 $db   = getDB();
 
@@ -31,6 +31,15 @@ if ($activityId > 0) {
     // Faculty can ONLY access if they own the activity AND the activity is completed
     if ($user['role'] === 'faculty') {
         if ((int)$activity['faculty_id'] !== (int)$user['id'] || $activity['status'] !== 'completed') {
+            http_response_code(403);
+            die("Access denied.");
+        }
+    }
+
+    // Program Head access check for individual report:
+    // Must have permission to view this activity in their department (or shared task)
+    if ($user['role'] === 'program_head') {
+        if (!canUserAccessActivity($activityId, 'view', (int)$user['id'], $user['role'], $user['dept'] ?? '')) {
             http_response_code(403);
             die("Access denied.");
         }
@@ -1434,7 +1443,7 @@ if ($activityId > 0) {
     exit;
 }
 
-// Mode B: Aggregate Institutional Report (Dean, Admin1, and Admin2 only)
+// Mode B: Aggregate Performance Report (Dean, Admin1, Admin2, and Program Head)
 if ($user['role'] === 'faculty') {
     http_response_code(403);
     die("Access denied.");
@@ -1447,6 +1456,18 @@ if (isset($_GET['year']) && (int)$_GET['year'] !== 2026) {
 $filterYear   = 2026;
 $filterStatus = sanitize($_GET['status'] ?? '');
 $filterSource = sanitize($_GET['source'] ?? '');
+$filterDept   = sanitize($_GET['department'] ?? 'all');
+
+// Program Head authorization: Force department filter strictly to their own assigned department
+// Reject or override any URL tampering
+if ($user['role'] === 'program_head') {
+    $filterDept = trim($user['dept'] ?? '');
+    if (empty($filterDept)) {
+        $uStmt = $db->prepare("SELECT department FROM users WHERE id = ? LIMIT 1");
+        $uStmt->execute([$user['id']]);
+        $filterDept = (string)$uStmt->fetchColumn();
+    }
+}
 
 $where = "1=1";
 $params = [];
@@ -1455,8 +1476,23 @@ $params[] = $filterYear;
 if ($filterStatus && $filterStatus !== 'all') { $where .= " AND a.status=?";             $params[] = $filterStatus; }
 if ($filterSource && $filterSource !== 'all') { $where .= " AND a.source=?";             $params[] = $filterSource; }
 
+// Department filter logic
+if ($filterDept && $filterDept !== 'all') {
+    $normDeptFilter = normalizeDepartmentName($filterDept);
+    if ($normDeptFilter === 'IT') {
+        $where .= " AND (u.department = 'IT Department' OR u.department LIKE '%IT%' OR u.department LIKE '%Information Technology%')";
+    } elseif ($normDeptFilter === 'THM') {
+        $where .= " AND (u.department = 'THM Department' OR u.department LIKE '%THM%' OR u.department LIKE '%Hospitality%' OR u.department LIKE '%Tourism%')";
+    } elseif ($normDeptFilter === 'GE') {
+        $where .= " AND (u.department = 'G.E. Department' OR u.department LIKE '%G.E%' OR u.department LIKE '%General Education%')";
+    } else {
+        $where .= " AND u.department = ?";
+        $params[] = $filterDept;
+    }
+}
+
 $acts = $db->prepare("
-    SELECT a.*, u.name as faculty_name,
+    SELECT a.*, u.name as faculty_name, u.department as department,
            pe.actual_attendance, pe.target_attendance, pe.satisfaction_score, pe.recommendations,
            AVG(k.rating) as avg_kpi
     FROM activities a
@@ -1532,6 +1568,97 @@ foreach ($sourceList as $srcKey => $srcLabel) {
         'avg_kpi'         => $srcAvgKpi,
         'avg_sat'         => $srcAvgSat,
     ];
+}
+
+// CSV Export Handler for Aggregate Report (?export=csv)
+if (strtolower((string)($_GET['export'] ?? '')) === 'csv') {
+    $deptSuffix = ($filterDept && $filterDept !== 'all') ? '_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $filterDept) : '_All_Departments';
+    $filename = 'Aggregate_KPI_Report_' . $filterYear . $deptSuffix . '_' . date('Ymd_His') . '.csv';
+
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+
+    $out = fopen('php://output', 'w');
+    // UTF-8 BOM
+    fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+
+    // 1. Header
+    fputcsv($out, ['STI College Marikina - Academic Activity Performance & KPI Report']);
+    fputcsv($out, ['Report Mode', ($user['role'] === 'program_head') ? 'Department Performance Report' : 'Aggregate Institutional Report']);
+    fputcsv($out, ['Academic Year', $filterYear]);
+    fputcsv($out, ['Department Scope', ($filterDept && $filterDept !== 'all') ? $filterDept : 'All Departments']);
+    fputcsv($out, ['Status Filter', ($filterStatus && $filterStatus !== 'all') ? ucfirst(str_replace('_', ' ', $filterStatus)) : 'All Statuses']);
+    fputcsv($out, ['Source Filter', ($filterSource && $filterSource !== 'all') ? ($sourceList[$filterSource] ?? ucfirst(str_replace('_', ' ', $filterSource))) : 'All Sources']);
+    fputcsv($out, ['Generated Date', date('Y-m-d H:i:s')]);
+    fputcsv($out, ['Generated By', ($user['name'] ?? 'Administrator') . ' (' . ($user['role'] ?? 'dean') . ')']);
+    fputcsv($out, []);
+
+    // 2. Summary Metrics
+    fputcsv($out, ['--- SUMMARY PERFORMANCE METRICS ---']);
+    fputcsv($out, ['Total Monitored Activities', $total]);
+    fputcsv($out, ['Completed Activities', $completedCount]);
+    fputcsv($out, ['Approved Activities', $approvedCount]);
+    fputcsv($out, ['Returned for Revision', $returnedCount]);
+    fputcsv($out, ['Rejected Activities', $rejectedCount]);
+    fputcsv($out, ['Execution Completion Rate', $completionRate]);
+    fputcsv($out, ['Total Target Attendance', $totalTarget]);
+    fputcsv($out, ['Total Actual Attendance', $totalAtt]);
+    fputcsv($out, ['Attendance Turnout Rate', $attendanceRate]);
+    fputcsv($out, ['Average KPI Achievement Score', $avgKpi !== null ? number_format($avgKpi, 2) . ' / 4.0' : 'No data']);
+    fputcsv($out, ['Average Participant Satisfaction', $avgSat !== null ? number_format($avgSat, 1) . ' / 5.0' : 'No data']);
+    fputcsv($out, []);
+
+    // 3. Source Breakdown
+    fputcsv($out, ['--- BREAKDOWN BY ACTIVITY SOURCE ---']);
+    fputcsv($out, ['Source', 'Total', 'Completed', 'Approved', 'Returned', 'Rejected', 'Completion Rate', 'Avg KPI / 4.0', 'Avg Satisfaction / 5.0']);
+    foreach ($sourceBreakdown as $sb) {
+        fputcsv($out, [
+            $sb['label'],
+            $sb['total'],
+            $sb['completed'],
+            $sb['approved'],
+            $sb['returned'],
+            $sb['rejected'],
+            $sb['completion_rate'],
+            $sb['avg_kpi'],
+            $sb['avg_sat']
+        ]);
+    }
+    fputcsv($out, []);
+
+    // 4. Detailed Activities
+    fputcsv($out, ['--- DETAILED ACTIVITIES ---']);
+    fputcsv($out, ['#', 'Activity Title', 'Department', 'Faculty In-Charge', 'Event Date', 'Status', 'Source', 'Target Attendance', 'Actual Attendance', 'Turnout %', 'Avg KPI / 4.0', 'Satisfaction / 5.0']);
+    if (empty($activities)) {
+        fputcsv($out, ['No activities found matching the specified criteria.']);
+    } else {
+        foreach ($activities as $idx => $a) {
+            $tAtt = (int)($a['target_attendance'] ?? 0);
+            $actAtt = $a['actual_attendance'] !== null ? (int)$a['actual_attendance'] : null;
+            $attPctStr = ($tAtt > 0 && $actAtt !== null) ? round(($actAtt / $tAtt) * 100) . '%' : 'No data';
+            $kpiStr = !empty($a['avg_kpi']) ? number_format((float)$a['avg_kpi'], 2) : 'No data';
+            $satStr = ($a['satisfaction_score'] !== null && $a['satisfaction_score'] !== '') ? number_format((float)$a['satisfaction_score'], 1) . '/5' : 'No data';
+            fputcsv($out, [
+                $idx + 1,
+                $a['title'],
+                $a['department'] ?? '',
+                $a['faculty_name'] ?? '',
+                $a['event_date'] ? date('M j, Y', strtotime($a['event_date'])) : 'N/A',
+                ucfirst(str_replace('_', ' ', $a['status'] ?? '')),
+                ucfirst(str_replace('_', ' ', $a['source'] ?? 'faculty')),
+                $tAtt ?: 'N/A',
+                $actAtt !== null ? $actAtt : 'N/A',
+                $attPctStr,
+                $kpiStr,
+                $satStr
+            ]);
+        }
+    }
+    fclose($out);
+    exit;
 }
 
 $years = [2026];
@@ -1841,7 +1968,7 @@ $years = [2026];
 </style>
 </head>
 <?php
-$themeMap = ['faculty' => 'theme-faculty', 'admin1' => 'theme-arjay', 'admin2' => 'theme-ian', 'dean' => 'theme-dean'];
+$themeMap = ['faculty' => 'theme-faculty', 'program_head' => 'theme-program-head', 'admin1' => 'theme-arjay', 'admin2' => 'theme-ian', 'dean' => 'theme-dean'];
 $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
 ?>
 <body class="<?= $bodyTheme ?>">
@@ -1852,6 +1979,7 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
     <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
       <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
       <button class="btn btn-primary print-btn" id="exportPdfBtn" onclick="exportReportToPdf()">📄 Export PDF</button>
+      <a href="?year=<?= $filterYear ?>&department=<?= urlencode($filterDept) ?>&status=<?= urlencode($filterStatus) ?>&source=<?= urlencode($filterSource) ?>&export=csv" class="btn btn-outline" style="white-space:nowrap;">📊 Export CSV</a>
       <!-- User Profile Control -->
       <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
     </div>
@@ -1867,6 +1995,20 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
           <option value="<?= $y ?>" <?= $filterYear===$y?'selected':'' ?>><?= $y ?></option>
           <?php endforeach; ?>
         </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Department</label>
+        <?php if ($user['role'] === 'program_head'): ?>
+          <input type="text" class="form-control" value="<?= htmlspecialchars($user['dept']) ?>" readonly disabled style="background:var(--bg-base);cursor:not-allowed;">
+          <input type="hidden" name="department" value="<?= htmlspecialchars($user['dept']) ?>">
+        <?php else: ?>
+          <select name="department" class="form-control">
+            <option value="all" <?= ($filterDept === 'all' || empty($filterDept)) ? 'selected' : '' ?>>All Departments</option>
+            <option value="IT Department" <?= ($filterDept === 'IT Department' || $filterDept === 'IT') ? 'selected' : '' ?>>IT Department</option>
+            <option value="G.E. Department" <?= ($filterDept === 'G.E. Department' || $filterDept === 'GE') ? 'selected' : '' ?>>G.E. Department</option>
+            <option value="THM Department" <?= ($filterDept === 'THM Department' || $filterDept === 'THM') ? 'selected' : '' ?>>THM Department</option>
+          </select>
+        <?php endif; ?>
       </div>
       <div class="form-group">
         <label class="form-label">Status</label>
@@ -1886,17 +2028,23 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
         </select>
       </div>
       <button type="submit" class="btn btn-primary">Apply Filters</button>
-      <a href="generate-report.php?year=2026" class="btn btn-outline">Reset</a>
+      <a href="generate-report.php?year=2026<?= $user['role'] === 'program_head' ? '&department=' . urlencode($filterDept) : '' ?>" class="btn btn-outline">Reset</a>
     </form>
 
     <!-- Formal Report Header (Visible on screen and in print) -->
     <div class="report-print-header" style="margin-bottom:22px; padding-bottom:16px; border-bottom:2px solid var(--sti-blue, #0284C7);">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
         <div>
-          <div style="font-size:0.75rem; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--sti-blue, #0284C7); margin-bottom:4px;">STI College Marikina · Office of the Dean</div>
-          <div class="report-title" style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.4rem; font-weight:800; color:var(--text-main); line-height:1.25;">Institutional Activity Performance and Compliance Report</div>
+          <div style="font-size:0.75rem; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--sti-blue, #0284C7); margin-bottom:4px;">
+            <?= ($user['role'] === 'program_head') ? 'STI College Marikina · ' . htmlspecialchars($user['dept'] ?: 'Department Head Office') : 'STI College Marikina · Office of the Dean' ?>
+          </div>
+          <div class="report-title" style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.4rem; font-weight:800; color:var(--text-main); line-height:1.25;">
+            <?= ($user['role'] === 'program_head') ? 'Department Activity Performance and KPI Report' : 'Institutional Activity Performance and Compliance Report' ?>
+          </div>
           <div class="report-meta text-sm text-muted" style="margin-top:6px;">
             <span><strong>Reporting Year:</strong> CY <?= $filterYear ?></span>
+            <span style="margin:0 8px;">·</span>
+            <span><strong>Department Scope:</strong> <?= ($filterDept && $filterDept !== 'all') ? htmlspecialchars($filterDept) : 'All Departments' ?></span>
             <span style="margin:0 8px;">·</span>
             <span><strong>Status Filter:</strong> <?= ($filterStatus && $filterStatus !== 'all') ? ucfirst(str_replace('_',' ',$filterStatus)) : 'All Statuses' ?></span>
             <span style="margin:0 8px;">·</span>
@@ -2048,6 +2196,7 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
               <tr>
                 <th>#</th>
                 <th>Activity Title & Venue</th>
+                <th>Department</th>
                 <th>Responsible Faculty</th>
                 <th>Date</th>
                 <th>Source</th>
@@ -2059,7 +2208,7 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
             </thead>
             <tbody>
             <?php if (empty($activities)): ?>
-            <tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);">No activities match the selected filters.</td></tr>
+            <tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);">No activities match the selected filters.</td></tr>
             <?php else: foreach ($activities as $i=>$a):
               $attPct = $a['target_attendance'] > 0 ? round(($a['actual_attendance']/$a['target_attendance'])*100) : null;
             ?>
@@ -2067,6 +2216,7 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
               <td class="text-muted"><?= $i+1 ?></td>
               <td><strong><?= htmlspecialchars($a['title']) ?></strong><br>
                 <?php if ($a['venue']): ?><span class="text-sm text-muted"><?= htmlspecialchars($a['venue']) ?></span><?php endif; ?></td>
+              <td><?= htmlspecialchars($a['department'] ?? '—') ?></td>
               <td><?= htmlspecialchars($a['faculty_name']) ?></td>
               <td><?= $a['event_date'] ? date('M j, Y',strtotime($a['event_date'])) : '—' ?></td>
               <td><span class="badge badge-secondary"><?= ucfirst(str_replace('_',' ',$a['source'])) ?></span></td>
@@ -2331,10 +2481,11 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
 $reportSummaryText = "During Calendar Year {$filterYear}, a total of {$total} " . ($total === 1 ? 'activity was' : 'activities were') . " tracked in STI-ARMES under the selected criteria. The institutional execution pipeline achieved an overall {$completionRate} completion rate, with registered activities reaching an attendance turnout of {$attendanceRate}. Average KPI rating is " . ($avgKpi !== null ? number_format($avgKpi, 2) . '/4.0' : 'No data') . " and participant satisfaction score stands at " . ($avgSat !== null ? number_format($avgSat, 2) . ' / 5.0' : 'No data') . ".";
 
 $reportPdfData = [
-    'title' => 'Institutional Activity Performance and Compliance Report',
+    'title' => ($user['role'] === 'program_head') ? 'Department Activity Performance and KPI Report' : 'Institutional Activity Performance and Compliance Report',
     'system_name' => 'STI Activity & Resource Management System (STI-ARMES)',
-    'institution' => 'STI College Marikina · Office of the Dean',
+    'institution' => ($user['role'] === 'program_head') ? 'STI College Marikina · ' . ($user['dept'] ?: 'Department Head Office') : 'STI College Marikina · Office of the Dean',
     'year' => (string)$filterYear,
+    'department_filter' => ($filterDept && $filterDept !== 'all') ? $filterDept : 'All Departments',
     'status_filter' => ($filterStatus && $filterStatus !== 'all') ? ucfirst(str_replace('_',' ',$filterStatus)) : 'All Statuses',
     'source_filter' => ($filterSource && $filterSource !== 'all') ? ($sourceList[$filterSource] ?? ucfirst(str_replace('_',' ',$filterSource))) : 'All Sources',
     'generated_at' => date('F j, Y g:i A'),
@@ -2480,7 +2631,7 @@ function exportReportToPdf() {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  const metaText = 'Reporting Year: CY ' + REPORT_PDF_DATA.year + '   |   Status: ' + REPORT_PDF_DATA.status_filter + '   |   Source: ' + REPORT_PDF_DATA.source_filter + '   |   Generated: ' + REPORT_PDF_DATA.generated_at + '   |   Preparer: ' + REPORT_PDF_DATA.preparer_name + ' (' + REPORT_PDF_DATA.preparer_role + ')';
+  const metaText = 'Reporting Year: CY ' + REPORT_PDF_DATA.year + '   |   Department: ' + (REPORT_PDF_DATA.department_filter || 'All Departments') + '   |   Status: ' + REPORT_PDF_DATA.status_filter + '   |   Source: ' + REPORT_PDF_DATA.source_filter + '   |   Generated: ' + REPORT_PDF_DATA.generated_at + '   |   Preparer: ' + REPORT_PDF_DATA.preparer_name + ' (' + REPORT_PDF_DATA.preparer_role + ')';
   doc.text(metaText, marginX, currentY);
   currentY += 3;
 

@@ -26,7 +26,7 @@ if (empty($_SESSION['user_id'])) {
 }
 
 $user = currentUser();
-if (!in_array($user['role'], ['dean', 'admin1', 'admin2', 'faculty'], true)) {
+if (!in_array($user['role'], ['dean', 'admin1', 'admin2', 'faculty', 'program_head'], true)) {
     http_response_code(403);
     echo json_encode(['error' => 'Unauthorized access.']);
     exit;
@@ -52,10 +52,10 @@ if (!$activity) {
     exit;
 }
 
-// Faculty can only access KPI results for their own activities
-if ($user['role'] === 'faculty' && (int)$activity['faculty_id'] !== (int)$user['id']) {
+// Verify access
+if (!canUserAccessActivity($activityId, 'view', $user['id'], $user['role'], $user['dept'])) {
     http_response_code(403);
-    echo json_encode(['error' => 'Unauthorized. You can only view KPI analytics for your own activities.']);
+    echo json_encode(['error' => 'Unauthorized. You do not have permission to view KPI analytics for this activity.']);
     exit;
 }
 

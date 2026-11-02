@@ -4,111 +4,142 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/QrCodeService.php';
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 $user = currentUser();
 $db   = getDB();
 $id   = (int)($_GET['id'] ?? 0);
 
-$act = $db->prepare("SELECT a.*,u.name as faculty_name FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.id=? AND a.faculty_id=?");
-$act->execute([$id, $user['id']]);
+$act = $db->prepare("SELECT a.*,u.name as faculty_name FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.id=?");
+$act->execute([$id]);
 $activity = $act->fetch();
-if (!$activity) { header('Location: '.BASE_URL.'/faculty/activities.php'); exit; }
+if (!$activity) {
+  header('Location: ' . BASE_URL . '/faculty/activities.php');
+  exit;
+}
+if (!canUserAccessActivity($id, 'view', $user['id'], $user['role'], $user['dept'])) {
+  http_response_code(403);
+  die('Unauthorized access: You do not have permission to view this proposal.');
+}
 
-$mats = $db->prepare("SELECT * FROM materials WHERE activity_id=?"); $mats->execute([$id]); $materials=$mats->fetchAll();
-$prog = $db->prepare("SELECT * FROM program_sequence WHERE activity_id=? ORDER BY sort_order"); $prog->execute([$id]); $program=$prog->fetchAll();
-$mp   = $db->prepare("SELECT * FROM manpower WHERE activity_id=?"); $mp->execute([$id]); $manpower=$mp->fetchAll();
-$sc   = $db->prepare("SELECT * FROM schedules WHERE activity_id=?"); $sc->execute([$id]); $schedules=$sc->fetchAll();
-$gl   = $db->prepare("SELECT * FROM guidelines WHERE activity_id=?"); $gl->execute([$id]); $guidelines=$gl->fetch();
-$ft   = $db->prepare("SELECT ft.*, u.name as assigned_user_name FROM faculty_tasks ft LEFT JOIN users u ON ft.assigned_user_id = u.id WHERE ft.activity_id=? ORDER BY ft.id ASC"); $ft->execute([$id]); $ftasks=$ft->fetchAll();
-$fp   = $db->prepare("SELECT * FROM floor_plans WHERE activity_id=?"); $fp->execute([$id]); $floorplan=$fp->fetch();
-$kpiStmt = $db->prepare("SELECT * FROM kpi_evaluations WHERE activity_id=?"); $kpiStmt->execute([$id]); $kpis=$kpiStmt->fetchAll();
+// Collaborative Proposal Data (Task 14)
+$collaborators = getProposalCollaborators($id, $db);
+$contributionLogs = getProposalContributionLogs($id, 25, $db);
+$canEditProposal = in_array($activity['status'], ['draft', 'returned_for_revision']) && canUserAccessActivity($id, 'modify', $user['id'], $user['role'], $user['dept']);
 
-$logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON al.reviewer_id=u.id WHERE al.activity_id=? ORDER BY al.acted_at DESC"); $logs->execute([$id]); $history=$logs->fetchAll();
+$mats = $db->prepare("SELECT * FROM materials WHERE activity_id=?");
+$mats->execute([$id]);
+$materials = $mats->fetchAll();
+$prog = $db->prepare("SELECT * FROM program_sequence WHERE activity_id=? ORDER BY sort_order");
+$prog->execute([$id]);
+$program = $prog->fetchAll();
+$mp   = $db->prepare("SELECT * FROM manpower WHERE activity_id=?");
+$mp->execute([$id]);
+$manpower = $mp->fetchAll();
+$sc   = $db->prepare("SELECT * FROM schedules WHERE activity_id=?");
+$sc->execute([$id]);
+$schedules = $sc->fetchAll();
+$gl   = $db->prepare("SELECT * FROM guidelines WHERE activity_id=?");
+$gl->execute([$id]);
+$guidelines = $gl->fetch();
+$ft   = $db->prepare("SELECT ft.*, u.name as assigned_user_name FROM faculty_tasks ft LEFT JOIN users u ON ft.assigned_user_id = u.id WHERE ft.activity_id=? ORDER BY ft.id ASC");
+$ft->execute([$id]);
+$ftasks = $ft->fetchAll();
+$fp   = $db->prepare("SELECT * FROM floor_plans WHERE activity_id=?");
+$fp->execute([$id]);
+$floorplan = $fp->fetch();
+$kpiStmt = $db->prepare("SELECT * FROM kpi_evaluations WHERE activity_id=?");
+$kpiStmt->execute([$id]);
+$kpis = $kpiStmt->fetchAll();
+
+$logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON al.reviewer_id=u.id WHERE al.activity_id=? ORDER BY al.acted_at DESC");
+$logs->execute([$id]);
+$history = $logs->fetchAll();
 
 // Prepare structured proposal data for client-side jsPDF export
 $proposalPdfData = [
-    'id' => (int)$activity['id'],
-    'title' => $activity['title'] ?? 'Untitled Proposal',
-    'status' => ucfirst(str_replace('_', ' ', $activity['status'] ?? 'draft')),
-    'proponent' => $activity['faculty_name'] ?? 'Faculty Proponent',
-    'source' => ucfirst(str_replace('_', ' ', $activity['source'] ?? '')),
-    'event_date' => $activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—',
-    'time' => (($activity['start_time'] ?? '—') . ' – ' . ($activity['end_time'] ?? '—')),
-    'venue' => $activity['venue'] ?? '—',
-    'theme' => $activity['theme'] ?? '—',
-    'target_participants' => number_format((int)($activity['target_participants'] ?? 0)) . ' participants',
-    'revision_notes' => $activity['revision_notes'] ?? '',
-    'general_objectives' => $activity['general_objectives'] ?? '',
-    'specific_objectives' => $activity['specific_objectives'] ?? '',
-    'involved_subjects' => $activity['involved_subjects'] ?? '',
-    'rationale' => $activity['rationale'] ?? '',
-    'materials' => array_map(function($m) {
-        return [
-            $m['item_name'] ?? '',
-            $m['description'] ?? '—',
-            (string)($m['quantity'] ?? 0),
-            $m['provider'] ?? '—',
-            'PHP ' . number_format((float)($m['est_cost'] ?? 0), 2)
-        ];
-    }, $materials),
-    'manpower' => array_map(function($m) {
-        return [
-            $m['role'] ?? '',
-            $m['assigned_person'] ?? '—',
-            ucfirst($m['type'] ?? '')
-        ];
-    }, $manpower),
-    'schedules' => array_map(function($s) {
-        return [
-            $s['sched_date'] ?? '',
-            $s['event_name'] ?? '',
-            $s['venue'] ?? '—',
-            $s['organizer'] ?? '—'
-        ];
-    }, $schedules),
-    'program' => array_map(function($p) {
-        return [
-            $p['time_slot'] ?? '',
-            $p['segment'] ?? '',
-            $p['description'] ?? '—',
-            $p['person_ic'] ?? '—'
-        ];
-    }, $program),
-    'guidelines' => array_filter([
-        'Mechanics' => $guidelines['mechanics'] ?? '',
-        'Criteria for Judging' => $guidelines['criteria'] ?? '',
-        'Scoring System' => $guidelines['scoring_system'] ?? '',
-        'Special Awards' => $guidelines['special_awards'] ?? ''
-    ]),
-    'tasks' => array_map(function($f) {
-        return [
-            $f['task_title'] ?: ($f['assigned_task'] ?: 'Untitled Task'),
-            $f['committee'] ?: '—',
-            $f['assigned_user_name'] ?: ($f['faculty_name'] ?: '—'),
-            $f['role_in_event'] ?: '—',
-            !empty($f['due_date']) ? date('M j, Y', strtotime($f['due_date'])) : '—',
-            $f['status'] ?? 'Not Started'
-        ];
-    }, $ftasks),
-    'kpis' => array_map(function($k) {
-        return [
-            $k['criteria'] ?? '',
-            $k['target_value'] ?? ($k['target_metric'] ?? '—'),
-            $k['evaluation_method'] ?? '—'
-        ];
-    }, $kpis),
-    'history' => array_map(function($h) {
-        return [
-            $h['name'] ?? 'Reviewer',
-            ucfirst(str_replace('_', ' ', $h['action'] ?? '')),
-            $h['notes'] ?? '—',
-            date('M j, Y g:i A', strtotime($h['acted_at']))
-        ];
-    }, $history)
+  'id' => (int)$activity['id'],
+  'title' => $activity['title'] ?? 'Untitled Proposal',
+  'status' => ucfirst(str_replace('_', ' ', $activity['status'] ?? 'draft')),
+  'proponent' => $activity['faculty_name'] ?? 'Faculty Proponent',
+  'source' => ucfirst(str_replace('_', ' ', $activity['source'] ?? '')),
+  'event_date' => $activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—',
+  'time' => (($activity['start_time'] ?? '—') . ' – ' . ($activity['end_time'] ?? '—')),
+  'venue' => $activity['venue'] ?? '—',
+  'theme' => $activity['theme'] ?? '—',
+  'target_participants' => number_format((int)($activity['target_participants'] ?? 0)) . ' participants',
+  'revision_notes' => $activity['revision_notes'] ?? '',
+  'general_objectives' => $activity['general_objectives'] ?? '',
+  'specific_objectives' => $activity['specific_objectives'] ?? '',
+  'involved_subjects' => $activity['involved_subjects'] ?? '',
+  'rationale' => $activity['rationale'] ?? '',
+  'materials' => array_map(function ($m) {
+    return [
+      $m['item_name'] ?? '',
+      $m['description'] ?? '—',
+      (string)($m['quantity'] ?? 0),
+      $m['provider'] ?? '—',
+      'PHP ' . number_format((float)($m['est_cost'] ?? 0), 2)
+    ];
+  }, $materials),
+  'manpower' => array_map(function ($m) {
+    return [
+      $m['role'] ?? '',
+      $m['assigned_person'] ?? '—',
+      ucfirst($m['type'] ?? '')
+    ];
+  }, $manpower),
+  'schedules' => array_map(function ($s) {
+    return [
+      $s['sched_date'] ?? '',
+      $s['event_name'] ?? '',
+      $s['venue'] ?? '—',
+      $s['organizer'] ?? '—'
+    ];
+  }, $schedules),
+  'program' => array_map(function ($p) {
+    return [
+      $p['time_slot'] ?? '',
+      $p['segment'] ?? '',
+      $p['description'] ?? '—',
+      $p['person_ic'] ?? '—'
+    ];
+  }, $program),
+  'guidelines' => array_filter([
+    'Mechanics' => $guidelines['mechanics'] ?? '',
+    'Criteria for Judging' => $guidelines['criteria'] ?? '',
+    'Scoring System' => $guidelines['scoring_system'] ?? '',
+    'Special Awards' => $guidelines['special_awards'] ?? ''
+  ]),
+  'tasks' => array_map(function ($f) {
+    return [
+      $f['task_title'] ?: ($f['assigned_task'] ?: 'Untitled Task'),
+      $f['committee'] ?: '—',
+      $f['assigned_user_name'] ?: ($f['faculty_name'] ?: '—'),
+      $f['role_in_event'] ?: '—',
+      !empty($f['due_date']) ? date('M j, Y', strtotime($f['due_date'])) : '—',
+      $f['status'] ?? 'Not Started'
+    ];
+  }, $ftasks),
+  'kpis' => array_map(function ($k) {
+    return [
+      $k['criteria'] ?? '',
+      $k['target_value'] ?? ($k['target_metric'] ?? '—'),
+      $k['evaluation_method'] ?? '—'
+    ];
+  }, $kpis),
+  'history' => array_map(function ($h) {
+    return [
+      $h['name'] ?? 'Reviewer',
+      ucfirst(str_replace('_', ' ', $h['action'] ?? '')),
+      $h['notes'] ?? '—',
+      date('M j, Y g:i A', strtotime($h['acted_at']))
+    ];
+  }, $history)
 ];
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -132,7 +163,12 @@ $proposalPdfData = [
   <style>
     /* ── Consistent Typography: Plus Jakarta Sans Only ── */
     body,
-    h1, h2, h3, h4, h5, h6,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
     .page-title,
     .card-header h2,
     .card-header h3,
@@ -142,7 +178,11 @@ $proposalPdfData = [
     .topbar-user-role,
     .info-tile,
     .detail-table,
-    label, input, button, select, textarea {
+    label,
+    input,
+    button,
+    select,
+    textarea {
       font-family: 'Plus Jakarta Sans', sans-serif !important;
     }
 
@@ -449,15 +489,41 @@ $proposalPdfData = [
 
     /* Print styles */
     @media print {
-      .no-print, .sidebar, .topbar { display: none !important; }
-      .main-wrap { margin-left: 0 !important; width: 100% !important; }
-      .content { padding: 0 !important; }
-      .evaluation-qr-section { page-break-inside: avoid; break-inside: avoid; display: flex !important; }
-      .qr-container { border: 1px solid #000 !important; box-shadow: none !important; }
-      .card { box-shadow: none !important; border: 1px solid #ccc !important; }
+
+      .no-print,
+      .sidebar,
+      .topbar {
+        display: none !important;
+      }
+
+      .main-wrap {
+        margin-left: 0 !important;
+        width: 100% !important;
+      }
+
+      .content {
+        padding: 0 !important;
+      }
+
+      .evaluation-qr-section {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        display: flex !important;
+      }
+
+      .qr-container {
+        border: 1px solid #000 !important;
+        box-shadow: none !important;
+      }
+
+      .card {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+      }
     }
   </style>
 </head>
+
 <body class="theme-faculty">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 <div class="main-wrap">
@@ -469,7 +535,7 @@ $proposalPdfData = [
       <button type="button" id="exportPdfBtn" class="btn btn-outline btn-sm" onclick="exportProposalPdf()" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
         📄 Export PDF
       </button>
-      <?php if (in_array($activity['status'],['draft','returned_for_revision'])): ?>
+      <?php if ($canEditProposal): ?>
       <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= $id ?>" class="btn btn-primary btn-sm">Edit Proposal</a>
       <?php endif; ?>
       <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
@@ -480,837 +546,1178 @@ $proposalPdfData = [
 
   <div class="content">
     <?php if ($activity['revision_notes']): ?>
-    <div class="alert alert-warning" style="margin-bottom: 20px; border-radius: 12px; padding: 14px 18px; border: 1px solid rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.08); display: flex; align-items: flex-start; gap: 10px;">
-      <span style="font-size: 1.1rem; line-height: 1;">⚠️</span>
-      <div>
-        <strong style="color: var(--warning, #F59E0B); display: block; margin-bottom: 2px;">Revision Notes</strong>
-        <span style="color: var(--text-main); font-size: 0.88rem;"><?= htmlspecialchars($activity['revision_notes']) ?></span>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Main Activity Information -->
-    <div class="card">
-      <div class="card-header">
-        <h2>
-          <span><?= htmlspecialchars($activity['title']) ?></span>
-          <?= getStatusBadge($activity['status']) ?>
-        </h2>
+      <div class="alert alert-warning" style="margin-bottom: 20px; border-radius: 12px; padding: 14px 18px; border: 1px solid rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.08); display: flex; align-items: flex-start; gap: 10px;">
+        <span style="font-size: 1.1rem; line-height: 1;">⚠️</span>
         <div>
-          <button type="button" class="btn btn-outline btn-sm" onclick="exportProposalPdf()" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
-            📄 Export PDF
-          </button>
+          <strong style="color: var(--warning, #F59E0B); display: block; margin-bottom: 2px;">Revision Notes</strong>
+          <span style="color: var(--text-main); font-size: 0.88rem;"><?= htmlspecialchars($activity['revision_notes']) ?></span>
         </div>
       </div>
-      <div class="card-body">
-        <div class="info-grid">
-          <?php foreach([
-            'Date'=>$activity['event_date'] ? date('F j, Y',strtotime($activity['event_date'])) : '—',
-            'Time'=>($activity['start_time']??'—') . ' – ' . ($activity['end_time']??'—'),
-            'Venue'=>$activity['venue']??'—',
-            'Theme'=>$activity['theme']??'—',
-            'Source'=>ucfirst(str_replace('_',' ',$activity['source'])),
-            'Target'=>number_format($activity['target_participants']).' participants',
-          ] as $label=>$val): ?>
-          <div class="info-tile">
-            <div class="lbl"><?= $label ?></div>
-            <div class="val"><?= htmlspecialchars($val) ?></div>
+    <?php endif; ?>
+
+      <!-- Main Activity Information -->
+      <div class="card">
+        <div class="card-header">
+          <h2>
+            <span><?= htmlspecialchars($activity['title']) ?></span>
+            <?= getStatusBadge($activity['status']) ?>
+          </h2>
+          <div>
+            <button type="button" class="btn btn-outline btn-sm" onclick="exportProposalPdf()" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+              📄 Export PDF
+            </button>
           </div>
-          <?php endforeach; ?>
         </div>
-      </div>
-    </div>
-
-    <!-- Objectives & Academic Alignment -->
-    <div class="card">
-      <div class="card-header">
-        <h2>Objectives & Academic Alignment</h2>
-      </div>
-      <div class="card-body">
-        <div class="obj-block">
-          <div class="obj-lbl">General Objectives</div>
-          <div class="obj-val"><?= nl2br(htmlspecialchars($activity['general_objectives']??'—')) ?></div>
-        </div>
-        <div class="obj-block">
-          <div class="obj-lbl">Specific Objectives</div>
-          <div class="obj-val"><?= nl2br(htmlspecialchars($activity['specific_objectives']??'—')) ?></div>
-        </div>
-        <?php if (!empty($activity['involved_subjects'])): ?>
-        <div class="obj-block">
-          <div class="obj-lbl">Involved Subjects</div>
-          <div class="obj-val"><?= htmlspecialchars($activity['involved_subjects']) ?></div>
-        </div>
-        <?php endif; ?>
-        <?php if (!empty($activity['rationale'])): ?>
-        <div class="obj-block">
-          <div class="obj-lbl">Rationale</div>
-          <div class="obj-val"><?= nl2br(htmlspecialchars($activity['rationale'])) ?></div>
-        </div>
-        <?php endif; ?>
-      </div>
-    </div>
-
-    <!-- Materials Needed -->
-    <?php if (!empty($materials)): ?>
-    <div class="card">
-      <div class="card-header">
-        <h2>Materials Needed</h2>
-        <span class="badge badge-secondary"><?= count($materials) ?> item<?= count($materials)>1?'s':'' ?></span>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <div class="table-wrap">
-          <table class="detail-table">
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Description</th>
-                <th style="text-align:center;">Qty</th>
-                <th>Provider</th>
-                <th style="text-align:right;">Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach($materials as $m): ?>
-              <tr>
-                <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($m['item_name']) ?></td>
-                <td style="color:var(--text-muted);"><?= htmlspecialchars($m['description']??'—') ?></td>
-                <td style="text-align:center; font-weight:600;"><?= $m['quantity'] ?></td>
-                <td><?= htmlspecialchars($m['provider']??'—') ?></td>
-                <td style="text-align:right; font-weight:600; color:var(--text-main);">₱<?= number_format($m['est_cost'], 2) ?></td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Event Poster -->
-    <?php if (!empty($activity['poster_path'])): ?>
-    <?php 
-      $posterUrl = str_starts_with($activity['poster_path'], 'http') 
-          ? $activity['poster_path'] 
-          : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=poster';
-    ?>
-    <div class="card">
-      <div class="card-header">
-        <h2>Event Poster</h2>
-      </div>
-      <div class="card-body" style="text-align:center; padding: 24px; background: var(--bg-base);">
-        <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank" style="display:inline-block;">
-          <img src="<?= htmlspecialchars($posterUrl) ?>" alt="Event Poster" style="max-width: 100%; max-height: 500px; border-radius: 10px; border: 1px solid var(--border); box-shadow: var(--shadow-sm);">
-        </a>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Floor Plan -->
-    <?php if ($floorplan): ?>
-    <div class="card">
-      <div class="card-header">
-        <h2>Floor Plan</h2>
-      </div>
-      <div class="card-body">
-        <?php
-          $floorsList = [];
-          if (!empty($floorplan['canvas_json'])) {
-              $parsedFp = json_decode($floorplan['canvas_json'], true);
-              if ($parsedFp && !empty($parsedFp['floors'])) {
-                  foreach ($parsedFp['floors'] as $fKey => $fVal) {
-                      $floorsList[] = $fVal['name'] ?? ucfirst($fKey) . ' Floor';
-                  }
-              }
-          }
-          if (empty($floorsList) && (!empty($floorplan['file_path']) || !empty($floorplan['canvas_json']))) {
-              $floorsList = ['Ground Floor'];
-          }
-        ?>
-        <?php if (!empty($floorsList)): ?>
-          <div style="margin-bottom:14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <span style="font-size:0.8rem; font-weight:600; color:var(--text-muted);">Included Floors:</span>
-            <?php foreach ($floorsList as $flName): ?>
-              <span class="floor-badge">🏢 <?= htmlspecialchars($flName) ?></span>
+        <div class="card-body">
+          <div class="info-grid">
+            <?php foreach (
+              [
+                'Date' => $activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—',
+                'Time' => ($activity['start_time'] ?? '—') . ' – ' . ($activity['end_time'] ?? '—'),
+                'Venue' => $activity['venue'] ?? '—',
+                'Theme' => $activity['theme'] ?? '—',
+                'Source' => ucfirst(str_replace('_', ' ', $activity['source'])),
+                'Target' => number_format($activity['target_participants']) . ' participants',
+              ] as $label => $val
+            ): ?>
+              <div class="info-tile">
+                <div class="lbl"><?= $label ?></div>
+                <div class="val"><?= htmlspecialchars($val) ?></div>
+              </div>
             <?php endforeach; ?>
           </div>
-        <?php endif; ?>
-        <?php if (!empty($floorplan['file_path'])): ?>
-          <?php 
-            $fpUrl = str_starts_with($floorplan['file_path'], 'http') 
-                ? $floorplan['file_path'] 
-                : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=floorplan';
-            $ext = strtolower(pathinfo($floorplan['file_path'], PATHINFO_EXTENSION));
-            $isImg = in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp']);
-          ?>
-          <?php if ($isImg): ?>
-            <div style="margin-bottom:14px; text-align:center; padding:16px; background:var(--bg-base); border-radius:10px; border:1px solid var(--border);">
-              <img src="<?= htmlspecialchars($fpUrl) ?>" style="max-width:100%; max-height:480px; border-radius:8px; object-fit:contain;" alt="Floor Plan">
+        </div>
+      </div>
+
+      <!-- Objectives & Academic Alignment -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Objectives & Academic Alignment</h2>
+        </div>
+        <div class="card-body">
+          <div class="obj-block">
+            <div class="obj-lbl">General Objectives</div>
+            <div class="obj-val"><?= nl2br(htmlspecialchars($activity['general_objectives'] ?? '—')) ?></div>
+          </div>
+          <div class="obj-block">
+            <div class="obj-lbl">Specific Objectives</div>
+            <div class="obj-val"><?= nl2br(htmlspecialchars($activity['specific_objectives'] ?? '—')) ?></div>
+          </div>
+          <?php if (!empty($activity['involved_subjects'])): ?>
+            <div class="obj-block">
+              <div class="obj-lbl">Involved Subjects</div>
+              <div class="obj-val"><?= htmlspecialchars($activity['involved_subjects']) ?></div>
             </div>
           <?php endif; ?>
-          <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm">📎 View Full Floor Plan Image</a>
-        <?php endif; ?>
-        <?php if (!empty($floorplan['notes'])): ?>
-          <div class="obj-block" style="margin-top:14px;">
-            <div class="obj-lbl">Notes</div>
-            <div class="obj-val"><?= nl2br(htmlspecialchars($floorplan['notes'])) ?></div>
+          <?php if (!empty($activity['rationale'])): ?>
+            <div class="obj-block">
+              <div class="obj-lbl">Rationale</div>
+              <div class="obj-val"><?= nl2br(htmlspecialchars($activity['rationale'])) ?></div>
+            </div>
+          <?php endif; ?>
+        </div>
+      </div>
+
+      <!-- Materials Needed -->
+      <?php if (!empty($materials)): ?>
+        <div class="card">
+          <div class="card-header">
+            <h2>Materials Needed</h2>
+            <span class="badge badge-secondary"><?= count($materials) ?> item<?= count($materials) > 1 ? 's' : '' ?></span>
           </div>
-        <?php endif; ?>
-      </div>
-    </div>
-    <?php endif; ?>
+          <div class="card-body" style="padding:0;">
+            <div class="table-wrap">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Description</th>
+                    <th style="text-align:center;">Qty</th>
+                    <th>Provider</th>
+                    <th style="text-align:right;">Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($materials as $m): ?>
+                    <tr>
+                      <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($m['item_name']) ?></td>
+                      <td style="color:var(--text-muted);"><?= htmlspecialchars($m['description'] ?? '—') ?></td>
+                      <td style="text-align:center; font-weight:600;"><?= $m['quantity'] ?></td>
+                      <td><?= htmlspecialchars($m['provider'] ?? '—') ?></td>
+                      <td style="text-align:right; font-weight:600; color:var(--text-main);">₱<?= number_format($m['est_cost'], 2) ?></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      <?php endif; ?>
 
-    <!-- People / Manpower -->
-    <?php if (!empty($manpower)): ?>
-    <div class="card">
-      <div class="card-header">
-        <h2>People / Manpower</h2>
-        <span class="badge badge-secondary"><?= count($manpower) ?> assigned</span>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <div class="table-wrap">
-          <table class="detail-table">
-            <thead>
-              <tr>
-                <th>Role</th>
-                <th>Assigned Person</th>
-                <th>Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach($manpower as $m): ?>
-              <tr>
-                <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($m['role']) ?></td>
-                <td><?= htmlspecialchars($m['assigned_person']??'—') ?></td>
-                <td><span class="badge badge-secondary"><?= ucfirst($m['type']) ?></span></td>
-              </tr>
+      <!-- Event Poster -->
+      <?php if (!empty($activity['poster_path'])): ?>
+        <?php
+        $posterUrl = str_starts_with($activity['poster_path'], 'http')
+          ? $activity['poster_path']
+          : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=poster';
+        ?>
+        <div class="card">
+          <div class="card-header">
+            <h2>Event Poster</h2>
+          </div>
+          <div class="card-body" style="text-align:center; padding: 24px; background: var(--bg-base);">
+            <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank" style="display:inline-block;">
+              <img src="<?= htmlspecialchars($posterUrl) ?>" alt="Event Poster" style="max-width: 100%; max-height: 500px; border-radius: 10px; border: 1px solid var(--border); box-shadow: var(--shadow-sm);">
+            </a>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <!-- Floor Plan -->
+      <?php if ($floorplan): ?>
+        <div class="card">
+          <div class="card-header">
+            <h2>Floor Plan</h2>
+          </div>
+          <div class="card-body">
+            <?php
+            $floorsList = [];
+            if (!empty($floorplan['canvas_json'])) {
+              $parsedFp = json_decode($floorplan['canvas_json'], true);
+              if ($parsedFp && !empty($parsedFp['floors'])) {
+                foreach ($parsedFp['floors'] as $fKey => $fVal) {
+                  $floorsList[] = $fVal['name'] ?? ucfirst($fKey) . ' Floor';
+                }
+              }
+            }
+            if (empty($floorsList) && (!empty($floorplan['file_path']) || !empty($floorplan['canvas_json']))) {
+              $floorsList = ['Ground Floor'];
+            }
+            ?>
+            <?php if (!empty($floorsList)): ?>
+              <div style="margin-bottom:14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <span style="font-size:0.8rem; font-weight:600; color:var(--text-muted);">Included Floors:</span>
+                <?php foreach ($floorsList as $flName): ?>
+                  <span class="floor-badge">🏢 <?= htmlspecialchars($flName) ?></span>
+                <?php endforeach; ?>
+              </div>
+            <?php endif; ?>
+            <?php if (!empty($floorplan['file_path'])): ?>
+              <?php
+              $fpUrl = str_starts_with($floorplan['file_path'], 'http')
+                ? $floorplan['file_path']
+                : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=floorplan';
+              $ext = strtolower(pathinfo($floorplan['file_path'], PATHINFO_EXTENSION));
+              $isImg = in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp']);
+              ?>
+              <?php if ($isImg): ?>
+                <div style="margin-bottom:14px; text-align:center; padding:16px; background:var(--bg-base); border-radius:10px; border:1px solid var(--border);">
+                  <img src="<?= htmlspecialchars($fpUrl) ?>" style="max-width:100%; max-height:480px; border-radius:8px; object-fit:contain;" alt="Floor Plan">
+                </div>
+              <?php endif; ?>
+              <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm">📎 View Full Floor Plan Image</a>
+            <?php endif; ?>
+            <?php if (!empty($floorplan['notes'])): ?>
+              <div class="obj-block" style="margin-top:14px;">
+                <div class="obj-lbl">Notes</div>
+                <div class="obj-val"><?= nl2br(htmlspecialchars($floorplan['notes'])) ?></div>
+              </div>
+            <?php endif; ?>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <!-- People / Manpower -->
+      <?php if (!empty($manpower)): ?>
+        <div class="card">
+          <div class="card-header">
+            <h2>People / Manpower</h2>
+            <span class="badge badge-secondary"><?= count($manpower) ?> assigned</span>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <div class="table-wrap">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>Role</th>
+                    <th>Assigned Person</th>
+                    <th>Type</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($manpower as $m): ?>
+                    <tr>
+                      <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($m['role']) ?></td>
+                      <td><?= htmlspecialchars($m['assigned_person'] ?? '—') ?></td>
+                      <td><span class="badge badge-secondary"><?= ucfirst($m['type']) ?></span></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <!-- Schedule & Program Flow -->
+      <?php if (!empty($schedules) || !empty($program)): ?>
+        <div class="card">
+          <div class="card-header">
+            <h2>Schedule & Program</h2>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <?php if (!empty($schedules)): ?>
+              <div class="sub-section-title">Schedule of Activities</div>
+              <div class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Event</th>
+                      <th>Venue</th>
+                      <th>Organizer</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($schedules as $s): ?>
+                      <tr>
+                        <td><span class="time-badge"><?= htmlspecialchars($s['sched_date']) ?></span></td>
+                        <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($s['event_name']) ?></td>
+                        <td><?= htmlspecialchars($s['venue'] ?? '—') ?></td>
+                        <td><?= htmlspecialchars($s['organizer'] ?? '—') ?></td>
+                      </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php endif; ?>
+
+            <?php if (!empty($program)): ?>
+              <div class="sub-section-title" style="<?= !empty($schedules) ? 'border-top: 1px solid var(--border);' : '' ?>">Program Flow</div>
+              <div class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th style="width:18%;">Time</th>
+                      <th style="width:25%;">Segment</th>
+                      <th style="width:35%;">Description</th>
+                      <th style="width:22%;">Person In-Charge</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($program as $p): ?>
+                      <tr>
+                        <td><span class="time-badge">⏱ <?= htmlspecialchars($p['time_slot']) ?></span></td>
+                        <td><strong style="color:var(--text-main); font-weight:600;"><?= htmlspecialchars($p['segment']) ?></strong></td>
+                        <td style="color:var(--text-muted);"><?= htmlspecialchars($p['description'] ?? '—') ?></td>
+                        <td><?= htmlspecialchars($p['person_ic'] ?? '—') ?></td>
+                      </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php endif; ?>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <!-- Guidelines -->
+      <?php if ($guidelines): ?>
+        <div class="card">
+          <div class="card-header">
+            <h2>Guidelines</h2>
+          </div>
+          <div class="card-body">
+            <div class="info-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+              <?php foreach (
+                [
+                  'Mechanics' => $guidelines['mechanics'],
+                  'Criteria for Judging' => $guidelines['criteria'],
+                  'Scoring System' => $guidelines['scoring_system'],
+                  'Special Awards' => $guidelines['special_awards']
+                ] as $l => $v
+              ): if (!$v) continue; ?>
+                <div class="obj-block" style="margin-bottom:0;">
+                  <div class="obj-lbl"><?= $l ?></div>
+                  <div class="obj-val"><?= nl2br(htmlspecialchars($v)) ?></div>
+                </div>
               <?php endforeach; ?>
-            </tbody>
-          </table>
+            </div>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <!-- Task & Role Assignments -->
+      <div class="card">
+        <div class="card-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <h2>Task & Role Assignments</h2>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="badge badge-secondary"><?= count($ftasks) ?> assigned</span>
+            <a href="<?= BASE_URL ?>/faculty/view-activity.php?id=<?= $id ?>" class="btn btn-outline btn-sm">Manage Assignments →</a>
+          </div>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <?php if (empty($ftasks)): ?>
+            <div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+              No task assignments created yet for this activity.
+            </div>
+          <?php else: ?>
+            <div class="table-wrap">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th style="width: 25%;">Task & Description</th>
+                    <th style="width: 17%;">Committee</th>
+                    <th style="width: 18%;">Assigned Member</th>
+                    <th style="width: 16%;">Role</th>
+                    <th style="width: 12%;">Target Date</th>
+                    <th style="width: 12%;">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($ftasks as $f):
+                    $tTitle = $f['task_title'] ?: $f['assigned_task'] ?: 'Untitled Task';
+                    $tDesc = $f['task_description'] ?: $f['contribution_desc'] ?: '';
+                    $tCommittee = $f['committee'] ?: '—';
+                    $tPerson = $f['assigned_user_name'] ?: $f['faculty_name'] ?: '—';
+                    $tRole = $f['role_in_event'] ?: '—';
+                    $tDue = !empty($f['due_date']) ? date('M j, Y', strtotime($f['due_date'])) : '—';
+                    $tStatus = in_array($f['status'], ['Not Started', 'In Progress', 'Completed', 'Delayed']) ? $f['status'] : 'Not Started';
+                  ?>
+                    <tr>
+                      <td>
+                        <div style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($tTitle) ?></div>
+                        <?php if (!empty($tDesc)): ?>
+                          <small style="color:var(--text-muted); display: block; margin-top: 2px;"><?= nl2br(htmlspecialchars($tDesc)) ?></small>
+                        <?php endif; ?>
+                      </td>
+                      <td><?= $tCommittee !== '—' ? '<span class="badge badge-secondary">' . htmlspecialchars($tCommittee) . '</span>' : '—' ?></td>
+                      <td><strong><?= htmlspecialchars($tPerson) ?></strong></td>
+                      <td><?= htmlspecialchars($tRole) ?></td>
+                      <td><?= $tDue !== '—' ? '<span class="time-badge">📅 ' . htmlspecialchars($tDue) . '</span>' : '—' ?></td>
+                      <td><?= getTaskStatusBadge($tStatus) ?></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          <?php endif; ?>
         </div>
       </div>
-    </div>
-    <?php endif; ?>
 
-    <!-- Schedule & Program Flow -->
-    <?php if (!empty($schedules) || !empty($program)): ?>
-    <div class="card">
-      <div class="card-header">
-        <h2>Schedule & Program</h2>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <?php if (!empty($schedules)): ?>
-        <div class="sub-section-title">Schedule of Activities</div>
-        <div class="table-wrap">
-          <table class="detail-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Event</th>
-                <th>Venue</th>
-                <th>Organizer</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach($schedules as $s): ?>
-              <tr>
-                <td><span class="time-badge"><?= htmlspecialchars($s['sched_date']) ?></span></td>
-                <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($s['event_name']) ?></td>
-                <td><?= htmlspecialchars($s['venue']??'—') ?></td>
-                <td><?= htmlspecialchars($s['organizer']??'—') ?></td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
+      <!-- KPI & Evaluation -->
+      <div class="card">
+        <div class="card-header">
+          <h2>KPI & Evaluation</h2>
         </div>
-        <?php endif; ?>
-        
-        <?php if (!empty($program)): ?>
-        <div class="sub-section-title" style="<?= !empty($schedules) ? 'border-top: 1px solid var(--border);' : '' ?>">Program Flow</div>
-        <div class="table-wrap">
-          <table class="detail-table">
-            <thead>
-              <tr>
-                <th style="width:18%;">Time</th>
-                <th style="width:25%;">Segment</th>
-                <th style="width:35%;">Description</th>
-                <th style="width:22%;">Person In-Charge</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach($program as $p): ?>
-              <tr>
-                <td><span class="time-badge">⏱ <?= htmlspecialchars($p['time_slot']) ?></span></td>
-                <td><strong style="color:var(--text-main); font-weight:600;"><?= htmlspecialchars($p['segment']) ?></strong></td>
-                <td style="color:var(--text-muted);"><?= htmlspecialchars($p['description']??'—') ?></td>
-                <td><?= htmlspecialchars($p['person_ic']??'—') ?></td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
+        <div class="card-body" style="padding:0;">
+          <?php if (!empty($kpis)): ?>
+            <div class="table-wrap">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>Indicator</th>
+                    <th>Target Metric</th>
+                    <th>Evaluation Method</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($kpis as $k): ?>
+                    <tr>
+                      <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($k['indicator']) ?></td>
+                      <td><?= htmlspecialchars($k['target_metric'] ?? '—') ?></td>
+                      <td><?= htmlspecialchars($k['evaluation_method'] ?? '—') ?></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          <?php endif; ?>
+          <div style="padding:16px 20px; font-size:0.88rem; color:var(--text-main); border-top: <?= !empty($kpis) ? '1px solid var(--border)' : 'none' ?>;">
+            <strong>Google Form Link:</strong>
+            <?php if (!empty($activity['evaluation_method'])): ?>
+              <a href="<?= htmlspecialchars($activity['evaluation_method']) ?>" target="_blank" style="color:var(--accent, var(--sti-blue)); text-decoration:none; font-weight:600; word-break:break-all;"><?= htmlspecialchars($activity['evaluation_method']) ?></a>
+            <?php else: ?>
+              <span style="color:var(--text-muted);">—</span>
+            <?php endif; ?>
+          </div>
+          <?php if (QrCodeService::isValidUrl($activity['evaluation_method'] ?? '')): ?>
+            <div class="evaluation-qr-section" style="padding: 16px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+              <div class="qr-container" style="background: #ffffff; padding: 10px; border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-sm); display: inline-block;">
+                <?= QrCodeService::generateSvg($activity['evaluation_method'], 150) ?>
+              </div>
+              <div class="qr-info" style="flex: 1; min-width: 220px;">
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 4px;">
+                  Evaluation Questionnaire QR Code
+                </div>
+                <p style="font-size: 0.825rem; color: var(--text-muted); margin: 0 0 12px 0; line-height: 1.4;">
+                  Scan this QR code with any mobile device to immediately open the Google Form evaluation questionnaire.
+                </p>
+                <div class="no-print">
+                  <button type="button" class="btn btn-outline btn-sm" onclick="window.print()" style="cursor: pointer;">
+                    🖨️ Print QR Code
+                  </button>
+                </div>
+              </div>
+            </div>
+          <?php endif; ?>
         </div>
-        <?php endif; ?>
       </div>
-    </div>
-    <?php endif; ?>
 
-    <!-- Guidelines -->
-    <?php if ($guidelines): ?>
+      <!-- AI Evaluation Questions -->
+      <?php if (!empty($activity['evaluation_questions'])): ?>
+        <div class="card">
+          <div class="card-header">
+            <h2>📋 AI-Generated Evaluation Tool</h2>
+          </div>
+          <div class="card-body">
+            <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; line-height: 1.4;">
+              These evaluation questions are automatically generated based on the activity objectives and KPIs. Reviewers can scan them below.
+            </div>
+            <?= renderAiEvaluationQuestions($activity['evaluation_questions']) ?>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <!-- AI Proposal Validator Section -->
+      <?php if ($activity['status'] !== 'draft'): ?>
+        <?php
+        require_once __DIR__ . '/../includes/ai/proposal_validator.php';
+        renderAiValidationSection($id, false);
+        ?>
+      <?php endif; ?>
+
+      <!-- Approval History -->
+      <?php if (!empty($history)): ?>
+        <div class="card">
+          <div class="card-header">
+            <h2>Approval History</h2>
+            <span class="badge badge-secondary"><?= count($history) ?> log<?= count($history) > 1 ? 's' : '' ?></span>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <div class="table-wrap">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>Reviewer</th>
+                    <th>Action</th>
+                    <th>Notes</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($history as $h): ?>
+                    <tr>
+                      <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($h['name']) ?></td>
+                      <td><?= getStatusBadge($h['action']) ?></td>
+                      <td style="color:var(--text-muted); font-size:0.85rem; font-style:italic;"><?= htmlspecialchars($h['notes'] ?? '—') ?></td>
+                      <td style="white-space:nowrap; font-size:0.82rem; color:var(--text-muted);"><?= date('M j, Y g:i A', strtotime($h['acted_at'])) ?></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      <?php endif; ?>
+
+    <!-- Proposal Collaborators & Contribution History (Task 14) -->
     <div class="card">
-      <div class="card-header">
-        <h2>Guidelines</h2>
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>👥 Proposal Collaborators &amp; Contribution History</h2>
+        <span class="badge badge-secondary"><?= count($collaborators) ?> Member<?= count($collaborators) > 1 ? 's' : '' ?></span>
       </div>
       <div class="card-body">
-        <div class="info-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
-          <?php foreach([
-            'Mechanics'=>$guidelines['mechanics'],
-            'Criteria for Judging'=>$guidelines['criteria'],
-            'Scoring System'=>$guidelines['scoring_system'],
-            'Special Awards'=>$guidelines['special_awards']
-          ] as $l=>$v): if(!$v) continue; ?>
-          <div class="obj-block" style="margin-bottom:0;">
-            <div class="obj-lbl"><?= $l ?></div>
-            <div class="obj-val"><?= nl2br(htmlspecialchars($v)) ?></div>
-          </div>
+        <h4 style="font-size:0.95rem; font-weight:700; margin-bottom:12px; color:var(--text-main);">Assigned Collaborators</h4>
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap:12px; margin-bottom:24px;">
+          <?php foreach ($collaborators as $collab): ?>
+            <?php
+              $bgCol = $collab['role'] === 'owner' ? 'rgba(2, 132, 199, 0.08)' : ($collab['role'] === 'co_author' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(100, 116, 139, 0.08)');
+              $borderCol = $collab['role'] === 'owner' ? '#38BDF8' : ($collab['role'] === 'co_author' ? '#6EE7B7' : 'var(--border)');
+              $roleIcon = $collab['role'] === 'owner' ? '👑' : ($collab['role'] === 'co_author' ? '✍️' : '👤');
+            ?>
+            <div style="border:1px solid <?= $borderCol ?>; background:<?= $bgCol ?>; padding:12px 14px; border-radius:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span style="font-weight:700; font-size:0.9rem; color:var(--text-main);">
+                  <?= $roleIcon ?> <?= htmlspecialchars($collab['name']) ?>
+                </span>
+              </div>
+              <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">
+                <strong>Role:</strong> <?= htmlspecialchars(formatCollaboratorRole($collab['role'])) ?>
+              </div>
+              <div style="font-size:0.8rem; color:var(--text-muted);">
+                <strong>Dept:</strong> <?= htmlspecialchars($collab['department'] ?? '—') ?>
+              </div>
+            </div>
           <?php endforeach; ?>
         </div>
-      </div>
-    </div>
-    <?php endif; ?>
 
-    <!-- Task & Role Assignments -->
-    <div class="card">
-      <div class="card-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-        <h2>Task & Role Assignments</h2>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="badge badge-secondary"><?= count($ftasks) ?> assigned</span>
-          <a href="<?= BASE_URL ?>/faculty/view-activity.php?id=<?= $id ?>" class="btn btn-outline btn-sm">Manage Assignments →</a>
-        </div>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <?php if (empty($ftasks)): ?>
-          <div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-            No task assignments created yet for this activity.
-          </div>
-        <?php else: ?>
+        <h4 style="font-size:0.95rem; font-weight:700; margin-bottom:12px; color:var(--text-main);">Recorded Contribution History</h4>
+        <?php if (!empty($contributionLogs)): ?>
           <div class="table-wrap">
             <table class="detail-table">
               <thead>
                 <tr>
-                  <th style="width: 25%;">Task & Description</th>
-                  <th style="width: 17%;">Committee</th>
-                  <th style="width: 18%;">Assigned Member</th>
-                  <th style="width: 16%;">Role</th>
-                  <th style="width: 12%;">Target Date</th>
-                  <th style="width: 12%;">Status</th>
+                  <th>Date &amp; Time</th>
+                  <th>Faculty Contributor</th>
+                  <th>Action</th>
+                  <th>Section</th>
+                  <th>Details</th>
                 </tr>
               </thead>
               <tbody>
-                <?php foreach($ftasks as $f): 
-                  $tTitle = $f['task_title'] ?: $f['assigned_task'] ?: 'Untitled Task';
-                  $tDesc = $f['task_description'] ?: $f['contribution_desc'] ?: '';
-                  $tCommittee = $f['committee'] ?: '—';
-                  $tPerson = $f['assigned_user_name'] ?: $f['faculty_name'] ?: '—';
-                  $tRole = $f['role_in_event'] ?: '—';
-                  $tDue = !empty($f['due_date']) ? date('M j, Y', strtotime($f['due_date'])) : '—';
-                  $tStatus = in_array($f['status'], ['Not Started', 'In Progress', 'Completed', 'Delayed']) ? $f['status'] : 'Not Started';
-                ?>
-                <tr>
-                  <td>
-                    <div style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($tTitle) ?></div>
-                    <?php if (!empty($tDesc)): ?>
-                      <small style="color:var(--text-muted); display: block; margin-top: 2px;"><?= nl2br(htmlspecialchars($tDesc)) ?></small>
-                    <?php endif; ?>
-                  </td>
-                  <td><?= $tCommittee !== '—' ? '<span class="badge badge-secondary">'.htmlspecialchars($tCommittee).'</span>' : '—' ?></td>
-                  <td><strong><?= htmlspecialchars($tPerson) ?></strong></td>
-                  <td><?= htmlspecialchars($tRole) ?></td>
-                  <td><?= $tDue !== '—' ? '<span class="time-badge">📅 '.htmlspecialchars($tDue).'</span>' : '—' ?></td>
-                  <td><?= getTaskStatusBadge($tStatus) ?></td>
-                </tr>
+                <?php foreach ($contributionLogs as $log): ?>
+                  <tr>
+                    <td style="white-space:nowrap; font-size:0.82rem; color:var(--text-muted);">
+                      <?= date('M j, Y g:i A', strtotime($log['created_at'])) ?>
+                    </td>
+                    <td style="font-weight:600; color:var(--text-main);">
+                      <?= htmlspecialchars($log['user_name'] ?? 'Faculty') ?>
+                      <span style="font-size:0.75rem; color:var(--text-muted); display:block; font-weight:normal;">
+                        (<?= htmlspecialchars($log['role_label'] ?? formatCollaboratorRole($log['user_role'] ?? 'contributor')) ?>)
+                      </span>
+                    </td>
+                    <td style="font-weight:500; font-size:0.85rem;">
+                      <?= htmlspecialchars(ucwords(str_replace('_', ' ', $log['action']))) ?>
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">
+                      <?= htmlspecialchars($log['section'] ?? 'General') ?>
+                    </td>
+                    <td style="font-size:0.82rem; color:var(--text-muted);">
+                      <?= htmlspecialchars($log['details'] ?? '—') ?>
+                    </td>
+                  </tr>
                 <?php endforeach; ?>
               </tbody>
             </table>
           </div>
+        <?php else: ?>
+          <p style="font-size:0.85rem; color:var(--text-muted); font-style:italic; margin:0;">
+            No contribution logs recorded yet for this proposal.
+          </p>
         <?php endif; ?>
       </div>
     </div>
 
-    <!-- KPI & Evaluation -->
-    <div class="card">
-      <div class="card-header">
-        <h2>KPI & Evaluation</h2>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <?php if (!empty($kpis)): ?>
-        <div class="table-wrap">
-          <table class="detail-table">
-            <thead>
-              <tr>
-                <th>Indicator</th>
-                <th>Target Metric</th>
-                <th>Evaluation Method</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach($kpis as $k): ?>
-              <tr>
-                <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($k['indicator']) ?></td>
-                <td><?= htmlspecialchars($k['target_metric']??'—') ?></td>
-                <td><?= htmlspecialchars($k['evaluation_method']??'—') ?></td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-        <?php endif; ?>
-        <div style="padding:16px 20px; font-size:0.88rem; color:var(--text-main); border-top: <?= !empty($kpis) ? '1px solid var(--border)' : 'none' ?>;">
-          <strong>Google Form Link:</strong> 
-          <?php if (!empty($activity['evaluation_method'])): ?>
-            <a href="<?= htmlspecialchars($activity['evaluation_method']) ?>" target="_blank" style="color:var(--accent, var(--sti-blue)); text-decoration:none; font-weight:600; word-break:break-all;"><?= htmlspecialchars($activity['evaluation_method']) ?></a>
-          <?php else: ?>
-            <span style="color:var(--text-muted);">—</span>
-          <?php endif; ?>
-        </div>
-        <?php if (QrCodeService::isValidUrl($activity['evaluation_method'] ?? '')): ?>
-        <div class="evaluation-qr-section" style="padding: 16px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
-          <div class="qr-container" style="background: #ffffff; padding: 10px; border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-sm); display: inline-block;">
-            <?= QrCodeService::generateSvg($activity['evaluation_method'], 150) ?>
-          </div>
-          <div class="qr-info" style="flex: 1; min-width: 220px;">
-            <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 4px;">
-              Evaluation Questionnaire QR Code
-            </div>
-            <p style="font-size: 0.825rem; color: var(--text-muted); margin: 0 0 12px 0; line-height: 1.4;">
-              Scan this QR code with any mobile device to immediately open the Google Form evaluation questionnaire.
-            </p>
-            <div class="no-print">
-              <button type="button" class="btn btn-outline btn-sm" onclick="window.print()" style="cursor: pointer;">
-                🖨️ Print QR Code
-              </button>
-            </div>
-          </div>
-        </div>
-        <?php endif; ?>
-      </div>
-    </div>
+    </div><!-- content -->
+  </div><!-- main-wrap -->
 
-    <!-- AI Evaluation Questions -->
-    <?php if (!empty($activity['evaluation_questions'])): ?>
-      <div class="card">
-        <div class="card-header">
-          <h2>📋 AI-Generated Evaluation Tool</h2>
-        </div>
-        <div class="card-body">
-          <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; line-height: 1.4;">
-            These evaluation questions are automatically generated based on the activity objectives and KPIs. Reviewers can scan them below.
-          </div>
-          <?= renderAiEvaluationQuestions($activity['evaluation_questions']) ?>
-        </div>
-      </div>
-    <?php endif; ?>
+  <!-- Client-Side jsPDF Proposal Exporter -->
+  <script>
+    const PROPOSAL_PDF_DATA = <?= json_encode($proposalPdfData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 
-    <!-- AI Proposal Validator Section -->
-    <?php if ($activity['status'] !== 'draft'): ?>
-      <?php
-      require_once __DIR__ . '/../includes/ai/proposal_validator.php';
-      renderAiValidationSection($id, false);
-      ?>
-    <?php endif; ?>
+    function exportProposalPdf() {
+      if (typeof window.jspdf === 'undefined' || !window.jspdf.jsPDF) {
+        alert('PDF export library is still loading or unavailable. Please check your internet connection and try again.');
+        return;
+      }
 
-    <!-- Approval History -->
-    <?php if (!empty($history)): ?>
-    <div class="card">
-      <div class="card-header">
-        <h2>Approval History</h2>
-        <span class="badge badge-secondary"><?= count($history) ?> log<?= count($history)>1?'s':'' ?></span>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <div class="table-wrap">
-          <table class="detail-table">
-            <thead>
-              <tr>
-                <th>Reviewer</th>
-                <th>Action</th>
-                <th>Notes</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach($history as $h): ?>
-              <tr>
-                <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($h['name']) ?></td>
-                <td><?= getStatusBadge($h['action']) ?></td>
-                <td style="color:var(--text-muted); font-size:0.85rem; font-style:italic;"><?= htmlspecialchars($h['notes']??'—') ?></td>
-                <td style="white-space:nowrap; font-size:0.82rem; color:var(--text-muted);"><?= date('M j, Y g:i A', strtotime($h['acted_at'])) ?></td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    <?php endif; ?>
+      const {
+        jsPDF
+      } = window.jspdf;
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
 
-  </div><!-- content -->
-</div><!-- main-wrap -->
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const marginX = 14;
+      const contentWidth = pageWidth - (marginX * 2); // 182mm
+      let currentY = 16;
 
-<!-- Client-Side jsPDF Proposal Exporter -->
-<script>
-const PROPOSAL_PDF_DATA = <?= json_encode($proposalPdfData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+      function ensureSpace(neededHeight) {
+        if (currentY + neededHeight > pageHeight - 18) {
+          doc.addPage();
+          currentY = 18;
+        }
+      }
 
-function exportProposalPdf() {
-  if (typeof window.jspdf === 'undefined' || !window.jspdf.jsPDF) {
-    alert('PDF export library is still loading or unavailable. Please check your internet connection and try again.');
-    return;
-  }
+      function addSectionHeading(title) {
+        ensureSpace(14);
+        currentY += 3;
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(marginX, currentY - 4.5, contentWidth, 8, 1, 1, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(0, 56, 118); // STI Blue
+        doc.text(title, marginX + 3, currentY + 1);
+        currentY += 7;
+        doc.setTextColor(30, 41, 59);
+        doc.setFont('helvetica', 'normal');
+      }
 
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
-  });
+      function addFieldBlock(label, val) {
+        if (!val || !val.trim() || val.trim() === '—') return;
+        ensureSpace(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(71, 85, 105);
+        doc.text(label, marginX, currentY);
+        currentY += 3.8;
 
-  const pageWidth = 210;
-  const pageHeight = 297;
-  const marginX = 14;
-  const contentWidth = pageWidth - (marginX * 2); // 182mm
-  let currentY = 16;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(30, 41, 59);
+        const splitLines = doc.splitTextToSize(val, contentWidth);
+        for (let i = 0; i < splitLines.length; i++) {
+          ensureSpace(4.5);
+          doc.text(splitLines[i], marginX, currentY);
+          currentY += 4.2;
+        }
+        currentY += 1.5;
+      }
 
-  function ensureSpace(neededHeight) {
-    if (currentY + neededHeight > pageHeight - 18) {
-      doc.addPage();
-      currentY = 18;
+      // --- HEADER BANNER ---
+      doc.setFillColor(0, 56, 118);
+      doc.rect(marginX, currentY - 2, contentWidth, 2, 'F');
+      currentY += 4;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(0, 56, 118);
+      doc.text('STI ACTIVITY & RESOURCE MANAGEMENT SYSTEM (STI-ARMES)', marginX, currentY);
+
+      currentY += 6;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(15);
+      doc.setTextColor(15, 23, 42);
+      const titleLines = doc.splitTextToSize(PROPOSAL_PDF_DATA.title || 'Activity Proposal', contentWidth - 45);
+      for (let i = 0; i < titleLines.length; i++) {
+        doc.text(titleLines[i], marginX, currentY);
+        currentY += 6;
+      }
+
+      // Status Badge on top right
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      const statusStr = 'Status: ' + (PROPOSAL_PDF_DATA.status || 'Draft');
+      doc.text(statusStr, pageWidth - marginX, currentY - (titleLines.length * 6) + 4, {
+        align: 'right'
+      });
+
+      // Thin separator
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.4);
+      doc.line(marginX, currentY, pageWidth - marginX, currentY);
+      currentY += 4;
+
+      // --- REVISION NOTES IF PRESENT ---
+      if (PROPOSAL_PDF_DATA.revision_notes && PROPOSAL_PDF_DATA.revision_notes.trim()) {
+        ensureSpace(14);
+        doc.setFillColor(254, 243, 199);
+        doc.setDrawColor(245, 158, 11);
+        const revLines = doc.splitTextToSize('Revision Notes: ' + PROPOSAL_PDF_DATA.revision_notes, contentWidth - 6);
+        const boxH = (revLines.length * 4) + 6;
+        doc.roundedRect(marginX, currentY, contentWidth, boxH, 1.5, 1.5, 'FD');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(180, 83, 9);
+        for (let i = 0; i < revLines.length; i++) {
+          doc.text(revLines[i], marginX + 3, currentY + 4 + (i * 4));
+        }
+        currentY += boxH + 4;
+      }
+
+      // --- BASIC INFORMATION GRID ---
+      addSectionHeading('Activity Overview');
+      const basicInfoBody = [
+        [{
+            content: 'Event Date:',
+            styles: {
+              fontStyle: 'bold',
+              textColor: [71, 85, 105],
+              cellWidth: 26
+            }
+          },
+          {
+            content: PROPOSAL_PDF_DATA.event_date || '—',
+            styles: {
+              cellWidth: 65
+            }
+          },
+          {
+            content: 'Proponent:',
+            styles: {
+              fontStyle: 'bold',
+              textColor: [71, 85, 105],
+              cellWidth: 26
+            }
+          },
+          {
+            content: PROPOSAL_PDF_DATA.proponent || '—',
+            styles: {
+              cellWidth: 65
+            }
+          }
+        ],
+        [{
+            content: 'Time Slot:',
+            styles: {
+              fontStyle: 'bold',
+              textColor: [71, 85, 105]
+            }
+          },
+          {
+            content: PROPOSAL_PDF_DATA.time || '—'
+          },
+          {
+            content: 'Source:',
+            styles: {
+              fontStyle: 'bold',
+              textColor: [71, 85, 105]
+            }
+          },
+          {
+            content: PROPOSAL_PDF_DATA.source || '—'
+          }
+        ],
+        [{
+            content: 'Venue:',
+            styles: {
+              fontStyle: 'bold',
+              textColor: [71, 85, 105]
+            }
+          },
+          {
+            content: PROPOSAL_PDF_DATA.venue || '—'
+          },
+          {
+            content: 'Participants:',
+            styles: {
+              fontStyle: 'bold',
+              textColor: [71, 85, 105]
+            }
+          },
+          {
+            content: PROPOSAL_PDF_DATA.target_participants || '—'
+          }
+        ],
+        [{
+            content: 'Theme:',
+            styles: {
+              fontStyle: 'bold',
+              textColor: [71, 85, 105]
+            }
+          },
+          {
+            content: PROPOSAL_PDF_DATA.theme || '—',
+            colSpan: 3
+          }
+        ]
+      ];
+
+      doc.autoTable({
+        startY: currentY,
+        margin: {
+          left: marginX,
+          right: marginX
+        },
+        body: basicInfoBody,
+        theme: 'plain',
+        styles: {
+          fontSize: 8.5,
+          cellPadding: 1.8,
+          textColor: [30, 41, 59]
+        },
+        columnStyles: {
+          0: {
+            cellWidth: 25
+          },
+          1: {
+            cellWidth: 66
+          },
+          2: {
+            cellWidth: 25
+          },
+          3: {
+            cellWidth: 66
+          }
+        }
+      });
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      // --- OBJECTIVES & ALIGNMENT ---
+      if (PROPOSAL_PDF_DATA.general_objectives || PROPOSAL_PDF_DATA.specific_objectives || PROPOSAL_PDF_DATA.rationale) {
+        addSectionHeading('Objectives & Academic Alignment');
+        addFieldBlock('General Objectives:', PROPOSAL_PDF_DATA.general_objectives);
+        addFieldBlock('Specific Objectives:', PROPOSAL_PDF_DATA.specific_objectives);
+        addFieldBlock('Involved Subjects:', PROPOSAL_PDF_DATA.involved_subjects);
+        addFieldBlock('Rationale:', PROPOSAL_PDF_DATA.rationale);
+      }
+
+      // --- GUIDELINES ---
+      if (PROPOSAL_PDF_DATA.guidelines && Object.keys(PROPOSAL_PDF_DATA.guidelines).length > 0) {
+        addSectionHeading('Event Guidelines');
+        for (const [gLabel, gVal] of Object.entries(PROPOSAL_PDF_DATA.guidelines)) {
+          addFieldBlock(gLabel + ':', gVal);
+        }
+      }
+
+      // --- SCHEDULE OF ACTIVITIES ---
+      if (PROPOSAL_PDF_DATA.schedules && PROPOSAL_PDF_DATA.schedules.length > 0) {
+        addSectionHeading('Schedule of Activities');
+        doc.autoTable({
+          startY: currentY,
+          margin: {
+            left: marginX,
+            right: marginX
+          },
+          head: [
+            ['Date', 'Event Name', 'Venue', 'Organizer']
+          ],
+          body: PROPOSAL_PDF_DATA.schedules,
+          theme: 'grid',
+          styles: {
+            fontSize: 8,
+            cellPadding: 2,
+            overflow: 'linebreak',
+            textColor: [30, 41, 59]
+          },
+          headStyles: {
+            fillColor: [0, 56, 118],
+            textColor: 255,
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252]
+          },
+          columnStyles: {
+            0: {
+              cellWidth: 32
+            },
+            1: {
+              cellWidth: 65
+            },
+            2: {
+              cellWidth: 45
+            },
+            3: {
+              cellWidth: 40
+            }
+          }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // --- PROGRAM SEQUENCE ---
+      if (PROPOSAL_PDF_DATA.program && PROPOSAL_PDF_DATA.program.length > 0) {
+        addSectionHeading('Program Flow & Sequence');
+        doc.autoTable({
+          startY: currentY,
+          margin: {
+            left: marginX,
+            right: marginX
+          },
+          head: [
+            ['Time Slot', 'Segment', 'Description', 'Person In-Charge']
+          ],
+          body: PROPOSAL_PDF_DATA.program,
+          theme: 'grid',
+          styles: {
+            fontSize: 8,
+            cellPadding: 2,
+            overflow: 'linebreak',
+            textColor: [30, 41, 59]
+          },
+          headStyles: {
+            fillColor: [0, 56, 118],
+            textColor: 255,
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252]
+          },
+          columnStyles: {
+            0: {
+              cellWidth: 32
+            },
+            1: {
+              cellWidth: 45
+            },
+            2: {
+              cellWidth: 65
+            },
+            3: {
+              cellWidth: 40
+            }
+          }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // --- COMMITTEE TASKS & ASSIGNMENTS ---
+      if (PROPOSAL_PDF_DATA.tasks && PROPOSAL_PDF_DATA.tasks.length > 0) {
+        addSectionHeading('Committee Tasks & Role Assignments');
+        doc.autoTable({
+          startY: currentY,
+          margin: {
+            left: marginX,
+            right: marginX
+          },
+          head: [
+            ['Task Title', 'Committee', 'Assigned Member', 'Role in Event', 'Target Date', 'Status']
+          ],
+          body: PROPOSAL_PDF_DATA.tasks,
+          theme: 'grid',
+          styles: {
+            fontSize: 8,
+            cellPadding: 2,
+            overflow: 'linebreak',
+            textColor: [30, 41, 59]
+          },
+          headStyles: {
+            fillColor: [0, 56, 118],
+            textColor: 255,
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252]
+          },
+          columnStyles: {
+            0: {
+              cellWidth: 47
+            },
+            1: {
+              cellWidth: 35
+            },
+            2: {
+              cellWidth: 35
+            },
+            3: {
+              cellWidth: 25
+            },
+            4: {
+              cellWidth: 22
+            },
+            5: {
+              cellWidth: 18
+            }
+          }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // --- MANPOWER ---
+      if (PROPOSAL_PDF_DATA.manpower && PROPOSAL_PDF_DATA.manpower.length > 0) {
+        addSectionHeading('Manpower Allocation');
+        doc.autoTable({
+          startY: currentY,
+          margin: {
+            left: marginX,
+            right: marginX
+          },
+          head: [
+            ['Role / Responsibility', 'Assigned Person', 'Type']
+          ],
+          body: PROPOSAL_PDF_DATA.manpower,
+          theme: 'grid',
+          styles: {
+            fontSize: 8,
+            cellPadding: 2,
+            overflow: 'linebreak',
+            textColor: [30, 41, 59]
+          },
+          headStyles: {
+            fillColor: [0, 56, 118],
+            textColor: 255,
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252]
+          },
+          columnStyles: {
+            0: {
+              cellWidth: 72
+            },
+            1: {
+              cellWidth: 70
+            },
+            2: {
+              cellWidth: 40
+            }
+          }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // --- MATERIALS NEEDED ---
+      if (PROPOSAL_PDF_DATA.materials && PROPOSAL_PDF_DATA.materials.length > 0) {
+        addSectionHeading('Materials & Resources Needed');
+        doc.autoTable({
+          startY: currentY,
+          margin: {
+            left: marginX,
+            right: marginX
+          },
+          head: [
+            ['Item Name', 'Description', 'Qty', 'Provider', 'Est. Cost']
+          ],
+          body: PROPOSAL_PDF_DATA.materials,
+          theme: 'grid',
+          styles: {
+            fontSize: 8,
+            cellPadding: 2,
+            overflow: 'linebreak',
+            textColor: [30, 41, 59]
+          },
+          headStyles: {
+            fillColor: [0, 56, 118],
+            textColor: 255,
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252]
+          },
+          columnStyles: {
+            0: {
+              cellWidth: 42
+            },
+            1: {
+              cellWidth: 60
+            },
+            2: {
+              cellWidth: 15,
+              halign: 'center'
+            },
+            3: {
+              cellWidth: 35
+            },
+            4: {
+              cellWidth: 30,
+              halign: 'right'
+            }
+          }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // --- KPI & EVALUATION ---
+      if (PROPOSAL_PDF_DATA.kpis && PROPOSAL_PDF_DATA.kpis.length > 0) {
+        addSectionHeading('KPI & Evaluation Alignment');
+        doc.autoTable({
+          startY: currentY,
+          margin: {
+            left: marginX,
+            right: marginX
+          },
+          head: [
+            ['Indicator / Criteria', 'Target Metric', 'Evaluation Method']
+          ],
+          body: PROPOSAL_PDF_DATA.kpis,
+          theme: 'grid',
+          styles: {
+            fontSize: 8,
+            cellPadding: 2,
+            overflow: 'linebreak',
+            textColor: [30, 41, 59]
+          },
+          headStyles: {
+            fillColor: [0, 56, 118],
+            textColor: 255,
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252]
+          },
+          columnStyles: {
+            0: {
+              cellWidth: 70
+            },
+            1: {
+              cellWidth: 50
+            },
+            2: {
+              cellWidth: 62
+            }
+          }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // --- APPROVAL HISTORY ---
+      if (PROPOSAL_PDF_DATA.history && PROPOSAL_PDF_DATA.history.length > 0) {
+        addSectionHeading('Approval & Review History');
+        doc.autoTable({
+          startY: currentY,
+          margin: {
+            left: marginX,
+            right: marginX
+          },
+          head: [
+            ['Reviewer', 'Action Taken', 'Remarks / Notes', 'Date & Time']
+          ],
+          body: PROPOSAL_PDF_DATA.history,
+          theme: 'grid',
+          styles: {
+            fontSize: 8,
+            cellPadding: 2,
+            overflow: 'linebreak',
+            textColor: [30, 41, 59]
+          },
+          headStyles: {
+            fillColor: [0, 56, 118],
+            textColor: 255,
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252]
+          },
+          columnStyles: {
+            0: {
+              cellWidth: 40
+            },
+            1: {
+              cellWidth: 32
+            },
+            2: {
+              cellWidth: 68
+            },
+            3: {
+              cellWidth: 42
+            }
+          }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // --- FOOTERS ON ALL PAGES ---
+      const totalPages = doc.internal.getNumberOfPages();
+      const exportTimestamp = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184);
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.3);
+        doc.line(marginX, pageHeight - 12, pageWidth - marginX, pageHeight - 12);
+        doc.text('STI Activity & Resource Management System (STI-ARMES) — Official Proposal Export', marginX, pageHeight - 8);
+        doc.text('Page ' + p + ' of ' + totalPages + ' (' + exportTimestamp + ')', pageWidth - marginX, pageHeight - 8, {
+          align: 'right'
+        });
+      }
+
+      // --- SANITIZE FILENAME & DOWNLOAD ---
+      let safeTitle = (PROPOSAL_PDF_DATA.title || '')
+        .trim()
+        .replace(/[^a-zA-Z0-9_\-\s]/g, '')
+        .replace(/\s+/g, '_')
+        .substring(0, 50);
+
+      if (!safeTitle) {
+        safeTitle = 'Proposal_' + (PROPOSAL_PDF_DATA.id || 'Export');
+      }
+      const filename = safeTitle + '_Proposal.pdf';
+
+      doc.save(filename);
     }
-  }
-
-  function addSectionHeading(title) {
-    ensureSpace(14);
-    currentY += 3;
-    doc.setFillColor(241, 245, 249);
-    doc.roundedRect(marginX, currentY - 4.5, contentWidth, 8, 1, 1, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.setTextColor(0, 56, 118); // STI Blue
-    doc.text(title, marginX + 3, currentY + 1);
-    currentY += 7;
-    doc.setTextColor(30, 41, 59);
-    doc.setFont('helvetica', 'normal');
-  }
-
-  function addFieldBlock(label, val) {
-    if (!val || !val.trim() || val.trim() === '—') return;
-    ensureSpace(11);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(71, 85, 105);
-    doc.text(label, marginX, currentY);
-    currentY += 3.8;
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(30, 41, 59);
-    const splitLines = doc.splitTextToSize(val, contentWidth);
-    for (let i = 0; i < splitLines.length; i++) {
-      ensureSpace(4.5);
-      doc.text(splitLines[i], marginX, currentY);
-      currentY += 4.2;
-    }
-    currentY += 1.5;
-  }
-
-  // --- HEADER BANNER ---
-  doc.setFillColor(0, 56, 118);
-  doc.rect(marginX, currentY - 2, contentWidth, 2, 'F');
-  currentY += 4;
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(0, 56, 118);
-  doc.text('STI ACTIVITY & RESOURCE MANAGEMENT SYSTEM (STI-ARMES)', marginX, currentY);
-
-  currentY += 6;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.setTextColor(15, 23, 42);
-  const titleLines = doc.splitTextToSize(PROPOSAL_PDF_DATA.title || 'Activity Proposal', contentWidth - 45);
-  for (let i = 0; i < titleLines.length; i++) {
-    doc.text(titleLines[i], marginX, currentY);
-    currentY += 6;
-  }
-
-  // Status Badge on top right
-  doc.setFontSize(9);
-  doc.setTextColor(71, 85, 105);
-  const statusStr = 'Status: ' + (PROPOSAL_PDF_DATA.status || 'Draft');
-  doc.text(statusStr, pageWidth - marginX, currentY - (titleLines.length * 6) + 4, { align: 'right' });
-
-  // Thin separator
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.4);
-  doc.line(marginX, currentY, pageWidth - marginX, currentY);
-  currentY += 4;
-
-  // --- REVISION NOTES IF PRESENT ---
-  if (PROPOSAL_PDF_DATA.revision_notes && PROPOSAL_PDF_DATA.revision_notes.trim()) {
-    ensureSpace(14);
-    doc.setFillColor(254, 243, 199);
-    doc.setDrawColor(245, 158, 11);
-    const revLines = doc.splitTextToSize('Revision Notes: ' + PROPOSAL_PDF_DATA.revision_notes, contentWidth - 6);
-    const boxH = (revLines.length * 4) + 6;
-    doc.roundedRect(marginX, currentY, contentWidth, boxH, 1.5, 1.5, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(180, 83, 9);
-    for (let i = 0; i < revLines.length; i++) {
-      doc.text(revLines[i], marginX + 3, currentY + 4 + (i * 4));
-    }
-    currentY += boxH + 4;
-  }
-
-  // --- BASIC INFORMATION GRID ---
-  addSectionHeading('Activity Overview');
-  const basicInfoBody = [
-    [
-      { content: 'Event Date:', styles: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 26 } },
-      { content: PROPOSAL_PDF_DATA.event_date || '—', styles: { cellWidth: 65 } },
-      { content: 'Proponent:', styles: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 26 } },
-      { content: PROPOSAL_PDF_DATA.proponent || '—', styles: { cellWidth: 65 } }
-    ],
-    [
-      { content: 'Time Slot:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
-      { content: PROPOSAL_PDF_DATA.time || '—' },
-      { content: 'Source:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
-      { content: PROPOSAL_PDF_DATA.source || '—' }
-    ],
-    [
-      { content: 'Venue:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
-      { content: PROPOSAL_PDF_DATA.venue || '—' },
-      { content: 'Participants:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
-      { content: PROPOSAL_PDF_DATA.target_participants || '—' }
-    ],
-    [
-      { content: 'Theme:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
-      { content: PROPOSAL_PDF_DATA.theme || '—', colSpan: 3 }
-    ]
-  ];
-
-  doc.autoTable({
-    startY: currentY,
-    margin: { left: marginX, right: marginX },
-    body: basicInfoBody,
-    theme: 'plain',
-    styles: { fontSize: 8.5, cellPadding: 1.8, textColor: [30, 41, 59] },
-    columnStyles: {
-      0: { cellWidth: 25 },
-      1: { cellWidth: 66 },
-      2: { cellWidth: 25 },
-      3: { cellWidth: 66 }
-    }
-  });
-  currentY = doc.lastAutoTable.finalY + 4;
-
-  // --- OBJECTIVES & ALIGNMENT ---
-  if (PROPOSAL_PDF_DATA.general_objectives || PROPOSAL_PDF_DATA.specific_objectives || PROPOSAL_PDF_DATA.rationale) {
-    addSectionHeading('Objectives & Academic Alignment');
-    addFieldBlock('General Objectives:', PROPOSAL_PDF_DATA.general_objectives);
-    addFieldBlock('Specific Objectives:', PROPOSAL_PDF_DATA.specific_objectives);
-    addFieldBlock('Involved Subjects:', PROPOSAL_PDF_DATA.involved_subjects);
-    addFieldBlock('Rationale:', PROPOSAL_PDF_DATA.rationale);
-  }
-
-  // --- GUIDELINES ---
-  if (PROPOSAL_PDF_DATA.guidelines && Object.keys(PROPOSAL_PDF_DATA.guidelines).length > 0) {
-    addSectionHeading('Event Guidelines');
-    for (const [gLabel, gVal] of Object.entries(PROPOSAL_PDF_DATA.guidelines)) {
-      addFieldBlock(gLabel + ':', gVal);
-    }
-  }
-
-  // --- SCHEDULE OF ACTIVITIES ---
-  if (PROPOSAL_PDF_DATA.schedules && PROPOSAL_PDF_DATA.schedules.length > 0) {
-    addSectionHeading('Schedule of Activities');
-    doc.autoTable({
-      startY: currentY,
-      margin: { left: marginX, right: marginX },
-      head: [['Date', 'Event Name', 'Venue', 'Organizer']],
-      body: PROPOSAL_PDF_DATA.schedules,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
-      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: {
-        0: { cellWidth: 32 },
-        1: { cellWidth: 65 },
-        2: { cellWidth: 45 },
-        3: { cellWidth: 40 }
-      }
-    });
-    currentY = doc.lastAutoTable.finalY + 4;
-  }
-
-  // --- PROGRAM SEQUENCE ---
-  if (PROPOSAL_PDF_DATA.program && PROPOSAL_PDF_DATA.program.length > 0) {
-    addSectionHeading('Program Flow & Sequence');
-    doc.autoTable({
-      startY: currentY,
-      margin: { left: marginX, right: marginX },
-      head: [['Time Slot', 'Segment', 'Description', 'Person In-Charge']],
-      body: PROPOSAL_PDF_DATA.program,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
-      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: {
-        0: { cellWidth: 32 },
-        1: { cellWidth: 45 },
-        2: { cellWidth: 65 },
-        3: { cellWidth: 40 }
-      }
-    });
-    currentY = doc.lastAutoTable.finalY + 4;
-  }
-
-  // --- COMMITTEE TASKS & ASSIGNMENTS ---
-  if (PROPOSAL_PDF_DATA.tasks && PROPOSAL_PDF_DATA.tasks.length > 0) {
-    addSectionHeading('Committee Tasks & Role Assignments');
-    doc.autoTable({
-      startY: currentY,
-      margin: { left: marginX, right: marginX },
-      head: [['Task Title', 'Committee', 'Assigned Member', 'Role in Event', 'Target Date', 'Status']],
-      body: PROPOSAL_PDF_DATA.tasks,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
-      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: {
-        0: { cellWidth: 47 },
-        1: { cellWidth: 35 },
-        2: { cellWidth: 35 },
-        3: { cellWidth: 25 },
-        4: { cellWidth: 22 },
-        5: { cellWidth: 18 }
-      }
-    });
-    currentY = doc.lastAutoTable.finalY + 4;
-  }
-
-  // --- MANPOWER ---
-  if (PROPOSAL_PDF_DATA.manpower && PROPOSAL_PDF_DATA.manpower.length > 0) {
-    addSectionHeading('Manpower Allocation');
-    doc.autoTable({
-      startY: currentY,
-      margin: { left: marginX, right: marginX },
-      head: [['Role / Responsibility', 'Assigned Person', 'Type']],
-      body: PROPOSAL_PDF_DATA.manpower,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
-      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: {
-        0: { cellWidth: 72 },
-        1: { cellWidth: 70 },
-        2: { cellWidth: 40 }
-      }
-    });
-    currentY = doc.lastAutoTable.finalY + 4;
-  }
-
-  // --- MATERIALS NEEDED ---
-  if (PROPOSAL_PDF_DATA.materials && PROPOSAL_PDF_DATA.materials.length > 0) {
-    addSectionHeading('Materials & Resources Needed');
-    doc.autoTable({
-      startY: currentY,
-      margin: { left: marginX, right: marginX },
-      head: [['Item Name', 'Description', 'Qty', 'Provider', 'Est. Cost']],
-      body: PROPOSAL_PDF_DATA.materials,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
-      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: {
-        0: { cellWidth: 42 },
-        1: { cellWidth: 60 },
-        2: { cellWidth: 15, halign: 'center' },
-        3: { cellWidth: 35 },
-        4: { cellWidth: 30, halign: 'right' }
-      }
-    });
-    currentY = doc.lastAutoTable.finalY + 4;
-  }
-
-  // --- KPI & EVALUATION ---
-  if (PROPOSAL_PDF_DATA.kpis && PROPOSAL_PDF_DATA.kpis.length > 0) {
-    addSectionHeading('KPI & Evaluation Alignment');
-    doc.autoTable({
-      startY: currentY,
-      margin: { left: marginX, right: marginX },
-      head: [['Indicator / Criteria', 'Target Metric', 'Evaluation Method']],
-      body: PROPOSAL_PDF_DATA.kpis,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
-      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: {
-        0: { cellWidth: 70 },
-        1: { cellWidth: 50 },
-        2: { cellWidth: 62 }
-      }
-    });
-    currentY = doc.lastAutoTable.finalY + 4;
-  }
-
-  // --- APPROVAL HISTORY ---
-  if (PROPOSAL_PDF_DATA.history && PROPOSAL_PDF_DATA.history.length > 0) {
-    addSectionHeading('Approval & Review History');
-    doc.autoTable({
-      startY: currentY,
-      margin: { left: marginX, right: marginX },
-      head: [['Reviewer', 'Action Taken', 'Remarks / Notes', 'Date & Time']],
-      body: PROPOSAL_PDF_DATA.history,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', textColor: [30, 41, 59] },
-      headStyles: { fillColor: [0, 56, 118], textColor: 255, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: {
-        0: { cellWidth: 40 },
-        1: { cellWidth: 32 },
-        2: { cellWidth: 68 },
-        3: { cellWidth: 42 }
-      }
-    });
-    currentY = doc.lastAutoTable.finalY + 4;
-  }
-
-  // --- FOOTERS ON ALL PAGES ---
-  const totalPages = doc.internal.getNumberOfPages();
-  const exportTimestamp = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-  for (let p = 1; p <= totalPages; p++) {
-    doc.setPage(p);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(148, 163, 184);
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.3);
-    doc.line(marginX, pageHeight - 12, pageWidth - marginX, pageHeight - 12);
-    doc.text('STI Activity & Resource Management System (STI-ARMES) — Official Proposal Export', marginX, pageHeight - 8);
-    doc.text('Page ' + p + ' of ' + totalPages + ' (' + exportTimestamp + ')', pageWidth - marginX, pageHeight - 8, { align: 'right' });
-  }
-
-  // --- SANITIZE FILENAME & DOWNLOAD ---
-  let safeTitle = (PROPOSAL_PDF_DATA.title || '')
-    .trim()
-    .replace(/[^a-zA-Z0-9_\-\s]/g, '')
-    .replace(/\s+/g, '_')
-    .substring(0, 50);
-
-  if (!safeTitle) {
-    safeTitle = 'Proposal_' + (PROPOSAL_PDF_DATA.id || 'Export');
-  }
-  const filename = safeTitle + '_Proposal.pdf';
-
-  doc.save(filename);
-}
-</script>
+  </script>
 </body>
+
 </html>

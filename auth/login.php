@@ -13,7 +13,7 @@ if (!empty($_SESSION['user_id'])) {
     exit;
   }
   $role = $_SESSION['user_role'];
-  $map  = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean'];
+  $map  = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean', 'program_head' => 'program_head'];
   $dir  = $map[$role] ?? 'faculty';
   header("Location: " . BASE_URL . "/{$dir}/dashboard.php");
   exit;
@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header("Location: " . BASE_URL . "/auth/change-password.php");
         exit;
       }
-      $map = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean'];
+      $map = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean', 'program_head' => 'program_head'];
       $dir = $map[$user['role']] ?? 'faculty';
       header("Location: " . BASE_URL . "/{$dir}/dashboard.php");
       exit;

@@ -1,0 +1,298 @@
+[
+    {
+        "id": "MT-001",
+        "module": "Auth",
+        "scenario": "Program Head IT login and dashboard redirect",
+        "expected": "302 Redirect to \/program_head\/dashboard.php",
+        "actual": "HTTP 302 Redirect: http:\/\/localhost\/sti-activity-system\/program_head\/dashboard.php",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-002",
+        "module": "Auth",
+        "scenario": "Faculty IT login and dashboard redirect",
+        "expected": "302 Redirect to \/faculty\/dashboard.php",
+        "actual": "HTTP 302 Redirect: http:\/\/localhost\/sti-activity-system\/faculty\/dashboard.php",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-003",
+        "module": "Auth",
+        "scenario": "Dean login and dashboard redirect",
+        "expected": "302 Redirect to \/dean\/dashboard.php",
+        "actual": "HTTP 302 Redirect: http:\/\/localhost\/sti-activity-system\/dean\/dashboard.php",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-004",
+        "module": "Auth",
+        "scenario": "Admin 1 login and dashboard redirect",
+        "expected": "302 Redirect to \/admin1\/dashboard.php",
+        "actual": "HTTP 302 Redirect: http:\/\/localhost\/sti-activity-system\/admin1\/dashboard.php",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-005",
+        "module": "Auth",
+        "scenario": "Admin 2 login and dashboard redirect",
+        "expected": "302 Redirect to \/admin2\/dashboard.php",
+        "actual": "HTTP 302 Redirect: http:\/\/localhost\/sti-activity-system\/admin2\/dashboard.php",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-006",
+        "module": "Auth",
+        "scenario": "Invalid password rejection",
+        "expected": "Show 'Invalid email or password' error",
+        "actual": "Status 200 - Shows invalid password message",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-007",
+        "module": "Account Management",
+        "scenario": "Reject invalid Program Head department assignment",
+        "expected": "Error code missing_program_head_department",
+        "actual": "Response: {\"success\":false,\"error_code\":\"missing_program_head_department\",\"error\":\"Program Head must be assigned to a valid department: IT, THM, or GE.\"}",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-008",
+        "module": "Security",
+        "scenario": "Program Head blocked from Dean-only dashboard",
+        "expected": "Access Denied (403)",
+        "actual": "HTTP Code 403",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-009",
+        "module": "Security",
+        "scenario": "Program Head blocked from Admin2 User Management",
+        "expected": "Access Denied (403)",
+        "actual": "HTTP Code 403",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-010",
+        "module": "PH Dashboard",
+        "scenario": "IT Program Head Dashboard identifies IT Department",
+        "expected": "Displays 'IT Department' badge and overview",
+        "actual": "Status 200 - Badge found: Yes",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-011",
+        "module": "PH Dashboard",
+        "scenario": "THM Program Head Dashboard identifies THM Department",
+        "expected": "Displays 'THM Department' badge",
+        "actual": "Status 200 - Badge found: Yes",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-012",
+        "module": "PH Dashboard",
+        "scenario": "GE Program Head Dashboard identifies GE Department",
+        "expected": "Displays 'G.E. Department' badge",
+        "actual": "Status 200 - Badge found: Yes",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-013",
+        "module": "Proposals",
+        "scenario": "Program Head saves proposal draft",
+        "expected": "Activity created with status 'draft' for PH",
+        "actual": "Status: draft, ID: 666",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-014",
+        "module": "Proposals",
+        "scenario": "Program Head edits existing draft",
+        "expected": "Title and participants updated in database",
+        "actual": "Title: IT Cybersecurity Boot Camp 1793612783 [Updated]",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-015",
+        "module": "Proposals",
+        "scenario": "Program Head submits proposal into workflow",
+        "expected": "Activity status updated to 'submitted'",
+        "actual": "Current status: submitted",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-016",
+        "module": "Workflow",
+        "scenario": "Admin 2 endorses and forwards to Dean",
+        "expected": "Status advances to 'pending_final_approval'",
+        "actual": "Current status: pending_final_approval",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-017",
+        "module": "Workflow",
+        "scenario": "Dean gives final approval to Program Head proposal",
+        "expected": "Status advances to 'approved'",
+        "actual": "Current status: approved",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-018",
+        "module": "PH Activities",
+        "scenario": "Approved activity appears in Program Head Approved list",
+        "expected": "Page lists approved proposal",
+        "actual": "HTTP 200 - Found in body: Yes",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-019",
+        "module": "PH Activities",
+        "scenario": "Program Head opens full activity details view",
+        "expected": "Displays complete activity details",
+        "actual": "HTTP 200 - Details rendered: Yes",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-020",
+        "module": "PH Tasks",
+        "scenario": "Program Head assigns task to department faculty",
+        "expected": "Task created and linked to activity",
+        "actual": "Task ID: 240",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-021",
+        "module": "PH Tasks",
+        "scenario": "Assigned task appears in PH Department Task Monitoring",
+        "expected": "Displays 'Network Security Setup'",
+        "actual": "HTTP 200 - Listed: Yes",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-022",
+        "module": "Faculty Tasks",
+        "scenario": "Faculty updates assigned task status to In Progress",
+        "expected": "Status updated to 'In Progress'",
+        "actual": "Current status: In Progress",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-023",
+        "module": "Post-Event",
+        "scenario": "Program Head uploads post-event documentation",
+        "expected": "Post-event record created with target attendance 70",
+        "actual": "Saved target attendance: 70",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-024",
+        "module": "KPI Reports",
+        "scenario": "Program Head views KPI & Evaluation Reports",
+        "expected": "HTTP 200 KPI page renders",
+        "actual": "HTTP Code: 200",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-025",
+        "module": "Calendar",
+        "scenario": "Program Head Calendar page loads",
+        "expected": "HTTP 200 calendar renders",
+        "actual": "HTTP Code: 200",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-026",
+        "module": "AI Assistance",
+        "scenario": "Program Head calls AI Objectives Generation API",
+        "expected": "HTTP 200 with generated objectives",
+        "actual": "HTTP Code: 200",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-027",
+        "module": "AI Assistance",
+        "scenario": "Program Head calls AI Theme Suggestion API",
+        "expected": "HTTP 200 with theme suggestions",
+        "actual": "HTTP Code: 200",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-028",
+        "module": "Security",
+        "scenario": "THM Program Head blocked from viewing IT-exclusive activity",
+        "expected": "HTTP 403 Access Denied",
+        "actual": "HTTP Code: 403",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-029",
+        "module": "Security",
+        "scenario": "GE Program Head blocked from viewing IT-exclusive activity",
+        "expected": "HTTP 403 Access Denied",
+        "actual": "HTTP Code: 403",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-030",
+        "module": "Collaboration",
+        "scenario": "THM Program Head can view shared activity where THM faculty assigned",
+        "expected": "HTTP 200 read-only access granted",
+        "actual": "HTTP Code: 200",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-031",
+        "module": "Security",
+        "scenario": "THM Program Head CANNOT modify shared activity created by IT",
+        "expected": "HTTP 403 Access Denied",
+        "actual": "HTTP Code: 403",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-032",
+        "module": "Faculty",
+        "scenario": "Faculty creates and saves own proposal draft",
+        "expected": "Draft created in database",
+        "actual": "Activity ID: 667",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-033",
+        "module": "Security",
+        "scenario": "Faculty CANNOT modify activities created by others",
+        "expected": "HTTP 403 Access Denied",
+        "actual": "HTTP Code: 403",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-034",
+        "module": "Dean",
+        "scenario": "Dean views institutional activities list",
+        "expected": "Contains Program Head activity or activities list",
+        "actual": "HTTP 200 - Rendered: Yes",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-035",
+        "module": "Dean",
+        "scenario": "Dean accesses User Management page",
+        "expected": "HTTP 200 with User Management",
+        "actual": "HTTP Code: 200",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-036",
+        "module": "Admin 1",
+        "scenario": "Admin 1 views activities list",
+        "expected": "HTTP 200 activities rendered",
+        "actual": "HTTP Code: 200",
+        "status": "Pass"
+    },
+    {
+        "id": "MT-037",
+        "module": "Admin 2",
+        "scenario": "Admin 2 accesses User Management page",
+        "expected": "HTTP 200 with User Management",
+        "actual": "HTTP Code: 200",
+        "status": "Pass"
+    }
+]

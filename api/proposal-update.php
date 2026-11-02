@@ -5,18 +5,73 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/EmailService.php';
 require_once __DIR__ . '/../includes/ai/schedule_conflict.php';
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 
 $user   = currentUser();
 $db     = getDB();
 $id     = (int)($_POST['activity_id'] ?? 0);
 $action = $_POST['action'] ?? 'draft';
 
-// Verify ownership
-$check = $db->prepare("SELECT * FROM activities WHERE id=? AND faculty_id=?");
-$check->execute([$id, $user['id']]);
+$isAjax = (
+    (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+    (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json')) ||
+    (isset($_POST['is_ajax_sync']) && $_POST['is_ajax_sync'] === '1')
+);
+
+// Verify access
+if (!canUserAccessActivity($id, 'modify', $user['id'], $user['role'], $user['dept'])) {
+    http_response_code(403);
+    if ($isAjax) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'error_code' => 'access_denied', 'error' => 'Access denied: You do not have permission to modify this activity.']);
+        exit;
+    }
+    die('Access denied: You do not have permission to modify this activity.');
+}
+$check = $db->prepare("SELECT * FROM activities WHERE id=?");
+$check->execute([$id]);
 $activity = $check->fetch();
-if (!$activity) { header('Location: '.BASE_URL.'/faculty/activities.php'); exit; }
+if (!$activity) {
+    if ($isAjax) {
+        http_response_code(404);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'error_code' => 'not_found', 'error' => 'Activity not found.']);
+        exit;
+    }
+    header('Location: '.BASE_URL.'/faculty/activities.php');
+    exit;
+}
+
+// Conflict detection for offline draft synchronization:
+// Check if server version was modified after the client's last known server timestamp.
+$lastKnown = trim((string)($_POST['last_known_updated_at'] ?? ''));
+$forceOverwrite = !empty($_POST['force_overwrite']);
+
+if ($lastKnown !== '' && !$forceOverwrite && !empty($activity['updated_at'])) {
+    $serverTime = strtotime($activity['updated_at']);
+    $clientTime = strtotime($lastKnown);
+    // Tolerance margin of 2 seconds for server-client timestamp resolution
+    if ($serverTime > ($clientTime + 2)) {
+        if ($isAjax) {
+            http_response_code(409); // Conflict
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success'           => false,
+                'conflict'          => true,
+                'error_code'        => 'conflict_requires_review',
+                'error'             => 'Conflict detected: The server version of this proposal was modified by another contributor after your view was loaded. Please reload to review the latest changes.',
+                'server_updated_at' => $activity['updated_at'],
+                'client_updated_at' => $lastKnown,
+                'server_title'      => $activity['title'],
+                'activity_id'       => $id
+            ]);
+            exit;
+        } else {
+            header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&conflict=1&server_time=" . urlencode($activity['updated_at']));
+            exit;
+        }
+    }
+}
 
 // Fetch current status to prevent losing returned_for_revision state
 $curr = $db->prepare("SELECT status FROM activities WHERE id=?");
@@ -24,6 +79,22 @@ $curr->execute([$id]);
 $currStatus = $curr->fetchColumn();
 
 if ($action === 'submit') {
+    // Collaborative permission: Only proposal owner may perform final submission for approval
+    $isOwner = ((int)$activity['faculty_id'] === (int)$user['id']);
+    if (!$isOwner) {
+        http_response_code(403);
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success'    => false,
+                'error_code' => 'owner_submission_only',
+                'error'      => 'Only the proposal owner may submit this proposal for approval. Contributors may save draft changes.'
+            ]);
+            exit;
+        }
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=owner_submission_only");
+        exit;
+    }
     $newStatus = 'submitted';
     $clearNotes = true;
 } else {
@@ -41,8 +112,16 @@ if (!empty($activity['revision_sections'])) {
 $isReturned = ($activity['status'] === 'returned_for_revision');
 $hasSectionComments = !empty($revisionSections);
 
-// Check editability for section 1 (event_details)
+// Check editability for all wizard sections
 $s1Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['event_details']);
+$s2Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['objectives']);
+$s3Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['materials']);
+$s4Editable = true; // Floor plan is always fully editable
+$s5Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['people']);
+$s6Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['schedule']);
+$s7Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['guidelines']);
+$s8Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['faculty_tasks']);
+$s9Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['kpi']);
 
 // Authoritative date validation (Asia/Manila)
 $todayManila = date('Y-m-d');
@@ -57,6 +136,12 @@ if ($s1Editable) {
         $d = DateTime::createFromFormat('Y-m-d', $eventDate);
         // Rule: event_date > today's date (earliest allowed date is tomorrow)
         if (!$d || $d->format('Y-m-d') !== $eventDate || $eventDate <= $todayManila) {
+            if ($isAjax) {
+                http_response_code(400);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error_code' => 'past_date', 'error' => 'Event date cannot be in the past.']);
+                exit;
+            }
             header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=past_date");
             exit;
         }
@@ -79,6 +164,12 @@ if ($s1Editable) {
         if ($startTime !== '' && $endTime !== '') {
             $timeCheck = validateScheduleTimeRange($startTime, $endTime, false);
             if (!$timeCheck['valid']) {
+                if ($isAjax) {
+                    http_response_code(400);
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'error_code' => 'invalid_time', 'error' => 'Invalid time range.']);
+                    exit;
+                }
                 header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_time");
                 exit;
             }
@@ -144,36 +235,90 @@ if (!empty($_FILES['floor_plan_file']['name'])) {
     }
 }
 
-// Server-side required-field and KPI validation for submissions
-if ($action === 'submit') {
+// Resolve Section 1 data (Event Details) for both draft and submission
+if (!$s1Editable) {
+    $title              = trim($activity['title'] ?? '');
+    $theme              = trim($activity['theme'] ?? '');
+    $venue              = trim($activity['venue'] ?? '');
+    $venueAddress       = trim($activity['venue_address'] ?? '');
+    $targetParticipants = (int)($activity['target_participants'] ?? 0);
+} else {
     $title              = isset($_POST['title']) && is_string($_POST['title']) ? trim($_POST['title']) : '';
     $theme              = isset($_POST['theme']) && is_string($_POST['theme']) ? trim($_POST['theme']) : '';
     $venue              = isset($_POST['venue']) && is_string($_POST['venue']) ? trim($_POST['venue']) : '';
-    $targetParticipants = isset($_POST['target_participants']) ? trim((string)$_POST['target_participants']) : '';
-
-    if (!$s1Editable) {
-        if ($title === '' && !empty($activity['title'])) {
-            $title = trim($activity['title']);
-            $_POST['title'] = $title;
+    $venueAddress       = isset($_POST['venue_address']) && is_string($_POST['venue_address']) ? trim($_POST['venue_address']) : '';
+    $targetParticipants = isset($_POST['target_participants']) && is_numeric($_POST['target_participants']) ? (int)$_POST['target_participants'] : 0;
+    $partCounts = $_POST['part_count'] ?? $_POST['participant_count'] ?? [];
+    if (is_array($partCounts) && !empty($partCounts)) {
+        $sumParticipants = 0;
+        foreach ($partCounts as $pc) {
+            $sumParticipants += max(0, (int)$pc);
         }
-        if ($theme === '' && !empty($activity['theme'])) {
-            $theme = trim($activity['theme']);
-            $_POST['theme'] = $theme;
-        }
-        if ($venue === '' && !empty($activity['venue'])) {
-            $venue = trim($activity['venue']);
-            $_POST['venue'] = $venue;
-        }
-        if (($targetParticipants === '' || !is_numeric($targetParticipants) || (int)$targetParticipants <= 0) && !empty($activity['target_participants'])) {
-            $targetParticipants = (string)$activity['target_participants'];
-            $_POST['target_participants'] = $targetParticipants;
+        if ($sumParticipants > 0 || $targetParticipants <= 0) {
+            $targetParticipants = $sumParticipants;
         }
     }
 
+    // When saving draft, preserve existing values if field was omitted in POST
+    if ($action === 'draft') {
+        if ($title === '' && !empty($activity['title']) && !isset($_POST['title'])) {
+            $title = trim($activity['title']);
+        }
+        if ($theme === '' && !empty($activity['theme']) && !isset($_POST['theme'])) {
+            $theme = trim($activity['theme']);
+        }
+        if ($venue === '' && !empty($activity['venue']) && !isset($_POST['venue'])) {
+            $venue = trim($activity['venue']);
+        }
+        if ($venueAddress === '' && !empty($activity['venue_address']) && !isset($_POST['venue_address'])) {
+            $venueAddress = trim($activity['venue_address']);
+        }
+        if ($targetParticipants <= 0 && !empty($activity['target_participants']) && !isset($_POST['target_participants']) && empty($partCounts)) {
+            $targetParticipants = (int)$activity['target_participants'];
+        }
+    }
+}
+$_POST['title'] = $title;
+$_POST['theme'] = $theme;
+$_POST['venue'] = $venue;
+$_POST['venue_address'] = $venueAddress;
+$_POST['target_participants'] = $targetParticipants;
+
+// Resolve Section 2 data (Objectives) for both draft and submission
+if (!$s2Editable) {
+    $generalObjectives  = trim($activity['general_objectives'] ?? '');
+    $specificObjectives = trim($activity['specific_objectives'] ?? '');
+    $involvedSubjects   = trim($activity['involved_subjects'] ?? '');
+    $rationale          = trim($activity['rationale'] ?? '');
+} else {
     $generalObjectives  = isset($_POST['general_objectives']) && is_string($_POST['general_objectives']) ? trim($_POST['general_objectives']) : '';
     $specificObjectives = isset($_POST['specific_objectives']) && is_string($_POST['specific_objectives']) ? trim($_POST['specific_objectives']) : '';
+    $involvedSubjects   = isset($_POST['involved_subjects']) && is_string($_POST['involved_subjects']) ? trim($_POST['involved_subjects']) : '';
     $rationale          = isset($_POST['rationale']) && is_string($_POST['rationale']) ? trim($_POST['rationale']) : '';
 
+    // When saving draft, preserve existing values if field was omitted in POST
+    if ($action === 'draft') {
+        if ($generalObjectives === '' && !empty($activity['general_objectives']) && !isset($_POST['general_objectives'])) {
+            $generalObjectives = trim($activity['general_objectives']);
+        }
+        if ($specificObjectives === '' && !empty($activity['specific_objectives']) && !isset($_POST['specific_objectives'])) {
+            $specificObjectives = trim($activity['specific_objectives']);
+        }
+        if ($involvedSubjects === '' && !empty($activity['involved_subjects']) && !isset($_POST['involved_subjects'])) {
+            $involvedSubjects = trim($activity['involved_subjects']);
+        }
+        if ($rationale === '' && !empty($activity['rationale']) && !isset($_POST['rationale'])) {
+            $rationale = trim($activity['rationale']);
+        }
+    }
+}
+$_POST['general_objectives'] = $generalObjectives;
+$_POST['specific_objectives'] = $specificObjectives;
+$_POST['involved_subjects'] = $involvedSubjects;
+$_POST['rationale'] = $rationale;
+
+// Server-side required-field and KPI validation for submissions
+if ($action === 'submit') {
     if (
         $title === '' ||
         $theme === '' ||
@@ -181,9 +326,7 @@ if ($action === 'submit') {
         $generalObjectives === '' ||
         $specificObjectives === '' ||
         $rationale === '' ||
-        $targetParticipants === '' ||
-        !is_numeric($targetParticipants) ||
-        (int)$targetParticipants <= 0
+        $targetParticipants <= 0
     ) {
         header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=missing_fields");
         exit;
@@ -263,7 +406,10 @@ if ($action === 'submit') {
     }
 }
 
-$source = sanitize($_POST['source'] ?? 'faculty');
+$source = sanitize($_POST['source'] ?? ($activity['source'] ?? 'faculty'));
+if ($source === '' && !empty($activity['source'])) {
+    $source = $activity['source'];
+}
 $evalQuestions = isset($_POST['evaluation_questions']) ? $_POST['evaluation_questions'] : $activity['evaluation_questions'];
 
 // Server-side validation of floor plan requirement choice
@@ -321,6 +467,40 @@ if ($action === 'submit' && $floorPlanRequired) {
     }
 }
 
+// Server-side validation for test scores and actual attendees when Section 9 is editable
+if ($s9Editable) {
+    if (!empty($_POST['part_pre_test']) && is_array($_POST['part_pre_test'])) {
+        foreach ($_POST['part_pre_test'] as $score) {
+            if ($score !== '' && $score !== null) {
+                if (!is_numeric($score) || (float)$score < 0 || (float)$score > 999.99) {
+                    header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_score");
+                    exit;
+                }
+            }
+        }
+    }
+    if (!empty($_POST['part_post_test']) && is_array($_POST['part_post_test'])) {
+        foreach ($_POST['part_post_test'] as $score) {
+            if ($score !== '' && $score !== null) {
+                if (!is_numeric($score) || (float)$score < 0 || (float)$score > 999.99) {
+                    header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_score");
+                    exit;
+                }
+            }
+        }
+    }
+    if (!empty($_POST['part_actual_attendees']) && is_array($_POST['part_actual_attendees'])) {
+        foreach ($_POST['part_actual_attendees'] as $att) {
+            if ($att !== '' && $att !== null) {
+                if (!is_numeric($att) || (int)$att < 0) {
+                    header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_score");
+                    exit;
+                }
+            }
+        }
+    }
+}
+
 $newlyCreatedDiskPath = null;
 $previousFloorPlanPath = null;
 
@@ -334,12 +514,12 @@ try {
             involved_subjects=?,rationale=?,evaluation_method=?,source=?,
             status=?,evaluation_questions=?,floor_plan_required=?,revision_notes=NULL,revision_sections=NULL,submitted_at=?,updated_at=NOW()
             WHERE id=?")->execute([
-            sanitize($_POST['title']??''), sanitize($_POST['theme']??''), sanitize($_POST['venue']??''), sanitize($_POST['venue_address']??''),
+            sanitize($title), sanitize($theme), sanitize($venue), sanitize($venueAddress),
             $saveEventDate, $saveStartTime, $saveEndTime,
-            (int)($_POST['target_participants']??0),
-            sanitize($_POST['general_objectives']??''), sanitize($_POST['specific_objectives']??''),
-            sanitize($_POST['involved_subjects']??''), sanitize($_POST['rationale']??''),
-            sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? '')),
+            (int)$targetParticipants,
+            sanitize($generalObjectives), sanitize($specificObjectives),
+            sanitize($involvedSubjects), sanitize($rationale),
+            sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? ($activity['evaluation_method'] ?? ''))),
             $source, $newStatus,
             $evalQuestions,
             $fpRequiredInt,
@@ -352,12 +532,12 @@ try {
             involved_subjects=?,rationale=?,evaluation_method=?,source=?,
             status=?,evaluation_questions=?,floor_plan_required=?,updated_at=NOW()
             WHERE id=?")->execute([
-            sanitize($_POST['title']??''), sanitize($_POST['theme']??''), sanitize($_POST['venue']??''), sanitize($_POST['venue_address']??''),
+            sanitize($title), sanitize($theme), sanitize($venue), sanitize($venueAddress),
             $saveEventDate, $saveStartTime, $saveEndTime,
-            (int)($_POST['target_participants']??0),
-            sanitize($_POST['general_objectives']??''), sanitize($_POST['specific_objectives']??''),
-            sanitize($_POST['involved_subjects']??''), sanitize($_POST['rationale']??''),
-            sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? '')),
+            (int)$targetParticipants,
+            sanitize($generalObjectives), sanitize($specificObjectives),
+            sanitize($involvedSubjects), sanitize($rationale),
+            sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? ($activity['evaluation_method'] ?? ''))),
             $source, $newStatus,
             $evalQuestions,
             $fpRequiredInt,
@@ -365,49 +545,192 @@ try {
         ]);
     }
 
-    // Replace child tables
-    $db->prepare("DELETE FROM materials WHERE activity_id=?")->execute([$id]);
-    if (!empty($_POST['mat_item'])) {
-        $ms = $db->prepare("INSERT INTO materials(activity_id,item_name,description,quantity,provider,est_cost)VALUES(?,?,?,?,?,?)");
-        foreach ($_POST['mat_item'] as $i=>$name) {
-            if (!trim($name)) continue;
-            $ms->execute([$id,sanitize($name),sanitize($_POST['mat_desc'][$i]??''),(int)($_POST['mat_qty'][$i]??1),sanitize($_POST['mat_provider'][$i]??''),(float)($_POST['mat_cost'][$i]??0)]);
+    // Replace child tables only if their sections are editable or post-activity KPI values submitted
+    $partActuals  = $_POST['part_actual_attendees'] ?? null;
+    $partPreTests = $_POST['part_pre_test'] ?? null;
+    $partPostTests= $_POST['part_post_test'] ?? null;
+
+    if ($s1Editable) {
+        $partSections = $_POST['part_section'] ?? $_POST['participant_section'] ?? null;
+        $partCounts   = $_POST['part_count'] ?? $_POST['participant_count'] ?? null;
+        $partTeachers = $_POST['part_teacher'] ?? $_POST['participant_teacher'] ?? null;
+
+        if ($partSections !== null || $partCounts !== null) {
+            try {
+                $db->exec("CREATE TABLE IF NOT EXISTS activity_participants (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    activity_id INT NOT NULL,
+                    row_no INT NOT NULL DEFAULT 1,
+                    subject_section VARCHAR(255) NOT NULL DEFAULT '',
+                    participants_count INT NOT NULL DEFAULT 0,
+                    actual_attendees INT NULL DEFAULT NULL,
+                    pre_test_score DECIMAL(5,2) NULL DEFAULT NULL,
+                    post_test_score DECIMAL(5,2) NULL DEFAULT NULL,
+                    learning_kpi_result VARCHAR(100) NULL DEFAULT NULL,
+                    teacher_name VARCHAR(255) NOT NULL DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_activity_id (activity_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                $colCheck = $db->query("SHOW COLUMNS FROM activity_participants LIKE 'actual_attendees'")->fetch();
+                $hasKpiCols = (bool)$colCheck;
+
+                // Query existing rows to preserve actual / pre / post test if not submitted in this request
+                $existingMap = [];
+                if ($hasKpiCols) {
+                    $existStmt = $db->prepare("SELECT * FROM activity_participants WHERE activity_id=? ORDER BY row_no ASC, id ASC");
+                    $existStmt->execute([$id]);
+                    foreach ($existStmt->fetchAll(PDO::FETCH_ASSOC) as $ep) {
+                        $existingMap[$ep['row_no']] = $ep;
+                    }
+                }
+
+                $db->prepare("DELETE FROM activity_participants WHERE activity_id=?")->execute([$id]);
+
+                if (is_array($partSections) || is_array($partCounts)) {
+                    if ($hasKpiCols) {
+                        $pStmt = $db->prepare("INSERT INTO activity_participants (activity_id, row_no, subject_section, participants_count, actual_attendees, pre_test_score, post_test_score, learning_kpi_result, teacher_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    } else {
+                        $pStmt = $db->prepare("INSERT INTO activity_participants (activity_id, row_no, subject_section, participants_count, teacher_name) VALUES (?, ?, ?, ?, ?)");
+                    }
+
+                    $rowNo = 1;
+                    $loopList = is_array($partSections) ? $partSections : $partCounts;
+                    foreach ($loopList as $i => $item) {
+                        $secText = sanitize($partSections[$i] ?? '');
+                        $cntVal  = max(0, (int)($partCounts[$i] ?? 0));
+                        $tVal    = sanitize($partTeachers[$i] ?? '');
+
+                        $actVal = null;
+                        $preVal = null;
+                        $postVal = null;
+                        $kpiOutcome = null;
+
+                        if ($s9Editable) {
+                            if (is_array($partActuals) && isset($partActuals[$i]) && $partActuals[$i] !== '' && is_numeric($partActuals[$i])) {
+                                $actVal = max(0, (int)$partActuals[$i]);
+                            } elseif (isset($existingMap[$rowNo]['actual_attendees'])) {
+                                $actVal = $existingMap[$rowNo]['actual_attendees'];
+                            }
+
+                            if (is_array($partPreTests) && isset($partPreTests[$i]) && $partPreTests[$i] !== '' && is_numeric($partPreTests[$i])) {
+                                $preVal = (float)$partPreTests[$i];
+                            } elseif (isset($existingMap[$rowNo]['pre_test_score'])) {
+                                $preVal = $existingMap[$rowNo]['pre_test_score'];
+                            }
+
+                            if (is_array($partPostTests) && isset($partPostTests[$i]) && $partPostTests[$i] !== '' && is_numeric($partPostTests[$i])) {
+                                $postVal = (float)$partPostTests[$i];
+                            } elseif (isset($existingMap[$rowNo]['post_test_score'])) {
+                                $postVal = $existingMap[$rowNo]['post_test_score'];
+                            }
+
+                            if ($preVal !== null && $postVal !== null) {
+                                $diff = $postVal - $preVal;
+                                $kpiOutcome = ($diff >= 0 ? '+' : '') . number_format($diff, 1) . ' pts';
+                            } elseif (isset($existingMap[$rowNo]['learning_kpi_result'])) {
+                                $kpiOutcome = $existingMap[$rowNo]['learning_kpi_result'];
+                            }
+                        } else {
+                            // Section 9 is locked: discard any submitted KPI changes and preserve existing database values
+                            if (isset($existingMap[$rowNo])) {
+                                $actVal     = $existingMap[$rowNo]['actual_attendees'] ?? null;
+                                $preVal     = $existingMap[$rowNo]['pre_test_score'] ?? null;
+                                $postVal    = $existingMap[$rowNo]['post_test_score'] ?? null;
+                                $kpiOutcome = $existingMap[$rowNo]['learning_kpi_result'] ?? null;
+                            }
+                        }
+
+                        if ($secText !== '' || $cntVal > 0 || $tVal !== '' || $actVal !== null || $preVal !== null || $postVal !== null) {
+                            if ($hasKpiCols) {
+                                $pStmt->execute([$id, $rowNo, $secText, $cntVal, $actVal, $preVal, $postVal, $kpiOutcome, $tVal]);
+                            } else {
+                                $pStmt->execute([$id, $rowNo, $secText, $cntVal, $tVal]);
+                            }
+                        }
+                        $rowNo++;
+                    }
+                }
+            } catch (Exception $e) {
+                error_log("Error saving activity_participants in proposal-update: " . $e->getMessage());
+            }
+        }
+    } elseif (!$s1Editable && $s9Editable && ($partActuals !== null || $partPreTests !== null || $partPostTests !== null)) {
+        // Section 1 is locked, but Section 9 IS editable: update post-activity KPI values without altering participant structure
+        try {
+            $existStmt = $db->prepare("SELECT id, row_no, actual_attendees, pre_test_score, post_test_score, learning_kpi_result FROM activity_participants WHERE activity_id=? ORDER BY row_no ASC, id ASC");
+            $existStmt->execute([$id]);
+            $existingParts = $existStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $updateKpiStmt = $db->prepare("UPDATE activity_participants SET actual_attendees=?, pre_test_score=?, post_test_score=?, learning_kpi_result=? WHERE id=?");
+            foreach ($existingParts as $i => $ep) {
+                $actVal = (is_array($partActuals) && isset($partActuals[$i]) && $partActuals[$i] !== '' && is_numeric($partActuals[$i])) ? max(0, (int)$partActuals[$i]) : ($ep['actual_attendees'] ?? null);
+                $preVal = (is_array($partPreTests) && isset($partPreTests[$i]) && $partPreTests[$i] !== '' && is_numeric($partPreTests[$i])) ? (float)$partPreTests[$i] : ($ep['pre_test_score'] ?? null);
+                $postVal = (is_array($partPostTests) && isset($partPostTests[$i]) && $partPostTests[$i] !== '' && is_numeric($partPostTests[$i])) ? (float)$partPostTests[$i] : ($ep['post_test_score'] ?? null);
+                $kpiOutcome = null;
+                if ($preVal !== null && $postVal !== null) {
+                    $diff = $postVal - $preVal;
+                    $kpiOutcome = ($diff >= 0 ? '+' : '') . number_format($diff, 1) . ' pts';
+                } else {
+                    $kpiOutcome = $ep['learning_kpi_result'] ?? null;
+                }
+                $updateKpiStmt->execute([$actVal, $preVal, $postVal, $kpiOutcome, $ep['id']]);
+            }
+        } catch (Exception $e) {
+            error_log("Error updating post-activity participant KPIs: " . $e->getMessage());
         }
     }
 
-    $db->prepare("DELETE FROM program_sequence WHERE activity_id=?")->execute([$id]);
-    if (!empty($_POST['prog_segment'])) {
-        $ps = $db->prepare("INSERT INTO program_sequence(activity_id,time_slot,segment,description,person_ic,sort_order)VALUES(?,?,?,?,?,?)");
-        foreach ($_POST['prog_segment'] as $i=>$seg) {
-            if (!trim($seg)) continue;
-            $ps->execute([$id,$_POST['prog_time'][$i]??null,sanitize($seg),sanitize($_POST['prog_desc'][$i]??''),sanitize($_POST['prog_pic'][$i]??''),$i]);
+    if ($s3Editable) {
+        $db->prepare("DELETE FROM materials WHERE activity_id=?")->execute([$id]);
+        if (!empty($_POST['mat_item'])) {
+            $ms = $db->prepare("INSERT INTO materials(activity_id,item_name,description,quantity,provider,est_cost)VALUES(?,?,?,?,?,?)");
+            foreach ($_POST['mat_item'] as $i=>$name) {
+                if (!trim($name)) continue;
+                $ms->execute([$id,sanitize($name),sanitize($_POST['mat_desc'][$i]??''),(int)($_POST['mat_qty'][$i]??1),sanitize($_POST['mat_provider'][$i]??''),(float)($_POST['mat_cost'][$i]??0)]);
+            }
         }
     }
 
-    $db->prepare("DELETE FROM manpower WHERE activity_id=?")->execute([$id]);
-    if (!empty($_POST['mp_role'])) {
-        $mp = $db->prepare("INSERT INTO manpower(activity_id,role,assigned_person,type)VALUES(?,?,?,?)");
-        foreach ($_POST['mp_role'] as $i=>$role) {
-            if (!trim($role)) continue;
-            $mp->execute([$id,sanitize($role),sanitize($_POST['mp_person'][$i]??''),$_POST['mp_type'][$i]??'faculty']);
+    if ($s6Editable) {
+        $db->prepare("DELETE FROM program_sequence WHERE activity_id=?")->execute([$id]);
+        if (!empty($_POST['prog_segment'])) {
+            $ps = $db->prepare("INSERT INTO program_sequence(activity_id,time_slot,segment,description,person_ic,sort_order)VALUES(?,?,?,?,?,?)");
+            foreach ($_POST['prog_segment'] as $i=>$seg) {
+                if (!trim($seg)) continue;
+                $ps->execute([$id,$_POST['prog_time'][$i]??null,sanitize($seg),sanitize($_POST['prog_desc'][$i]??''),sanitize($_POST['prog_pic'][$i]??''),$i]);
+            }
+        }
+
+        $db->prepare("DELETE FROM schedules WHERE activity_id=?")->execute([$id]);
+        if (!empty($_POST['sched_event'])) {
+            $sc = $db->prepare("INSERT INTO schedules(activity_id,sched_date,event_name,venue,organizer)VALUES(?,?,?,?,?)");
+            foreach ($_POST['sched_event'] as $i=>$ev) {
+                if (!trim($ev)) continue;
+                $sc->execute([$id,$_POST['sched_date'][$i]??null,sanitize($ev),sanitize($_POST['sched_venue'][$i]??''),sanitize($_POST['sched_organizer'][$i]??'')]);
+            }
         }
     }
 
-    $db->prepare("DELETE FROM schedules WHERE activity_id=?")->execute([$id]);
-    if (!empty($_POST['sched_event'])) {
-        $sc = $db->prepare("INSERT INTO schedules(activity_id,sched_date,event_name,venue,organizer)VALUES(?,?,?,?,?)");
-        foreach ($_POST['sched_event'] as $i=>$ev) {
-            if (!trim($ev)) continue;
-            $sc->execute([$id,$_POST['sched_date'][$i]??null,sanitize($ev),sanitize($_POST['sched_venue'][$i]??''),sanitize($_POST['sched_organizer'][$i]??'')]);
+    if ($s5Editable) {
+        $db->prepare("DELETE FROM manpower WHERE activity_id=?")->execute([$id]);
+        if (!empty($_POST['mp_role'])) {
+            $mp = $db->prepare("INSERT INTO manpower(activity_id,role,assigned_person,type)VALUES(?,?,?,?)");
+            foreach ($_POST['mp_role'] as $i=>$role) {
+                if (!trim($role)) continue;
+                $mp->execute([$id,sanitize($role),sanitize($_POST['mp_person'][$i]??''),$_POST['mp_type'][$i]??'faculty']);
+            }
         }
     }
 
-    // Guidelines upsert
-    $db->prepare("DELETE FROM guidelines WHERE activity_id=?")->execute([$id]);
-    $db->prepare("INSERT INTO guidelines(activity_id,mechanics,criteria,scoring_system,special_awards)VALUES(?,?,?,?,?)")->execute([
-        $id,sanitize($_POST['guidelines_mechanics']??''),sanitize($_POST['guidelines_criteria']??''),
-        sanitize($_POST['guidelines_scoring']??''),sanitize($_POST['guidelines_awards']??'')
-    ]);
+    if ($s7Editable) {
+        $db->prepare("DELETE FROM guidelines WHERE activity_id=?")->execute([$id]);
+        $db->prepare("INSERT INTO guidelines(activity_id,mechanics,criteria,scoring_system,special_awards)VALUES(?,?,?,?,?)")->execute([
+            $id,sanitize($_POST['guidelines_mechanics']??''),sanitize($_POST['guidelines_criteria']??''),
+            sanitize($_POST['guidelines_scoring']??''),sanitize($_POST['guidelines_awards']??'')
+        ]);
+    }
 
     // Faculty Tasks Reconciliation
     $s8Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['faculty_tasks']);
@@ -600,20 +923,22 @@ try {
         }
     }
 
-    // KPIs
-    $db->prepare("DELETE FROM kpi_evaluations WHERE activity_id=?")->execute([$id]);
-    if (!empty($_POST['kpi_indicator'])) {
-        $kpi = $db->prepare("INSERT INTO kpi_evaluations(activity_id,indicator,target_metric,evaluation_method)VALUES(?,?,?,?)");
-        foreach ($_POST['kpi_indicator'] as $i=>$ind) {
-            if (!trim($ind)) continue;
-            $kpi->execute([$id,sanitize($ind),sanitize($_POST['kpi_target'][$i]??''),sanitize($_POST['kpi_method'][$i]??'')]);
-        }
-    } elseif (!empty($_POST['kpi_criteria'])) {
-        $kpi = $db->prepare("INSERT INTO kpi_evaluations(activity_id,indicator,target_metric,evaluation_method)VALUES(?,?,?,?)");
-        foreach ($_POST['kpi_criteria'] as $i=>$crit) {
-            if (!trim($crit)) continue;
-            $target = isset($_POST['kpi_rating'][$i]) ? ('Rating: ' . $_POST['kpi_rating'][$i]) : '';
-            $kpi->execute([$id,sanitize($crit),sanitize($target),'Student Evaluation']);
+    // KPIs (Section 9)
+    if ($s9Editable) {
+        $db->prepare("DELETE FROM kpi_evaluations WHERE activity_id=?")->execute([$id]);
+        if (!empty($_POST['kpi_indicator'])) {
+            $kpi = $db->prepare("INSERT INTO kpi_evaluations(activity_id,indicator,target_metric,evaluation_method)VALUES(?,?,?,?)");
+            foreach ($_POST['kpi_indicator'] as $i=>$ind) {
+                if (!trim($ind)) continue;
+                $kpi->execute([$id,sanitize($ind),sanitize($_POST['kpi_target'][$i]??''),sanitize($_POST['kpi_method'][$i]??'')]);
+            }
+        } elseif (!empty($_POST['kpi_criteria'])) {
+            $kpi = $db->prepare("INSERT INTO kpi_evaluations(activity_id,indicator,target_metric,evaluation_method)VALUES(?,?,?,?)");
+            foreach ($_POST['kpi_criteria'] as $i=>$crit) {
+                if (!trim($crit)) continue;
+                $target = isset($_POST['kpi_rating'][$i]) ? ('Rating: ' . $_POST['kpi_rating'][$i]) : '';
+                $kpi->execute([$id,sanitize($crit),sanitize($target),'Student Evaluation']);
+            }
         }
     }
 
@@ -753,6 +1078,44 @@ try {
         }
     }
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // Log Collaborative Contribution (Task 14)
+    // ══════════════════════════════════════════════════════════════════════════
+    try {
+        $contribSections = [];
+        if (!empty($s1Editable)) $contribSections[] = 'Event Details';
+        if (!empty($s2Editable)) $contribSections[] = 'Objectives';
+        if (!empty($s3Editable)) $contribSections[] = 'Materials & Budget';
+        if (!empty($s5Editable)) $contribSections[] = 'Manpower & Committees';
+        if (!empty($s6Editable)) $contribSections[] = 'Schedule & Program';
+        if (!empty($s7Editable)) $contribSections[] = 'Guidelines';
+        if (!empty($s8Editable)) $contribSections[] = 'Faculty Tasks';
+        if (!empty($s9Editable)) $contribSections[] = 'KPI & Evaluation';
+
+        $sectionSummary = !empty($contribSections) ? implode(', ', $contribSections) : 'Proposal Information';
+        $actionDesc = ($action === 'submit') ? 'submitted_proposal' : 'updated_draft';
+        $detailsDesc = ($action === 'submit') 
+            ? "Submitted proposal for approval ({$sectionSummary})" 
+            : "Saved edits to {$sectionSummary}";
+
+        logProposalContribution($id, (int)$user['id'], $actionDesc, $sectionSummary, $detailsDesc, $db);
+    } catch (\Throwable $collabLogEx) {
+        error_log("Failed to log proposal contribution: " . $collabLogEx->getMessage());
+    }
+
+    if ($isAjax) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success'     => true,
+            'activity_id' => $id,
+            'status'      => $newStatus,
+            'message'     => 'Proposal draft updated successfully.',
+            'updated_at'  => date('Y-m-d H:i:s'),
+            'title'       => $title
+        ]);
+        exit;
+    }
+
     header("Location: ".BASE_URL."/faculty/proposal-view.php?id={$id}&updated=1");
     exit;
 } catch (Exception $e) {
@@ -779,6 +1142,15 @@ try {
         } catch (\Throwable $rollEx) {
             error_log("Failed to clean up orphaned floor plan on rollback: " . $rollEx->getMessage());
         }
+    }
+    if ($isAjax) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Server error updating proposal: ' . $e->getMessage()
+        ]);
+        exit;
     }
     header("Location: ".BASE_URL."/faculty/proposal-edit.php?id={$id}&error=1");
     exit;

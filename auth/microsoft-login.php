@@ -16,7 +16,7 @@ if (!empty($_SESSION['user_id'])) {
         exit;
     }
     $role = $_SESSION['user_role'] ?? 'faculty';
-    $map  = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean'];
+    $map  = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean', 'program_head' => 'program_head'];
     $dir  = $map[$role] ?? 'faculty';
     header("Location: " . BASE_URL . "/{$dir}/dashboard.php");
     exit;

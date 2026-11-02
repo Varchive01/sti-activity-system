@@ -3,6 +3,12 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+requireLogin();
+$user = currentUser();
+if (($user['role'] ?? '') === 'program_head') {
+    header('Location: ' . BASE_URL . '/program_head/dashboard.php');
+    exit;
+}
 requireRole('faculty');
 
 $user = currentUser();
@@ -16,9 +22,10 @@ $stats = $db->prepare("
         SUM(status='approved') as approved,
         SUM(status='returned_for_revision') as revisions,
         SUM(status='completed') as completed
-    FROM activities WHERE faculty_id = ?
+    FROM activities 
+    WHERE (faculty_id = ? OR id IN (SELECT activity_id FROM proposal_collaborators WHERE user_id = ? AND status = 'active'))
 ");
-$stats->execute([$user['id']]);
+$stats->execute([$user['id'], $user['id']]);
 $s = $stats->fetch();
 $tot = max(1, (int)($s['total'] ?? 0));
 $pPending = round(((int)($s['pending'] ?? 0) / $tot) * 100, 1);
@@ -28,10 +35,10 @@ $pCompleted = round(((int)($s['completed'] ?? 0) / $tot) * 100, 1);
 $recent = $db->prepare("
     SELECT a.*, u.name as faculty_name FROM activities a
     JOIN users u ON a.faculty_id = u.id
-    WHERE a.faculty_id = ?
+    WHERE (a.faculty_id = ? OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active'))
     ORDER BY a.updated_at DESC LIMIT 8
 ");
-$recent->execute([$user['id']]);
+$recent->execute([$user['id'], $user['id']]);
 $activities = $recent->fetchAll();
 
 // Upcoming activities derived from existing activities
@@ -92,6 +99,8 @@ function timeAgo($datetime)
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Faculty Dashboard – STI Activity System</title>
+  <meta name="base-url" content="<?= BASE_URL ?>">
+  <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.4">
   <script>
     (function() {
@@ -288,36 +297,35 @@ function timeAgo($datetime)
       transform: translateY(-1px);
     }
 
-    /* ── 2. Five Summary Metric Cards (White Cards with Thin Bottom Accent) ── */
+    /* ── 2. Five Summary Metric Cards (Matching Program Head Design System) ── */
     .stat-grid {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 12px;
-      align-items: stretch;
+      gap: 14px;
+      margin-bottom: 24px;
       width: 100%;
     }
 
     .stat-card,
     a.stat-card,
     .stat-grid a.stat-card {
-      position: relative;
-      background: #FFFFFF !important;
+      background: var(--bg-card, #FFFFFF) !important;
       border: 1px solid var(--border, #E2E8F0) !important;
       border-radius: 12px !important;
+      padding: 16px 18px !important;
       box-shadow: 0 1px 3px rgba(10, 22, 40, 0.04) !important;
-      padding: 14px 16px 13px !important;
+      position: relative !important;
+      overflow: hidden !important;
       display: flex !important;
       flex-direction: column !important;
-      justify-content: flex-start !important;
-      align-items: flex-start !important;
+      justify-content: space-between !important;
       text-decoration: none !important;
       color: inherit !important;
       cursor: pointer;
-      min-height: 114px;
       box-sizing: border-box;
-      overflow: hidden !important;
+      min-height: 112px;
       transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-      outline: none !important;
+      outline: none;
     }
 
     .stat-card:hover,
@@ -328,55 +336,75 @@ function timeAgo($datetime)
       border-color: #CBD5E1 !important;
     }
 
-    /* Thin colored bottom accent line */
+    .stat-card:focus-visible,
+    a.stat-card:focus-visible,
+    .stat-grid a.stat-card:focus-visible {
+      outline: 2px solid #0284C7 !important;
+      outline-offset: 2px;
+    }
+
+    /* Thin Colored Top Accent Line (3px top border) */
     .stat-card::after,
     a.stat-card::after,
     .stat-grid a.stat-card::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 3px;
+      content: '' !important;
+      position: absolute !important;
+      top: 0 !important;
+      bottom: auto !important;
+      left: 0 !important;
+      right: 0 !important;
+      height: 3px !important;
       z-index: 2;
-      pointer-events: none;
     }
+    .stat-card-total::after,
+    .stat-grid a.stat-card.stat-card-total::after     { background: #0284C7 !important; }
+    .stat-card-pending::after,
+    .stat-grid a.stat-card.stat-card-pending::after   { background: #F59E0B !important; }
+    .stat-card-approved::after,
+    .stat-grid a.stat-card.stat-card-approved::after  { background: #10B981 !important; }
+    .stat-card-revision::after,
+    .stat-grid a.stat-card.stat-card-revision::after  { background: #64748B !important; }
+    .stat-card-completed::after,
+    .stat-grid a.stat-card.stat-card-completed::after { background: #8B5CF6 !important; }
 
-    /* 1. All Time: multi-segment accent (amber, green, blue) */
-    .stat-card.stat-card-total::after,
-    .stat-grid a.stat-card.stat-card-total::after {
-      background: linear-gradient(90deg, #F59E0B 0%, #F59E0B 33.3%, #10B981 33.3%, #10B981 66.6%, #0284C7 66.6%, #0284C7 100%) !important;
+    /* Card Header: Uppercase Status Label & Colored Outline Icon */
+    .stat-card-header {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      margin-bottom: 8px !important;
+      width: 100% !important;
     }
-
-    /* 2. In Review: amber accent */
-    .stat-card.stat-card-pending::after,
-    .stat-grid a.stat-card.stat-card-pending::after {
-      background: #F59E0B !important;
+    .stat-label {
+      font-size: 0.78rem !important;
+      font-weight: 700 !important;
+      color: var(--text-muted, #64748B) !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.04em !important;
+      line-height: 1.2 !important;
+      margin: 0 !important;
     }
-
-    /* 3. Ready: green accent */
-    .stat-card.stat-card-approved::after,
-    .stat-grid a.stat-card.stat-card-approved::after {
-      background: #10B981 !important;
+    .stat-val {
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      font-size: 1.85rem !important;
+      font-weight: 800 !important;
+      color: var(--text-main, #0A1628) !important;
+      line-height: 1.1 !important;
+      margin: 4px 0 !important;
+      letter-spacing: -0.025em !important;
     }
-
-    /* 4. Action Required: slate accent */
-    .stat-card.stat-card-revision::after,
-    .stat-grid a.stat-card.stat-card-revision::after {
-      background: #64748B !important;
-    }
-
-    /* 5. Finished: blue accent */
-    .stat-card.stat-card-completed::after,
-    .stat-grid a.stat-card.stat-card-completed::after {
-      background: #0284C7 !important;
+    .stat-sub {
+      font-size: 0.72rem !important;
+      color: var(--text-muted, #64748B) !important;
+      line-height: 1.25 !important;
+      margin: 0 !important;
     }
 
     /* Dark Mode Card Background & Borders */
     [data-theme="dark"] .stat-card,
     [data-theme="dark"] a.stat-card,
     [data-theme="dark"] .stat-grid a.stat-card {
-      background: #0F172A !important;
+      background: var(--bg-card, #0F172A) !important;
       border-color: rgba(255, 255, 255, 0.08) !important;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
     }
@@ -386,100 +414,12 @@ function timeAgo($datetime)
       border-color: rgba(255, 255, 255, 0.16) !important;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
     }
-
-    /* Compact Soft-Tinted Icon Containers */
-    .stat-icon {
-      width: 28px !important;
-      height: 28px !important;
-      min-width: 28px !important;
-      border-radius: 7px !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      margin-bottom: 10px !important;
-      flex-shrink: 0 !important;
-    }
-
-    .stat-icon svg {
-      width: 15px !important;
-      height: 15px !important;
-    }
-
-    .stat-card-total .stat-icon     { background: rgba(2, 132, 199, 0.12) !important; color: #0284C7 !important; }
-    .stat-card-pending .stat-icon   { background: rgba(245, 158, 11, 0.14) !important; color: #D97706 !important; }
-    .stat-card-approved .stat-icon  { background: rgba(16, 185, 129, 0.14) !important; color: #059669 !important; }
-    .stat-card-revision .stat-icon  { background: rgba(100, 116, 139, 0.12) !important; color: #475569 !important; }
-    .stat-card-completed .stat-icon { background: rgba(2, 132, 199, 0.12) !important; color: #0284C7 !important; }
-
-    [data-theme="dark"] .stat-card-total .stat-icon     { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; }
-    [data-theme="dark"] .stat-card-pending .stat-icon   { background: rgba(251, 191, 36, 0.18) !important; color: #fbbf24 !important; }
-    [data-theme="dark"] .stat-card-approved .stat-icon  { background: rgba(52, 211, 153, 0.15) !important; color: #34d399 !important; }
-    [data-theme="dark"] .stat-card-revision .stat-icon  { background: rgba(148, 163, 184, 0.15) !important; color: #94a3b8 !important; }
-    [data-theme="dark"] .stat-card-completed .stat-icon { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; }
-
-    .stat-card-info {
-      display: flex !important;
-      flex-direction: column !important;
-      width: 100% !important;
-    }
-
-    .stat-card-meta {
-      font-size: 0.65rem !important;
-      font-weight: 700 !important;
-      letter-spacing: 0.04em !important;
-      text-transform: uppercase !important;
-      color: #64748B !important;
-      margin-bottom: 3px !important;
-      line-height: 1.2 !important;
-    }
-    [data-theme="dark"] .stat-card-meta {
-      color: #94A3B8 !important;
-    }
-
-    .stat-card-row {
-      display: flex !important;
-      align-items: center !important;
-      justify-content: flex-start !important;
-      width: 100% !important;
-      margin-bottom: 2px !important;
-    }
-
-    .stat-val {
-      font-family: 'Plus Jakarta Sans', sans-serif !important;
-      font-size: 1.65rem !important;
-      font-weight: 800 !important;
-      line-height: 1.1 !important;
-      color: #0A1628 !important;
-      letter-spacing: -0.025em !important;
-    }
     [data-theme="dark"] .stat-val {
-      color: #F8FAFC !important;
-    }
-
-    /* Trend icons are hidden to match reference image */
-    .stat-card-trend {
-      display: none !important;
-    }
-
-    .stat-label,
-    .label-default,
-    .label-amber,
-    .label-green,
-    .label-purple {
-      font-size: 0.72rem !important;
-      font-weight: 500 !important;
-      line-height: 1.25 !important;
-      color: #64748B !important;
-      white-space: nowrap !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
+      color: var(--text-main, #F8FAFC) !important;
     }
     [data-theme="dark"] .stat-label,
-    [data-theme="dark"] .label-default,
-    [data-theme="dark"] .label-amber,
-    [data-theme="dark"] .label-green,
-    [data-theme="dark"] .label-purple {
-      color: #94A3B8 !important;
+    [data-theme="dark"] .stat-sub {
+      color: var(--text-muted, #94A3B8) !important;
     }
 
     /* ── 3. Upcoming Activities Card (Full Width) ── */
@@ -845,7 +785,7 @@ function timeAgo($datetime)
     @media (max-width: 1024px) {
       .stat-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-        gap: 10px;
+        gap: 12px;
       }
     }
 
@@ -868,14 +808,14 @@ function timeAgo($datetime)
       }
       .stat-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        gap: 8px;
+        gap: 10px;
       }
     }
 
     @media (max-width: 640px) {
       .stat-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        gap: 8px;
+        gap: 10px;
       }
       .faculty-hero-actions {
         flex-direction: column;
@@ -897,6 +837,15 @@ function timeAgo($datetime)
     }
 
     @media (max-width: 480px) {
+      .stat-grid {
+        grid-template-columns: 1fr !important;
+        gap: 10px;
+      }
+      .stat-card,
+      a.stat-card,
+      .stat-grid a.stat-card {
+        padding: 14px 16px !important;
+      }
       .upcoming-card {
         padding: 12px 14px;
       }
@@ -909,11 +858,6 @@ function timeAgo($datetime)
     @media (max-width: 360px) {
       .stat-grid {
         grid-template-columns: 1fr !important;
-      }
-      .stat-card,
-      a.stat-card,
-      .stat-grid a.stat-card {
-        padding: 8px 10px;
       }
     }
 
@@ -956,113 +900,72 @@ function timeAgo($datetime)
 
     <div class="content">
 
-      <!-- Hero Header Section with STI College Building Image -->
-      <div class="faculty-hero-banner">
-        <div class="faculty-hero-bg-img"></div>
-        <div class="faculty-hero-text">
-          <div class="faculty-hero-greeting">FACULTY ACTIVITY PORTAL</div>
-          <h1 class="faculty-hero-title">Welcome back, <?= htmlspecialchars(trim($user['name'])) ?>!</h1>
-          <p class="faculty-hero-subtitle">Manage your activity proposals, track their progress, and complete post-event requirements.</p>
-        </div>
-        <div class="faculty-hero-actions">
-          <a href="<?= BASE_URL ?>/faculty/proposal-create.php" class="btn-hero-primary">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="15" height="15">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
-            </svg>
-            <span>New Activity Proposal</span>
-          </a>
-          <a href="<?= BASE_URL ?>/faculty/calendar.php" class="btn-hero-secondary">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="15" height="15" style="color:#0284c7;">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-            </svg>
-            <span>Calendar</span>
-          </a>
-        </div>
-      </div>
+      <!-- Hero Header Section with STI College Building Image (Shared Role Banner) -->
+      <?php include __DIR__ . '/../includes/dashboard-welcome-banner.php'; ?>
 
       <div class="dashboard-layout">
         <div class="dashboard-main">
 
-          <!-- 1. Five Summary Metric Cards -->
+          <!-- 1. Five Summary Metric Cards (Matching Program Head Design System) -->
           <div class="stat-grid">
-            <!-- All Time -->
+            <!-- 1. All Time — Total Proposals -->
             <a href="<?= BASE_URL ?>/faculty/activities.php" class="stat-card stat-card-total">
-              <div class="stat-icon">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              <div class="stat-card-header">
+                <span class="stat-label">Total Proposals</span>
+                <svg fill="none" stroke="#0284C7" viewBox="0 0 24 24" width="18" height="18">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
               </div>
-              <div class="stat-card-info">
-                <div class="stat-card-meta">ALL TIME</div>
-                <div class="stat-card-row">
-                  <div class="stat-val"><?= $s['total'] ?></div>
-                </div>
-                <div class="stat-label label-default">Total Proposals</div>
-              </div>
+              <div class="stat-val"><?= number_format($s['total'] ?? 0) ?></div>
+              <div class="stat-sub">All time proposals</div>
             </a>
 
-            <!-- In Review -->
+            <!-- 2. In Review — Pending Review -->
             <a href="<?= BASE_URL ?>/faculty/pending.php" class="stat-card stat-card-pending">
-              <div class="stat-icon">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="stat-card-header">
+                <span class="stat-label">Pending Review</span>
+                <svg fill="none" stroke="#F59E0B" viewBox="0 0 24 24" width="18" height="18">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <div class="stat-card-info">
-                <div class="stat-card-meta">IN REVIEW</div>
-                <div class="stat-card-row">
-                  <div class="stat-val"><?= $s['pending'] ?></div>
-                </div>
-                <div class="stat-label label-amber">Pending Review</div>
-              </div>
+              <div class="stat-val"><?= number_format($s['pending'] ?? 0) ?></div>
+              <div class="stat-sub">Awaiting review or endorsement</div>
             </a>
 
-            <!-- Ready / Approved -->
+            <!-- 3. Ready — Approved -->
             <a href="<?= BASE_URL ?>/faculty/approved.php" class="stat-card stat-card-approved">
-              <div class="stat-icon">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="stat-card-header">
+                <span class="stat-label">Approved</span>
+                <svg fill="none" stroke="#10B981" viewBox="0 0 24 24" width="18" height="18">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <div class="stat-card-info">
-                <div class="stat-card-meta">READY</div>
-                <div class="stat-card-row">
-                  <div class="stat-val"><?= $s['approved'] ?></div>
-                </div>
-                <div class="stat-label label-green">Approved</div>
-              </div>
+              <div class="stat-val"><?= number_format($s['approved'] ?? 0) ?></div>
+              <div class="stat-sub">Ready or underway</div>
             </a>
 
-            <!-- Action Required -->
+            <!-- 4. Action Required — Revision Needed -->
             <a href="<?= BASE_URL ?>/faculty/returned.php" class="stat-card stat-card-revision">
-              <div class="stat-icon">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="stat-card-header">
+                <span class="stat-label">Revision Needed</span>
+                <svg fill="none" stroke="#64748B" viewBox="0 0 24 24" width="18" height="18">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
               </div>
-              <div class="stat-card-info">
-                <div class="stat-card-meta">ACTION REQUIRED</div>
-                <div class="stat-card-row">
-                  <div class="stat-val"><?= $s['revisions'] ?></div>
-                </div>
-                <div class="stat-label label-default">Revision Needed</div>
-              </div>
+              <div class="stat-val"><?= number_format($s['revisions'] ?? 0) ?></div>
+              <div class="stat-sub">Action required</div>
             </a>
 
-            <!-- Finished / Completed -->
+            <!-- 5. Finished — Completed -->
             <a href="<?= BASE_URL ?>/faculty/activities.php?status=completed" class="stat-card stat-card-completed">
-              <div class="stat-icon">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              <div class="stat-card-header">
+                <span class="stat-label">Completed</span>
+                <svg fill="none" stroke="#8B5CF6" viewBox="0 0 24 24" width="18" height="18">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <div class="stat-card-info">
-                <div class="stat-card-meta">FINISHED</div>
-                <div class="stat-card-row">
-                  <div class="stat-val"><?= $s['completed'] ?></div>
-                </div>
-                <div class="stat-label label-purple">Completed</div>
-              </div>
+              <div class="stat-val"><?= number_format($s['completed'] ?? 0) ?></div>
+              <div class="stat-sub">Concluded activities</div>
             </a>
           </div>
 
@@ -1112,6 +1015,9 @@ function timeAgo($datetime)
               <?php endforeach; endif; ?>
             </div>
           </div>
+
+          <!-- Local Offline Drafts Container -->
+          <div id="localDraftsContainer" style="display:none;"></div>
 
           <!-- 3. Recent Activities Card -->
           <div class="activity-card">
@@ -1209,6 +1115,7 @@ function timeAgo($datetime)
       if (document.body) document.body.classList.remove('sidebar-collapsed');
     }
   </script>
+  <script src="<?= BASE_URL ?>/assets/js/offline-drafts.js?v=<?= time() ?>"></script>
 </body>
 
 </html>

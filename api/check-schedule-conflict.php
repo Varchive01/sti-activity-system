@@ -11,7 +11,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/ai/schedule_conflict.php';
 
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 
 header('Content-Type: application/json');
 
@@ -34,11 +34,44 @@ $startTime  = trim((string)($input['start_time'] ?? ''));
 $endTime    = trim((string)($input['end_time'] ?? ''));
 $activityId = (int)($input['activity_id'] ?? 0);
 
-if (!$venue || !$eventDate || !$startTime || !$endTime) {
+if ($activityId > 0) {
+    $user = currentUser();
+    if (!canUserAccessActivity($activityId, 'view', $user['id'], $user['role'], $user['dept'])) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Unauthorized access.']);
+        exit;
+    }
+}
+
+if (!$eventDate) {
     http_response_code(400);
     echo json_encode([
         'error' => 'Missing required fields.',
-        'details' => 'venue, event_date, start_time, and end_time are required.'
+        'details' => 'event_date is required.'
+    ]);
+    exit;
+}
+
+// Validate event_date format YYYY-MM-DD and calendar validity
+$d = DateTime::createFromFormat('Y-m-d', $eventDate);
+if (!$d || $d->format('Y-m-d') !== $eventDate) {
+    http_response_code(400);
+    echo json_encode([
+        'error' => 'Invalid date format.',
+        'details' => 'event_date must be in YYYY-MM-DD format.'
+    ]);
+    exit;
+}
+
+// If venue or times are omitted/empty, return an explicit preliminary date-only result.
+// Never invent arbitrary defaults (e.g. Auditorium, 08:00, 17:00).
+if ($venue === '' || $startTime === '' || $endTime === '') {
+    echo json_encode([
+        'conflict'               => false,
+        'is_preliminary'         => true,
+        'date_valid'             => true,
+        'availability_confirmed' => false,
+        'message'                => 'Date selected. Complete the venue and event time to check availability.'
     ]);
     exit;
 }
@@ -55,6 +88,14 @@ if (!$timeCheck['valid']) {
 
 try {
     $result = checkScheduleConflict($venue, $eventDate, $startTime, $endTime, $activityId);
+    $result['is_preliminary']         = false;
+    $result['date_valid']             = true;
+    $result['availability_confirmed'] = ($result['conflict'] === false);
+    if (!isset($result['message'])) {
+        $result['message'] = $result['conflict']
+            ? 'Scheduling conflict detected for the selected venue and time.'
+            : 'Schedule is available.';
+    }
     echo json_encode($result);
     exit;
 } catch (Exception $e) {

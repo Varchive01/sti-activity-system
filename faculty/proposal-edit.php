@@ -3,20 +3,106 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 $user = currentUser();
 $db   = getDB();
 $facultyUsersStmt = $db->query("SELECT id, name, department FROM users WHERE role = 'faculty' ORDER BY name ASC");
 $facultyUsers = $facultyUsersStmt ? $facultyUsersStmt->fetchAll(PDO::FETCH_ASSOC) : [];
 
+$facultyDepartmentGroups = [
+  'THM Department' => [
+    'Mr. Aldwin D. Alminar, LPT',
+    'Ms. Andrea J. Gatbunton, LPT',
+    'Ms. Divine Grace E. Ibarrola, LPT',
+    'Ms. Mary Darlene A. Mariano, LPT',
+    'Ms. Julieta Caridad C. Cruz',
+    'Mr. Exequiel L. Magnipis',
+    'Mr. Frankie Chiu, RN, MBA'
+  ],
+  'Information Technology Department' => [
+    'Mr. Dave Lord M. Rubaya',
+    'Ms. Michelle Carlos, MAEd, LPT',
+    'Mr. Ar-Jay C. Agbayani',
+    'Ms. Emilou G. Magnaye, LPT',
+    'Mr. John Cedrick Agapito',
+    'Mr. Jedekiah Veloso',
+    'Mr. Shintaro Lagare',
+    'Mr. Geo V. De Leon',
+    'Ms. Johainna Kristel T. Montejo',
+    'Mr. Felmar Solbita',
+    'Mr. Michael André Sayson'
+  ],
+  'General Education Department' => [
+    'Mr. Tristan S. Unabia',
+    'Mr. Ian Jade C. Barangan, LPT',
+    'Mr. Eulysses Neil Patrick B. Edquilag, LPT',
+    'Mr. Gregg Anthony J. Rana',
+    'Mr. Ricky E. Manliguis, LPT',
+    'Ms. Regina Kate D. Dominguez, LPT',
+    'Mr. Benedicto A. Arnoco, LPT',
+    'Ms. Jennylyn Q. Abarra, MAEd PE, LPT',
+    'Ms. Ruby Ann G. Dasalla, LPT',
+    'Ms. Perine O. Dela Cruz, LPT'
+  ]
+];
+
+if (!function_exists('renderFacultyTaskOptgroups')) {
+  function renderFacultyTaskOptgroups(array $groups, array $facultyUsers = [], $selectedUserId = null, $selectedName = null): string {
+    $simplify = function(string $n): string {
+      $clean = preg_replace('/\b(Mr|Ms|Mrs|Dr|LPT|MAEd|PE|RN|MBA)\b\.?/i', '', $n);
+      return preg_replace('/[^a-zA-Z0-9]/', '', strtolower($clean));
+    };
+    $html = '';
+    foreach ($groups as $dept => $names) {
+      $html .= '<optgroup label="' . htmlspecialchars($dept, ENT_QUOTES) . '">';
+      foreach ($names as $facName) {
+        $matchedId = '';
+        $target = $simplify($facName);
+        if (!empty($facultyUsers)) {
+          foreach ($facultyUsers as $fu) {
+            $uName = $fu['name'] ?? '';
+            if (strcasecmp(trim($uName), trim($facName)) === 0 || ($target !== '' && $simplify($uName) === $target)) {
+              $matchedId = (int)$fu['id'];
+              break;
+            }
+          }
+        }
+        $isSel = false;
+        if (!empty($selectedUserId) && $matchedId && (int)$selectedUserId === (int)$matchedId) {
+          $isSel = true;
+        } elseif (!empty($selectedName)) {
+          $selTarget = $simplify($selectedName);
+          if (strcasecmp(trim($selectedName), trim($facName)) === 0 || ($target !== '' && $selTarget === $target)) {
+            $isSel = true;
+          }
+        }
+        $selAttr = $isSel ? ' selected' : '';
+        $valAttr = $matchedId ? (string)$matchedId : '';
+        $html .= '<option value="' . htmlspecialchars($valAttr, ENT_QUOTES) . '" data-name="' . htmlspecialchars($facName, ENT_QUOTES) . '"' . $selAttr . '>' . htmlspecialchars($facName, ENT_QUOTES) . '</option>';
+      }
+      $html .= '</optgroup>';
+    }
+    return $html;
+  }
+}
+
 $id = (int)($_GET['id'] ?? 0);
-$act = $db->prepare("SELECT * FROM activities WHERE id=? AND faculty_id=? AND status IN ('draft','returned_for_revision')");
-$act->execute([$id, $user['id']]);
+$act = $db->prepare("SELECT * FROM activities WHERE id=? AND status IN ('draft','returned_for_revision')");
+$act->execute([$id]);
 $activity = $act->fetch();
 if (!$activity) {
   header('Location: ' . BASE_URL . '/faculty/activities.php');
   exit;
 }
+if (!canUserAccessActivity($id, 'modify', $user['id'], $user['role'], $user['dept'])) {
+  http_response_code(403);
+  die('Access denied: You do not have permission to edit this proposal.');
+}
+
+// Collaborative Proposal Data (Task 14)
+$isOwner = ((int)$activity['faculty_id'] === (int)$user['id']);
+$myRole = getProposalUserRole($id, (int)$user['id'], $db);
+$allCollaborators = getProposalCollaborators($id, $db);
 
 $todayManila = date('Y-m-d');
 $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
@@ -77,6 +163,61 @@ $kpiStmt = $db->prepare("SELECT * FROM kpi_evaluations WHERE activity_id=?");
 $kpiStmt->execute([$id]);
 $kpis = $kpiStmt->fetchAll();
 
+// Fetch target participant sections
+$participantRows = [];
+try {
+  $partStmt = $db->prepare("SELECT * FROM activity_participants WHERE activity_id=? ORDER BY row_no ASC, id ASC");
+  $partStmt->execute([$id]);
+  $participantRows = $partStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+  // Table not yet queried or empty
+}
+
+// Fetch post-event data & evaluation response summary if available
+$postEventData = null;
+try {
+  $peStmt = $db->prepare("SELECT * FROM post_event WHERE activity_id=? LIMIT 1");
+  $peStmt->execute([$id]);
+  $postEventData = $peStmt->fetch(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+  $postEventData = null;
+}
+
+$evalSummary = ['count' => 0, 'avg' => null];
+try {
+  $esStmt = $db->prepare("SELECT COUNT(id) as count, AVG(rating) as avg_rating FROM kpi_evaluations WHERE activity_id=? AND rating IS NOT NULL");
+  $esStmt->execute([$id]);
+  $esRes = $esStmt->fetch(PDO::FETCH_ASSOC);
+  if ($esRes) {
+    $evalSummary['count'] = (int)($esRes['count'] ?? 0);
+    $evalSummary['avg'] = $esRes['avg_rating'] !== null ? (float)$esRes['avg_rating'] : null;
+  }
+} catch (Exception $e) {
+  // Ignore
+}
+
+// Backward compatibility: If no child rows exist, synthesize 1 row from legacy activity data
+if (empty($participantRows) && !empty($activity['target_participants'])) {
+  $participantRows = [
+    [
+      'row_no' => 1,
+      'subject_section' => $activity['involved_subjects'] ?? '',
+      'participants_count' => (int)$activity['target_participants'],
+      'teacher_name' => ''
+    ]
+  ];
+}
+if (empty($participantRows)) {
+  $participantRows = [
+    [
+      'row_no' => 1,
+      'subject_section' => '',
+      'participants_count' => '',
+      'teacher_name' => ''
+    ]
+  ];
+}
+
 $isReturned = ($activity['status'] === 'returned_for_revision');
 $hasSectionComments = !empty($revisionSections);
 
@@ -119,6 +260,8 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="base-url" content="<?= BASE_URL ?>">
+  <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
   <title>Edit Proposal – STI Activity System</title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
   <style>
@@ -618,6 +761,146 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       border-bottom-color: var(--border, #1E2D45) !important;
     }
 
+    /* Target Participants Table & Header Controls */
+    .target-participants-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .total-participants-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--text-main, #1e293b);
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 6px 12px;
+      border-radius: 6px;
+    }
+    .target-participants-panel .dynamic-table {
+      background: #ffffff !important;
+      border: 1px solid #e2e8f0 !important;
+      border-radius: 8px !important;
+    }
+    .target-participants-panel .dynamic-table table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #ffffff !important;
+    }
+    .target-participants-panel .dynamic-table table th {
+      background: #f8fafc !important;
+      color: #475569 !important;
+      border-bottom: 1px solid #e2e8f0 !important;
+      font-size: 0.8rem !important;
+      font-weight: 600 !important;
+      padding: 10px 12px !important;
+      text-transform: none !important;
+      letter-spacing: normal !important;
+    }
+    .target-participants-panel .dynamic-table table td {
+      background: #ffffff !important;
+      border-bottom: 1px solid #f1f5f9 !important;
+      padding: 8px 12px !important;
+      vertical-align: middle;
+    }
+    [data-theme="dark"] .target-participants-panel .dynamic-table {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .target-participants-panel .dynamic-table table {
+      background: var(--bg-card, #0F1B2E) !important;
+    }
+    [data-theme="dark"] .target-participants-panel .dynamic-table table th {
+      background: var(--bg-card-elevated, #15243C) !important;
+      color: var(--text-secondary, #CBD5E1) !important;
+      border-bottom-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .target-participants-panel .dynamic-table table td {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-bottom-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .total-participants-badge {
+      background: var(--bg-card-elevated, #15243C) !important;
+      border-color: var(--border, #1E2D45) !important;
+      color: var(--text-main, #F8FAFC) !important;
+    }
+
+    /* ── Activity Evaluation and KPI Measurement Styles ── */
+    .kpi-component-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 20px;
+      transition: box-shadow 0.2s ease;
+    }
+    .kpi-component-card .dynamic-table {
+      background: #ffffff !important;
+      border: 1px solid #e2e8f0 !important;
+      border-radius: 8px !important;
+      overflow-x: auto;
+    }
+    .kpi-component-card .dynamic-table table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #ffffff !important;
+      margin: 0;
+    }
+    .kpi-component-card .dynamic-table table th {
+      background: #f8fafc !important;
+      color: #475569 !important;
+      border-bottom: 1px solid #e2e8f0 !important;
+      font-size: 0.8rem !important;
+      font-weight: 600 !important;
+      padding: 10px 12px !important;
+      text-transform: none !important;
+    }
+    .kpi-component-card .dynamic-table table td {
+      background: #ffffff !important;
+      border-bottom: 1px solid #f1f5f9 !important;
+      padding: 8px 12px !important;
+      vertical-align: middle;
+    }
+    .kpi-legend-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    [data-theme="dark"] .kpi-component-card {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .kpi-component-card h3 {
+      color: var(--text-main, #F8FAFC) !important;
+    }
+    [data-theme="dark"] .kpi-component-card .dynamic-table {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .kpi-component-card .dynamic-table table {
+      background: var(--bg-card, #0F1B2E) !important;
+    }
+    [data-theme="dark"] .kpi-component-card .dynamic-table table th {
+      background: var(--bg-card-elevated, #15243C) !important;
+      color: var(--text-secondary, #CBD5E1) !important;
+      border-bottom-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .kpi-component-card .dynamic-table table td {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-bottom-color: var(--border, #1E2D45) !important;
+      color: var(--text-main, #F8FAFC) !important;
+    }
+    [data-theme="dark"] .kpi-legend-card {
+      background: var(--bg-card-elevated, #15243C) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .kpi-legend-card div {
+      color: var(--text-main, #F8FAFC) !important;
+    }
+
     /* ── Evaluation Tool styles ── */
     .eval-question-row {
       display: grid;
@@ -1032,8 +1315,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
   <?php include __DIR__ . '/../includes/sidebar.php'; ?>
   <div class="main-wrap">
     <header class="topbar">
-      <div class="page-title">Edit Proposal</div>
-      <div class="topbar-right">
+      <div class="page-title" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span>Edit Proposal</span>
+      </div>
+      <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <a href="<?= BASE_URL ?>/faculty/proposal-view.php?id=<?= $id ?>" class="btn btn-outline btn-sm">← Cancel</a>
       <!-- User Profile Control -->
@@ -1082,6 +1367,18 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Meaningful Input Required:</strong> One or more fields contain random characters, keyboard mashing, or insufficient text. Please provide valid information before submitting.
         </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'invalid_score'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Invalid Assessment Score:</strong> Test scores and attendance values cannot be negative. Please enter valid non-negative values.
+        </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'owner_submission_only'): ?>
+        <div class="alert alert-warning" style="margin-bottom:20px; border-left:6px solid #f59e0b; background:#fffbeb; color:#92400e; border-radius:8px; padding:16px 20px; border:1px solid #fde68a;">
+          <strong>🔒 Owner Submission Only:</strong> Only the Proposal Owner can submit this proposal for formal approval. Your draft edits have been saved successfully.
+        </div>
+      <?php elseif (isset($_GET['conflict'])): ?>
+        <div class="alert alert-warning" style="margin-bottom:20px; border-left:6px solid #ef4444; background:#fef2f2; color:#991b1b; border-radius:8px; padding:16px 20px; border:1px solid #fecaca;">
+          <strong>⚠️ Conflict Detected:</strong> This proposal was updated by another collaborator while you were editing. The latest server version has been loaded to prevent accidental overwrites. Please review the updated sections before saving your changes.
+        </div>
       <?php elseif (isset($_GET['error'])): ?>
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Error:</strong> An error occurred while saving the proposal. Please try again.
@@ -1098,6 +1395,48 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           <?php endif; ?>
         </div>
       <?php endif; ?>
+
+      <!-- Offline & Sync Status Banner -->
+      <div id="offlineAlertBanner" class="alert alert-warning" style="display:none;margin-bottom:16px;align-items:center;gap:10px;border-left:4px solid #F59E0B;">
+        <span style="font-size:1.3rem;">📡</span>
+        <div style="flex:1;">
+          <strong>Offline Mode:</strong> Internet connection is currently unavailable. Changes will be saved locally to this device and automatically synchronized with the server when connectivity returns.
+        </div>
+      </div>
+
+      <!-- Collaborative Proposal Banner (Task 14) -->
+      <div class="card mb-4" id="collaborativeProposalBanner" style="border: 1px solid var(--border); border-left: 4px solid var(--sti-blue); background: var(--bg-card); padding: 14px 18px; border-radius: 8px; margin-bottom: 20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:1.25rem;">👥</span>
+              <strong style="font-size:0.95rem; color:var(--text-main);">Collaborative Proposal:</strong>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;" id="collaboratorsPillsContainer">
+              <?php foreach ($allCollaborators as $collab): ?>
+                <span class="badge" style="background:<?= $collab['role'] === 'owner' ? 'rgba(2, 132, 199, 0.12)' : ($collab['role'] === 'co_author' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(107, 114, 128, 0.12)') ?>; color:<?= $collab['role'] === 'owner' ? '#0284C7' : ($collab['role'] === 'co_author' ? '#10B981' : 'var(--text-main)') ?>; border:1px solid <?= $collab['role'] === 'owner' ? '#38BDF8' : ($collab['role'] === 'co_author' ? '#6EE7B7' : 'var(--border)') ?>; font-size:0.82rem; padding:5px 10px; border-radius:14px; display:inline-flex; align-items:center; gap:5px;">
+                  <?= $collab['role'] === 'owner' ? '👑' : ($collab['role'] === 'co_author' ? '✍️' : '👤') ?>
+                  <strong><?= htmlspecialchars($collab['name']) ?></strong> <span style="opacity:0.85;">(<?= htmlspecialchars(formatCollaboratorRole($collab['role'])) ?>)</span>
+                </span>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <?php if ($isOwner): ?>
+              <button type="button" class="btn btn-outline btn-sm" onclick="openCollaboratorsModal()" style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; padding:6px 12px; font-weight:600;">
+                <span>➕</span> Manage Collaborators
+              </button>
+            <?php else: ?>
+              <span class="badge" style="background:rgba(245, 158, 11, 0.15); color:#D97706; border:1px solid #FCD34D; font-size:0.82rem; padding:6px 12px; border-radius:6px; font-weight:600;">
+                Contributing as: <?= htmlspecialchars(formatCollaboratorRole($myRole ?? 'contributor')) ?>
+              </span>
+            <?php endif; ?>
+            <button type="button" class="btn btn-outline btn-sm" onclick="openContributionHistoryModal()" style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; padding:6px 12px; font-weight:600;">
+              <span>📜</span> Contribution History
+            </button>
+          </div>
+        </div>
+      </div>
 
       <!-- Wizard Steps -->
       <div class="wizard-steps" id="wizardSteps">
@@ -1126,13 +1465,17 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           <div class="step-num">8</div>Faculty Tasks
         </div>
         <div class="wizard-step <?= in_array(9, $flaggedSteps) ? 'flagged' : '' ?>" data-step="9">
-          <div class="step-num">9</div>Evaluation
+          <div class="step-num">9</div>Evaluation & KPI
         </div>
       </div>
 
-      <form method="POST" id="proposalForm" action="<?= BASE_URL ?>/api/proposal-update.php" enctype="multipart/form-data" novalidate>
+      <form method="POST" id="proposalForm" action="<?= BASE_URL ?>/api/proposal-update.php" enctype="multipart/form-data" novalidate data-server-updated-at="<?= htmlspecialchars($activity['updated_at'] ?? '') ?>">
+        <input type="hidden" name="faculty_id" value="<?= $user['id'] ?>">
         <input type="hidden" name="activity_id" id="proposalActivityId" value="<?= $id ?>">
         <input type="hidden" name="action" id="proposalFormAction" value="draft">
+        <input type="hidden" name="last_known_updated_at" id="proposalLastKnownUpdatedAt" value="<?= htmlspecialchars($activity['updated_at'] ?? '') ?>">
+        <!-- tracks the highest step the user has validly reached -->
+        <input type="hidden" id="maxUnlockedStep" value="9">
         <div class="proposal-layout-grid">
           <div class="proposal-wizard-container">
 
@@ -1190,31 +1533,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   <span class="field-error" id="e_end_time_order">End time must be later than the start time.</span>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Venue <span class="text-danger">*</span></label>
-                  <input type="text" name="venue" id="f1_venue" class="form-control" placeholder="e.g. STI Marikina Auditorium" required value="<?= htmlspecialchars($activity['venue'] ?? '') ?>" <?= $s1Attr ?>>
-                  <span class="field-error" id="e_venue">Venue is required.</span>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Target Participants <span class="text-danger">*</span></label>
-                  <input type="number" name="target_participants" id="f1_target_participants" class="form-control" placeholder="e.g. 200" min="1" value="<?= $activity['target_participants'] ?? '' ?>" <?= $s1Attr ?>>
-                  <span class="field-error" id="e_target_participants">Target participants is required.</span>
-                </div>
-                <div class="form-group col-span-2">
-                  <label class="form-label" for="f1_venue_address">Venue Address <span class="text-danger">*</span></label>
-                  <div class="venue-address-wrapper">
-                    <input type="text" name="venue_address" id="f1_venue_address" class="form-control" placeholder="Full address" value="<?= htmlspecialchars($activity['venue_address'] ?? '') ?>" <?= $s1Attr ?> autocomplete="off">
-                    <?php if ($s1Editable): ?>
-                    <div id="venue_address_dropdown" class="venue-address-dropdown" role="listbox" aria-label="Suggested venue address">
-                      <div class="venue-address-item" role="option" tabindex="0" onmousedown="selectVenueAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila', event)" onclick="selectVenueAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila', event)">
-                        289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila
-                      </div>
-                    </div>
-                    <?php endif; ?>
-                  </div>
-                  <span class="field-error" id="e_venue_address">Venue address is required.</span>
-                </div>
-                <div class="form-group col-span-2">
-                  <label class="form-label">Theme</label>
+                  <label class="form-label">Theme <span class="text-danger">*</span></label>
                   <div class="theme-input-wrapper" style="position: relative; width: 100%;">
                     <input type="text" name="theme" id="f1_theme" class="form-control" placeholder="e.g. Fostering Innovation Through Technology" value="<?= htmlspecialchars($activity['theme'] ?? '') ?>" <?= $s1Attr ?> style="padding-right: 42px;" aria-busy="false">
                     <?php if ($s1Editable): ?>
@@ -1232,11 +1551,34 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   <?php endif; ?>
                   <span class="field-error" id="e_theme">Theme is required.</span>
                 </div>
+                <div class="form-group">
+                  <label class="form-label">Venue <span class="text-danger">*</span></label>
+                  <input type="text" name="venue" id="f1_venue" class="form-control" placeholder="e.g. STI Marikina Auditorium" required value="<?= htmlspecialchars($activity['venue'] ?? '') ?>" <?= $s1Attr ?>>
+                  <span class="field-error" id="e_venue">Venue is required.</span>
+                </div>
+                <div class="form-group col-span-2">
+                  <label class="form-label" for="f1_venue_address">Venue Address <span class="text-danger">*</span></label>
+                  <div class="venue-address-wrapper">
+                    <input type="text" name="venue_address" id="f1_venue_address" class="form-control" placeholder="Full address" value="<?= htmlspecialchars($activity['venue_address'] ?? '') ?>" <?= $s1Attr ?> autocomplete="off">
+                    <?php if ($s1Editable): ?>
+                    <div id="venue_address_dropdown" class="venue-address-dropdown" role="listbox" aria-label="Suggested venue address">
+                      <div class="venue-address-item" role="option" tabindex="0" onmousedown="selectVenueAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila', event)" onclick="selectVenueAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila', event)">
+                        289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila
+                      </div>
+                    </div>
+                    <?php endif; ?>
+                  </div>
+                  <span class="field-error" id="e_venue_address">Venue address is required.</span>
+                </div>
                 <div class="form-group col-span-2">
                   <label class="form-label">Event Poster <?php if(empty($activity['poster_path'])) echo '<span class="text-danger">*</span>'; ?></label>
                   <?php if (!empty($activity['poster_path'])): ?>
                     <div style="margin-bottom:8px;">
-                      <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/' . $activity['poster_path']; ?>
+                      <?php
+                        $posterUrl = str_starts_with($activity['poster_path'], 'http') 
+                            ? $activity['poster_path'] 
+                            : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=poster';
+                      ?>
                       <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank" class="btn btn-outline btn-sm">View Current Poster</a>
                     </div>
                     <input type="file" name="poster_file" id="f1_poster_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" <?= $s1Attr ?>>
@@ -1247,6 +1589,69 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   <?php endif; ?>
                   <span class="field-error" id="e_poster_file">Activity poster is required.</span>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Target Participants Panel -->
+          <div class="card target-participants-panel <?= (!empty($revisionSections['event_details'])) ? 'section-flagged' : '' ?>" id="target-participants-card" style="margin-top: 20px;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <h2 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 6px;">
+                👥 Target Participants <span class="text-danger">*</span>
+              </h2>
+              <div class="target-participants-controls" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <?php if ($s1Editable): ?>
+                  <button type="button" class="btn btn-outline btn-sm" id="btn-add-section" onclick="addParticipantSectionRow()" style="font-weight: 600;">+ Add Section</button>
+                <?php endif; ?>
+                <div class="total-participants-badge" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 0.875rem; color: var(--text-main, #1e293b); background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 6px;">
+                  <span>Total Target Participants:</span>
+                  <span id="target-participants-total-display" style="color: var(--primary, #0284c7); font-size: 1rem; font-weight: 700;"><?= number_format((int)($activity['target_participants'] ?? 0)) ?></span>
+                </div>
+              </div>
+            </div>
+            <div class="card-body" style="padding: 20px;">
+              <input type="hidden" name="target_participants" id="f1_target_participants" value="<?= (int)($activity['target_participants'] ?? 0) ?>">
+              <span class="field-error" id="e_target_participants" style="margin-bottom: 12px;">Target participants is required and must have at least 1 participant.</span>
+
+              <div class="dynamic-table" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto;">
+                <table class="table" style="margin: 0; width: 100%; border-collapse: collapse; background: #ffffff;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                      <th style="width: 50px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No.</th>
+                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Involved Subject / Section <span class="text-danger">*</span></th>
+                      <th style="width: 180px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No. of Participants <span class="text-danger">*</span></th>
+                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Subject Teacher</th>
+                      <th style="width: 70px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="participant-sections-body">
+                    <?php foreach ($participantRows as $pIdx => $pRow): ?>
+                      <tr class="participant-row" style="border-bottom: 1px solid #f1f5f9;"
+                          data-actual-attendees="<?= htmlspecialchars((string)($pRow['actual_attendees'] ?? '')) ?>"
+                          data-pre-test="<?= htmlspecialchars((string)($pRow['pre_test_score'] ?? '')) ?>"
+                          data-post-test="<?= htmlspecialchars((string)($pRow['post_test_score'] ?? '')) ?>"
+                          data-learning-kpi="<?= htmlspecialchars((string)($pRow['learning_kpi_result'] ?? '')) ?>">
+                        <td class="part-row-num" style="text-align: center; font-weight: 600; color: #64748b; font-size: 0.85rem; padding: 10px 12px; vertical-align: middle;">
+                          <?= $pIdx + 1 ?>
+                        </td>
+                        <td style="padding: 10px 12px;">
+                          <input type="text" name="part_section[]" class="form-control part-section-input" placeholder="e.g. BSIT 301 / Data Structures" value="<?= htmlspecialchars($pRow['subject_section'] ?? '') ?>" <?= $s1Attr ?>>
+                        </td>
+                        <td style="padding: 10px 12px;">
+                          <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="<?= htmlspecialchars((string)($pRow['participants_count'] ?? '')) ?>" oninput="updateTotalTargetParticipants()" <?= $s1Attr ?>>
+                        </td>
+                        <td style="padding: 10px 12px;">
+                          <input type="text" name="part_teacher[]" class="form-control part-teacher-input" placeholder="e.g. Prof. Juan Dela Cruz" value="<?= htmlspecialchars($pRow['teacher_name'] ?? '') ?>" <?= $s1Attr ?>>
+                        </td>
+                        <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
+                          <?php if ($s1Editable): ?>
+                            <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Delete section" style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1;" <?= count($participantRows) <= 1 ? 'disabled style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1; opacity: 0.4; cursor: not-allowed;" title="Cannot delete the only row"' : '' ?>>✕</button>
+                          <?php endif; ?>
+                        </td>
+                      </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -1262,8 +1667,13 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             $s2Comment = $revisionSections['objectives'] ?? '';
           ?>
           <div class="card <?= $s2Flagged ? 'section-flagged' : '' ?>">
-            <div class="card-header">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
               <h2>🎯 Objectives & Academic Alignment</h2>
+              <?php if ($s2Editable): ?>
+                <button type="button" class="btn btn-outline btn-sm" id="btnGenObjectives" onclick="forceRegenerateObjectives()" style="font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+                  <span>⚡ Generate Objectives with AI</span>
+                </button>
+              <?php endif; ?>
             </div>
             <div class="card-body">
               <div class="step-error-banner" id="err-banner-2" data-default-msg="⚠️ Please fill in all required fields before continuing.">⚠️ Please fill in all required fields before continuing.</div>
@@ -1465,24 +1875,37 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                     </tr>
                   </thead>
                   <tbody id="manpower-body">
+                    <?php
+                    $manpowerRoles = [
+                      'Medic',
+                      'Customer Service',
+                      'Usher',
+                      'Marshall',
+                      'Emcee',
+                      'Floor Director',
+                      'Sound & AVP Support',
+                      'Tabulators',
+                      'Photographers',
+                      'Videographers',
+                      'Expected Guest(s)',
+                      'Students\' Audience',
+                      'Adviser(s) / Teacher(s) / Staff(s)',
+                      'VIP',
+                      'Sponsor(s)'
+                    ];
+                    ?>
                     <?php if (empty($manpower)): ?>
                       <tr>
                         <td>
-                          <select name="mp_role[]" class="form-control" <?= $s5Editable ? '' : 'disabled' ?>>
-                            <option>Medic</option>
-                            <option>Customer Service</option>
-                            <option>Usher</option>
-                            <option>Marshall</option>
-                            <option>Emcee</option>
-                            <option>Floor Director</option>
-                            <option>AV Support</option>
-                            <option>Tabulator</option>
-                            <option>Other</option>
+                          <select name="mp_role[]" class="form-control" onchange="updateManpowerSummary()" <?= $s5Editable ? '' : 'disabled' ?>>
+                            <?php foreach ($manpowerRoles as $optRole): ?>
+                              <option value="<?= htmlspecialchars($optRole) ?>"><?= htmlspecialchars($optRole) ?></option>
+                            <?php endforeach; ?>
                           </select>
                         </td>
-                        <td><input type="text" name="mp_person[]" class="form-control mp-person-field" <?= $s5Editable ? '' : 'readonly' ?>></td>
+                        <td><input type="text" name="mp_person[]" class="form-control mp-person-field" oninput="updateManpowerSummary()" <?= $s5Editable ? '' : 'readonly' ?>></td>
                         <td>
-                          <select name="mp_type[]" class="form-control" <?= $s5Editable ? '' : 'disabled' ?>>
+                          <select name="mp_type[]" class="form-control" onchange="updateManpowerSummary()" <?= $s5Editable ? '' : 'disabled' ?>>
                             <option value="faculty">Faculty</option>
                             <option value="staff">Staff</option>
                             <option value="student">Student</option>
@@ -1490,28 +1913,30 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                         </td>
                         <td>
                           <?php if ($s5Editable): ?>
-                            <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this); updateManpowerSummary();">✕</button>
                           <?php endif; ?>
                         </td>
                       </tr>
                     <?php else: foreach ($manpower as $m): ?>
                       <tr>
                         <td>
-                          <select name="mp_role[]" class="form-control" <?= $s5Editable ? '' : 'disabled' ?>>
-                            <option <?= $m['role']=='Medic'?'selected':'' ?>>Medic</option>
-                            <option <?= $m['role']=='Customer Service'?'selected':'' ?>>Customer Service</option>
-                            <option <?= $m['role']=='Usher'?'selected':'' ?>>Usher</option>
-                            <option <?= $m['role']=='Marshall'?'selected':'' ?>>Marshall</option>
-                            <option <?= $m['role']=='Emcee'?'selected':'' ?>>Emcee</option>
-                            <option <?= $m['role']=='Floor Director'?'selected':'' ?>>Floor Director</option>
-                            <option <?= $m['role']=='AV Support'?'selected':'' ?>>AV Support</option>
-                            <option <?= $m['role']=='Tabulator'?'selected':'' ?>>Tabulator</option>
-                            <option <?= !in_array($m['role'], ['Medic','Customer Service','Usher','Marshall','Emcee','Floor Director','AV Support','Tabulator'])?'selected':'' ?>>Other</option>
+                          <select name="mp_role[]" class="form-control" onchange="updateManpowerSummary()" <?= $s5Editable ? '' : 'disabled' ?>>
+                            <?php
+                              $matched = false;
+                              foreach ($manpowerRoles as $optRole):
+                                $isSel = (strcasecmp($m['role'] ?? '', $optRole) === 0 || ($optRole === 'Sound & AVP Support' && in_array($m['role'] ?? '', ['AV Support', 'Sound & AVP Support'])) || ($optRole === 'Tabulators' && in_array($m['role'] ?? '', ['Tabulator', 'Tabulators'])));
+                                if ($isSel) $matched = true;
+                            ?>
+                              <option value="<?= htmlspecialchars($optRole) ?>" <?= $isSel ? 'selected' : '' ?>><?= htmlspecialchars($optRole) ?></option>
+                            <?php endforeach; ?>
+                            <?php if (!$matched && !empty($m['role'])): ?>
+                              <option value="<?= htmlspecialchars($m['role']) ?>" selected><?= htmlspecialchars($m['role']) ?></option>
+                            <?php endif; ?>
                           </select>
                         </td>
-                        <td><input type="text" name="mp_person[]" class="form-control mp-person-field" value="<?= htmlspecialchars($m['assigned_person']) ?>" <?= $s5Editable ? '' : 'readonly' ?>></td>
+                        <td><input type="text" name="mp_person[]" class="form-control mp-person-field" value="<?= htmlspecialchars($m['assigned_person']) ?>" oninput="updateManpowerSummary()" <?= $s5Editable ? '' : 'readonly' ?>></td>
                         <td>
-                          <select name="mp_type[]" class="form-control" <?= $s5Editable ? '' : 'disabled' ?>>
+                          <select name="mp_type[]" class="form-control" onchange="updateManpowerSummary()" <?= $s5Editable ? '' : 'disabled' ?>>
                             <option value="faculty" <?= $m['type']=='faculty'?'selected':'' ?>>Faculty</option>
                             <option value="staff" <?= $m['type']=='staff'?'selected':'' ?>>Staff</option>
                             <option value="student" <?= $m['type']=='student'?'selected':'' ?>>Student</option>
@@ -1519,13 +1944,54 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                         </td>
                         <td>
                           <?php if ($s5Editable): ?>
-                            <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this); updateManpowerSummary();">✕</button>
                           <?php endif; ?>
                         </td>
                       </tr>
                     <?php endforeach; endif; ?>
                   </tbody>
                 </table>
+              </div>
+
+              <!-- Manpower Summary Table -->
+              <div class="manpower-summary-wrap" style="margin-top: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                  <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-main, #1e293b);">
+                    Manpower Summary
+                  </h3>
+                  <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-main, #1e293b); background: #ffffff; border: 1px solid #e2e8f0; padding: 4px 10px; border-radius: 6px;">
+                    Total Persons Involved: <span id="mp-summary-unique-total" style="font-weight: 700;">0</span> <span style="font-size: 0.75rem; font-weight: 400; color: #64748b;">(distinct individuals)</span>
+                  </div>
+                </div>
+                <div class="dynamic-table" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto;">
+                  <table class="table" id="manpower-summary-table" style="width: 100%; border-collapse: collapse; margin: 0; background: #ffffff;">
+                    <thead>
+                      <tr style="border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: left; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Role / Position</th>
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: center; width: 100px; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Faculty</th>
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: center; width: 100px; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Staff</th>
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: center; width: 100px; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Students</th>
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: center; width: 110px; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Total #</th>
+                      </tr>
+                    </thead>
+                    <tbody id="manpower-summary-body" style="background: #ffffff;">
+                      <tr>
+                        <td colspan="5" style="text-align: center; color: #64748b; font-size: 0.82rem; padding: 14px; background: #ffffff;">
+                          No manpower assigned yet.
+                        </td>
+                      </tr>
+                    </tbody>
+                    <tfoot id="manpower-summary-foot" style="background: #ffffff; border-top: 1px solid #e2e8f0;">
+                      <tr style="border-top: 1px solid #e2e8f0; background: #ffffff; font-weight: 600;">
+                        <td style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: left; background: #ffffff;">Total</td>
+                        <td id="mp-sum-faculty" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; background: #ffffff;">0</td>
+                        <td id="mp-sum-staff" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; background: #ffffff;">0</td>
+                        <td id="mp-sum-students" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; background: #ffffff;">0</td>
+                        <td id="mp-sum-total" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; font-weight: 700; background: #ffffff;">0</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -1727,11 +2193,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                           <input type="hidden" name="ft_id[]" value="">
                           <select name="ft_user_id[]" class="form-control ft-user-select" onchange="syncFtName(this)" <?= $s8Attr ?>>
                             <option value="">-- Unassigned / External --</option>
-                            <?php foreach ($facultyUsers as $fu): ?>
-                              <option value="<?= (int)$fu['id'] ?>" data-name="<?= htmlspecialchars($fu['name'], ENT_QUOTES) ?>">
-                                <?= htmlspecialchars($fu['name'] . (!empty($fu['department']) ? ' (' . $fu['department'] . ')' : '')) ?>
-                              </option>
-                            <?php endforeach; ?>
+                            <?= renderFacultyTaskOptgroups($facultyDepartmentGroups, $facultyUsers) ?>
                           </select>
                           <input type="text" name="ft_name[]" class="form-control ft-name-field" style="margin-top: 4px; font-size: 0.8rem;" placeholder="External name (if unassigned)" <?= $s8Attr ?>>
                         </td>
@@ -1751,13 +2213,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                             <input type="hidden" name="ft_id[]" value="<?= (int)$f['id'] ?>">
                             <select name="ft_user_id[]" class="form-control ft-user-select" onchange="syncFtName(this)" <?= $s8Attr ?>>
                               <option value="">-- Unassigned / External --</option>
-                              <?php foreach ($facultyUsers as $fu):
-                                $sel = (!empty($f['assigned_user_id']) && (int)$f['assigned_user_id'] === (int)$fu['id']) ? 'selected' : '';
-                              ?>
-                                <option value="<?= (int)$fu['id'] ?>" data-name="<?= htmlspecialchars($fu['name'], ENT_QUOTES) ?>" <?= $sel ?>>
-                                  <?= htmlspecialchars($fu['name'] . (!empty($fu['department']) ? ' (' . $fu['department'] . ')' : '')) ?>
-                                </option>
-                              <?php endforeach; ?>
+                              <?= renderFacultyTaskOptgroups($facultyDepartmentGroups, $facultyUsers, $f['assigned_user_id'] ?? null, $f['faculty_name'] ?? null) ?>
                             </select>
                             <input type="text" name="ft_name[]" class="form-control ft-name-field" style="margin-top: 4px; font-size: 0.8rem;" value="<?= htmlspecialchars($f['faculty_name'] ?? '') ?>" placeholder="External name (if unassigned)" <?= $s8Attr ?>>
                           </td>
@@ -1784,38 +2240,88 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           </div>
         </div>
 
-        <!-- ── STEP 9: Evaluation Tool ── -->
+        <!-- ── STEP 9: Key Performance Indicators & Evaluation ── -->
         <div class="wizard-panel" id="panel-9">
+          <!-- SECTION 1: Key Performance Indicators -->
           <?php $s9Flagged = !empty($revisionSections['kpi']); $s9Comment = $revisionSections['kpi'] ?? ''; ?>
-          <div class="card <?= $s9Flagged ? 'section-flagged' : '' ?>">
-            <div class="card-header">
-              <h2>
+          <div class="card <?= $s9Flagged ? 'section-flagged' : '' ?>" id="kpi-table-card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <h2 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+                📈 Key Performance Indicators
+              </h2>
+              <?php if ($s9Editable): ?>
+                <button type="button" class="btn btn-outline btn-sm" id="btn-add-kpi" onclick="addKpiRow()">+ Add KPI</button>
+              <?php endif; ?>
+            </div>
+            <div class="card-body" style="padding: 20px;">
+              <?php if ($s9Flagged): ?>
+                <div class="reviewer-comment-banner" style="margin-bottom: 16px;"><span class="rc-icon">⚠️</span><div><span class="rc-label">Reviewer Comment</span><?= htmlspecialchars($s9Comment) ?></div></div>
+              <?php endif; ?>
+              <div class="dynamic-table" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto;">
+                <table class="table" style="margin: 0; width: 100%; border-collapse: collapse; background: #ffffff;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Criteria / Indicator</th>
+                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Target Metric</th>
+                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Evaluation Method</th>
+                      <th style="width: 70px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="kpi-body">
+                    <?php if (empty($kpis)): ?>
+                      <tr>
+                        <td style="padding: 10px 12px;"><input type="text" name="kpi_indicator[]" class="form-control kpi-field" placeholder="e.g. Number of Attendees" <?= $s9Attr ?>></td>
+                        <td style="padding: 10px 12px;"><input type="text" name="kpi_target[]" class="form-control kpi-field" placeholder="e.g. 500 Participants" <?= $s9Attr ?>></td>
+                        <td style="padding: 10px 12px;"><input type="text" name="kpi_method[]" class="form-control kpi-field" placeholder="e.g. Attendance Sheet" <?= $s9Attr ?>></td>
+                        <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
+                          <?php if ($s9Editable): ?>
+                            <button type="button" class="btn btn-outline btn-sm btn-delete-kpi" onclick="removeKpiRow(this)" title="Delete KPI" disabled style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1; opacity: 0.4; cursor: not-allowed;">✕</button>
+                          <?php endif; ?>
+                        </td>
+                      </tr>
+                    <?php else: foreach ($kpis as $k): 
+                      $indVal = !empty($k['indicator']) ? $k['indicator'] : ($k['criteria'] ?? '');
+                      $targetVal = !empty($k['target_metric']) ? $k['target_metric'] : (!empty($k['rating']) ? 'Rating: ' . $k['rating'] : '');
+                      $methodVal = !empty($k['evaluation_method']) ? $k['evaluation_method'] : ((!empty($k['criteria']) || !empty($k['rating'])) ? 'Student Evaluation' : '');
+                    ?>
+                      <tr>
+                        <td style="padding: 10px 12px;"><input type="text" name="kpi_indicator[]" class="form-control kpi-field" value="<?= htmlspecialchars($indVal) ?>" placeholder="e.g. Number of Attendees" <?= $s9Attr ?>></td>
+                        <td style="padding: 10px 12px;"><input type="text" name="kpi_target[]" class="form-control kpi-field" value="<?= htmlspecialchars($targetVal) ?>" placeholder="e.g. 500 Participants" <?= $s9Attr ?>></td>
+                        <td style="padding: 10px 12px;"><input type="text" name="kpi_method[]" class="form-control kpi-field" value="<?= htmlspecialchars($methodVal) ?>" placeholder="e.g. Attendance Sheet" <?= $s9Attr ?>></td>
+                        <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
+                          <?php if ($s9Editable): ?>
+                            <button type="button" class="btn btn-outline btn-sm btn-delete-kpi" onclick="removeKpiRow(this)" title="Delete KPI" style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1;" <?= count($kpis) <= 1 ? 'disabled style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1; opacity: 0.4; cursor: not-allowed;"' : '' ?>>✕</button>
+                          <?php endif; ?>
+                        </td>
+                      </tr>
+                    <?php endforeach; endif; ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 2: AI-Generated Evaluation Tool -->
+          <div class="card <?= $s9Flagged ? 'section-flagged' : '' ?>" id="ai-evaluation-tool-card" style="margin-top: 20px;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <h2 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
                 🤖 AI-Generated Evaluation Tool
               </h2>
-              <span id="evalStatusBadge">
-                <span id="evalStatusIndicator"></span> <span id="evalStatusText">Empty</span>
-              </span>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span id="evalStatusBadge">
+                  <span id="evalStatusIndicator"></span> <span id="evalStatusText">Empty</span>
+                </span>
+                <?php if ($s9Editable): ?>
+                  <button type="button" class="btn btn-outline btn-sm" id="btn-regenerate-eval" onclick="regenerateEvaluationWithAi(true)" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
+                    ↻ Regenerate with AI
+                  </button>
+                <?php endif; ?>
+                <button type="button" class="btn btn-outline btn-sm" onclick="openPreviewModal()" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
+                  👁 Preview Tool
+                </button>
+              </div>
             </div>
-            <div class="card-body" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
-
-              <!-- Hidden compatibility KPI fields -->
-              <?php if (empty($kpis)): ?>
-                <input type="hidden" name="kpi_indicator[]" value="Participant Evaluation">
-                <input type="hidden" name="kpi_target[]" value="Satisfactory Rating">
-                <input type="hidden" name="kpi_method[]" value="Evaluation Form">
-              <?php else: foreach ($kpis as $k):
-                $indVal = !empty($k['indicator']) ? $k['indicator'] : ($k['criteria'] ?? 'Participant Evaluation');
-                $targetVal = !empty($k['target_metric']) ? $k['target_metric'] : (!empty($k['rating']) ? 'Rating: ' . $k['rating'] : 'Satisfactory Rating');
-                $methodVal = !empty($k['evaluation_method']) ? $k['evaluation_method'] : 'Evaluation Form';
-              ?>
-                <input type="hidden" name="kpi_indicator[]" value="<?= htmlspecialchars($indVal) ?>">
-                <input type="hidden" name="kpi_target[]" value="<?= htmlspecialchars($targetVal) ?>">
-                <input type="hidden" name="kpi_method[]" value="<?= htmlspecialchars($methodVal) ?>">
-              <?php endforeach; endif; ?>
-
-              <?php if ($s9Flagged): ?>
-                <div class="reviewer-comment-banner"><span class="rc-icon">⚠️</span><div><span class="rc-label">Reviewer Comment</span><?= htmlspecialchars($s9Comment) ?></div></div>
-              <?php endif; ?>
+            <div class="card-body" style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
 
               <!-- Needs Update Notice -->
               <div id="evalChangeNotice" class="alert alert-warning" style="display:none; flex-direction:column; gap:8px; font-size:0.8rem; padding:10px 14px; margin-bottom:4px; border-radius:6px; border-left: 4px solid #d97706; background: #fffbeb;">
@@ -1832,8 +2338,8 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
               <!-- AI Generation Loading & Status -->
               <div id="evalGenStatus" style="display:none; margin-bottom:4px; padding:10px 14px; border-radius:6px; font-size:.85rem;"></div>
 
-              <div class="info-alert">
-                These evaluation questions are automatically generated based on your activity objectives. Review them, customize or add questions, and prepare the evaluation link for attendees.
+              <div class="info-alert" style="margin-bottom: 4px;">
+                These evaluation questions are automatically generated based on your activity objectives. You can customize them, add manual rating/open-ended questions, and generate the Google Form for student responses.
               </div>
 
               <!-- Hidden JSON field -->
@@ -1844,32 +2350,24 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 <!-- Dynamically populated -->
               </div>
 
-              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 4px;">
-                <button type="button" class="btn btn-outline btn-sm btn-add-manual-q" onclick="addManualQuestion()">
+              <?php if ($s9Editable): ?>
+                <button type="button" class="btn btn-outline btn-sm btn-add-manual-q" onclick="addManualQuestion()" style="align-self: flex-start;">
                   + Add Question
                 </button>
-                <div class="footer-actions" style="display:flex; gap:8px;">
-                  <button type="button" class="btn btn-outline btn-sm" id="btn-regenerate-eval" onclick="regenerateEvaluationWithAi(true)" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
-                    ↻ Regenerate
-                  </button>
-                  <button type="button" class="btn btn-outline btn-sm" onclick="openPreviewModal()" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
-                    👁 Preview Tool
-                  </button>
-                </div>
-              </div>
+              <?php endif; ?>
 
               <!-- Google Forms Evaluation Link section -->
-              <div style="margin-top:20px; padding-top:20px; border-top: 1px solid var(--border);">
-                <label class="form-label">Google Forms Evaluation Link <span class="text-danger">*</span></label>
+              <div style="margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--border, #e2e8f0);">
+                <label class="form-label" style="font-weight: 600;">Google Forms Evaluation Link <span class="text-danger">*</span></label>
                 <div style="display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;">
                   <div style="flex:1; min-width:240px;">
                     <input type="url" name="eval_form_link" id="f9_eval_form_link" class="form-control" placeholder="https://forms.gle/..." required value="<?= htmlspecialchars($activity['evaluation_method'] ?? '') ?>" <?= $s9Attr ?>>
                   </div>
                   <?php if ($s9Editable): ?>
-                  <button type="button" class="btn btn-outline" id="btnCreateGoogleForm" onclick="handleCreateGoogleForm()" style="white-space:nowrap; display:inline-flex; align-items:center; gap:6px; height:42px; font-weight:500;">
-                    <span id="btnCreateGoogleFormSpinner" class="spinner-border" style="display:none; width:0.9rem; height:0.9rem;"></span>
-                    <span id="btnCreateGoogleFormText">Create Google Form</span>
-                  </button>
+                    <button type="button" class="btn btn-outline" id="btnCreateGoogleForm" onclick="handleCreateGoogleForm()" style="white-space:nowrap; display:inline-flex; align-items:center; gap:6px; height:42px; font-weight:500;">
+                      <span id="btnCreateGoogleFormSpinner" class="spinner-border" style="display:none; width:0.9rem; height:0.9rem;"></span>
+                      <span id="btnCreateGoogleFormText">Create Google Form</span>
+                    </button>
                   <?php endif; ?>
                 </div>
                 <div id="googleFormStatusMessage" style="display:none; margin-top:8px; font-size:0.85rem; padding:8px 12px; border-radius:6px;"></div>
@@ -1894,13 +2392,20 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 </div>
                 <div class="scu-footer" style="font-size:.75rem;font-style:italic;color:inherit;border-top:1px dashed rgba(0,0,0,.15);padding-top:8px;">* Submission is blocked only when a real venue conflict is detected.</div>
               </div>
+
             </div>
           </div>
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
-            <div class="flex gap-2">
+            <div class="flex gap-2" style="align-items:center;">
               <button type="submit" name="action" value="draft" class="btn btn-outline" formnovalidate onclick="document.getElementById('proposalFormAction').value='draft'; serializeEvaluationQuestions();">💾 Save as Draft</button>
-              <button type="submit" name="action" value="submit" class="btn btn-primary" id="submitBtn" onclick="document.getElementById('proposalFormAction').value='submit'; serializeEvaluationQuestions();"><?= ($activity['status'] === 'returned_for_revision') ? '🚀 Resubmit for Approval' : '🚀 Submit for Approval' ?></button>
+              <?php if ($isOwner): ?>
+                <button type="submit" name="action" value="submit" class="btn btn-primary" id="submitBtn" onclick="document.getElementById('proposalFormAction').value='submit'; serializeEvaluationQuestions();"><?= ($activity['status'] === 'returned_for_revision') ? '🚀 Resubmit for Approval' : '🚀 Submit for Approval' ?></button>
+              <?php else: ?>
+                <button type="button" class="btn btn-secondary" disabled title="Only the Proposal Owner can submit this proposal for formal approval" style="cursor:not-allowed; opacity:0.75; display:inline-flex; align-items:center; gap:6px;">
+                  🔒 Owner Submission Only
+                </button>
+              <?php endif; ?>
             </div>
           </div>
         </div>
@@ -1925,7 +2430,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     const isS8Editable = <?= json_encode($s8Editable) ?>;
     const isS9Editable = <?= json_encode($s9Editable) ?>;
     const hasExistingPoster = <?= !empty($activity['poster_path']) ? 'true' : 'false' ?>;
-    let questionsList = <?= !empty($activity['evaluation_questions']) ? $activity['evaluation_questions'] : '[]' ?>;
+    let questionsList = <?= json_encode(!empty($activity['evaluation_questions']) ? (json_decode($activity['evaluation_questions'], true) ?: []) : []) ?>;
     let currentStep = 1;
     window.currentStep = 1;
     const totalSteps = 9;
@@ -2016,6 +2521,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       document.getElementById('panel-' + n).classList.add('active');
       currentStep = n;
       window.currentStep = n;
+      if (n === 9 && typeof syncKpiSectionTables === 'function') {
+        syncKpiSectionTables();
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -2672,13 +3180,51 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             { id: 'f1_title', err: 'e_title' },
             { id: 'f1_source', err: 'e_source' },
             { id: 'f1_venue', err: 'e_venue' },
-            { id: 'f1_target_participants', err: 'e_target_participants' },
             { id: 'f1_venue_address', err: 'e_venue_address' },
             { id: 'f1_theme', err: 'e_theme' }
           ];
           fields.forEach(f => {
             if (!checkField(f.id, f.err)) valid = false;
           });
+
+          // Validate target participants dynamic table
+          updateTotalTargetParticipants();
+          const partRows = document.querySelectorAll('#participant-sections-body tr.participant-row');
+          if (partRows.length === 0) {
+            valid = false;
+            showError('e_target_participants');
+          } else {
+            let hasEmptyPart = false;
+            partRows.forEach(row => {
+              const secInput = row.querySelector('.part-section-input');
+              const countInput = row.querySelector('.part-count-input');
+              if (secInput && !secInput.value.trim()) {
+                secInput.classList.add('is-invalid');
+                hasEmptyPart = true;
+                valid = false;
+              } else if (secInput) {
+                secInput.classList.remove('is-invalid');
+              }
+              if (countInput) {
+                const cnt = parseInt(countInput.value, 10);
+                if (isNaN(cnt) || cnt < 0 || countInput.value.trim() === '') {
+                  countInput.classList.add('is-invalid');
+                  hasEmptyPart = true;
+                  valid = false;
+                } else {
+                  countInput.classList.remove('is-invalid');
+                }
+              }
+            });
+
+            const totalVal = parseInt(document.getElementById('f1_target_participants')?.value || '0', 10);
+            if (totalVal <= 0 || hasEmptyPart) {
+              valid = false;
+              showError('e_target_participants');
+            } else {
+              hideError('e_target_participants');
+            }
+          }
           const posterEl = document.getElementById('f1_poster_file');
           if (!hasExistingPoster || (posterEl && posterEl.files && posterEl.files.length > 0)) {
             if (!validatePosterInput('f1_poster_file', 'e_poster_file', hasExistingPoster)) valid = false;
@@ -2945,8 +3491,116 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 startEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 startEl.focus();
               }
+              return;
             }
           }
+
+          // Prevent duplicate draft submissions
+          if (isDraftSavingPending) {
+            e.preventDefault();
+            return;
+          }
+
+          // If theme wait was already completed or bypassed, let native submission proceed
+          if (isBypassingThemeWaitOnDraft) {
+            return;
+          }
+
+          // Check if Section 1 (Theme) or Section 2 (Objectives) generation is pending or in-flight
+          const curTitle = (document.getElementById('f1_title')?.value || document.querySelector('[name="title"]')?.value || '').trim();
+          const curTheme = (document.getElementById('f1_theme')?.value || document.querySelector('[name="theme"]')?.value || '').trim();
+          const curGen = (document.getElementById('f2_general_objectives')?.value || document.querySelector('[name="general_objectives"]')?.value || '').trim();
+          const curSpec = (document.getElementById('f2_specific_objectives')?.value || document.querySelector('[name="specific_objectives"]')?.value || '').trim();
+
+          const isThemePendingOrInFlight = isS1Editable && ((themeDebounceTimer !== null) || isThemeGenerating || (currentThemePromise !== null));
+          const isEligibleEmptyTheme = isS1Editable && (curTitle.length >= 4 && curTheme === '' && !isThemeManuallyEdited);
+          const isObjPendingOrInFlight = isS2Editable && ((objDebounceTimer !== null) || isObjGenerating || (currentObjPromise !== null));
+          const isEligibleEmptyObj = isS2Editable && (curTitle.length >= 4 && curGen === '' && curSpec === '' && !isObjectivesProtected);
+
+          if (isThemePendingOrInFlight || isEligibleEmptyTheme || isObjPendingOrInFlight || isEligibleEmptyObj) {
+            e.preventDefault();
+            isDraftSavingPending = true;
+
+            const draftBtns = document.querySelectorAll('button[name="action"][value="draft"], button[type="submit"][value="draft"]');
+            const submitBtn = document.getElementById('submitBtn');
+            draftBtns.forEach(btn => {
+              btn.dataset.origText = btn.innerHTML;
+              btn.disabled = true;
+              btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving (waiting for AI Content...)';
+            });
+            if (submitBtn) submitBtn.disabled = true;
+
+            // If Theme debounce was waiting, trigger immediate generation
+            if (isS1Editable) {
+              if (themeDebounceTimer !== null) {
+                clearTimeout(themeDebounceTimer);
+                themeDebounceTimer = null;
+                currentThemePromise = autoGenerateTheme(false);
+              } else if (!isThemeGenerating && isEligibleEmptyTheme) {
+                currentThemePromise = autoGenerateTheme(false);
+              }
+            }
+
+            // If Objectives debounce was waiting, trigger immediate generation
+            if (isS2Editable) {
+              if (objDebounceTimer !== null) {
+                clearTimeout(objDebounceTimer);
+                objDebounceTimer = null;
+                currentObjPromise = autoGenerateObjectives(false);
+              } else if (!isObjGenerating && isEligibleEmptyObj) {
+                currentObjPromise = autoGenerateObjectives(false);
+              }
+            }
+
+            (async () => {
+              if (currentThemePromise) {
+                try {
+                  await currentThemePromise;
+                } catch (waitErr) {
+                  console.warn('Error waiting for theme generation:', waitErr);
+                }
+              }
+
+              if (currentObjPromise) {
+                try {
+                  await currentObjPromise;
+                } catch (waitObjErr) {
+                  console.warn('Error waiting for objectives generation:', waitObjErr);
+                }
+              }
+
+              const finalThemeEl = document.getElementById('f1_theme') || document.querySelector('[name="theme"]');
+              const finalThemeVal = finalThemeEl ? finalThemeEl.value.trim() : '';
+
+              if (finalThemeVal === '' && isS1Editable && isEligibleEmptyTheme) {
+                const proceed = confirm("⚠️ AI Theme generation could not be completed at this time.\n\nDo you want to save this proposal as a draft with an empty theme for now?");
+                if (!proceed) {
+                  isDraftSavingPending = false;
+                  draftBtns.forEach(btn => {
+                    if (btn.dataset.origText) btn.innerHTML = btn.dataset.origText;
+                    btn.disabled = false;
+                  });
+                  if (submitBtn) submitBtn.disabled = false;
+                  return;
+                }
+              }
+
+              serializeEvaluationQuestions();
+              if (window.fpSaveToHidden) {
+                window.fpSaveToHidden();
+              }
+
+              const actionInput = document.getElementById('proposalFormAction');
+              if (actionInput) actionInput.value = 'draft';
+
+              isBypassingThemeWaitOnDraft = true;
+              const formEl = document.getElementById('proposalForm');
+              HTMLFormElement.prototype.submit.call(formEl);
+            })();
+
+            return;
+          }
+
           return;
         }
 
@@ -2984,10 +3638,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     }
 
     // ── Dynamic row management ────────────────────────────────────────
-    const facultyOptionsHtml = `<?= addslashes(implode('', array_map(function($fu) {
-        $dept = !empty($fu['department']) ? ' (' . htmlspecialchars($fu['department'], ENT_QUOTES) . ')' : '';
-        return '<option value="' . (int)$fu['id'] . '" data-name="' . htmlspecialchars($fu['name'], ENT_QUOTES) . '">' . htmlspecialchars($fu['name'] . $dept, ENT_QUOTES) . '</option>';
-    }, $facultyUsers))) ?>`;
+    const facultyOptionsHtml = `<?= addslashes(renderFacultyTaskOptgroups($facultyDepartmentGroups, $facultyUsers)) ?>`;
 
     function syncFtName(sel) {
       const tr = sel.closest('tr');
@@ -2995,11 +3646,12 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       const nameInput = tr.querySelector('input.ft-name-field');
       if (!nameInput) return;
       const opt = sel.options[sel.selectedIndex];
-      if (sel.value && opt && opt.dataset.name) {
+      if (opt && opt.dataset.name) {
         nameInput.value = opt.dataset.name;
         nameInput.readOnly = true;
         nameInput.style.backgroundColor = 'var(--bg-muted, #f8fafc)';
       } else {
+        nameInput.value = '';
         nameInput.readOnly = false;
         nameInput.style.backgroundColor = '';
       }
@@ -3026,21 +3678,33 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       manpower: `
         <tr>
           <td>
-            <select name="mp_role[]" class="form-control">
-              <option>Medic</option><option>Customer Service</option><option>Usher</option>
-              <option>Marshall</option><option>Emcee</option><option>Floor Director</option>
-              <option>AV Support</option><option>Tabulator</option><option>Other</option>
+            <select name="mp_role[]" class="form-control" onchange="updateManpowerSummary()">
+              <option value="Medic">Medic</option>
+              <option value="Customer Service">Customer Service</option>
+              <option value="Usher">Usher</option>
+              <option value="Marshall">Marshall</option>
+              <option value="Emcee">Emcee</option>
+              <option value="Floor Director">Floor Director</option>
+              <option value="Sound & AVP Support">Sound & AVP Support</option>
+              <option value="Tabulators">Tabulators</option>
+              <option value="Photographers">Photographers</option>
+              <option value="Videographers">Videographers</option>
+              <option value="Expected Guest(s)">Expected Guest(s)</option>
+              <option value="Students' Audience">Students' Audience</option>
+              <option value="Adviser(s) / Teacher(s) / Staff(s)">Adviser(s) / Teacher(s) / Staff(s)</option>
+              <option value="VIP">VIP</option>
+              <option value="Sponsor(s)">Sponsor(s)</option>
             </select>
           </td>
-          <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Full name"></td>
+          <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Full name" oninput="updateManpowerSummary()"></td>
           <td>
-            <select name="mp_type[]" class="form-control">
+            <select name="mp_type[]" class="form-control" onchange="updateManpowerSummary()">
               <option value="faculty">Faculty</option>
               <option value="staff">Staff</option>
               <option value="student">Student</option>
             </select>
           </td>
-          <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
+          <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this); updateManpowerSummary();">✕</button></td>
         </tr>`,
       schedule: `
         <tr>
@@ -3082,6 +3746,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       tmp.innerHTML = rowTemplates[table];
       tbody.appendChild(tmp.firstElementChild);
       if (table === 'materials') updateTotal();
+      if (table === 'manpower') updateManpowerSummary();
     }
 
     function removeRow(btn) {
@@ -3090,11 +3755,182 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       if (tbody.querySelectorAll('tr').length > 1) {
         tr.remove();
         if (tbody.id === 'materials-body') updateTotal();
+        if (tbody.id === 'manpower-body') updateManpowerSummary();
       }
     }
 
+    // ── Manpower Summary ───────────────────────────────────────────────
+    function updateManpowerSummary() {
+      const summaryBody = document.getElementById('manpower-summary-body');
+      if (!summaryBody) return;
+
+      const MANPOWER_ROLES = [
+        "Medic",
+        "Customer Service",
+        "Usher",
+        "Marshall",
+        "Emcee",
+        "Floor Director",
+        "Sound & AVP Support",
+        "Tabulators",
+        "Photographers",
+        "Videographers",
+        "Expected Guest(s)",
+        "Students' Audience",
+        "Adviser(s) / Teacher(s) / Staff(s)",
+        "VIP",
+        "Sponsor(s)"
+      ];
+
+      const rows = document.querySelectorAll('#manpower-body tr');
+      const countsByRole = {};
+      const uniquePersons = new Set();
+
+      rows.forEach((tr, index) => {
+        const roleSel = tr.querySelector('select[name="mp_role[]"]');
+        const personInp = tr.querySelector('input[name="mp_person[]"]');
+        const typeSel = tr.querySelector('select[name="mp_type[]"]');
+
+        const role = roleSel ? roleSel.value.trim() : '';
+        const person = personInp ? personInp.value.trim() : '';
+        const type = typeSel ? typeSel.value.trim().toLowerCase() : 'faculty';
+
+        if (!role || !person) return;
+
+        if (!countsByRole[role]) {
+          countsByRole[role] = {
+            faculty: new Set(),
+            staff: new Set(),
+            student: new Set()
+          };
+        }
+
+        const personKey = person.toLowerCase();
+        uniquePersons.add(personKey);
+
+        if (type === 'staff') {
+          countsByRole[role].staff.add(personKey);
+        } else if (type === 'student') {
+          countsByRole[role].student.add(personKey);
+        } else {
+          countsByRole[role].faculty.add(personKey);
+        }
+      });
+
+      const presentRoles = [];
+      MANPOWER_ROLES.forEach(r => {
+        if (countsByRole[r]) presentRoles.push(r);
+      });
+      Object.keys(countsByRole).forEach(r => {
+        if (!presentRoles.includes(r)) presentRoles.push(r);
+      });
+
+      summaryBody.innerHTML = '';
+
+      let colFaculty = 0;
+      let colStaff = 0;
+      let colStudents = 0;
+      let colTotal = 0;
+
+      if (presentRoles.length === 0) {
+        summaryBody.innerHTML = `
+          <tr>
+            <td colspan="5" style="text-align: center; color: #64748b; font-size: 0.82rem; padding: 14px; background: #ffffff;">
+              No manpower assigned yet.
+            </td>
+          </tr>
+        `;
+      } else {
+        presentRoles.forEach(role => {
+          const fCount = countsByRole[role].faculty.size;
+          const sCount = countsByRole[role].staff.size;
+          const stuCount = countsByRole[role].student.size;
+          const rTotal = fCount + sCount + stuCount;
+
+          colFaculty += fCount;
+          colStaff += sCount;
+          colStudents += stuCount;
+          colTotal += rTotal;
+
+          const tr = document.createElement('tr');
+          tr.style.borderBottom = '1px solid #f1f5f9';
+          tr.style.background = '#ffffff';
+          tr.innerHTML = `
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; background: #ffffff;">${escapeHtml(role)}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: #334155; text-align: center; background: #ffffff;">${fCount}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: #334155; text-align: center; background: #ffffff;">${sCount}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: #334155; text-align: center; background: #ffffff;">${stuCount}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; font-weight: 600; background: #ffffff;">${rTotal}</td>
+          `;
+          summaryBody.appendChild(tr);
+        });
+      }
+
+      const elF = document.getElementById('mp-sum-faculty');
+      const elS = document.getElementById('mp-sum-staff');
+      const elStu = document.getElementById('mp-sum-students');
+      const elTot = document.getElementById('mp-sum-total');
+      const elUnique = document.getElementById('mp-summary-unique-total');
+
+      if (elF) elF.textContent = colFaculty;
+      if (elS) elS.textContent = colStaff;
+      if (elStu) elStu.textContent = colStudents;
+      if (elTot) elTot.textContent = colTotal;
+      if (elUnique) {
+        elUnique.textContent = uniquePersons.size;
+      }
+    }
+
+    function checkKpiDeleteButtons() {
+      const tbody = document.getElementById('kpi-body');
+      if (!tbody) return;
+      const rows = tbody.querySelectorAll('tr');
+      rows.forEach(row => {
+        const delBtn = row.querySelector('.btn-delete-kpi');
+        if (delBtn) {
+          if (rows.length <= 1) {
+            delBtn.disabled = true;
+            delBtn.style.opacity = '0.4';
+            delBtn.style.cursor = 'not-allowed';
+          } else {
+            delBtn.disabled = false;
+            delBtn.style.opacity = '1';
+            delBtn.style.cursor = 'pointer';
+          }
+        }
+      });
+    }
+
+    function addKpiRow(ind = '', target = '', method = '') {
+      const tbody = document.getElementById('kpi-body');
+      if (!tbody) return;
+      const s9Attr = (typeof isS9Editable !== 'undefined' && !isS9Editable) ? 'readonly style="background:var(--bg-base); cursor:not-allowed;"' : '';
+      const canEdit = typeof isS9Editable === 'undefined' || isS9Editable;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding: 10px 12px;"><input type="text" name="kpi_indicator[]" class="form-control kpi-field" placeholder="e.g. Number of Attendees" value="${escapeHtml(ind)}" ${s9Attr}></td>
+        <td style="padding: 10px 12px;"><input type="text" name="kpi_target[]" class="form-control kpi-field" placeholder="e.g. 500 Participants" value="${escapeHtml(target)}" ${s9Attr}></td>
+        <td style="padding: 10px 12px;"><input type="text" name="kpi_method[]" class="form-control kpi-field" placeholder="e.g. Attendance Sheet" value="${escapeHtml(method)}" ${s9Attr}></td>
+        <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
+          ${canEdit ? '<button type="button" class="btn btn-outline btn-sm btn-delete-kpi" onclick="removeKpiRow(this)" title="Delete KPI" style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1;">✕</button>' : ''}
+        </td>
+      `;
+      tbody.appendChild(tr);
+      checkKpiDeleteButtons();
+    }
+
+    function removeKpiRow(btn) {
+      const tbody = document.getElementById('kpi-body');
+      if (!tbody) return;
+      const rows = tbody.querySelectorAll('tr');
+      if (rows.length <= 1) return; // Do not allow deleting the final remaining row
+      const tr = btn.closest('tr');
+      if (tr) tr.remove();
+      checkKpiDeleteButtons();
+    }
+
     function addKPI() {
-      addRow('kpi');
+      addKpiRow();
     }
 
     // ── Materials Total Cost ──────────────────────────────────────────
@@ -3122,6 +3958,263 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         }
       });
     }
+
+    // ── Target Participants Section Table Functions ───────────────────
+    function renumberParticipantRows() {
+      const tbody = document.getElementById('participant-sections-body');
+      if (!tbody) return;
+      const rows = tbody.querySelectorAll('tr.participant-row');
+      rows.forEach((row, idx) => {
+        const numCell = row.querySelector('.part-row-num');
+        if (numCell) numCell.textContent = idx + 1;
+        const delBtn = row.querySelector('.btn-delete-section');
+        if (delBtn) {
+          if (rows.length <= 1) {
+            delBtn.disabled = true;
+            delBtn.style.opacity = '0.4';
+            delBtn.style.cursor = 'not-allowed';
+            delBtn.title = 'Cannot delete the only row';
+          } else {
+            delBtn.disabled = false;
+            delBtn.style.opacity = '1';
+            delBtn.style.cursor = 'pointer';
+            delBtn.title = 'Delete section';
+          }
+        }
+      });
+    }
+
+    function updateTotalTargetParticipants() {
+      const countInputs = document.querySelectorAll('#participant-sections-body input.part-count-input');
+      let total = 0;
+      countInputs.forEach(input => {
+        const val = parseInt(input.value, 10);
+        if (!isNaN(val) && val > 0) {
+          total += val;
+        }
+      });
+      
+      const displayEl = document.getElementById('target-participants-total-display');
+      if (displayEl) {
+        displayEl.textContent = total.toLocaleString();
+      }
+      
+      const hiddenInput = document.getElementById('f1_target_participants');
+      if (hiddenInput) {
+        hiddenInput.value = total > 0 ? total : '';
+      }
+
+      const errEl = document.getElementById('e_target_participants');
+      if (errEl && total > 0) {
+        errEl.style.display = 'none';
+      }
+
+      if (typeof syncKpiSectionTables === 'function') {
+        syncKpiSectionTables();
+      }
+    }
+
+    function addParticipantSectionRow(section = '', count = '', teacher = '') {
+      const tbody = document.getElementById('participant-sections-body');
+      if (!tbody) return;
+      const currentCount = tbody.querySelectorAll('tr.participant-row').length;
+      const newIndex = currentCount + 1;
+      
+      const tr = document.createElement('tr');
+      tr.className = 'participant-row';
+      tr.style.borderBottom = '1px solid #f1f5f9';
+      tr.innerHTML = `
+        <td class="part-row-num" style="text-align: center; font-weight: 600; color: #64748b; font-size: 0.85rem; padding: 10px 12px; vertical-align: middle;">
+          ${newIndex}
+        </td>
+        <td style="padding: 10px 12px;">
+          <input type="text" name="part_section[]" class="form-control part-section-input" placeholder="e.g. BSIT 301 / Data Structures" value="${escapeHtml(section)}">
+        </td>
+        <td style="padding: 10px 12px;">
+          <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="${escapeHtml(count)}" oninput="updateTotalTargetParticipants()">
+        </td>
+        <td style="padding: 10px 12px;">
+          <input type="text" name="part_teacher[]" class="form-control part-teacher-input" placeholder="e.g. Prof. Juan Dela Cruz" value="${escapeHtml(teacher)}">
+        </td>
+        <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
+          <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Delete section" style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1;">✕</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+      renumberParticipantRows();
+      updateTotalTargetParticipants();
+    }
+
+    function removeParticipantSectionRow(btn) {
+      const tbody = document.getElementById('participant-sections-body');
+      if (!tbody) return;
+      const rows = tbody.querySelectorAll('tr.participant-row');
+      if (rows.length <= 1) {
+        return; // Never allow deletion of the last remaining row
+      }
+      const tr = btn.closest('tr');
+      if (tr) {
+        tr.remove();
+        renumberParticipantRows();
+        updateTotalTargetParticipants();
+      }
+    }
+
+    // ── Synchronization for Activity Evaluation & KPI Measurement Tables ──
+    function syncKpiSectionTables() {
+      const partRows = document.querySelectorAll('#participant-sections-body tr.participant-row');
+      const attTbody = document.getElementById('kpi-attendance-table-body');
+      const learnTbody = document.getElementById('kpi-learning-table-body');
+      if (!attTbody || !learnTbody) return;
+
+      // Preserve any values currently typed by user in Step 9 inputs if re-syncing
+      const currentActualInputs = attTbody.querySelectorAll('.part-actual-input');
+      const currentPreInputs = learnTbody.querySelectorAll('.part-pre-input');
+      const currentPostInputs = learnTbody.querySelectorAll('.part-post-input');
+
+      const cachedActuals = [];
+      const cachedPres = [];
+      const cachedPosts = [];
+
+      currentActualInputs.forEach((inp, i) => { cachedActuals[i] = inp.value; });
+      currentPreInputs.forEach((inp, i) => { cachedPres[i] = inp.value; });
+      currentPostInputs.forEach((inp, i) => { cachedPosts[i] = inp.value; });
+
+      attTbody.innerHTML = '';
+      learnTbody.innerHTML = '';
+
+      let totalTarget = 0;
+      const s9Attr = (typeof isS9Editable !== 'undefined' && !isS9Editable) ? 'readonly style="background:var(--bg-base); cursor:not-allowed;"' : '';
+
+      partRows.forEach((row, idx) => {
+        const secInput = row.querySelector('.part-section-input');
+        const cntInput = row.querySelector('.part-count-input');
+        const secName = (secInput && secInput.value.trim()) ? secInput.value.trim() : `Section ${idx + 1}`;
+        const targetCount = (cntInput && parseInt(cntInput.value, 10) > 0) ? parseInt(cntInput.value, 10) : 0;
+        totalTarget += targetCount;
+
+        // Retrieve existing or typed values
+        let actualVal = (cachedActuals[idx] !== undefined && cachedActuals[idx] !== '') 
+          ? cachedActuals[idx] 
+          : (row.getAttribute('data-actual-attendees') || '');
+        let preVal = (cachedPres[idx] !== undefined && cachedPres[idx] !== '') 
+          ? cachedPres[idx] 
+          : (row.getAttribute('data-pre-test') || '');
+        let postVal = (cachedPosts[idx] !== undefined && cachedPosts[idx] !== '') 
+          ? cachedPosts[idx] 
+          : (row.getAttribute('data-post-test') || '');
+
+        // Attendance Row
+        const attTr = document.createElement('tr');
+        attTr.style.borderBottom = '1px solid #f1f5f9';
+        attTr.className = 'kpi-attendance-row';
+        attTr.setAttribute('data-target-count', targetCount);
+        attTr.innerHTML = `
+          <td style="text-align: center; color: #64748b; font-size: 0.85rem; padding: 10px 12px; vertical-align: middle;">${idx + 1}</td>
+          <td style="padding: 10px 12px; font-weight: 500; vertical-align: middle;">${escapeHtml(secName)}</td>
+          <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: #0284c7; vertical-align: middle;">${targetCount.toLocaleString()}</td>
+          <td style="padding: 10px 12px; text-align: center; vertical-align: middle; color: var(--text-muted, #64748b); font-size: 0.82rem;">
+            <span class="text-muted">To be recorded after the activity</span>
+            <input type="hidden" name="part_actual_attendees[]" class="part-actual-input" value="${escapeHtml(actualVal)}">
+          </td>
+          <td class="kpi-attendance-result-cell" style="padding: 10px 12px; text-align: center; vertical-align: middle;">
+            <span class="text-muted" style="font-size:0.8rem;">— (Post-activity)</span>
+          </td>
+        `;
+        attTbody.appendChild(attTr);
+
+        // Learning Outcome Row
+        const learnTr = document.createElement('tr');
+        learnTr.style.borderBottom = '1px solid #f1f5f9';
+        learnTr.className = 'kpi-learning-row';
+        const kpiVal = row.getAttribute('data-learning-kpi') || '';
+        learnTr.innerHTML = `
+          <td style="text-align: center; color: #64748b; font-size: 0.85rem; padding: 10px 12px; vertical-align: middle;">${idx + 1}</td>
+          <td style="padding: 10px 12px; font-weight: 500; vertical-align: middle;">${escapeHtml(secName)}</td>
+          <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: #0284c7; vertical-align: middle;">${targetCount.toLocaleString()}</td>
+          <td class="kpi-learning-result-cell" style="padding: 10px 12px; text-align: center; vertical-align: middle; color: var(--text-muted, #64748b); font-size: 0.82rem;">
+            <span class="text-muted">To be recorded after the activity</span>
+            <input type="hidden" name="part_pre_test[]" class="part-pre-input" value="${escapeHtml(preVal)}">
+            <input type="hidden" name="part_post_test[]" class="part-post-input" value="${escapeHtml(postVal)}">
+            <input type="hidden" name="part_learning_kpi[]" value="${escapeHtml(kpiVal)}">
+          </td>
+        `;
+        learnTbody.appendChild(learnTr);
+      });
+
+      // Update total target badge and footer in Component A
+      const targetTotalEl = document.getElementById('kpi-attendance-target-total');
+      if (targetTotalEl) targetTotalEl.textContent = totalTarget.toLocaleString();
+      const footTargetEl = document.getElementById('kpi-attendance-footer-target');
+      if (footTargetEl) footTargetEl.textContent = totalTarget.toLocaleString();
+
+      updateKpiAttendanceCalculations();
+      updateKpiLearningCalculations();
+    }
+
+    function updateKpiAttendanceCalculations() {
+      const attRows = document.querySelectorAll('#kpi-attendance-table-body tr.kpi-attendance-row');
+      let totalTarget = 0;
+
+      attRows.forEach((tr) => {
+        const targetCount = parseInt(tr.getAttribute('data-target-count'), 10) || 0;
+        totalTarget += targetCount;
+      });
+
+      const footTargetEl = document.getElementById('kpi-attendance-footer-target');
+      if (footTargetEl) footTargetEl.textContent = totalTarget.toLocaleString();
+
+      const targetTotalEl = document.getElementById('kpi-attendance-target-total');
+      if (targetTotalEl) targetTotalEl.textContent = totalTarget.toLocaleString();
+
+      const footActualEl = document.getElementById('kpi-attendance-footer-actual');
+      if (footActualEl) footActualEl.textContent = 'To be recorded after the activity';
+
+      const footResultEl = document.getElementById('kpi-attendance-footer-result');
+      if (footResultEl) footResultEl.innerHTML = '<span class="text-muted" style="font-size:0.8rem;">— (Post-activity)</span>';
+    }
+
+    function updateKpiLearningCalculations() {
+      const learnRows = document.querySelectorAll('#kpi-learning-table-body tr.kpi-learning-row');
+      learnRows.forEach((tr) => {
+        const resCell = tr.querySelector('.kpi-learning-result-cell span.text-muted');
+        if (resCell) {
+          resCell.textContent = 'To be recorded after the activity';
+        }
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      renumberParticipantRows();
+      updateTotalTargetParticipants();
+      if (typeof syncKpiSectionTables === 'function') {
+        syncKpiSectionTables();
+      }
+      if (typeof updateManpowerSummary === 'function') {
+        updateManpowerSummary();
+      }
+      document.querySelectorAll('select.ft-user-select').forEach(sel => {
+        const opt = sel.options[sel.selectedIndex];
+        if (opt && opt.dataset.name) {
+          const tr = sel.closest('tr');
+          if (tr) {
+            const nameInput = tr.querySelector('input.ft-name-field');
+            if (nameInput) {
+              nameInput.readOnly = true;
+              nameInput.style.backgroundColor = 'var(--bg-muted, #f8fafc)';
+            }
+          }
+        }
+      });
+      const pBody = document.getElementById('participant-sections-body');
+      if (pBody) {
+        pBody.addEventListener('input', () => {
+          if (typeof syncKpiSectionTables === 'function') {
+            syncKpiSectionTables();
+          }
+        });
+      }
+    });
 
     // ── Evaluation Tool ──────────────────────────────────────────────
     let isEvaluationEdited = <?= (!empty($activity['evaluation_questions']) && trim($activity['evaluation_questions']) !== '' && $activity['evaluation_questions'] !== '[]') ? 'true' : 'false' ?>;
@@ -3292,13 +4385,19 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           return;
         }
 
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
 
-        if (data && (data.quota_exhausted || (data.error && data.error === 'QUOTA_EXHAUSTED'))) {
+        if (!data) {
+          throw new Error(`Server returned HTTP ${res.status}.`);
+        }
+
+        if (data.quota_exhausted || (data.error && data.error === 'QUOTA_EXHAUSTED')) {
           throw new Error("QUOTA_EXHAUSTED");
-        } else if (res.status === 429 || (data && (data.rate_limited || (data.error && (data.error.includes('429') || data.error.includes('limit')))))) {
+        } else if (res.status === 429 || (data && (data.rate_limited || (data.error && (data.error.includes('429') || data.error.includes('limit') || data.error === 'RATE_LIMIT'))))) {
           throw new Error("RATE_LIMIT");
-        } else if (!res.ok || (data && data.error)) {
+        } else if (data.auth_error || (data.error && data.error === 'AUTH_ERROR')) {
+          throw new Error("AUTH_ERROR: " + (data.message || 'Invalid or missing API key.'));
+        } else if (!res.ok || (data && (data.error || data.success === false))) {
           throw new Error(data.message || data.error || `API Error: HTTP ${res.status}`);
         }
 
@@ -3323,7 +4422,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           serializeEvaluationQuestions();
           setEvaluationState('READY');
         } else {
-          throw new Error(data.error || 'Empty response from AI.');
+          throw new Error(data.message || data.error || 'Empty response from AI.');
         }
       } catch (err) {
         if (err.name === 'AbortError') return;
@@ -3331,13 +4430,17 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         console.warn('autoGenerateEvaluation error:', err);
         let errMsg = err.message || 'Unknown error';
         let isQuota = false;
+        let isAuth = false;
         if (errMsg === 'QUOTA_EXHAUSTED') {
           errMsg = 'AI service quota has been reached. You can add evaluation questions manually below.';
           isQuota = true;
         } else if (errMsg === 'RATE_LIMIT') {
-          errMsg = 'AI service rate limit reached. Please wait a moment and try again.';
+          errMsg = 'AI service rate limit reached. Please wait a moment and click Retry.';
+        } else if (errMsg.startsWith('AUTH_ERROR')) {
+          errMsg = errMsg.replace(/^AUTH_ERROR:\s*/, '');
+          isAuth = true;
         }
-        setEvaluationState('ERROR', errMsg, isQuota);
+        setEvaluationState('ERROR', errMsg, isQuota, isAuth);
       } finally {
         if (requestId === currentEvalRequestId) {
           isGeneratingEval = false;
@@ -3404,7 +4507,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       });
     }
 
-    function setEvaluationState(state, errorMsg = '', isQuota = false) {
+    function setEvaluationState(state, errorMsg = '', isQuota = false, isAuth = false) {
       const badge = document.getElementById('evalStatusBadge');
       const indicator = document.getElementById('evalStatusIndicator');
       const text = document.getElementById('evalStatusText');
@@ -3431,8 +4534,8 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           if (regenBtn) regenBtn.disabled = false;
           if (statusEl) {
             statusEl.style.display = 'block';
-            statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#f0f9ff; color:#0369a1; border:1px solid #e0f2fe; margin-bottom:10px;';
-            statusEl.innerText = errorMsg || 'Please complete the activity title, theme, and objectives to generate evaluation questions.';
+            statusEl.style.cssText = 'padding:10px 14px; font-size:0.75rem; border-radius:6px; background:#f0f9ff; color:#0369a1; border:1px solid #e0f2fe; margin-bottom:10px;';
+            statusEl.innerText = errorMsg || (questionsList.length === 0 ? 'No evaluation questions generated yet. Click "↻ Regenerate" to create questions with AI.' : 'Please complete the activity title, theme, and objectives to generate evaluation questions.');
           }
           break;
         case 'GENERATING':
@@ -3449,7 +4552,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           if (regenBtn) regenBtn.disabled = true;
           if (statusEl) {
             statusEl.style.display = 'block';
-            statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; margin-bottom:10px;';
+            statusEl.style.cssText = 'padding:10px 14px; font-size:0.75rem; border-radius:6px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; margin-bottom:10px;';
             statusEl.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;">' +
               '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="animation:spin 1s linear infinite;">' +
               '<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>' +
@@ -3494,11 +4597,11 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           if (regenBtn) regenBtn.disabled = false;
           if (statusEl) {
             statusEl.style.display = 'block';
-            statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; margin-bottom:10px;';
-            const actionHtml = isQuota
+            statusEl.style.cssText = 'padding:10px 14px; font-size:0.75rem; border-radius:6px; background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; margin-bottom:10px;';
+            const actionHtml = isQuota || isAuth
               ? `<div style="margin-top:6px; color:#475569; font-size:0.75rem; font-weight:500;">💡 Manual evaluation question entry is active. Use the <strong>+ Add Question</strong> button below to customize your questions.</div>`
-              : `<div style="margin-top:6px;"><button type="button" class="btn btn-outline btn-xs" style="background:#fff; border:1px solid #fca5a5; padding:2px 8px; font-size:0.7rem; height:auto; line-height:1.2;" onclick="regenerateEvaluationWithAi(false)">Retry</button></div>`;
-            statusEl.innerHTML = `⚠️ <span>Unable to generate evaluation questions right now.</span> <br> <span style="font-size:0.7rem; opacity:0.85;">${escapeHtml(errorMsg || 'Network error')}</span>` + actionHtml;
+              : `<div style="margin-top:6px;"><button type="button" class="btn btn-outline btn-xs" style="background:#fff; border:1px solid #fca5a5; padding:2px 8px; font-size:0.7rem; height:auto; line-height:1.2; color:#b91c1c;" onclick="regenerateEvaluationWithAi(true)">Retry</button></div>`;
+            statusEl.innerHTML = `⚠️ <span style="font-weight:600;">Evaluation Question Generation Error</span> <br> <span style="font-size:0.75rem; opacity:0.95;">${escapeHtml(errorMsg || 'Unable to generate evaluation questions right now.')}</span>` + actionHtml;
           }
           break;
       }
@@ -3684,10 +4787,13 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     let isObjectivesProtected = false;
     let lastAiGeneralObjective = '';
     let lastAiSpecificObjectives = '';
+    let lastRequestedObjTitle = '';
+    let lastRequestedObjTheme = '';
     let currentObjRequestId = 0;
     let currentObjAbortController = null;
     let objDebounceTimer = null;
     let isObjGenerating = false;
+    let currentObjPromise = null;
 
     function hashStr(str) {
       let hash = 0;
@@ -3708,6 +4814,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         currentObjAbortController = null;
       }
       isObjGenerating = false;
+      currentObjPromise = null;
       setObjectiveSpinner(false);
     }
 
@@ -3726,6 +4833,12 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       const statusEl = document.getElementById('objGenStatus');
       if (!statusEl) return;
 
+      if (typeof isS2Editable !== 'undefined' && !isS2Editable) {
+        setObjectiveSpinner(false);
+        statusEl.style.display = 'none';
+        return;
+      }
+
       switch (state) {
         case 'GENERATING':
           setObjectiveSpinner(true);
@@ -3740,8 +4853,14 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         case 'UPDATED':
         case 'SUCCESS':
           setObjectiveSpinner(false);
-          statusEl.style.display = 'none';
-          statusEl.innerHTML = '';
+          statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;';
+          statusEl.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <span>✅ SMART Objectives generated by AI.</span>
+              <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;font-weight:600;padding:0;">
+                ↻ Regenerate Objectives
+              </button>
+            </div>`;
           break;
 
         case 'OUTDATED':
@@ -3758,8 +4877,14 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
 
         case 'MANUAL':
           setObjectiveSpinner(false);
-          statusEl.style.display = 'none';
-          statusEl.innerHTML = '';
+          statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;';
+          statusEl.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <span>✏️ Custom objectives entered.</span>
+              <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;font-weight:600;padding:0;">
+                ↻ Regenerate Objectives with AI
+              </button>
+            </div>`;
           break;
 
         case 'ERROR':
@@ -3777,7 +4902,24 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         case 'WAITING':
         default:
           setObjectiveSpinner(false);
-          statusEl.style.display = 'none';
+          const titleElWait = document.getElementById('f1_title') || document.querySelector('[name="title"]');
+          const genElWait = document.getElementById('f2_general_objectives');
+          const specElWait = document.getElementById('f2_specific_objectives');
+          const curTitleWait = (titleElWait?.value || '').trim();
+          const hasAnyObj = (genElWait && genElWait.value.trim() !== '') || (specElWait && specElWait.value.trim() !== '');
+          if (!hasAnyObj && curTitleWait.length >= 4) {
+            statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:12px 16px;border-radius:6px;font-size:0.875rem;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;';
+            statusEl.innerHTML = `
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                <span>💡 You can automatically generate SMART objectives based on your Title & Theme.</span>
+                <button type="button" onclick="forceRegenerateObjectives()" style="background:#0284c7;color:#fff;border:none;border-radius:4px;padding:5px 12px;font-size:0.85rem;cursor:pointer;font-weight:600;">
+                  ⚡ Generate Objectives with AI
+                </button>
+              </div>`;
+          } else {
+            statusEl.style.display = 'none';
+            statusEl.innerHTML = '';
+          }
           break;
       }
     }
@@ -3809,26 +4951,40 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     }
 
     function forceRegenerateObjectives() {
+      if (typeof isS2Editable !== 'undefined' && !isS2Editable) return;
       isObjectivesProtected = false;
       autoGenerateObjectives(true);
     }
 
     async function autoGenerateObjectives(forced = false, contextOverride = null) {
+      if (typeof isS2Editable !== 'undefined' && !isS2Editable) return null;
+
       const genEl = document.getElementById('f2_general_objectives');
       const specEl = document.getElementById('f2_specific_objectives');
       const titleEl = document.getElementById('f1_title') || document.querySelector('[name="title"]');
       const themeEl = document.getElementById('f1_theme') || document.querySelector('[name="theme"]');
-      if (!genEl || !specEl || !titleEl) return;
+      if (!genEl || !specEl || !titleEl) return null;
 
       const currentTitle = contextOverride?.title ?? titleEl.value.trim();
       const currentTheme = contextOverride?.theme ?? (themeEl ? themeEl.value.trim() : '');
 
-      if (currentTitle.length < 4) return;
+      if (currentTitle.length < 4) return null;
 
       // Protected manual content: never silently overwrite unless forced
       if (isObjectivesProtected && !forced) {
         renderObjectivesStatus('OUTDATED');
-        return;
+        return null;
+      }
+
+      // If already generating for this exact title & theme and not forced, return existing in-flight promise
+      if (isObjGenerating && currentObjPromise && !forced && lastRequestedObjTitle === currentTitle && lastRequestedObjTheme === currentTheme) {
+        return currentObjPromise;
+      }
+
+      // Clear pending debounce timer
+      if (objDebounceTimer) {
+        clearTimeout(objDebounceTimer);
+        objDebounceTimer = null;
       }
 
       // Abort in-flight objective request & cancel pending evaluation
@@ -3844,100 +5000,133 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       currentObjAbortController = new AbortController();
 
       const requestId = ++currentObjRequestId;
+      lastRequestedObjTitle = currentTitle;
+      lastRequestedObjTheme = currentTheme;
       isObjGenerating = true;
       renderObjectivesStatus('GENERATING');
 
       const payload = {
+        activity_id:         <?= (int)$id ?>,
         title:               currentTitle,
         theme:               currentTheme,
-        source:              (document.querySelector('[name="source"]')?.value || '').trim(),
-        target_participants: (document.querySelector('[name="target_participants"]')?.value || '').trim(),
-        involved_subjects:   (document.querySelector('[name="involved_subjects"]')?.value || '').trim(),
-        rationale:           (document.querySelector('[name="rationale"]')?.value || '').trim()
+        source:              (document.getElementById('f1_source')?.value || document.querySelector('[name="source"]')?.value || '').trim(),
+        target_participants: (document.getElementById('f1_target_participants')?.value || document.querySelector('[name="target_participants"]')?.value || '').trim(),
+        involved_subjects:   (document.getElementById('f2_involved_subjects')?.value || document.querySelector('[name="involved_subjects"]')?.value || '').trim(),
+        rationale:           (document.getElementById('f2_rationale')?.value || document.querySelector('[name="rationale"]')?.value || '').trim()
       };
 
-      try {
-        const res = await fetch('<?= BASE_URL ?>/api/generate-objectives.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal: currentObjAbortController.signal
-        });
-
-        // Stale check
-        if (requestId !== currentObjRequestId || currentObjAbortController.signal.aborted) {
-          return;
-        }
-
-        // Verify title & theme haven't changed in the meantime
-        const nowTitle = (titleEl.value || '').trim();
-        const nowTheme = (themeEl ? themeEl.value.trim() : '');
-        if (nowTitle.length >= 4 && (nowTitle !== currentTitle || nowTheme !== currentTheme)) {
-          return;
-        }
-
-        const data = await res.json();
-        if (res.ok && data.success && data.general_objective && data.specific_objectives) {
-          const specVal = Array.isArray(data.specific_objectives)
-            ? data.specific_objectives.join('\n')
-            : (data.specific_objectives || '');
-
-          lastAiGeneralObjective = data.general_objective;
-          lastAiSpecificObjectives = specVal;
-          isObjectivesProtected = false;
-
-          try {
-            sessionStorage.setItem('sti_ai_gen_obj_' + hashStr(data.general_objective.trim()), '1');
-            sessionStorage.setItem('sti_ai_spec_obj_' + hashStr(specVal.trim()), '1');
-          } catch (e) {}
-
-          genEl.value = data.general_objective;
-          specEl.value = specVal;
-
-          // Subtle green pulse on objective textareas
-          [genEl, specEl].forEach(el => {
-            el.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
-            el.style.borderColor = '#22c55e';
-            el.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
-            setTimeout(() => {
-              el.style.borderColor = '';
-              el.style.boxShadow = '';
-            }, 1000);
+      const execPromise = (async () => {
+        try {
+          const res = await fetch('<?= BASE_URL ?>/api/generate-objectives.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: currentObjAbortController.signal
           });
 
-          // Clear validation errors if showing
-          const eGen = document.getElementById('e_general_objectives');
-          const eSpec = document.getElementById('e_specific_objectives');
-          if (eGen) eGen.style.display = 'none';
-          if (eSpec) eSpec.style.display = 'none';
-          genEl.classList.remove('is-invalid');
-          specEl.classList.remove('is-invalid');
+          // Stale check
+          if (requestId !== currentObjRequestId || currentObjAbortController.signal.aborted) {
+            return null;
+          }
 
-          renderObjectivesStatus('UPDATED');
+          // Verify title & theme haven't changed in the meantime
+          const nowTitle = (titleEl.value || '').trim();
+          const nowTheme = (themeEl ? themeEl.value.trim() : '');
+          if (nowTitle.length >= 4 && (nowTitle !== currentTitle || nowTheme !== currentTheme)) {
+            return null;
+          }
 
+          const data = await res.json();
+          if (res.ok && data.success && data.general_objective && data.specific_objectives) {
+            // Check manual edit protection again before writing (in case user edited while fetch was in flight)
+            if (isObjectivesProtected && !forced) {
+              renderObjectivesStatus('OUTDATED');
+              return null;
+            }
+
+            const specVal = Array.isArray(data.specific_objectives)
+              ? data.specific_objectives.join('\n')
+              : (data.specific_objectives || '');
+
+            lastAiGeneralObjective = data.general_objective;
+            lastAiSpecificObjectives = specVal;
+            isObjectivesProtected = false;
+
+            try {
+              sessionStorage.setItem('sti_ai_gen_obj_' + hashStr(data.general_objective.trim()), '1');
+              sessionStorage.setItem('sti_ai_spec_obj_' + hashStr(specVal.trim()), '1');
+            } catch (e) {}
+
+            genEl.value = data.general_objective;
+            specEl.value = specVal;
+
+            // Dispatch input and change events so all listeners and validation recognize the new values
+            genEl.dispatchEvent(new Event('input', { bubbles: true }));
+            genEl.dispatchEvent(new Event('change', { bubbles: true }));
+            specEl.dispatchEvent(new Event('input', { bubbles: true }));
+            specEl.dispatchEvent(new Event('change', { bubbles: true }));
+
+            // Subtle green pulse on objective textareas
+            [genEl, specEl].forEach(el => {
+              el.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
+              el.style.borderColor = '#22c55e';
+              el.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
+              setTimeout(() => {
+                el.style.borderColor = '';
+                el.style.boxShadow = '';
+              }, 1000);
+            });
+
+            // Clear validation errors if showing
+            const eGen = document.getElementById('e_general_objectives');
+            const eSpec = document.getElementById('e_specific_objectives');
+            if (eGen) eGen.style.display = 'none';
+            if (eSpec) eSpec.style.display = 'none';
+            genEl.classList.remove('is-invalid');
+            specEl.classList.remove('is-invalid');
+
+            // Also clear banner if step 2 was invalid
+            const banner2 = document.getElementById('err-banner-2');
+            if (banner2 && !document.querySelector('#panel-2 .is-invalid')) {
+              banner2.style.display = 'none';
+            }
+
+            renderObjectivesStatus('UPDATED');
+
+            if (requestId === currentObjRequestId) {
+              isObjGenerating = false;
+              setObjectiveSpinner(false);
+            }
+
+            // Automatic cascade step: trigger evaluation tool auto-generation
+            if (typeof triggerAutomaticEvaluation === 'function') {
+              triggerAutomaticEvaluation(true);
+            }
+
+            return {
+              general_objective: data.general_objective,
+              specific_objectives: specVal
+            };
+          } else {
+            throw new Error(data.error || 'Empty or invalid response from AI.');
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') return null;
+          if (requestId !== currentObjRequestId) return null;
+          console.warn('autoGenerateObjectives error:', err);
+          renderObjectivesStatus('ERROR', err.message);
+          return null;
+        } finally {
           if (requestId === currentObjRequestId) {
             isObjGenerating = false;
+            currentObjPromise = null;
             setObjectiveSpinner(false);
           }
+        }
+      })();
 
-          // Automatic cascade step: trigger evaluation tool auto-generation
-          if (typeof triggerAutomaticEvaluation === 'function') {
-            triggerAutomaticEvaluation(true);
-          }
-        } else {
-          throw new Error(data.error || 'Empty or invalid response from AI.');
-        }
-      } catch (err) {
-        if (err.name === 'AbortError') return;
-        if (requestId !== currentObjRequestId) return;
-        console.warn('autoGenerateObjectives error:', err);
-        renderObjectivesStatus('ERROR', err.message);
-      } finally {
-        if (requestId === currentObjRequestId) {
-          isObjGenerating = false;
-          setObjectiveSpinner(false);
-        }
-      }
+      currentObjPromise = execPromise;
+      return execPromise;
     }
 
     // Connect Theme changes to Objectives cascade - Single authoritative handler
@@ -3948,10 +5137,14 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       const curTheme = (detail.theme || '').trim();
 
       if (curTitle.length < 4) return;
+      if (typeof isS2Editable !== 'undefined' && !isS2Editable) return;
 
       if (detail.triggerSource === 'auto_theme') {
         cancelPendingObjectivesGeneration();
-        if (isObjectivesProtected) {
+        const genEl = document.getElementById('f2_general_objectives');
+        const specEl = document.getElementById('f2_specific_objectives');
+        const hasObjectives = (genEl && genEl.value.trim() !== '') || (specEl && specEl.value.trim() !== '');
+        if (isObjectivesProtected || hasObjectives) {
           renderObjectivesStatus('OUTDATED');
         } else {
           autoGenerateObjectives(false, { title: curTitle, theme: curTheme });
@@ -3989,24 +5182,38 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     function setupAutomaticObjectivesOnEdit() {
       const genEl = document.getElementById('f2_general_objectives');
       const specEl = document.getElementById('f2_specific_objectives');
+      const titleEl = document.getElementById('f1_title') || document.querySelector('[name="title"]');
+      const themeEl = document.getElementById('f1_theme') || document.querySelector('[name="theme"]');
       if (!genEl || !specEl) return;
 
       const initialGen = genEl.value.trim();
       const initialSpec = specEl.value.trim();
+      const initialTitle = (titleEl ? titleEl.value.trim() : '');
+      const initialTheme = (themeEl ? themeEl.value.trim() : '');
 
       if (initialGen !== '' || initialSpec !== '') {
         lastAiGeneralObjective = initialGen;
         lastAiSpecificObjectives = initialSpec;
-        isObjectivesProtected = false;
-        renderObjectivesStatus('WAITING');
+        isObjectivesProtected = true;
+        renderObjectivesStatus('UPDATED');
       } else {
         isObjectivesProtected = false;
         renderObjectivesStatus('WAITING');
+        // Auto-generate objectives if draft has valid title (>=4 chars) and Section 2 is editable
+        if (initialTitle.length >= 4 && isS2Editable) {
+          objDebounceTimer = setTimeout(() => {
+            autoGenerateObjectives(false, {
+              title: titleEl ? titleEl.value.trim() : initialTitle,
+              theme: themeEl ? themeEl.value.trim() : initialTheme
+            });
+          }, 700);
+        }
       }
 
       genEl.addEventListener('input', checkManualObjectiveEdit);
       specEl.addEventListener('input', checkManualObjectiveEdit);
     }
+    window.setupAutomaticObjectives = setupAutomaticObjectivesOnEdit;
 
     // Expose helpers globally
     window.generateObjectives = function(forced = false) {
@@ -4019,10 +5226,14 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     let isThemeManuallyEdited = false;
     let lastAiGeneratedTheme = '';
     let lastGeneratedTitle = '';
+    let lastRequestedThemeTitle = '';
     let currentThemeRequestId = 0;
     let currentThemeAbortController = null;
     let themeDebounceTimer = null;
     let isThemeGenerating = false;
+    let currentThemePromise = null;
+    let isDraftSavingPending = false;
+    let isBypassingThemeWaitOnDraft = false;
 
     function cancelPendingThemeGeneration() {
       if (themeDebounceTimer) {
@@ -4034,6 +5245,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         currentThemeAbortController = null;
       }
       isThemeGenerating = false;
+      currentThemePromise = null;
       setThemeSpinner(false);
     }
 
@@ -4053,6 +5265,11 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       } else {
         isThemeManuallyEdited = false;
         renderThemeStatus('WAITING');
+        if (initialTitle.length >= 4 && isS1Editable) {
+          themeDebounceTimer = setTimeout(() => {
+            autoGenerateTheme(false);
+          }, 500);
+        }
       }
 
       themeEl.addEventListener('input', () => {
@@ -4150,14 +5367,25 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     async function autoGenerateTheme(forced = false) {
       const titleEl = document.getElementById('f1_title') || document.querySelector('[name="title"]');
       const themeEl = document.getElementById('f1_theme') || document.querySelector('[name="theme"]');
-      if (!titleEl || !themeEl) return;
+      if (!titleEl || !themeEl) return null;
 
       const titleVal = titleEl.value.trim();
-      if (titleVal.length < 4) return;
+      if (titleVal.length < 4) return null;
 
       if (isThemeManuallyEdited && !forced) {
         renderThemeStatus('OUTDATED');
-        return;
+        return null;
+      }
+
+      // If already generating for this exact title and not forced, return existing in-flight promise
+      if (isThemeGenerating && currentThemePromise && !forced && lastRequestedThemeTitle === titleVal) {
+        return currentThemePromise;
+      }
+
+      // Clear any pending debounce timer
+      if (themeDebounceTimer) {
+        clearTimeout(themeDebounceTimer);
+        themeDebounceTimer = null;
       }
 
       if (typeof cancelPendingEvaluationGeneration === 'function') {
@@ -4169,6 +5397,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       currentThemeAbortController = new AbortController();
 
       const requestId = ++currentThemeRequestId;
+      lastRequestedThemeTitle = titleVal;
       isThemeGenerating = true;
       renderThemeStatus('GENERATING');
 
@@ -4182,67 +5411,82 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         rationale:           (document.querySelector('[name="rationale"]')?.value || '').trim()
       };
 
-      try {
-        const res = await fetch('<?= BASE_URL ?>/api/generate-theme.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal: currentThemeAbortController.signal
-        });
+      const execPromise = (async () => {
+        try {
+          const res = await fetch('<?= BASE_URL ?>/api/generate-theme.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: currentThemeAbortController.signal
+          });
 
-        const currentTitleNow = (titleEl ? titleEl.value.trim() : '');
-        if (requestId !== currentThemeRequestId || currentThemeAbortController.signal.aborted || currentTitleNow !== titleVal) {
-          return;
-        }
+          const currentTitleNow = (titleEl ? titleEl.value.trim() : '');
+          if (requestId !== currentThemeRequestId || currentThemeAbortController.signal.aborted || currentTitleNow !== titleVal) {
+            return null;
+          }
 
-        const data = await res.json();
-        if (res.ok && data.success && data.theme) {
-          lastAiGeneratedTheme = data.theme;
-          lastGeneratedTitle = titleVal;
-          isThemeManuallyEdited = false;
-          try { sessionStorage.setItem('sti_ai_theme_' + data.theme.trim(), '1'); } catch (e) {}
-
-          themeEl.value = data.theme;
-          themeEl.dispatchEvent(new Event('change', { bubbles: true }));
-
-          const errEl = document.getElementById('e_theme');
-          if (errEl) errEl.style.display = 'none';
-          themeEl.classList.remove('is-invalid');
-
-          themeEl.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
-          themeEl.style.borderColor = '#22c55e';
-          themeEl.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
-          setTimeout(() => {
-            themeEl.style.borderColor = '';
-            themeEl.style.boxShadow = '';
-          }, 1000);
-
-          renderThemeStatus('SUCCESS');
-
-          document.dispatchEvent(new CustomEvent('activityThemeChanged', {
-            bubbles: true,
-            detail: {
-              theme: data.theme,
-              title: titleVal,
-              isAiGenerated: true,
-              isManual: false,
-              triggerSource: forced ? 'manual_theme_regen' : 'auto_theme'
+          const data = await res.json();
+          if (res.ok && data.success && data.theme) {
+            // Check again: if user manually edited the theme while fetch was in flight, do not overwrite!
+            if (isThemeManuallyEdited && !forced) {
+              renderThemeStatus('OUTDATED');
+              return null;
             }
-          }));
-        } else {
-          throw new Error(data.error || 'Empty or invalid response from AI.');
+
+            lastAiGeneratedTheme = data.theme;
+            lastGeneratedTitle = titleVal;
+            isThemeManuallyEdited = false;
+            try { sessionStorage.setItem('sti_ai_theme_' + data.theme.trim(), '1'); } catch (e) {}
+
+            themeEl.value = data.theme;
+            themeEl.dispatchEvent(new Event('change', { bubbles: true }));
+
+            const errEl = document.getElementById('e_theme');
+            if (errEl) errEl.style.display = 'none';
+            themeEl.classList.remove('is-invalid');
+
+            themeEl.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
+            themeEl.style.borderColor = '#22c55e';
+            themeEl.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
+            setTimeout(() => {
+              themeEl.style.borderColor = '';
+              themeEl.style.boxShadow = '';
+            }, 1000);
+
+            renderThemeStatus('SUCCESS');
+
+            document.dispatchEvent(new CustomEvent('activityThemeChanged', {
+              bubbles: true,
+              detail: {
+                theme: data.theme,
+                title: titleVal,
+                isAiGenerated: true,
+                isManual: false,
+                triggerSource: forced ? 'manual_theme_regen' : 'auto_theme'
+              }
+            }));
+
+            return data.theme;
+          } else {
+            throw new Error(data.error || 'Empty or invalid response from AI.');
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') return null;
+          if (requestId !== currentThemeRequestId) return null;
+          console.warn('autoGenerateTheme error:', err);
+          renderThemeStatus('ERROR', err.message);
+          return null;
+        } finally {
+          if (requestId === currentThemeRequestId) {
+            isThemeGenerating = false;
+            currentThemePromise = null;
+            setThemeSpinner(false);
+          }
         }
-      } catch (err) {
-        if (err.name === 'AbortError') return;
-        if (requestId !== currentThemeRequestId) return;
-        console.warn('autoGenerateTheme error:', err);
-        renderThemeStatus('ERROR', err.message);
-      } finally {
-        if (requestId === currentThemeRequestId) {
-          isThemeGenerating = false;
-          setThemeSpinner(false);
-        }
-      }
+      })();
+
+      currentThemePromise = execPromise;
+      return execPromise;
     }
 
     function setThemeSpinner(show) {
@@ -4337,7 +5581,20 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         case 'WAITING':
         default:
           setThemeSpinner(false);
-          statusEl.innerHTML = '';
+          const titleElWaiting = document.getElementById('f1_title') || document.querySelector('[name="title"]');
+          const themeElWaiting = document.getElementById('f1_theme') || document.querySelector('[name="theme"]');
+          const curTitleWaiting = (titleElWaiting?.value || '').trim();
+          const curThemeWaiting = (themeElWaiting?.value || '').trim();
+          if (curTitleWaiting.length >= 4 && curThemeWaiting === '' && isS1Editable) {
+            statusEl.innerHTML = `
+              <div style="font-size: 0.8rem; display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap;">
+                <button type="button" onclick="forceRegenerateTheme()" style="background: none; border: none; color: #0284c7; cursor: pointer; text-decoration: underline; font-size: 0.8rem; padding: 0;">
+                  ⚡ Generate Theme with AI
+                </button>
+              </div>`;
+          } else {
+            statusEl.innerHTML = '';
+          }
           break;
       }
     }
@@ -4427,16 +5684,38 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         }
       }
 
+      // Read activity ID if available
+      const actIdEl = document.getElementById('proposalActivityId') || document.querySelector('[name="activity_id"]');
+      const activityId = actIdEl && actIdEl.value ? parseInt(actIdEl.value, 10) : 0;
+
+      // Ensure evaluation questions are serialized and gathered from memory / DOM
+      if (typeof serializeEvaluationQuestions === 'function') {
+        serializeEvaluationQuestions();
+      }
+
+      let currentQuestions = [];
+      if (typeof questionsList !== 'undefined' && Array.isArray(questionsList) && questionsList.length > 0) {
+        currentQuestions = questionsList;
+      } else {
+        const hiddenInput = document.getElementById('f10_evaluation_questions');
+        if (hiddenInput && hiddenInput.value) {
+          try { currentQuestions = JSON.parse(hiddenInput.value); } catch (e) {}
+        }
+      }
+
+      if (!currentQuestions || !Array.isArray(currentQuestions) || currentQuestions.length === 0) {
+        showStatus('⚠️ Please generate or add evaluation questions first before creating a Google Form.', 'warning');
+        return;
+      }
+
+      const title = (document.getElementById('f1_title')?.value || document.querySelector('[name="title"]')?.value || '').trim() || 'Activity Evaluation';
+
       // Prevent duplicate requests
       isCreatingGoogleForm = true;
       if (btn) btn.disabled = true;
       if (spinner) spinner.style.display = 'inline-block';
       if (btnText) btnText.textContent = 'Creating Form...';
       if (statusMsg) statusMsg.style.display = 'none';
-
-      // Read activity ID if available
-      const actIdEl = document.getElementById('proposalActivityId') || document.querySelector('[name="activity_id"]');
-      const activityId = actIdEl && actIdEl.value ? parseInt(actIdEl.value, 10) : 0;
 
       try {
         const response = await fetch('<?= BASE_URL ?>/api/create-google-form.php', {
@@ -4445,7 +5724,11 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
-          body: JSON.stringify({ activity_id: activityId })
+          body: JSON.stringify({
+            activity_id: activityId,
+            title: title,
+            questions: currentQuestions
+          })
         });
 
         const data = await response.json().catch(() => null);
@@ -4458,7 +5741,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             const errSpan = document.getElementById('e_eval_form_link');
             if (errSpan) errSpan.style.display = 'none';
           }
-          showStatus('Google Form created successfully! Link populated.', 'success');
+          showStatus(data.message || 'Google Form created successfully! Link populated.', 'success');
         } else {
           // Handle response cleanly without exposing credentials or sensitive tokens
           const errMsg = (data && data.error) ? String(data.error) : '';
@@ -4467,10 +5750,8 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
               linkInput.value = data.form_url || data.responder_uri;
             }
             showStatus('A Google Form has already been created for this activity.', 'info');
-          } else if (errMsg.includes('Valid activity ID is required') || activityId <= 0) {
-            showStatus('⚠️ Please save this proposal as a draft first before creating a Google Form so your questions are stored.', 'warning');
-          } else if (errMsg.toLowerCase().includes('client id') || errMsg.toLowerCase().includes('configuration') || errMsg.toLowerCase().includes('token') || errMsg.toLowerCase().includes('googleoauth') || response.status === 500) {
-            showStatus('⚠️ Google Forms integration is not configured on this system. You can manually create a form and paste the link above.', 'warning');
+          } else if (errMsg) {
+            showStatus('⚠️ ' + escapeHtml(errMsg), 'warning');
           } else {
             showStatus('⚠️ Unable to create Google Form. Please paste your Google Form link manually.', 'warning');
           }
@@ -4583,6 +5864,8 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="<?= BASE_URL ?>/assets/js/schedule-conflict-ui.js?v=<?= time() ?>"></script>
   <script src="<?= BASE_URL ?>/assets/js/proposal-ai-validator.js?v=<?= time() ?>"></script>
+  <script src="<?= BASE_URL ?>/assets/js/offline-drafts.js?v=<?= time() ?>"></script>
+  <script src="<?= BASE_URL ?>/assets/js/ai-proposal-guidance.js?v=<?= time() ?>"></script>
   <script>
     if (typeof ScheduleConflictUI !== 'undefined') {
       ScheduleConflictUI.init({
@@ -4602,6 +5885,13 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         baseUrl:       '<?= BASE_URL ?>',
         formSelector:  '#proposalForm',
         modalSelector: '#aiProposalValidationModal'
+      });
+    }
+
+    if (typeof AIProposalGuidance !== 'undefined') {
+      AIProposalGuidance.init({
+        baseUrl:      '<?= BASE_URL ?>',
+        formSelector: '#proposalForm'
       });
     }
   </script>
@@ -4635,6 +5925,406 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       </div>
     </div>
   </div>
+
+  <!-- ── Collaborators Modal (Task 14) ── -->
+  <div class="modal fade" id="collaboratorsModal" tabindex="-1" aria-labelledby="collaboratorsModalLabel" aria-hidden="true" style="display:none; background:rgba(0,0,0,0.55);">
+    <div class="modal-dialog modal-dialog-centered modal-lg" style="margin: 1.75rem auto; max-width: 680px;">
+      <div class="modal-content" style="border-radius:12px; overflow:hidden; border:none; box-shadow:0 12px 32px rgba(0,0,0,0.2); background:var(--bg-card, #fff);">
+        <div class="modal-header" style="padding: 16px 20px; border-bottom:1px solid var(--border, #e2e8f0); display:flex; align-items:center; justify-content:space-between;">
+          <h5 class="modal-title fw-bold" id="collaboratorsModalLabel" style="font-size:1.1rem; margin:0; display:flex; align-items:center; gap:8px; color:var(--text-main, #1e293b);">
+            👥 Manage Proposal Collaborators
+          </h5>
+          <button type="button" class="btn-close" onclick="closeCollaboratorsModal()" aria-label="Close" style="background:none; border:none; font-size:1.3rem; color:var(--text-muted, #64748b); cursor:pointer; line-height:1;">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 20px; color:var(--text-main, #334155); max-height: calc(100vh - 220px); overflow-y: auto;">
+          <?php if ($isOwner): ?>
+            <!-- Add Collaborator Section -->
+            <div style="background:var(--bg-base, #f8fafc); border:1px solid var(--border, #e2e8f0); border-radius:8px; padding:16px; margin-bottom:20px;">
+              <h6 style="font-weight:700; margin:0 0 10px 0; font-size:0.95rem; color:var(--text-main, #1e293b); display:flex; align-items:center; gap:6px;">
+                <span>➕</span> Add Faculty Contributor
+              </h6>
+              <div id="collabAlertContainer"></div>
+              <form id="addCollaboratorForm" onsubmit="submitAddCollaborator(event)" style="display:grid; grid-template-columns: 1fr 1fr auto; gap:10px; align-items:flex-end;">
+                <div>
+                  <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:4px; color:var(--text-muted, #64748b);">Faculty Member</label>
+                  <select id="collabFacultySelect" class="form-control" style="width:100%; font-size:0.85rem; padding:8px 10px; border-radius:6px; border:1px solid var(--border, #cbd5e1);" required>
+                    <option value="">Loading faculty list...</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:4px; color:var(--text-muted, #64748b);">Contributor Role</label>
+                  <select id="collabRoleSelect" class="form-control" style="width:100%; font-size:0.85rem; padding:8px 10px; border-radius:6px; border:1px solid var(--border, #cbd5e1);" required>
+                    <option value="co_author">Co-Author (Full section editing)</option>
+                    <option value="contributor">Contributor (Drafting &amp; Review)</option>
+                  </select>
+                </div>
+                <div>
+                  <button type="submit" id="btnAddCollaborator" class="btn btn-primary" style="padding:8px 16px; font-size:0.85rem; font-weight:600; border-radius:6px; white-space:nowrap;">
+                    Add Contributor
+                  </button>
+                </div>
+              </form>
+              <div style="font-size:0.75rem; color:var(--text-muted, #64748b); margin-top:8px;">
+                * Only active faculty members not currently assigned to this proposal are listed.
+              </div>
+            </div>
+          <?php endif; ?>
+
+          <!-- Current Collaborators Table -->
+          <div>
+            <h6 style="font-weight:700; margin:0 0 10px 0; font-size:0.95rem; color:var(--text-main, #1e293b); display:flex; align-items:center; justify-content:space-between;">
+              <span>Assigned Collaborators (<span id="collabModalCount">...</span>)</span>
+              <span style="font-size:0.75rem; font-weight:normal; color:var(--text-muted, #64748b);">At least 3 faculty members can contribute</span>
+            </h6>
+            <div style="overflow-x:auto;">
+              <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                <thead>
+                  <tr style="border-bottom:2px solid var(--border, #e2e8f0); text-align:left; background:var(--bg-base, #f8fafc);">
+                    <th style="padding:10px 12px; font-weight:600; color:var(--text-muted, #64748b);">Faculty Member</th>
+                    <th style="padding:10px 12px; font-weight:600; color:var(--text-muted, #64748b);">Department</th>
+                    <th style="padding:10px 12px; font-weight:600; color:var(--text-muted, #64748b);">Role</th>
+                    <th style="padding:10px 12px; font-weight:600; color:var(--text-muted, #64748b);">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="collabTableBody">
+                  <tr>
+                    <td colspan="4" style="text-align:center; padding:16px; color:var(--text-muted, #64748b);">Loading collaborators...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="margin-top:16px; background:rgba(2, 132, 199, 0.08); border-left:3px solid var(--sti-blue); border-radius:6px; padding:10px 12px; font-size:0.78rem; color:var(--text-muted, #475569); line-height:1.45;">
+            <strong>Collaborative Policy:</strong> Multiple faculty members can contribute at different times. Sequential saves are protected by optimistic locking to prevent overwriting. Only the <strong>Proposal Owner</strong> can submit the finalized proposal for Dean/Admin approval.
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 12px 20px; border-top:1px solid var(--border, #e2e8f0); display:flex; justify-content:flex-end; background:var(--bg-base, #f8fafc);">
+          <button type="button" class="btn btn-outline" onclick="closeCollaboratorsModal()" style="font-size:0.85rem; padding:6px 16px;">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Contribution History Modal (Task 14) ── -->
+  <div class="modal fade" id="contributionHistoryModal" tabindex="-1" aria-labelledby="contributionHistoryModalLabel" aria-hidden="true" style="display:none; background:rgba(0,0,0,0.55);">
+    <div class="modal-dialog modal-dialog-centered modal-lg" style="margin: 1.75rem auto; max-width: 750px;">
+      <div class="modal-content" style="border-radius:12px; overflow:hidden; border:none; box-shadow:0 12px 32px rgba(0,0,0,0.2); background:var(--bg-card, #fff);">
+        <div class="modal-header" style="padding: 16px 20px; border-bottom:1px solid var(--border, #e2e8f0); display:flex; align-items:center; justify-content:space-between;">
+          <h5 class="modal-title fw-bold" id="contributionHistoryModalLabel" style="font-size:1.1rem; margin:0; display:flex; align-items:center; gap:8px; color:var(--text-main, #1e293b);">
+            📜 Proposal Contribution History
+          </h5>
+          <button type="button" class="btn-close" onclick="closeContributionHistoryModal()" aria-label="Close" style="background:none; border:none; font-size:1.3rem; color:var(--text-muted, #64748b); cursor:pointer; line-height:1;">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 20px; color:var(--text-main, #334155); max-height: calc(100vh - 220px); overflow-y: auto;">
+          <p style="font-size:0.85rem; color:var(--text-muted, #64748b); margin-bottom:14px;">
+            Recorded log of all faculty contributions, section edits, draft saves, and collaborator changes for this proposal.
+          </p>
+          <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+              <thead>
+                <tr style="border-bottom:2px solid var(--border, #e2e8f0); text-align:left; background:var(--bg-base, #f8fafc);">
+                  <th style="padding:8px 10px; font-weight:600; color:var(--text-muted, #64748b); white-space:nowrap;">Date &amp; Time</th>
+                  <th style="padding:8px 10px; font-weight:600; color:var(--text-muted, #64748b);">Contributor</th>
+                  <th style="padding:8px 10px; font-weight:600; color:var(--text-muted, #64748b);">Action</th>
+                  <th style="padding:8px 10px; font-weight:600; color:var(--text-muted, #64748b);">Section</th>
+                  <th style="padding:8px 10px; font-weight:600; color:var(--text-muted, #64748b);">Details</th>
+                </tr>
+              </thead>
+              <tbody id="contributionHistoryTableBody">
+                <tr>
+                  <td colspan="5" style="text-align:center; padding:16px; color:var(--text-muted, #64748b);">Loading contribution history...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 12px 20px; border-top:1px solid var(--border, #e2e8f0); display:flex; justify-content:flex-end; background:var(--bg-base, #f8fafc);">
+          <button type="button" class="btn btn-outline" onclick="closeContributionHistoryModal()" style="font-size:0.85rem; padding:6px 16px;">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Task 14: Collaborative Proposal Management Script ────────────────────
+    const collabActivityId = <?= (int)$id ?>;
+    const isCurrentUserOwner = <?= $isOwner ? 'true' : 'false' ?>;
+
+    function openCollaboratorsModal() {
+      const modal = document.getElementById('collaboratorsModal');
+      if (!modal) return;
+      modal.style.display = 'block';
+      modal.classList.add('show');
+      loadCollaborators();
+      if (isCurrentUserOwner) {
+        loadAvailableFaculty();
+      }
+    }
+
+    function closeCollaboratorsModal() {
+      const modal = document.getElementById('collaboratorsModal');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+      }
+    }
+
+    function openContributionHistoryModal() {
+      const modal = document.getElementById('contributionHistoryModal');
+      if (!modal) return;
+      modal.style.display = 'block';
+      modal.classList.add('show');
+      loadContributionHistory();
+    }
+
+    function closeContributionHistoryModal() {
+      const modal = document.getElementById('contributionHistoryModal');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+      }
+    }
+
+    async function loadCollaborators() {
+      const tbody = document.getElementById('collabTableBody');
+      const countEl = document.getElementById('collabModalCount');
+      if (!tbody) return;
+
+      try {
+        const resp = await fetch(`<?= BASE_URL ?>/api/collaborators.php?action=list&activity_id=${collabActivityId}`);
+        const data = await resp.json();
+        if (!data.success) {
+          tbody.innerHTML = `<tr><td colspan="4" style="color:#ef4444;text-align:center;padding:12px;">Error: ${data.error || 'Failed to load'}</td></tr>`;
+          return;
+        }
+
+        if (countEl) countEl.textContent = data.collaborator_count;
+
+        // Update pills in main banner
+        renderCollaboratorPills(data.collaborators);
+
+        if (!data.collaborators || data.collaborators.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:12px;color:var(--text-muted);">No collaborators assigned.</td></tr>`;
+          return;
+        }
+
+        let rowsHtml = '';
+        data.collaborators.forEach(c => {
+          const roleBadgeColor = c.role === 'owner' ? '#0284C7' : (c.role === 'co_author' ? '#10B981' : '#64748B');
+          const roleBadgeBg = c.role === 'owner' ? 'rgba(2, 132, 199, 0.12)' : (c.role === 'co_author' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(100, 116, 139, 0.12)');
+          const roleIcon = c.role === 'owner' ? '👑' : (c.role === 'co_author' ? '✍️' : '👤');
+
+          let actionCell = '<span style="color:var(--text-muted);font-size:0.78rem;">—</span>';
+          if (c.role !== 'owner' && isCurrentUserOwner) {
+            const escapedName = (c.name || '').replace(/'/g, "\\'");
+            actionCell = `<button type="button" class="btn btn-outline btn-sm" onclick="submitRemoveCollaborator(${c.user_id}, '${escapedName}')" style="color:#dc2626;border-color:#fca5a5;padding:3px 8px;font-size:0.75rem;">Remove</button>`;
+          }
+
+          rowsHtml += `
+            <tr style="border-bottom:1px solid var(--border, #e2e8f0);">
+              <td style="padding:10px 12px;font-weight:600;">
+                ${escapeHtml(c.name)}
+                ${c.user_id === <?= (int)$user['id'] ?> ? ' <span style="font-size:0.72rem;background:#E2E8F0;padding:2px 5px;border-radius:4px;font-weight:normal;">(You)</span>' : ''}
+              </td>
+              <td style="padding:10px 12px;color:var(--text-muted);">${escapeHtml(c.department || '—')}</td>
+              <td style="padding:10px 12px;">
+                <span style="background:${roleBadgeBg};color:${roleBadgeColor};padding:3px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;display:inline-flex;align-items:center;gap:4px;">
+                  ${roleIcon} ${escapeHtml(c.role_label || c.role)}
+                </span>
+              </td>
+              <td style="padding:10px 12px;">${actionCell}</td>
+            </tr>
+          `;
+        });
+
+        tbody.innerHTML = rowsHtml;
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="4" style="color:#ef4444;text-align:center;padding:12px;">Network error loading collaborators.</td></tr>`;
+      }
+    }
+
+    function renderCollaboratorPills(collaborators) {
+      const container = document.getElementById('collaboratorsPillsContainer');
+      if (!container || !Array.isArray(collaborators)) return;
+
+      let pillsHtml = '';
+      collaborators.forEach(c => {
+        const bg = c.role === 'owner' ? 'rgba(2, 132, 199, 0.12)' : (c.role === 'co_author' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(107, 114, 128, 0.12)');
+        const color = c.role === 'owner' ? '#0284C7' : (c.role === 'co_author' ? '#10B981' : 'var(--text-main)');
+        const border = c.role === 'owner' ? '#38BDF8' : (c.role === 'co_author' ? '#6EE7B7' : 'var(--border)');
+        const icon = c.role === 'owner' ? '👑' : (c.role === 'co_author' ? '✍️' : '👤');
+
+        pillsHtml += `
+          <span class="badge" style="background:${bg}; color:${color}; border:1px solid ${border}; font-size:0.82rem; padding:5px 10px; border-radius:14px; display:inline-flex; align-items:center; gap:5px;">
+            ${icon} <strong>${escapeHtml(c.name)}</strong> <span style="opacity:0.85;">(${escapeHtml(c.role_label || c.role)})</span>
+          </span>
+        `;
+      });
+      container.innerHTML = pillsHtml;
+    }
+
+    async function loadAvailableFaculty() {
+      const sel = document.getElementById('collabFacultySelect');
+      if (!sel) return;
+
+      try {
+        const resp = await fetch(`<?= BASE_URL ?>/api/collaborators.php?action=search_faculty&activity_id=${collabActivityId}`);
+        const data = await resp.json();
+        if (!data.success || !Array.isArray(data.available_faculty)) {
+          sel.innerHTML = '<option value="">No additional faculty available</option>';
+          return;
+        }
+
+        if (data.available_faculty.length === 0) {
+          sel.innerHTML = '<option value="">All active faculty are already collaborators</option>';
+          return;
+        }
+
+        let opts = '<option value="">-- Select Faculty Member --</option>';
+        data.available_faculty.forEach(f => {
+          opts += `<option value="${f.id}">${escapeHtml(f.name)} (${escapeHtml(f.department || 'General')})</option>`;
+        });
+        sel.innerHTML = opts;
+      } catch (e) {
+        sel.innerHTML = '<option value="">Failed to load faculty list</option>';
+      }
+    }
+
+    async function submitAddCollaborator(e) {
+      e.preventDefault();
+      const sel = document.getElementById('collabFacultySelect');
+      const roleSel = document.getElementById('collabRoleSelect');
+      const btn = document.getElementById('btnAddCollaborator');
+      const alertBox = document.getElementById('collabAlertContainer');
+      if (!sel || !roleSel) return;
+
+      const targetId = sel.value;
+      const targetRole = roleSel.value;
+      if (!targetId) {
+        alert('Please select a faculty member.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Adding...';
+      if (alertBox) alertBox.innerHTML = '';
+
+      try {
+        const fd = new FormData();
+        fd.append('action', 'add');
+        fd.append('activity_id', collabActivityId);
+        fd.append('user_id', targetId);
+        fd.append('role', targetRole);
+
+        const resp = await fetch(`<?= BASE_URL ?>/api/collaborators.php`, {
+          method: 'POST',
+          body: fd
+        });
+        const res = await resp.json();
+
+        if (res.success) {
+          if (alertBox) {
+            alertBox.innerHTML = `<div class="alert alert-success" style="padding:8px 12px;font-size:0.82rem;margin-bottom:10px;">${escapeHtml(res.message || 'Collaborator added successfully!')}</div>`;
+          }
+          await loadCollaborators();
+          await loadAvailableFaculty();
+        } else {
+          if (alertBox) {
+            alertBox.innerHTML = `<div class="alert alert-danger" style="padding:8px 12px;font-size:0.82rem;margin-bottom:10px;">${escapeHtml(res.error || 'Failed to add collaborator.')}</div>`;
+          }
+        }
+      } catch (err) {
+        if (alertBox) {
+          alertBox.innerHTML = `<div class="alert alert-danger" style="padding:8px 12px;font-size:0.82rem;margin-bottom:10px;">Network error while adding collaborator.</div>`;
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Add Contributor';
+      }
+    }
+
+    async function submitRemoveCollaborator(userId, userName) {
+      if (!confirm(`Are you sure you want to remove ${userName} from this collaborative proposal?`)) {
+        return;
+      }
+
+      const alertBox = document.getElementById('collabAlertContainer');
+      try {
+        const fd = new FormData();
+        fd.append('action', 'remove');
+        fd.append('activity_id', collabActivityId);
+        fd.append('user_id', userId);
+
+        const resp = await fetch(`<?= BASE_URL ?>/api/collaborators.php`, {
+          method: 'POST',
+          body: fd
+        });
+        const res = await resp.json();
+
+        if (res.success) {
+          if (alertBox) {
+            alertBox.innerHTML = `<div class="alert alert-success" style="padding:8px 12px;font-size:0.82rem;margin-bottom:10px;">${escapeHtml(res.message || 'Collaborator removed.')}</div>`;
+          }
+          await loadCollaborators();
+          await loadAvailableFaculty();
+        } else {
+          alert(res.error || 'Failed to remove collaborator.');
+        }
+      } catch (err) {
+        alert('Network error while removing collaborator.');
+      }
+    }
+
+    async function loadContributionHistory() {
+      const tbody = document.getElementById('contributionHistoryTableBody');
+      if (!tbody) return;
+
+      try {
+        const resp = await fetch(`<?= BASE_URL ?>/api/collaborators.php?action=list&activity_id=${collabActivityId}`);
+        const data = await resp.json();
+        if (!data.success || !Array.isArray(data.contribution_logs)) {
+          tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:12px;color:#ef4444;">Error loading contribution history.</td></tr>`;
+          return;
+        }
+
+        if (data.contribution_logs.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--text-muted);">No contributions recorded yet.</td></tr>`;
+          return;
+        }
+
+        let rowsHtml = '';
+        data.contribution_logs.forEach(log => {
+          const roleBadgeColor = log.user_role === 'owner' ? '#0284C7' : (log.user_role === 'co_author' ? '#10B981' : '#64748B');
+          rowsHtml += `
+            <tr style="border-bottom:1px solid var(--border, #e2e8f0);">
+              <td style="padding:8px 10px;white-space:nowrap;color:var(--text-muted);">${escapeHtml(log.created_at || '—')}</td>
+              <td style="padding:8px 10px;font-weight:600;">
+                ${escapeHtml(log.user_name || 'Faculty')}
+                <span style="font-size:0.72rem;color:${roleBadgeColor};display:block;">(${escapeHtml(log.role_label || log.user_role || 'Contributor')})</span>
+              </td>
+              <td style="padding:8px 10px;font-weight:500;">${escapeHtml((log.action || '').replace(/_/g, ' '))}</td>
+              <td style="padding:8px 10px;color:var(--text-muted);">${escapeHtml(log.section || 'General')}</td>
+              <td style="padding:8px 10px;font-size:0.78rem;">${escapeHtml(log.details || '—')}</td>
+            </tr>
+          `;
+        });
+        tbody.innerHTML = rowsHtml;
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:12px;color:#ef4444;">Network error loading history.</td></tr>`;
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
 </body>
 
 </html>

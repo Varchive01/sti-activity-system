@@ -3,7 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 $db = getDB();
 $id = (int)($_GET['id'] ?? 0);
 if (!$id) { header('Location: '.BASE_URL.'/faculty/activities.php'); exit; }
@@ -13,15 +13,16 @@ $act->execute([$id]); $activity=$act->fetch();
 if (!$activity) die('Not found.');
 
 $user = currentUser();
-$isLeader = ($user['role'] === 'faculty' && (int)$activity['faculty_id'] === (int)$user['id']);
+$isLeader = (in_array($user['role'], ['faculty', 'program_head'], true) && (int)$activity['faculty_id'] === (int)$user['id']);
 
 // Check if user is an assigned member on any task in this activity
 $assignedStmt = $db->prepare("SELECT COUNT(*) FROM faculty_tasks WHERE activity_id = ? AND assigned_user_id = ?");
 $assignedStmt->execute([$id, $user['id']]);
 $isAssigned = ((int)$assignedStmt->fetchColumn() > 0);
 
-if ($user['role'] === 'faculty' && !$isLeader && !$isAssigned) {
-    die('Unauthorized access.');
+if (!canUserAccessActivity($id, 'view', $user['id'], $user['role'], $user['dept'])) {
+    http_response_code(403);
+    die('Unauthorized access: You do not have permission to view this activity.');
 }
 
 // Check task progress reminders for this activity

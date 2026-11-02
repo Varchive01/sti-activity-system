@@ -2,6 +2,8 @@
  * schedule-conflict-ui.js
  *
  * Frontend Schedule Conflict check handler.
+ * Strict Contract: Availability checks are ONLY triggered on user-initiated Event Date changes.
+ * Clicking Next or loading the page NEVER triggers an availability API request.
  */
 
 window.ScheduleConflictUI = (function () {
@@ -10,40 +12,47 @@ window.ScheduleConflictUI = (function () {
   let selectedAlternative = null;
   let successTimer = null;
   let currentRequestId = 0;
-  let cachedKey = null;
-  let cachedResult = null; // { conflict: boolean, data: object }
+  let lastCheckedDate = null;
+  let cachedKey = null; // Key format: `${date}|${venue}|${start}|${end}|${activityId}`
+  let cachedResult = null; // { conflict: boolean, is_preliminary: boolean, availability_confirmed: boolean, data: object, error: boolean, errorMessage: string }
   let inFlightPromise = null;
   let inFlightKey = null;
   let inFlightAbortController = null;
+  let debounceTimer = null;
 
-  function getScheduleKey() {
-    const venue = (document.getElementById(settings.venueId)?.value || '').trim();
-    const date  = (document.getElementById(settings.dateId)?.value || '').trim();
-    const start = (document.getElementById(settings.startId)?.value || '').trim();
-    const end   = (document.getElementById(settings.endId)?.value || '').trim();
-    const actId = settings.activityId || 0;
-
-    if (!venue || !date || !start || !end) return null;
-    return `${venue.toLowerCase()}|${date}|${start}|${end}|${actId}`;
+  function getNormalizedDate(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') return '';
+    return dateStr.trim();
   }
 
-  function areScheduleInputsValid() {
-    const venue = (document.getElementById(settings.venueId)?.value || '').trim();
-    const date  = (document.getElementById(settings.dateId)?.value || '').trim();
-    const start = (document.getElementById(settings.startId)?.value || '').trim();
-    const end   = (document.getElementById(settings.endId)?.value || '').trim();
+  function getScheduleKey(date, venue, start, end) {
+    return `${date || ''}|${venue || ''}|${start || ''}|${end || ''}|${settings.activityId || 0}`;
+  }
 
-    if (!venue || !date || !start || !end) return false;
+  function isValidEventDate(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') return false;
+    const trimmed = dateStr.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return false;
 
-    // Check date against min attribute if present
-    const dateEl = document.getElementById(settings.dateId);
-    if (dateEl && dateEl.min && date < dateEl.min) {
+    const parts = trimmed.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+    if (year < 2020 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
       return false;
     }
 
-    // Check start < end
-    if (start >= end) {
+    const d = new Date(year, month - 1, day);
+    if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) {
       return false;
+    }
+
+    // Check min attribute if present on date input (e.g. must be tomorrow or future)
+    const dateEl = document.getElementById(settings.dateId);
+    if (dateEl && dateEl.min) {
+      if (trimmed < dateEl.min) {
+        return false;
+      }
     }
 
     return true;
@@ -52,6 +61,331 @@ window.ScheduleConflictUI = (function () {
   function invalidateCache() {
     cachedKey = null;
     cachedResult = null;
+  }
+
+  function showCheckingIndicator(show) {
+    let indicator = document.getElementById('scuCheckingIndicator');
+    if (show) {
+      if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'scuCheckingIndicator';
+        indicator.style.cssText = 'font-size:0.8rem; color:#d97706; font-weight:600; display:flex; align-items:center; gap:6px; margin-top:4px; margin-bottom:4px;';
+        indicator.innerHTML = `
+          <div class="spinner-border text-warning spinner-border-sm" role="status" style="border: 0.12em solid currentColor; border-right-color: transparent; width: 0.75rem; height: 0.75rem;"></div>
+          <span>Checking availability...</span>
+        `;
+        const dateInput = document.getElementById(settings.dateId);
+        if (dateInput && dateInput.parentNode) {
+          dateInput.parentNode.appendChild(indicator);
+        }
+      }
+    } else {
+      if (indicator) {
+        indicator.remove();
+      }
+    }
+  }
+
+  function showSuccessMessage(msg = 'Schedule is available.') {
+    let successMsg = document.getElementById(settings.successMessageId);
+    if (!successMsg) {
+      successMsg = document.createElement('div');
+      successMsg.id = settings.successMessageId;
+      successMsg.style.cssText = 'font-size:0.8rem; color:#166534; font-weight:600; display:flex; align-items:center; gap:6px; margin-top:4px; margin-bottom:4px;';
+      const dateInput = document.getElementById(settings.dateId);
+      if (dateInput && dateInput.parentNode) {
+        dateInput.parentNode.appendChild(successMsg);
+      }
+    }
+    successMsg.innerHTML = `<span>✅ ${escapeHtml(msg)}</span>`;
+    successMsg.style.display = 'flex';
+    if (successTimer) clearTimeout(successTimer);
+    successTimer = setTimeout(() => {
+      if (successMsg) successMsg.style.display = 'none';
+    }, 4000);
+  }
+
+  function hideSuccessMessage() {
+    const successMsg = document.getElementById(settings.successMessageId);
+    if (successMsg) {
+      successMsg.style.display = 'none';
+    }
+    if (successTimer) {
+      clearTimeout(successTimer);
+      successTimer = null;
+    }
+  }
+
+  function showPreliminaryMessage(msg = 'Date selected. Complete the venue and event time to check availability.') {
+    let prelimMsg = document.getElementById('scuPreliminaryMessage');
+    if (!prelimMsg) {
+      prelimMsg = document.createElement('div');
+      prelimMsg.id = 'scuPreliminaryMessage';
+      prelimMsg.style.cssText = 'font-size:0.8rem; color:#475569; font-weight:500; display:flex; align-items:center; gap:6px; margin-top:4px; margin-bottom:4px;';
+      const dateInput = document.getElementById(settings.dateId);
+      if (dateInput && dateInput.parentNode) {
+        dateInput.parentNode.appendChild(prelimMsg);
+      }
+    }
+    prelimMsg.innerHTML = `<span>ℹ️ ${escapeHtml(msg)}</span>`;
+    prelimMsg.style.display = 'flex';
+  }
+
+  function hidePreliminaryMessage() {
+    const prelimMsg = document.getElementById('scuPreliminaryMessage');
+    if (prelimMsg) {
+      prelimMsg.style.display = 'none';
+    }
+  }
+
+  function showErrorMessage(msg) {
+    let errMsg = document.getElementById('scuErrorMessage');
+    if (!errMsg) {
+      errMsg = document.createElement('div');
+      errMsg.id = 'scuErrorMessage';
+      errMsg.style.cssText = 'font-size:0.8rem; color:#dc2626; font-weight:600; display:flex; align-items:center; gap:6px; margin-top:4px; margin-bottom:4px;';
+      const dateInput = document.getElementById(settings.dateId);
+      if (dateInput && dateInput.parentNode) {
+        dateInput.parentNode.appendChild(errMsg);
+      }
+    }
+    errMsg.innerHTML = `<span>⚠️ ${escapeHtml(msg)}</span>`;
+    errMsg.style.display = 'flex';
+    setTimeout(() => {
+      if (errMsg) errMsg.remove();
+    }, 6000);
+  }
+
+  function hideErrorMessage() {
+    const errMsg = document.getElementById('scuErrorMessage');
+    if (errMsg) {
+      errMsg.remove();
+    }
+  }
+
+  async function checkScheduleForDate(targetDate, force = false) {
+    const normDate = getNormalizedDate(targetDate);
+    if (!isValidEventDate(normDate)) {
+      showCheckingIndicator(false);
+      return null;
+    }
+
+    const venue = (document.getElementById(settings.venueId)?.value || '').trim();
+    const start = (document.getElementById(settings.startId)?.value || '').trim();
+    const end   = (document.getElementById(settings.endId)?.value || '').trim();
+    const key = getScheduleKey(normDate, venue, start, end);
+
+    // 1. If already checked and cached for this exact key: reuse cached result
+    if (!force && cachedKey === key && cachedResult !== null) {
+      if (cachedResult.is_preliminary) {
+        hideSuccessMessage();
+        showPreliminaryMessage(cachedResult.data?.message || 'Date selected. Complete the venue and event time to check availability.');
+      } else if (cachedResult.conflict) {
+        hidePreliminaryMessage();
+        hideSuccessMessage();
+      } else {
+        hidePreliminaryMessage();
+        showSuccessMessage(cachedResult.data?.message || 'Schedule is available.');
+      }
+      return cachedResult;
+    }
+
+    // 2. If a request for this exact key is ALREADY in-flight: reuse existing promise
+    if (inFlightKey === key && inFlightPromise) {
+      return await inFlightPromise;
+    }
+
+    // 3. If a request for an older/different key was running, abort it
+    if (inFlightAbortController) {
+      try { inFlightAbortController.abort(); } catch (e) {}
+    }
+
+    const abortController = new AbortController();
+    inFlightAbortController = abortController;
+    inFlightKey = key;
+    const thisRequestId = ++currentRequestId;
+
+    hideSuccessMessage();
+    hideErrorMessage();
+    hidePreliminaryMessage();
+    showCheckingIndicator(true);
+
+    const execPromise = (async () => {
+      try {
+        const response = await fetch(settings.baseUrl + '/api/check-schedule-conflict.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: abortController.signal,
+          body: JSON.stringify({
+            venue: venue,
+            event_date: normDate,
+            start_time: start,
+            end_time: end,
+            activity_id: settings.activityId || 0
+          })
+        });
+
+        // Stale check: ignore if aborted or superseded by newer request
+        if (thisRequestId !== currentRequestId || abortController.signal.aborted) {
+          return null;
+        }
+
+        // Verify current DOM date hasn't changed to something else while fetch was in flight
+        const curDateInDOM = (document.getElementById(settings.dateId)?.value || '').trim();
+        if (curDateInDOM !== normDate) {
+          return null;
+        }
+
+        if (!response.ok) {
+          throw new Error('Server returned HTTP ' + response.status);
+        }
+
+        const data = await response.json();
+
+        // Second stale check
+        if (thisRequestId !== currentRequestId || abortController.signal.aborted) {
+          return null;
+        }
+
+        lastCheckedDate = normDate;
+        cachedKey = key;
+        const isPreliminary = (data.is_preliminary === true);
+        const isConflict = (data.conflict === true);
+        const isConfirmed = (data.availability_confirmed === true);
+        cachedResult = {
+          conflict: isConflict,
+          is_preliminary: isPreliminary,
+          availability_confirmed: isConfirmed,
+          data: data,
+          error: false
+        };
+
+        if (isPreliminary) {
+          hideSuccessMessage();
+          hideErrorMessage();
+          showPreliminaryMessage(data.message || 'Date selected. Complete the venue and event time to check availability.');
+        } else if (isConflict) {
+          hidePreliminaryMessage();
+          hideSuccessMessage();
+          showConflictModal(data, { venue, date: normDate, start, end });
+        } else {
+          hidePreliminaryMessage();
+          hideErrorMessage();
+          showSuccessMessage(data.message || 'Schedule is available.');
+        }
+
+        return cachedResult;
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          return null;
+        }
+        console.error('Schedule availability check failed:', err);
+        if (thisRequestId === currentRequestId) {
+          cachedKey = key;
+          cachedResult = { conflict: false, is_preliminary: false, availability_confirmed: false, error: true, errorMessage: err.message || 'API error' };
+          hidePreliminaryMessage();
+          hideSuccessMessage();
+          showErrorMessage(err.message || 'Failed to check schedule availability.');
+          return cachedResult;
+        }
+        return null;
+      } finally {
+        if (thisRequestId === currentRequestId) {
+          showCheckingIndicator(false);
+          inFlightPromise = null;
+          inFlightKey = null;
+          inFlightAbortController = null;
+        }
+      }
+    })();
+
+    inFlightPromise = execPromise;
+    return await execPromise;
+  }
+
+  async function checkScheduleDefinitive(venue, date, start, end) {
+    const key = getScheduleKey(date, venue, start, end);
+    const response = await fetch(settings.baseUrl + '/api/check-schedule-conflict.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        venue: venue,
+        event_date: date,
+        start_time: start,
+        end_time: end,
+        activity_id: settings.activityId || 0
+      })
+    });
+    if (!response.ok) {
+      throw new Error('Server returned HTTP ' + response.status);
+    }
+    const data = await response.json();
+    cachedKey = key;
+    cachedResult = {
+      conflict: data.conflict === true,
+      is_preliminary: data.is_preliminary === true,
+      availability_confirmed: data.availability_confirmed === true,
+      data: data,
+      error: false
+    };
+    return cachedResult;
+  }
+
+  function handleScheduleFieldChange() {
+    invalidateCache();
+    hideSuccessMessage();
+    hideErrorMessage();
+    hidePreliminaryMessage();
+  }
+
+  function handleDateInput(immediate = false) {
+    const dateEl = document.getElementById(settings.dateId);
+    if (!dateEl) return;
+    const curVal = (dateEl.value || '').trim();
+
+    // 1. If date has not changed from the last checked/verified date:
+    if (curVal === lastCheckedDate && curVal !== '') {
+      const curVenue = (document.getElementById(settings.venueId)?.value || '').trim();
+      const curStart = (document.getElementById(settings.startId)?.value || '').trim();
+      const curEnd   = (document.getElementById(settings.endId)?.value || '').trim();
+      const key = getScheduleKey(curVal, curVenue, curStart, curEnd);
+      if (cachedKey === key || inFlightKey === key) {
+        return;
+      }
+    }
+
+    // 2. If date changed: invalidate previous cache & hide previous messages
+    invalidateCache();
+    hideSuccessMessage();
+    hideErrorMessage();
+    hidePreliminaryMessage();
+
+    // 3. Clear any pending debounce timer
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+
+    // 4. If date is invalid, incomplete, or empty:
+    if (!isValidEventDate(curVal)) {
+      if (inFlightAbortController) {
+        try { inFlightAbortController.abort(); } catch (e) {}
+        inFlightAbortController = null;
+      }
+      inFlightPromise = null;
+      inFlightKey = null;
+      showCheckingIndicator(false);
+      return;
+    }
+
+    // 5. Date is valid and different: trigger check
+    if (immediate) {
+      checkScheduleForDate(curVal);
+    } else {
+      debounceTimer = setTimeout(() => {
+        checkScheduleForDate(curVal);
+      }, 350);
+    }
   }
 
   function init(opts) {
@@ -78,113 +412,93 @@ window.ScheduleConflictUI = (function () {
       form.addEventListener('submit', handleSubmit);
     }
 
-    // Automatically check on input/change of schedule fields
-    const schedFields = [settings.venueId, settings.dateId, settings.startId, settings.endId];
-    let debounceTimer = null;
-
-    function handleFieldChange(immediate = false) {
-      const currentKey = getScheduleKey();
-      if (currentKey && currentKey === cachedKey && cachedResult !== null) {
-        // Schedule inputs have not changed and we already have a valid cached result: no duplicate request
-        return;
-      }
-
-      if (currentKey !== cachedKey) {
-        invalidateCache();
-        const successMsg = document.getElementById(settings.successMessageId);
-        if (successMsg) {
-          successMsg.style.display = 'none';
-          if (successTimer) clearTimeout(successTimer);
-        }
-      }
-
-      if (debounceTimer) clearTimeout(debounceTimer);
-
-      if (!areScheduleInputsValid()) {
-        if (inFlightAbortController) {
-          inFlightAbortController.abort();
-        }
-        showCheckingIndicator(false);
-        return;
-      }
-
-      if (immediate) {
-        checkSchedule();
-      } else {
-        debounceTimer = setTimeout(() => {
-          checkSchedule();
-        }, 350);
-      }
+    // Record initial date value on load to prevent unsolicited request on initial load
+    const dateEl = document.getElementById(settings.dateId);
+    if (dateEl) {
+      lastCheckedDate = (dateEl.value || '').trim();
+      // Availability check is ONLY triggered when user enters/selects/changes Event Date
+      dateEl.addEventListener('change', () => handleDateInput(true));
+      dateEl.addEventListener('input', () => handleDateInput(false));
     }
 
-    schedFields.forEach(id => {
-      const el = document.getElementById(id);
+    // Venue, start time, and end time changes invalidate cached availability without initiating new API requests
+    ['venueId', 'startId', 'endId'].forEach(fieldKey => {
+      const el = document.getElementById(settings[fieldKey]);
       if (el) {
-        el.addEventListener('change', () => handleFieldChange(true));
-        el.addEventListener('input', () => handleFieldChange(false));
+        el.addEventListener('input', handleScheduleFieldChange);
+        el.addEventListener('change', handleScheduleFieldChange);
       }
     });
 
-    // If schedule inputs are already filled and valid on load (e.g. edit proposal), run initial check to populate cache
-    if (areScheduleInputsValid()) {
-      checkSchedule();
-    }
+    // Do NOT automatically check availability on page load! (0 requests on load)
 
-    // Redefine window.nextStep to intercept Step 1 transition
+    // Redefine window.nextStep to intercept Step 1 transition: NEVER initiate a new request on Next!
     if (window.nextStep) {
       const originalNextStep = window.nextStep;
       window.nextStep = async function () {
         const isStep1 = (typeof currentStep !== 'undefined' && currentStep === 1) ||
                         (window.currentStep === 1) ||
                         (document.getElementById('panel-1') && document.getElementById('panel-1').classList.contains('active'));
-        if (isStep1) {
-          // 1. Verify required fields locally first
-          if (typeof validateStep === 'function' && !validateStep(1)) {
-            return;
+
+        if (!isStep1) {
+          originalNextStep();
+          return;
+        }
+
+        // 1. Verify required fields locally first
+        if (typeof validateStep === 'function' && !validateStep(1)) {
+          return;
+        }
+
+        // 2. If an availability check is already in-flight from a date change, await THAT SAME request
+        if (inFlightPromise) {
+          const nextBtn = document.querySelector('#panel-1 .nav-btns button.btn-primary') ||
+                          document.querySelector('#panel-1 .nav-btns button');
+          const originalText = nextBtn ? nextBtn.innerHTML : 'Next: Objectives →';
+          if (nextBtn) {
+            nextBtn.disabled = true;
+            nextBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Checking availability...';
           }
-
-          const key = getScheduleKey();
-          if (key) {
-            // 2. If already checked and cached for the current parameters:
-            if (cachedKey === key && cachedResult !== null) {
-              if (cachedResult.conflict) {
-                // Block advancing and show existing conflict modal
-                const venue = (document.getElementById(settings.venueId)?.value || '').trim();
-                const date  = (document.getElementById(settings.dateId)?.value || '').trim();
-                const start = (document.getElementById(settings.startId)?.value || '').trim();
-                const end   = (document.getElementById(settings.endId)?.value || '').trim();
-                showConflictModal(cachedResult.data, { venue, date, start, end });
-                return;
-              }
-              // Valid and no conflict: proceed immediately without duplicate request!
-              originalNextStep();
-              return;
+          try {
+            const res = await inFlightPromise;
+            // Only block if a definitive conflict was found (preliminary results never block)
+            if (res && !res.is_preliminary && res.conflict) {
+              return; // block advancing
             }
-
-            // 3. If an availability check is already in-flight from a date input change, await it (do not start duplicate request)
-            if (inFlightPromise) {
-              const nextBtn = document.querySelector('#panel-1 .nav-btns button');
-              const originalText = nextBtn ? nextBtn.innerHTML : 'Next: Objectives →';
-              if (nextBtn) {
-                nextBtn.disabled = true;
-                nextBtn.innerHTML = 'Checking conflicts...';
-              }
-              try {
-                const hasConflict = await inFlightPromise;
-                if (hasConflict) {
-                  return; // block advancing
-                }
-              } finally {
-                if (nextBtn) {
-                  nextBtn.disabled = false;
-                  nextBtn.innerHTML = originalText;
-                }
-              }
-              originalNextStep();
-              return;
+            if (res && res.error) {
+              showErrorMessage(res.errorMessage || 'Schedule check failed. Please verify availability before continuing.');
+              return; // block advancing on API failure
             }
+          } finally {
+            if (nextBtn) {
+              nextBtn.disabled = false;
+              nextBtn.innerHTML = originalText;
+            }
+          }
+          originalNextStep();
+          return;
+        }
+
+        // 3. If no request is running: NEVER call checkSchedule() or initiate a new request!
+        const curDate  = (document.getElementById(settings.dateId)?.value || '').trim();
+        const curVenue = (document.getElementById(settings.venueId)?.value || '').trim();
+        const curStart = (document.getElementById(settings.startId)?.value || '').trim();
+        const curEnd   = (document.getElementById(settings.endId)?.value || '').trim();
+        const currentKey = getScheduleKey(curDate, curVenue, curStart, curEnd);
+
+        if (cachedKey === currentKey && cachedResult !== null) {
+          // Never block on preliminary date-only results
+          if (!cachedResult.is_preliminary && cachedResult.conflict) {
+            showConflictModal(cachedResult.data, { venue: curVenue, date: curDate, start: curStart, end: curEnd });
+            return; // block advancing
+          }
+          if (cachedResult.error) {
+            showErrorMessage(cachedResult.errorMessage || 'Please verify schedule availability before continuing.');
+            return; // block advancing
           }
         }
+
+        // Normal progression without initiating any availability request
         originalNextStep();
       };
     }
@@ -194,9 +508,18 @@ window.ScheduleConflictUI = (function () {
     if (useBtn) {
       useBtn.addEventListener('click', () => {
         if (selectedAlternative) {
-          document.getElementById(settings.dateId).value = selectedAlternative.date;
-          document.getElementById(settings.startId).value = selectedAlternative.start_time;
-          document.getElementById(settings.endId).value = selectedAlternative.end_time;
+          const dateInput = document.getElementById(settings.dateId);
+          if (dateInput) {
+            dateInput.value = selectedAlternative.date;
+          }
+          const startInput = document.getElementById(settings.startId);
+          if (startInput) {
+            startInput.value = selectedAlternative.start_time;
+          }
+          const endInput = document.getElementById(settings.endId);
+          if (endInput) {
+            endInput.value = selectedAlternative.end_time;
+          }
           if (selectedAlternative.venue) {
             const venueEl = document.getElementById(settings.venueId);
             if (venueEl) {
@@ -216,40 +539,17 @@ window.ScheduleConflictUI = (function () {
               setTimeout(() => el.style.background = '', 1500);
             }
           });
-          handleFieldChange(true);
+          handleDateInput(true);
         }
       });
     }
 
-    // Bind Step 9 Conflict Review button if present
+    // Step 9 Conflict Review button if present
     const step9Btn = document.getElementById('scuStep9ResolveBtn');
     if (step9Btn) {
       step9Btn.addEventListener('click', () => {
         checkSchedule(true);
       });
-    }
-  }
-
-  function showCheckingIndicator(show) {
-    let indicator = document.getElementById('scuCheckingIndicator');
-    if (show) {
-      if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'scuCheckingIndicator';
-        indicator.style.cssText = 'font-size:0.8rem; color:#d97706; font-weight:600; display:flex; align-items:center; gap:6px; margin-bottom:6px;';
-        indicator.innerHTML = `
-          <div class="spinner-border text-warning spinner-border-sm" role="status" style="border: 0.12em solid currentColor; border-right-color: transparent; width: 0.75rem; height: 0.75rem;"></div>
-          <span>Checking availability...</span>
-        `;
-        const dateInput = document.getElementById(settings.dateId);
-        if (dateInput && dateInput.parentNode) {
-          dateInput.parentNode.insertBefore(indicator, dateInput);
-        }
-      }
-    } else {
-      if (indicator) {
-        indicator.remove();
-      }
     }
   }
 
@@ -259,110 +559,11 @@ window.ScheduleConflictUI = (function () {
     const start = (document.getElementById(settings.startId)?.value || '').trim();
     const end   = (document.getElementById(settings.endId)?.value || '').trim();
 
-    // Guard: ensure all 4 fields are present and valid
-    if (!areScheduleInputsValid()) {
-      showCheckingIndicator(false);
+    if (!venue || !date || !start || !end || !isValidEventDate(date)) {
       return false;
     }
-
-    const key = getScheduleKey();
-    if (!key) {
-      showCheckingIndicator(false);
-      return false;
-    }
-
-    // Reuse valid cached result if inputs have not changed
-    if (!force && cachedKey === key && cachedResult !== null) {
-      return cachedResult.conflict;
-    }
-
-    // If an identical check is already in-flight, return the existing promise (do not duplicate)
-    if (inFlightKey === key && inFlightPromise) {
-      return await inFlightPromise;
-    }
-
-    // If a check for an older key was running, abort it
-    if (inFlightAbortController) {
-      inFlightAbortController.abort();
-    }
-
-    const abortController = new AbortController();
-    inFlightAbortController = abortController;
-    inFlightKey = key;
-    const thisRequestId = ++currentRequestId;
-
-    // Clear previous success message
-    const successMsg = document.getElementById(settings.successMessageId);
-    if (successMsg) {
-      successMsg.style.display = 'none';
-      if (successTimer) clearTimeout(successTimer);
-    }
-
-    showCheckingIndicator(true);
-
-    inFlightPromise = (async () => {
-      try {
-        const response = await fetch(settings.baseUrl + '/api/check-schedule-conflict.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: abortController.signal,
-          body: JSON.stringify({
-            venue: venue,
-            event_date: date,
-            start_time: start,
-            end_time: end,
-            activity_id: settings.activityId
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error('API server returned error ' + response.status);
-        }
-
-        const data = await response.json();
-
-        // Discard stale responses: check request sequence ID and current key
-        if (thisRequestId !== currentRequestId || getScheduleKey() !== key) {
-          return false;
-        }
-
-        // Cache the successful check
-        cachedKey = key;
-        cachedResult = { conflict: (data.conflict === true), data: data };
-
-        if (data.conflict === true) {
-          showConflictModal(data, { venue, date, start, end });
-          return true; // conflict exists
-        } else {
-          // Show success message
-          if (successMsg) {
-            successMsg.style.display = 'block';
-            if (successTimer) clearTimeout(successTimer);
-            successTimer = setTimeout(() => {
-              successMsg.style.display = 'none';
-            }, 4000);
-          }
-          return false; // no conflict
-        }
-      } catch (e) {
-        if (e.name === 'AbortError') {
-          // Safely ignored aborted request for an older date/key
-          return false;
-        }
-        console.error('Schedule Conflict check failed:', e);
-        // Fallback: don't block workflow on API failure
-        return false;
-      } finally {
-        if (thisRequestId === currentRequestId) {
-          showCheckingIndicator(false);
-          inFlightPromise = null;
-          inFlightKey = null;
-          inFlightAbortController = null;
-        }
-      }
-    })();
-
-    return await inFlightPromise;
+    const res = await checkScheduleDefinitive(venue, date, start, end);
+    return res && res.conflict === true;
   }
 
   function showConflictModal(data, proposed) {
@@ -445,8 +646,8 @@ window.ScheduleConflictUI = (function () {
             item.innerHTML = `
               <div>
                 <div class="fw-bold text-dark" style="font-size:0.85rem;">📅 ${formatDate(alt.date)} &nbsp; ⏰ ${formatTime12h(alt.start_time)} – ${formatTime12h(alt.end_time)}</div>
-                <div class="small text-secondary mt-1" style="font-weight: 500;">📍 Venue: ${alt.venue || propVenue}</div>
-                <div class="text-muted small mt-1" style="font-size: 0.75rem;">💡 ${alt.reason || 'Available slot'}</div>
+                <div class="small text-secondary mt-1" style="font-weight: 500;">📍 Venue: ${escapeHtml(alt.venue || propVenue)}</div>
+                <div class="text-muted small mt-1" style="font-size: 0.75rem;">💡 ${escapeHtml(alt.reason || 'Available slot')}</div>
               </div>
               <input type="radio" name="scu_alt_selection" value="${idx}" class="form-check-input" style="margin-left: 12px; flex-shrink: 0;">
             `;
@@ -492,15 +693,47 @@ window.ScheduleConflictUI = (function () {
       }
       e.preventDefault();
 
+      const venueEl = document.getElementById(settings.venueId);
+      const dateEl  = document.getElementById(settings.dateId);
+      const startEl = document.getElementById(settings.startId);
+      const endEl   = document.getElementById(settings.endId);
+
+      const venue = (venueEl?.value || '').trim();
+      const date  = (dateEl?.value || '').trim();
+      const start = (startEl?.value || '').trim();
+      const end   = (endEl?.value || '').trim();
+
       // Show loader on submit button
       const originalHtml = submitter.innerHTML;
       submitter.disabled = true;
       submitter.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Validating schedule...';
 
-      const hasConflict = await checkSchedule();
+      let hasConflict = false;
+      let checkFailed = false;
+
+      // Authoritative definitive check if all schedule inputs are present
+      if (venue && date && start && end && isValidEventDate(date)) {
+        try {
+          const res = await checkScheduleDefinitive(venue, date, start, end);
+          if (res && res.conflict) {
+            hasConflict = true;
+            showConflictModal(res.data || res, { venue, date, start, end });
+          } else if (res && res.error) {
+            checkFailed = true;
+            showErrorMessage(res.errorMessage || 'Schedule validation failed. Please check your network connection.');
+          }
+        } catch (err) {
+          checkFailed = true;
+          showErrorMessage('Schedule validation failed: ' + (err.message || 'Network error'));
+        }
+      }
 
       submitter.disabled = false;
       submitter.innerHTML = originalHtml;
+
+      if (hasConflict || checkFailed) {
+        return; // Block submission on conflict or API failure
+      }
 
       if (!hasConflict) {
         // If ProposalAIValidator is loaded, trigger AI validation
@@ -535,7 +768,7 @@ window.ScheduleConflictUI = (function () {
   function formatTime12h(timeStr) {
     if (!timeStr) return '';
     const parts = timeStr.split(':');
-    let hours = parseInt(parts[0]);
+    let hours = parseInt(parts[0], 10);
     const minutes = parts[1];
     const ampm = hours >= 12 ? 'PM' : 'AM';
     hours = hours % 12;
@@ -543,8 +776,25 @@ window.ScheduleConflictUI = (function () {
     return hours + ':' + minutes + ' ' + ampm;
   }
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   return {
     init: init,
-    checkSchedule: checkSchedule
+    checkSchedule: checkSchedule,
+    checkScheduleForDate: checkScheduleForDate,
+    checkScheduleDefinitive: checkScheduleDefinitive,
+    getInFlightPromise: () => inFlightPromise,
+    getCachedResult: () => cachedResult,
+    getCachedKey: () => cachedKey,
+    getLastCheckedDate: () => lastCheckedDate,
+    isValidEventDate: isValidEventDate
   };
 })();

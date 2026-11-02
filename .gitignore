@@ -16,4 +16,8 @@ node_modules/
 # Scratch & temporary development files
 scratch/
 test_cookie.txt
+*cookie*.txt
 *.cookie
+
+# Backups
+backups/

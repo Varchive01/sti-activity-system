@@ -184,7 +184,7 @@ if (empty($user['id'])) {
 }
 
 // Check role authorization
-$allowedRoles = ['faculty', 'dean', 'admin1', 'admin2'];
+$allowedRoles = ['faculty', 'dean', 'admin1', 'admin2', 'program_head'];
 if (!in_array($user['role'], $allowedRoles, true)) {
     sendSyncJsonResponse(403, [
         'success' => false,
@@ -218,7 +218,7 @@ if (!$activity) {
 }
 
 // Verify authorized user
-if ($user['role'] === 'faculty' && (int)$activity['faculty_id'] !== (int)$user['id']) {
+if (!canUserAccessActivity($activityId, 'modify', $user['id'], $user['role'], $user['dept'])) {
     sendSyncJsonResponse(403, [
         'success' => false,
         'error'   => 'You are not authorized to sync evaluations for this activity.',

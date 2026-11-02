@@ -18,7 +18,7 @@ CREATE TABLE `users` (
   `name` varchar(150) NOT NULL,
   `email` varchar(150) NOT NULL,
   `password` varchar(255) NOT NULL,
-  `role` enum('faculty','admin1','admin2','dean') NOT NULL,
+  `role` enum('faculty','admin1','admin2','dean','program_head') NOT NULL,
   `must_change_password` tinyint(1) NOT NULL DEFAULT 0,
   `department` varchar(100) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),

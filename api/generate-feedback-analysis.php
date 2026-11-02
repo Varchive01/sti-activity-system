@@ -36,7 +36,7 @@ if (!$activity) {
 }
 
 // Role authorization checks
-if ($user['role'] === 'faculty' && (int)$activity['faculty_id'] !== (int)$user['id']) {
+if (!canUserAccessActivity($activityId, 'view', $user['id'], $user['role'], $user['dept'])) {
     http_response_code(403);
     echo json_encode(['error' => 'You are not authorized to access this activity feedback.']);
     exit;

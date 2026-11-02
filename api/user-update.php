@@ -89,30 +89,19 @@ if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     respondUpdateError('invalid_email', 'A valid email address is required.', $isJsonRequest, $redirectUrl);
 }
 
-// Validate Department (Optional, but if provided must be one of the 4 approved options or match existing legacy department)
-$allowedDepartments = [
-    'IT Department',
-    'G.E. Department',
-    'THM Department',
-    'Administration',
-];
-if ($department !== '' && !in_array($department, $allowedDepartments, true) && $department !== ($targetUser['department'] ?? '')) {
-    respondUpdateError('invalid_department', 'Invalid department selected. Must be IT Department, G.E. Department, THM Department, or Administration.', $isJsonRequest, $redirectUrl, 422);
-}
-
 // 5. Authoritative Permission & Hierarchy Validation
 $assignedRole = $targetUser['role'];
 
 if ($currentUser['role'] === 'admin2') {
-    // Admin2 can ONLY edit users whose CURRENT role is faculty
-    if ($targetUser['role'] !== 'faculty') {
+    // Admin2 can edit faculty and program_head accounts
+    if (!in_array($targetUser['role'], ['faculty', 'program_head'], true)) {
         respondUpdateError('forbidden_target', 'Admin 2 is not authorized to edit administrative accounts.', $isJsonRequest, $redirectUrl, 403);
     }
-    // Admin2 cannot promote or change faculty to any administrative role
-    if ($requestedRole !== 'faculty') {
-        respondUpdateError('forbidden_role_change', 'Admin 2 cannot promote Faculty to administrative roles.', $isJsonRequest, $redirectUrl, 403);
+    // Admin2 cannot promote accounts to administrative roles (admin1, admin2, dean)
+    if (!in_array($requestedRole, ['faculty', 'program_head'], true)) {
+        respondUpdateError('forbidden_role_change', 'Admin 2 cannot promote accounts to administrative roles.', $isJsonRequest, $redirectUrl, 403);
     }
-    $assignedRole = 'faculty';
+    $assignedRole = $requestedRole;
 
 } elseif ($currentUser['role'] === 'dean') {
     // Dean cannot modify their own role
@@ -126,13 +115,57 @@ if ($currentUser['role'] === 'admin2') {
         if ($requestedRole === 'dean') {
             respondUpdateError('forbidden_role_change', 'Cannot assign the Dean role to an account.', $isJsonRequest, $redirectUrl, 403);
         }
-        if (!in_array($requestedRole, ['faculty', 'admin1', 'admin2'], true)) {
+        if (!in_array($requestedRole, ['faculty', 'admin1', 'admin2', 'program_head'], true)) {
             respondUpdateError('invalid_role', 'Invalid role requested.', $isJsonRequest, $redirectUrl, 422);
         }
         $assignedRole = $requestedRole;
     }
 } else {
     respondUpdateError('unauthorized', 'You are not authorized to edit users.', $isJsonRequest, $redirectUrl, 403);
+}
+
+// Helper to normalize department inputs (e.g. IT -> IT Department, GE -> G.E. Department, THM -> THM Department)
+$normalizeDept = function(string $d): string {
+    $trimmed = trim($d);
+    $map = [
+        'it'              => 'IT Department',
+        'it department'   => 'IT Department',
+        'thm'             => 'THM Department',
+        'thm department'  => 'THM Department',
+        'ge'              => 'G.E. Department',
+        'g.e.'            => 'G.E. Department',
+        'g.e. department' => 'G.E. Department',
+        'ge department'   => 'G.E. Department',
+        'administration'  => 'Administration',
+    ];
+    $key = strtolower($trimmed);
+    return $map[$key] ?? $trimmed;
+};
+
+$normalizedDept = $department !== '' ? $normalizeDept($department) : '';
+
+// 6. Validate Department
+$allowedDepartments = [
+    'IT Department',
+    'G.E. Department',
+    'THM Department',
+    'Administration',
+];
+
+if ($assignedRole === 'program_head') {
+    // Program Head MUST be assigned to an academic department: IT, THM, or GE
+    if ($normalizedDept === '' || !in_array($normalizedDept, ['IT Department', 'G.E. Department', 'THM Department'], true)) {
+        respondUpdateError('missing_program_head_department', 'Program Head must be assigned to a valid department: IT, THM, or GE.', $isJsonRequest, $redirectUrl, 422);
+    }
+    $department = $normalizedDept;
+} else {
+    // For other roles, department is optional, but if provided must be one of the allowed departments or match existing legacy department
+    if ($normalizedDept !== '' && !in_array($normalizedDept, $allowedDepartments, true) && $department !== ($targetUser['department'] ?? '')) {
+        respondUpdateError('invalid_department', 'Invalid department selected. Must be IT Department, G.E. Department, THM Department, or Administration.', $isJsonRequest, $redirectUrl, 422);
+    }
+    if ($normalizedDept !== '') {
+        $department = $normalizedDept;
+    }
 }
 
 // 6. Duplicate Email Check (excluding the target user)

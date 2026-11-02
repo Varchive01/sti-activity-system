@@ -43,6 +43,8 @@ if (isset($_GET['error'])) {
         'user_has_activity_history' => 'Cannot delete user account: This account has historical activity records, approval logs, or task assignments. Account history must be preserved for audit and compliance integrity.',
         'forbidden_role_change'     => 'You are not authorized to change this user to that role.',
         'invalid_role'              => 'The requested role is invalid.',
+        'invalid_department'        => 'Invalid department selected. Must be IT Department, G.E. Department, THM Department, or Administration.',
+        'missing_program_head_department' => 'Program Head accounts must be assigned to an academic department (IT, THM, or GE).',
         'invalid_user'              => 'Target user ID is missing or invalid.',
         'user_not_found'            => 'The specified user account was not found.',
         'database_error'            => 'A database error occurred. Please try again.',
@@ -251,10 +253,11 @@ $csrfToken = generateCsrfToken();
                       // Determine role label and styling
                       $roleKey = $u['role'];
                       $roleLabels = [
-                          'faculty' => 'Faculty',
-                          'admin1'  => 'Admin 1',
-                          'admin2'  => 'Admin 2',
-                          'dean'    => 'Dean'
+                          'faculty'      => 'Faculty',
+                          'program_head' => 'Program Head',
+                          'admin1'       => 'Admin 1',
+                          'admin2'       => 'Admin 2',
+                          'dean'         => 'Dean'
                       ];
                       $roleLabel = $roleLabels[$roleKey] ?? ucfirst($roleKey);
                       $badgeClass = 'role-' . $roleKey;
@@ -275,10 +278,10 @@ $csrfToken = generateCsrfToken();
                               $canDelete = ($u['role'] !== 'dean' || $deanCount > 1);
                           }
                       } elseif ($user['role'] === 'admin2') {
-                          $canEdit = ($u['role'] === 'faculty');
-                          $canResetPassword = ($u['role'] === 'faculty');
+                          $canEdit = in_array($u['role'], ['faculty', 'program_head'], true);
+                          $canResetPassword = in_array($u['role'], ['faculty', 'program_head'], true);
                           if (!$isSelf) {
-                              $canDelete = ($u['role'] === 'faculty');
+                              $canDelete = in_array($u['role'], ['faculty', 'program_head'], true);
                           }
                       }
 
@@ -365,32 +368,34 @@ $csrfToken = generateCsrfToken();
           </div>
 
           <div class="form-group">
-            <label for="add_department">Department</label>
+            <label for="add_department">Department <span id="add_dept_required" style="display:none; color:var(--danger, #DC2626);">*</span></label>
             <select name="department" id="add_department" class="form-control">
               <option value="">Select Department (Optional)...</option>
               <option value="IT Department">IT Department</option>
               <option value="G.E. Department">G.E. Department</option>
               <option value="THM Department">THM Department</option>
-              <option value="Administration">Administration</option>
+              <option value="Administration" id="optAddDeptAdmin">Administration</option>
             </select>
           </div>
 
           <div class="form-group">
             <label for="add_role">Role <span style="color:var(--danger, #DC2626);">*</span></label>
-            <select name="role" id="add_role" class="form-control" required>
+            <select name="role" id="add_role" class="form-control" required onchange="handleRoleChange('add')">
               <?php if ($user['role'] === 'dean'): ?>
                 <option value="faculty">Faculty</option>
+                <option value="program_head">Program Head</option>
                 <option value="admin1">Admin 1</option>
                 <option value="admin2">Admin 2</option>
               <?php else: ?>
                 <option value="faculty" selected>Faculty</option>
+                <option value="program_head">Program Head</option>
               <?php endif; ?>
             </select>
             <div class="form-help">
               <?php if ($user['role'] === 'dean'): ?>
-                Dean can create Faculty, Admin 1, and Admin 2 accounts.
+                Dean can create Faculty, Program Head, Admin 1, and Admin 2 accounts.
               <?php else: ?>
-                Admin 2 is authorized to create Faculty accounts only.
+                Admin 2 is authorized to create Faculty and Program Head accounts.
               <?php endif; ?>
             </div>
           </div>
@@ -439,33 +444,35 @@ $csrfToken = generateCsrfToken();
           </div>
 
           <div class="form-group">
-            <label for="edit_department">Department</label>
+            <label for="edit_department">Department <span id="edit_dept_required" style="display:none; color:var(--danger, #DC2626);">*</span></label>
             <select name="department" id="edit_department" class="form-control">
               <option value="">Select Department (Optional)...</option>
               <option value="IT Department">IT Department</option>
               <option value="G.E. Department">G.E. Department</option>
               <option value="THM Department">THM Department</option>
-              <option value="Administration">Administration</option>
+              <option value="Administration" id="optEditDeptAdmin">Administration</option>
             </select>
           </div>
 
           <div class="form-group">
             <label for="edit_role">Role <span style="color:var(--danger, #DC2626);">*</span></label>
-            <select name="role" id="edit_role" class="form-control" required>
+            <select name="role" id="edit_role" class="form-control" required onchange="handleRoleChange('edit')">
               <?php if ($user['role'] === 'dean'): ?>
                 <option value="faculty">Faculty</option>
+                <option value="program_head">Program Head</option>
                 <option value="admin1">Admin 1</option>
                 <option value="admin2">Admin 2</option>
                 <option value="dean" id="optEditDean" disabled>Dean (Cannot assign)</option>
               <?php else: ?>
                 <option value="faculty" selected>Faculty</option>
+                <option value="program_head">Program Head</option>
               <?php endif; ?>
             </select>
             <div class="form-help" id="editRoleHelp">
               <?php if ($user['role'] === 'dean'): ?>
-                Dean can modify roles between Faculty, Admin 1, and Admin 2.
+                Dean can modify roles between Faculty, Program Head, Admin 1, and Admin 2.
               <?php else: ?>
-                Admin 2 can manage Faculty accounts only.
+                Admin 2 is authorized to modify roles between Faculty and Program Head.
               <?php endif; ?>
             </div>
           </div>
@@ -561,9 +568,35 @@ $csrfToken = generateCsrfToken();
   </div>
 
   <script>
+    function handleRoleChange(mode) {
+      const roleSel = document.getElementById(mode + '_role');
+      const deptReq = document.getElementById(mode + '_dept_required');
+      const deptSel = document.getElementById(mode + '_department');
+      const adminOpt = document.getElementById('opt' + (mode === 'add' ? 'Add' : 'Edit') + 'DeptAdmin');
+
+      if (!roleSel || !deptSel) return;
+      const isPH = (roleSel.value === 'program_head');
+
+      if (deptReq) {
+        deptReq.style.display = isPH ? 'inline' : 'none';
+      }
+      if (adminOpt) {
+        adminOpt.disabled = isPH;
+        if (isPH && deptSel.value === 'Administration') {
+          deptSel.value = '';
+        }
+      }
+      if (isPH && !deptSel.value) {
+        deptSel.setAttribute('required', 'required');
+      } else if (!isPH) {
+        deptSel.removeAttribute('required');
+      }
+    }
+
     function openAddModal() {
       const form = document.getElementById('addUserForm');
       if (form) form.reset();
+      handleRoleChange('add');
       const modal = document.getElementById('addModalBackdrop');
       if (modal) {
         modal.classList.add('active');
@@ -618,6 +651,8 @@ $csrfToken = generateCsrfToken();
           if (hiddenRole) hiddenRole.remove();
         }
       }
+
+      handleRoleChange('edit');
 
       const modal = document.getElementById('editModalBackdrop');
       if (modal) {
@@ -689,12 +724,36 @@ $csrfToken = generateCsrfToken();
     window.addEventListener('DOMContentLoaded', checkHash);
     window.addEventListener('hashchange', checkHash);
 
-    // Client-side quick password validation
+    // Client-side quick validation
     document.getElementById('addUserForm')?.addEventListener('submit', function(e) {
       const p = document.getElementById('add_password')?.value || '';
       if (p.length < 6) {
         alert('Default password must be at least 6 characters long.');
         e.preventDefault();
+        return;
+      }
+      const role = document.getElementById('add_role')?.value || '';
+      const dept = document.getElementById('add_department')?.value || '';
+      if (role === 'program_head') {
+        const validPHDepts = ['IT Department', 'G.E. Department', 'THM Department'];
+        if (!validPHDepts.includes(dept)) {
+          alert('Program Head accounts must be assigned to an academic department (IT, THM, or GE).');
+          e.preventDefault();
+          return;
+        }
+      }
+    });
+
+    document.getElementById('editUserForm')?.addEventListener('submit', function(e) {
+      const role = document.getElementById('edit_role')?.value || document.getElementById('hidden_edit_role')?.value || '';
+      const dept = document.getElementById('edit_department')?.value || '';
+      if (role === 'program_head') {
+        const validPHDepts = ['IT Department', 'G.E. Department', 'THM Department'];
+        if (!validPHDepts.includes(dept)) {
+          alert('Program Head accounts must be assigned to an academic department (IT, THM, or GE).');
+          e.preventDefault();
+          return;
+        }
       }
     });
 

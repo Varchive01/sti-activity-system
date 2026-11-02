@@ -4,15 +4,19 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/EmailService.php';
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 
 $user = currentUser();
 $db   = getDB();
 $id   = (int)($_POST['activity_id'] ?? 0);
 
-// Verify ownership and status
-$check = $db->prepare("SELECT * FROM activities WHERE id=? AND faculty_id=? AND status='approved'");
-$check->execute([$id, $user['id']]);
+// Verify access and status
+if (!canUserAccessActivity($id, 'modify', $user['id'], $user['role'], $user['dept'])) {
+    http_response_code(403);
+    die('Access denied: You do not have permission to modify this activity.');
+}
+$check = $db->prepare("SELECT * FROM activities WHERE id=? AND status='approved'");
+$check->execute([$id]);
 if (!$check->fetch()) {
     header('Location: ' . BASE_URL . '/faculty/post-event.php');
     exit;

@@ -3,7 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 $user = currentUser();
 $db   = getDB();
 
@@ -13,8 +13,18 @@ $page       = max(1,(int)($_GET['page'] ?? 1));
 $perPage    = 10;
 $offset     = ($page-1)*$perPage;
 
-$where  = "a.faculty_id=?";
-$params = [$user['id']];
+if ($user['role'] === 'program_head') {
+    $userDept = $user['dept'] ?? '';
+    $where  = "(
+        EXISTS (SELECT 1 FROM users u_creator WHERE u_creator.id = a.faculty_id AND (u_creator.department = ? OR u_creator.id = ?))
+        OR EXISTS (SELECT 1 FROM faculty_tasks ft JOIN users u_task ON ft.assigned_user_id = u_task.id WHERE ft.activity_id = a.id AND (u_task.department = ? OR ft.assigned_user_id = ?))
+        OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active')
+    )";
+    $params = [$userDept, $user['id'], $userDept, $user['id'], $user['id']];
+} else {
+    $where  = "(a.faculty_id = ? OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active'))";
+    $params = [$user['id'], $user['id']];
+}
 if ($search)     { $where .= " AND a.title LIKE ?"; $params[] = "%$search%"; }
 if ($filterStat) { $where .= " AND a.status=?";     $params[] = $filterStat; }
 
@@ -31,6 +41,8 @@ $activities = $acts->fetchAll();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="base-url" content="<?= BASE_URL ?>">
+<meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
 <title>My Activities – STI Activity System</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
 <style>
@@ -464,6 +476,9 @@ $activities = $acts->fetchAll();
     <div class="alert alert-success">✓ Proposal saved successfully!</div>
     <?php endif; ?>
 
+    <!-- Local Offline Drafts Container -->
+    <div id="localDraftsContainer" style="display:none;"></div>
+
     <div class="card activities-card">
       <div class="card-body" style="padding:0;">
         <div class="table-wrap">
@@ -532,5 +547,6 @@ $activities = $acts->fetchAll();
 
   </div>
 </div>
+<script src="<?= BASE_URL ?>/assets/js/offline-drafts.js?v=<?= time() ?>"></script>
 </body>
 </html>

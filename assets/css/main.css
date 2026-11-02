@@ -4587,6 +4587,19 @@ textarea:disabled {
 }
 .role-dean::before { background: var(--sti-red, #C1121F); }
 
+.role-program_head {
+  background: #F3E8FF;
+  color: #7E22CE;
+  border: 1px solid rgba(126, 34, 206, 0.25);
+}
+.role-program_head::before { background: #7E22CE; }
+[data-theme="dark"] .role-program_head {
+  background: rgba(126, 34, 206, 0.22);
+  color: #C084FC;
+  border: 1px solid rgba(192, 132, 252, 0.35);
+}
+[data-theme="dark"] .role-program_head::before { background: #C084FC; }
+
 .badge-restricted {
   display: inline-flex;
   align-items: center;

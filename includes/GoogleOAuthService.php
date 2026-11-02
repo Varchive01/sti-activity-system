@@ -23,13 +23,42 @@ class GoogleOAuthService
     private array $config;
     private ClientInterface $httpClient;
 
+    /**
+     * Resolves the CA certificate bundle path for HTTPS verification in XAMPP/Windows environments.
+     */
+    public static function resolveCaBundle(): ?string
+    {
+        $candidates = [
+            'C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem',
+            'C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem',
+            'C:/xampp/apache/bin/curl-ca-bundle.crt',
+            ini_get('curl.cainfo') ?: null,
+            ini_get('openssl.cafile') ?: null,
+        ];
+        foreach ($candidates as $path) {
+            if ($path && file_exists($path)) {
+                return $path;
+            }
+        }
+        return null;
+    }
+
     public function __construct(?array $config = null, ?ClientInterface $httpClient = null)
     {
         $this->config = $config ?? getGoogleConfig();
-        $this->httpClient = $httpClient ?? new Client([
-            'timeout'     => 15.0,
-            'http_errors' => false,
-        ]);
+        if ($httpClient === null) {
+            $options = [
+                'timeout'     => 15.0,
+                'http_errors' => false,
+            ];
+            $caBundle = self::resolveCaBundle();
+            if ($caBundle !== null) {
+                $options['verify'] = $caBundle;
+            }
+            $this->httpClient = new Client($options);
+        } else {
+            $this->httpClient = $httpClient;
+        }
     }
 
     /**

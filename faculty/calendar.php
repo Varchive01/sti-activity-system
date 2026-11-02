@@ -3,7 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 $user = currentUser();
 $db   = getDB();
 
@@ -31,25 +31,46 @@ if ($nextMonth > 12) {
   $nextYear++;
 }
 
-$events = $db->prepare("
-    SELECT id, title, event_date, status, venue FROM activities
-    WHERE faculty_id=? AND MONTH(event_date)=? AND YEAR(event_date)=?
-    ORDER BY event_date
-");
-$events->execute([$user['id'], $month, $year]);
+if ($user['role'] === 'program_head') {
+    $events = $db->prepare("
+        SELECT a.id, a.title, a.event_date, a.status, a.venue FROM activities a
+        JOIN users u ON a.faculty_id = u.id
+        WHERE (u.department = ? OR a.faculty_id = ?
+               OR EXISTS (SELECT 1 FROM faculty_tasks ft JOIN users ut ON ft.assigned_user_id = ut.id WHERE ft.activity_id = a.id AND (ut.department = ? OR ft.assigned_user_id = ?)))
+          AND MONTH(a.event_date) = ? AND YEAR(a.event_date) = ?
+        ORDER BY a.event_date
+    ");
+    $events->execute([$user['dept'], $user['id'], $user['dept'], $user['id'], $month, $year]);
+
+    $upcoming = $db->prepare("
+        SELECT a.id, a.title, a.event_date, a.status, a.venue FROM activities a
+        JOIN users u ON a.faculty_id = u.id
+        WHERE (u.department = ? OR a.faculty_id = ?
+               OR EXISTS (SELECT 1 FROM faculty_tasks ft JOIN users ut ON ft.assigned_user_id = ut.id WHERE ft.activity_id = a.id AND (ut.department = ? OR ft.assigned_user_id = ?)))
+          AND a.status = 'approved' AND a.event_date >= CURDATE()
+        ORDER BY a.event_date ASC LIMIT 8
+    ");
+    $upcoming->execute([$user['dept'], $user['id'], $user['dept'], $user['id']]);
+} else {
+    $events = $db->prepare("
+        SELECT id, title, event_date, status, venue FROM activities
+        WHERE faculty_id=? AND MONTH(event_date)=? AND YEAR(event_date)=?
+        ORDER BY event_date
+    ");
+    $events->execute([$user['id'], $month, $year]);
+
+    $upcoming = $db->prepare("
+        SELECT id, title, event_date, status, venue FROM activities
+        WHERE faculty_id=? AND status='approved' AND event_date >= CURDATE()
+        ORDER BY event_date ASC LIMIT 8
+    ");
+    $upcoming->execute([$user['id']]);
+}
 $monthEvents = [];
 foreach ($events->fetchAll() as $e) {
   $day = (int)date('j', strtotime($e['event_date']));
   $monthEvents[$day][] = $e;
 }
-
-// Upcoming events list (all future/current approved activities for faculty)
-$upcoming = $db->prepare("
-    SELECT id, title, event_date, status, venue FROM activities
-    WHERE faculty_id=? AND status='approved' AND event_date >= CURDATE()
-    ORDER BY event_date ASC LIMIT 8
-");
-$upcoming->execute([$user['id']]);
 $upcomingList = $upcoming->fetchAll();
 
 $daysInMonth    = cal_days_in_month(CAL_GREGORIAN, $month, $year);

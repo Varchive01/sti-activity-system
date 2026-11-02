@@ -82,7 +82,7 @@ unset($_SESSION['login_throttle'][$throttleKey]);
 
 // Route to authorized role dashboard (Microsoft SSO sessions are exempt from local password change)
 $role = $localUser['role'] ?? 'faculty';
-$map  = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean'];
+$map  = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean', 'program_head' => 'program_head'];
 $dir  = $map[$role] ?? 'faculty';
 
 header("Location: " . BASE_URL . "/{$dir}/dashboard.php");

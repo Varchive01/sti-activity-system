@@ -1265,6 +1265,9 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     </header>
   <div class="content">
 
+    <!-- Role-Specific Dashboard Welcome Banner -->
+    <?php include __DIR__ . '/../includes/dashboard-welcome-banner.php'; ?>
+
     <div class="dashboard-layout">
       <!-- Main Monitoring & Review Area (~68%) -->
       <div class="dashboard-main">

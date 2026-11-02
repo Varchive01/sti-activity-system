@@ -73,7 +73,7 @@ if ($action === 'upload') {
         exit;
     }
 
-    $isLeader = ($user['role'] === 'faculty' && (int)$task['leader_id'] === (int)$user['id']);
+    $isLeader = (in_array($user['role'], ['faculty', 'program_head'], true) && (int)$task['leader_id'] === (int)$user['id']);
     $isAssigned = ((int)$task['assigned_user_id'] === (int)$user['id']);
 
     // Check authorization: ONLY the assigned user or the activity leader can upload deliverables
@@ -225,6 +225,10 @@ if ($action === 'list') {
                 $isAuthorized = true;
             }
         }
+    } elseif ($role === 'program_head') {
+        if (canUserAccessActivity($activityId, 'view', $user['id'], $role, $user['dept'])) {
+            $isAuthorized = true;
+        }
     }
 
     if (!$isAuthorized) {
@@ -320,12 +324,12 @@ if ($action === 'review') {
     }
 
     // Authorization: ONLY the activity leader can review deliverables and update completion
-    $isLeader = ($user['role'] === 'faculty' && (int)$item['leader_id'] === (int)$user['id']);
+    $isLeader = (in_array($user['role'], ['faculty', 'program_head'], true) && (int)$item['leader_id'] === (int)$user['id']);
     if (!$isLeader) {
         http_response_code(403);
         echo json_encode([
             'success' => false, 
-            'error' => 'Forbidden: Only the faculty activity leader can review deliverables and set completion percentage.'
+            'error' => 'Forbidden: Only the activity leader can review deliverables and set completion percentage.'
         ]);
         exit;
     }
@@ -449,7 +453,7 @@ if ($action === 'set_completion') {
         exit;
     }
 
-    $isLeader = ($user['role'] === 'faculty' && (int)$task['leader_id'] === (int)$user['id']);
+    $isLeader = (in_array($user['role'], ['faculty', 'program_head'], true) && (int)$task['leader_id'] === (int)$user['id']);
     if (!$isLeader) {
         http_response_code(403);
         echo json_encode([
@@ -529,7 +533,7 @@ if ($action === 'delete') {
         exit;
     }
 
-    $isLeader = ($user['role'] === 'faculty' && (int)$item['leader_id'] === (int)$user['id']);
+    $isLeader = (in_array($user['role'], ['faculty', 'program_head'], true) && (int)$item['leader_id'] === (int)$user['id']);
     $isUploader = ((int)$item['uploaded_by'] === (int)$user['id']);
 
     if (!$isLeader && !$isUploader) {

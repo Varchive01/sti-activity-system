@@ -11,7 +11,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../services/GeminiProposalValidationService.php';
 
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 
 header('Content-Type: application/json');
 

@@ -59,7 +59,7 @@ if (!$activity) {
     exit;
 }
 
-$isLeader = ($user['role'] === 'faculty' && (int)$activity['faculty_id'] === (int)$user['id']);
+$isLeader = (in_array($user['role'], ['faculty', 'program_head'], true) && (int)$activity['faculty_id'] === (int)$user['id']);
 $isDean = ($user['role'] === 'dean');
 $isAdmin = in_array($user['role'], ['admin1', 'admin2']);
 
@@ -69,19 +69,21 @@ $validStatuses = ['Not Started', 'In Progress', 'Completed', 'Delayed'];
 // ── Check Access ───────────────────────────────────────────────
 // ── Check Access ───────────────────────────────────────────────
 if (in_array($action, ['create', 'update', 'delete'])) {
-    // Only the activity leader can create, update, or delete task assignments
-    if (!$isLeader) {
+    // Only the activity leader (or program head managing department activities) can manage task assignments
+    $canManage = $isLeader || ($user['role'] === 'program_head' && canUserAccessActivity($activityId, 'modify', $user['id'], $user['role'], $user['dept']));
+    if (!$canManage) {
         http_response_code(403);
         echo json_encode([
             'success' => false,
-            'error' => 'Unauthorized: Only the faculty activity leader can manage assignments for this activity.'
+            'error' => 'Unauthorized: Only authorized leaders can manage assignments for this activity.'
         ]);
         exit;
     }
 } elseif ($action === 'update_status') {
-    // Activity leader or the assigned member can update task status
-    if (!$isLeader) {
-        if (!in_array($user['role'], ['faculty', 'admin1', 'admin2'], true)) {
+    // Activity leader, department Program Head, or the assigned member can update task status
+    $canManageActivity = $isLeader || ($user['role'] === 'program_head' && canUserAccessActivity($activityId, 'modify', $user['id'], $user['role'], $user['dept']));
+    if (!$canManageActivity) {
+        if (!in_array($user['role'], ['faculty', 'program_head', 'admin1', 'admin2'], true)) {
             http_response_code(403);
             echo json_encode([
                 'success' => false,
@@ -118,23 +120,11 @@ if (in_array($action, ['create', 'update', 'delete'])) {
     }
 } else {
     // Read access check
-    if ($user['role'] === 'faculty' && !$isLeader) {
-        $chkAssigned = $db->prepare("SELECT COUNT(*) FROM faculty_tasks WHERE activity_id = ? AND assigned_user_id = ?");
-        $chkAssigned->execute([$activityId, $user['id']]);
-        if ((int)$chkAssigned->fetchColumn() === 0) {
-            http_response_code(403);
-            echo json_encode([
-                'success' => false,
-                'error' => 'Unauthorized: You do not have access to view assignments for this activity.'
-            ]);
-            exit;
-        }
-    }
-    if (!$isLeader && !$isDean && !$isAdmin && !($user['role'] === 'faculty')) {
+    if (!canUserAccessActivity($activityId, 'view', $user['id'], $user['role'], $user['dept'])) {
         http_response_code(403);
         echo json_encode([
             'success' => false,
-            'error' => 'Unauthorized access.'
+            'error' => 'Unauthorized: You do not have access to view assignments for this activity.'
         ]);
         exit;
     }

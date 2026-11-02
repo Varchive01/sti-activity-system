@@ -1182,6 +1182,10 @@ $actions = $recent_actions->fetchAll();
   </header>
 
   <div class="content">
+
+    <!-- Role-Specific Dashboard Welcome Banner -->
+    <?php include __DIR__ . '/../includes/dashboard-welcome-banner.php'; ?>
+
     <div class="dashboard-layout">
 
       <!-- Main Content Column (~68%) -->

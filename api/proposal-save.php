@@ -5,12 +5,30 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/EmailService.php';
 require_once __DIR__ . '/../includes/ai/schedule_conflict.php';
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 
 $user   = currentUser();
 $db     = getDB();
 $action = $_POST['action'] ?? 'draft';
 $status = ($action === 'submit') ? 'submitted' : 'draft';
+
+$isAjax = (
+    (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+    (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json')) ||
+    (isset($_POST['is_ajax_sync']) && $_POST['is_ajax_sync'] === '1')
+);
+
+// Duplicate prevention for offline synchronization retries:
+// If an activity_id is already present and exists in the database, delegate to proposal-update.php
+$existingActivityId = (int)($_POST['activity_id'] ?? 0);
+if ($existingActivityId > 0 && $action === 'draft') {
+    $chkExisting = $db->prepare("SELECT id FROM activities WHERE id = ?");
+    $chkExisting->execute([$existingActivityId]);
+    if ($chkExisting->fetch()) {
+        require __DIR__ . '/proposal-update.php';
+        exit;
+    }
+}
 
 // Authoritative server-side date validation (Asia/Manila)
 $todayManila = date('Y-m-d');
@@ -25,6 +43,12 @@ if (!empty($eventDate)) {
     $d = DateTime::createFromFormat('Y-m-d', $eventDate);
     // Rule: event_date > today's date (earliest allowed date is tomorrow)
     if (!$d || $d->format('Y-m-d') !== $eventDate || $eventDate <= $todayManila) {
+        if ($isAjax) {
+            http_response_code(400);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error_code' => 'past_date', 'error' => 'Event date cannot be in the past.']);
+            exit;
+        }
         header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=past_date");
         exit;
     }
@@ -69,6 +93,12 @@ if ($action === 'submit') {
     if ($startTime !== '' && $endTime !== '') {
         $timeCheck = validateScheduleTimeRange($startTime, $endTime, false);
         if (!$timeCheck['valid']) {
+            if ($isAjax) {
+                http_response_code(400);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error_code' => 'invalid_time', 'error' => 'Invalid time range.']);
+                exit;
+            }
             header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_time");
             exit;
         }
@@ -106,6 +136,17 @@ if ($action === 'submit') {
     $specificObjectives = isset($_POST['specific_objectives']) && is_string($_POST['specific_objectives']) ? trim($_POST['specific_objectives']) : '';
     $rationale          = isset($_POST['rationale']) && is_string($_POST['rationale']) ? trim($_POST['rationale']) : '';
     $targetParticipants = isset($_POST['target_participants']) ? trim((string)$_POST['target_participants']) : '';
+    $partCounts = $_POST['part_count'] ?? $_POST['participant_count'] ?? [];
+    if (is_array($partCounts) && !empty($partCounts)) {
+        $sumParticipants = 0;
+        foreach ($partCounts as $pc) {
+            $sumParticipants += max(0, (int)$pc);
+        }
+        if ($sumParticipants > 0) {
+            $targetParticipants = (string)$sumParticipants;
+            $_POST['target_participants'] = $sumParticipants;
+        }
+    }
 
     if (
         $title === '' ||
@@ -248,6 +289,38 @@ if ($action === 'submit' && $floorPlanRequired) {
     }
 }
 
+// Server-side validation for test scores and actual attendees
+if (!empty($_POST['part_pre_test']) && is_array($_POST['part_pre_test'])) {
+    foreach ($_POST['part_pre_test'] as $score) {
+        if ($score !== '' && $score !== null) {
+            if (!is_numeric($score) || (float)$score < 0 || (float)$score > 999.99) {
+                header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_score");
+                exit;
+            }
+        }
+    }
+}
+if (!empty($_POST['part_post_test']) && is_array($_POST['part_post_test'])) {
+    foreach ($_POST['part_post_test'] as $score) {
+        if ($score !== '' && $score !== null) {
+            if (!is_numeric($score) || (float)$score < 0 || (float)$score > 999.99) {
+                header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_score");
+                exit;
+            }
+        }
+    }
+}
+if (!empty($_POST['part_actual_attendees']) && is_array($_POST['part_actual_attendees'])) {
+    foreach ($_POST['part_actual_attendees'] as $att) {
+        if ($att !== '' && $att !== null) {
+            if (!is_numeric($att) || (int)$att < 0) {
+                header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_score");
+                exit;
+            }
+        }
+    }
+}
+
 $newlyCreatedDiskPath = null;
 
 try {
@@ -260,28 +333,102 @@ try {
          evaluation_method,source,status,submitted_at,evaluation_questions)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 
-    $stmt->execute([
-        $user['id'],
-        sanitize($_POST['title'] ?? ''),
-        sanitize($_POST['description'] ?? ''),
-        sanitize($_POST['theme'] ?? ''),
-        sanitize($_POST['venue'] ?? ''),
-        sanitize($_POST['venue_address'] ?? ''),
-        $saveEventDate,
-        $saveStartTime,
-        $saveEndTime,
-        (int)($_POST['target_participants'] ?? 0),
-        sanitize($_POST['general_objectives'] ?? ''),
-        sanitize($_POST['specific_objectives'] ?? ''),
-        sanitize($_POST['involved_subjects'] ?? ''),
-        sanitize($_POST['rationale'] ?? ''),
-        sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? '')),
-        $_POST['source'] ?? 'faculty',
-        $status,
-        ($status === 'submitted') ? date('Y-m-d H:i:s') : null,
-        $_POST['evaluation_questions'] ?? null,
-    ]);
-    $actId = $db->lastInsertId();
+        $saveTargetParticipants = (int)($_POST['target_participants'] ?? 0);
+        $partCounts = $_POST['part_count'] ?? $_POST['participant_count'] ?? [];
+        if (is_array($partCounts) && !empty($partCounts)) {
+            $sumParticipants = 0;
+            foreach ($partCounts as $pc) {
+                $sumParticipants += max(0, (int)$pc);
+            }
+            if ($sumParticipants > 0 || $saveTargetParticipants <= 0) {
+                $saveTargetParticipants = $sumParticipants;
+            }
+        }
+
+        $stmt->execute([
+            $user['id'],
+            sanitize($_POST['title'] ?? ''),
+            sanitize($_POST['description'] ?? ''),
+            sanitize($_POST['theme'] ?? ''),
+            sanitize($_POST['venue'] ?? ''),
+            sanitize($_POST['venue_address'] ?? ''),
+            $saveEventDate,
+            $saveStartTime,
+            $saveEndTime,
+            $saveTargetParticipants,
+            sanitize($_POST['general_objectives'] ?? ''),
+            sanitize($_POST['specific_objectives'] ?? ''),
+            sanitize($_POST['involved_subjects'] ?? ''),
+            sanitize($_POST['rationale'] ?? ''),
+            sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? '')),
+            $_POST['source'] ?? 'faculty',
+            $status,
+            ($status === 'submitted') ? date('Y-m-d H:i:s') : null,
+            $_POST['evaluation_questions'] ?? null,
+        ]);
+        $actId = $db->lastInsertId();
+
+        // 1b. Target Participants (dynamic sections)
+        $sections = $_POST['part_section'] ?? $_POST['participant_section'] ?? [];
+        $counts   = $_POST['part_count'] ?? $_POST['participant_count'] ?? [];
+        $teachers = $_POST['part_teacher'] ?? $_POST['participant_teacher'] ?? [];
+        $actuals  = $_POST['part_actual_attendees'] ?? [];
+        $preTests = $_POST['part_pre_test'] ?? [];
+        $postTests= $_POST['part_post_test'] ?? [];
+
+        if (!empty($sections) || !empty($counts)) {
+            try {
+                $db->exec("CREATE TABLE IF NOT EXISTS activity_participants (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    activity_id INT NOT NULL,
+                    row_no INT NOT NULL DEFAULT 1,
+                    subject_section VARCHAR(255) NOT NULL DEFAULT '',
+                    participants_count INT NOT NULL DEFAULT 0,
+                    actual_attendees INT NULL DEFAULT NULL,
+                    pre_test_score DECIMAL(5,2) NULL DEFAULT NULL,
+                    post_test_score DECIMAL(5,2) NULL DEFAULT NULL,
+                    learning_kpi_result VARCHAR(100) NULL DEFAULT NULL,
+                    teacher_name VARCHAR(255) NOT NULL DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_activity_id (activity_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                $colCheck = $db->query("SHOW COLUMNS FROM activity_participants LIKE 'actual_attendees'")->fetch();
+                $hasKpiCols = (bool)$colCheck;
+
+                if ($hasKpiCols) {
+                    $pStmt = $db->prepare("INSERT INTO activity_participants (activity_id, row_no, subject_section, participants_count, actual_attendees, pre_test_score, post_test_score, learning_kpi_result, teacher_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                } else {
+                    $pStmt = $db->prepare("INSERT INTO activity_participants (activity_id, row_no, subject_section, participants_count, teacher_name) VALUES (?, ?, ?, ?, ?)");
+                }
+
+                $rowNo = 1;
+                foreach ($sections as $i => $sec) {
+                    $secText = sanitize($sec ?? '');
+                    $cntNum  = max(0, (int)($counts[$i] ?? 0));
+                    $tName   = sanitize($teachers[$i] ?? '');
+                    $actVal  = (isset($actuals[$i]) && $actuals[$i] !== '' && is_numeric($actuals[$i])) ? max(0, (int)$actuals[$i]) : null;
+                    $preVal  = (isset($preTests[$i]) && $preTests[$i] !== '' && is_numeric($preTests[$i])) ? (float)$preTests[$i] : null;
+                    $postVal = (isset($postTests[$i]) && $postTests[$i] !== '' && is_numeric($postTests[$i])) ? (float)$postTests[$i] : null;
+                    $kpiOutcome = null;
+                    if ($preVal !== null && $postVal !== null) {
+                        $diff = $postVal - $preVal;
+                        $kpiOutcome = ($diff >= 0 ? '+' : '') . number_format($diff, 1) . ' pts';
+                    }
+
+                    if ($secText !== '' || $cntNum > 0 || $tName !== '' || $actVal !== null || $preVal !== null || $postVal !== null) {
+                        if ($hasKpiCols) {
+                            $pStmt->execute([$actId, $rowNo++, $secText, $cntNum, $actVal, $preVal, $postVal, $kpiOutcome, $tName]);
+                        } else {
+                            $pStmt->execute([$actId, $rowNo++, $secText, $cntNum, $tName]);
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                error_log("Error saving activity_participants in proposal-save: " . $e->getMessage());
+            }
+        }
 
     // Safely persist floor plan requirement if the schema column exists
     try {
@@ -525,6 +672,24 @@ try {
 
     $db->commit();
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // Collaborative Setup: Register Owner and Log Initial Creation (Task 14)
+    // ══════════════════════════════════════════════════════════════════════════
+    try {
+        $ownerCollab = $db->prepare("
+            INSERT INTO proposal_collaborators (activity_id, user_id, role, added_by, status)
+            VALUES (?, ?, 'owner', ?, 'active')
+            ON DUPLICATE KEY UPDATE role = 'owner', status = 'active'
+        ");
+        $ownerCollab->execute([$actId, (int)$user['id'], (int)$user['id']]);
+
+        $actionDesc = ($status === 'submitted') ? 'submitted_proposal' : 'created_proposal';
+        $detailsDesc = ($status === 'submitted') ? 'Created and submitted proposal for approval' : 'Created initial activity proposal draft';
+        logProposalContribution($actId, (int)$user['id'], $actionDesc, 'Event Details', $detailsDesc, $db);
+    } catch (\Throwable $collabEx) {
+        error_log("Collaborator registration notice: " . $collabEx->getMessage());
+    }
+
     // Automatically generate and archive proposal PDF snapshot to OneDrive upon submission
     if ($status === 'submitted') {
         try {
@@ -571,6 +736,19 @@ try {
         }
     }
 
+    if ($isAjax) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success'     => true,
+            'activity_id' => $actId,
+            'status'      => $status,
+            'message'     => 'Proposal draft saved successfully.',
+            'updated_at'  => date('Y-m-d H:i:s'),
+            'title'       => sanitize($_POST['title'] ?? '')
+        ]);
+        exit;
+    }
+
     header("Location: " . BASE_URL . "/faculty/dashboard.php?saved=1");
     exit;
 
@@ -594,6 +772,15 @@ try {
         } catch (\Throwable $rollEx) {
             error_log("Failed to clean up orphaned floor plan on creation rollback: " . $rollEx->getMessage());
         }
+    }
+    if ($isAjax) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Server error saving proposal: ' . $e->getMessage()
+        ]);
+        exit;
     }
     header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=1");
     exit;

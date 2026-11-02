@@ -1067,7 +1067,11 @@ if (empty($recent_all)) {
     </div>
   </header>
     <div class="content">
-    <div class="dashboard-layout">
+
+      <!-- Role-Specific Dashboard Welcome Banner -->
+      <?php include __DIR__ . '/../includes/dashboard-welcome-banner.php'; ?>
+
+      <div class="dashboard-layout">
 
       <!-- Main Content Column (~68%) -->
       <div class="dashboard-main">

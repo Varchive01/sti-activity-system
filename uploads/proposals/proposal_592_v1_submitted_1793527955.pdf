@@ -1,0 +1,108 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> >>
+endobj
+7 0 obj
+<< /Length 4486 >>
+stream
+0.06 0.18 0.37 rg 40 770 532 5 re f
+0.96 0.62 0.04 rg 40 767 115 3 re f
+BT /F2 11 Tf 0.06 0.18 0.37 rg 40 748 Td (STI COLLEGE) Tj ET
+BT /F1 8.5 Tf 0.40 0.45 0.53 rg 115 748 Td (|  Activity Proposal Document  -  STI-ARMES) Tj ET
+BT /F2 8.5 Tf 0.06 0.18 0.37 rg 430 748 Td (PROPOSAL #592) Tj ET
+0.92 0.94 0.97 rg 505 744 67 14 re f
+0.82 0.85 0.90 RG 0.5 w 505 744 67 14 re s
+BT /F2 7.5 Tf 0.06 0.18 0.37 rg 510 748 Td (V1 SUBMITTED) Tj ET
+0.85 0.88 0.92 RG 0.5 w 40 736 m 572 736 l S
+0.06 0.18 0.37 rg 40 645 532 65 re f
+0.96 0.62 0.04 rg 40 645 5 65 re f
+BT /F2 13 Tf 1 1 1 rg 55 689 Td (IT Cybersecurity Boot Camp 1793527946 [Updated]) Tj ET
+BT /F3 9 Tf 0.85 0.90 0.96 rg 55 671 Td (Theme / Focus: Advancing Secure Computing and Resilient Systems) Tj ET
+BT /F1 8 Tf 0.80 0.84 0.92 rg 55 656 Td (Origin: Faculty Initiated Activity   |   Official Status: SUBMITTED) Tj ET
+0.94 0.96 0.98 rg 40 606 532 18 re f
+0.06 0.18 0.37 rg 40 606 3 18 re f
+BT /F2 9.5 Tf 0.06 0.18 0.37 rg 48 611 Td (1. ACTIVITY GENERAL INFORMATION) Tj ET
+BT /F2 8 Tf 0.40 0.45 0.53 rg 44 589 Td (VENUE / LOCATION:) Tj ET
+BT /F1 8.5 Tf 0.15 0.18 0.24 rg 135 589 Td (Computer Laboratory 3 & 4) Tj ET
+BT /F2 8 Tf 0.40 0.45 0.53 rg 310 589 Td (TARGET EVENT DATE:) Tj ET
+BT /F1 8.5 Tf 0.15 0.18 0.24 rg 401 589 Td (November 26, 2026) Tj ET
+0.90 0.92 0.95 RG 0.5 w 40 585 m 572 585 l S
+BT /F2 8 Tf 0.40 0.45 0.53 rg 44 570 Td (TIME SCHEDULE:) Tj ET
+BT /F1 8.5 Tf 0.15 0.18 0.24 rg 135 570 Td (09:00 AM - 05:00 PM) Tj ET
+BT /F2 8 Tf 0.40 0.45 0.53 rg 310 570 Td (LEAD PROPONENT:) Tj ET
+BT /F1 8.5 Tf 0.15 0.18 0.24 rg 401 570 Td (Dave Lord Rubaya) Tj ET
+0.90 0.92 0.95 RG 0.5 w 40 566 m 572 566 l S
+BT /F2 8 Tf 0.40 0.45 0.53 rg 44 551 Td (DEPARTMENT / UNIT:) Tj ET
+BT /F1 8.5 Tf 0.15 0.18 0.24 rg 135 551 Td (IT Department) Tj ET
+BT /F2 8 Tf 0.40 0.45 0.53 rg 310 551 Td (PROPOSAL SOURCE:) Tj ET
+BT /F1 8.5 Tf 0.15 0.18 0.24 rg 401 551 Td (Faculty Initiated) Tj ET
+0.90 0.92 0.95 RG 0.5 w 40 547 m 572 547 l S
+0.94 0.96 0.98 rg 40 519 532 18 re f
+0.06 0.18 0.37 rg 40 519 3 18 re f
+BT /F2 9.5 Tf 0.06 0.18 0.37 rg 48 524 Td (2. OBJECTIVES & RATIONALE) Tj ET
+BT /F2 8.5 Tf 0.06 0.18 0.37 rg 42 500 Td (General Objectives) Tj ET
+BT /F1 8.5 Tf 0.15 0.18 0.24 rg 50 488 Td (Equip students with practical modern cybersecurity defense techniques, ethical testing) Tj ET
+BT /F1 8.5 Tf 0.15 0.18 0.24 rg 50 476 Td (strategies, and industry standard server hardening methodologies.) Tj ET
+BT /F2 8.5 Tf 0.06 0.18 0.37 rg 42 456 Td (Specific Objectives) Tj ET
+BT /F1 8.5 Tf 0.15 0.18 0.24 rg 50 444 Td (Understand web penetration testing methodologies, configure firewall policies, deploy network) Tj ET
+BT /F1 8.5 Tf 0.15 0.18 0.24 rg 50 432 Td (intrusion detection systems, and analyze security audit logs in simulated environments.) Tj ET
+BT /F2 8.5 Tf 0.06 0.18 0.37 rg 42 412 Td (Rationale & Strategic Justification) Tj ET
+BT /F1 8.5 Tf 0.15 0.18 0.24 rg 50 400 Td (There is an urgent and critical high demand for qualified cybersecurity specialists in) Tj ET
+BT /F1 8.5 Tf 0.15 0.18 0.24 rg 50 388 Td (Philippine IT and enterprise cloud computing industries.) Tj ET
+0.94 0.96 0.98 rg 40 357 532 18 re f
+0.06 0.18 0.37 rg 40 357 3 18 re f
+BT /F2 9.5 Tf 0.06 0.18 0.37 rg 48 362 Td (8. INSTITUTIONAL ENDORSEMENT & APPROVALS) Tj ET
+0.96 0.97 0.99 rg 40 272 165 60 re f
+0.85 0.88 0.92 RG 0.5 w 40 272 165 60 re s
+BT /F2 7.5 Tf 0.40 0.45 0.53 rg 46 318 Td (PREPARED & SUBMITTED BY:) Tj ET
+BT /F2 8.5 Tf 0.06 0.18 0.37 rg 46 294 Td (Dave Lord Rubaya) Tj ET
+BT /F1 7.5 Tf 0.40 0.45 0.53 rg 46 282 Td (IT Department) Tj ET
+0.96 0.97 0.99 rg 223 272 165 60 re f
+0.85 0.88 0.92 RG 0.5 w 223 272 165 60 re s
+BT /F2 7.5 Tf 0.40 0.45 0.53 rg 229 318 Td (REVIEWED & ENDORSED BY:) Tj ET
+BT /F2 8.5 Tf 0.06 0.18 0.37 rg 229 294 Td (PENDING REVIEW) Tj ET
+BT /F1 7.5 Tf 0.40 0.45 0.53 rg 229 282 Td (Academic Admin / Student Affairs) Tj ET
+0.96 0.97 0.99 rg 406 272 165 60 re f
+0.85 0.88 0.92 RG 0.5 w 406 272 165 60 re s
+BT /F2 7.5 Tf 0.40 0.45 0.53 rg 412 318 Td (FINAL APPROVAL ACTION:) Tj ET
+BT /F2 8.5 Tf 0.40 0.45 0.53 rg 412 294 Td (UNDER EVALUATION) Tj ET
+BT /F1 7.5 Tf 0.40 0.45 0.53 rg 412 282 Td (Office of the Dean) Tj ET
+
+% --- Footer ---
+0.85 0.88 0.92 RG 0.5 w 40 45 m 572 45 l S
+BT /F1 7.5 Tf 0.40 0.45 0.53 rg 40 33 Td (STI-ARMES Proposal Snapshot  |  ID: #592 \(v1 Submitted\)) Tj ET
+BT /F1 7.5 Tf 0.40 0.45 0.53 rg 230 33 Td (Generated: 2026-11-01 18:12:35) Tj ET
+BT /F2 7.5 Tf 0.06 0.18 0.37 rg 525 33 Td (Page 1 of 1) Tj ET
+
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000185 00000 n 
+0000000260 00000 n 
+0000000338 00000 n 
+0000000484 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+5022
+%%EOF

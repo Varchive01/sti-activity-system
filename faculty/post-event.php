@@ -3,30 +3,53 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 $user = currentUser();
 $db   = getDB();
 
-// Approved activities without a post-event report
-$approved = $db->prepare("
-    SELECT a.* FROM activities a
-    LEFT JOIN post_event pe ON a.id = pe.activity_id
-    WHERE a.faculty_id=? AND a.status='approved' AND pe.id IS NULL
-    ORDER BY a.event_date DESC
-");
-$approved->execute([$user['id']]);
-$eligibleActivities = $approved->fetchAll();
+if ($user['role'] === 'program_head') {
+    $approved = $db->prepare("
+        SELECT a.* FROM activities a
+        JOIN users u ON a.faculty_id = u.id
+        LEFT JOIN post_event pe ON a.id = pe.activity_id
+        WHERE (u.department = ? OR a.faculty_id = ?) AND a.status='approved' AND pe.id IS NULL
+        ORDER BY a.event_date DESC
+    ");
+    $approved->execute([$user['dept'], $user['id']]);
+    $eligibleActivities = $approved->fetchAll();
 
-// Already submitted reports
-$submitted = $db->prepare("
-    SELECT a.title, a.event_date, pe.actual_attendance, pe.target_attendance, pe.satisfaction_score
-    FROM post_event pe
-    JOIN activities a ON pe.activity_id=a.id
-    WHERE a.faculty_id=?
-    ORDER BY pe.submitted_at DESC
-");
-$submitted->execute([$user['id']]);
-$reports = $submitted->fetchAll();
+    $submitted = $db->prepare("
+        SELECT a.title, a.event_date, pe.actual_attendance, pe.target_attendance, pe.satisfaction_score
+        FROM post_event pe
+        JOIN activities a ON pe.activity_id=a.id
+        JOIN users u ON a.faculty_id = u.id
+        WHERE (u.department = ? OR a.faculty_id = ?)
+        ORDER BY pe.submitted_at DESC
+    ");
+    $submitted->execute([$user['dept'], $user['id']]);
+    $reports = $submitted->fetchAll();
+} else {
+    // Approved activities without a post-event report
+    $approved = $db->prepare("
+        SELECT a.* FROM activities a
+        LEFT JOIN post_event pe ON a.id = pe.activity_id
+        WHERE a.faculty_id=? AND a.status='approved' AND pe.id IS NULL
+        ORDER BY a.event_date DESC
+    ");
+    $approved->execute([$user['id']]);
+    $eligibleActivities = $approved->fetchAll();
+
+    // Already submitted reports
+    $submitted = $db->prepare("
+        SELECT a.title, a.event_date, pe.actual_attendance, pe.target_attendance, pe.satisfaction_score
+        FROM post_event pe
+        JOIN activities a ON pe.activity_id=a.id
+        WHERE a.faculty_id=?
+        ORDER BY pe.submitted_at DESC
+    ");
+    $submitted->execute([$user['id']]);
+    $reports = $submitted->fetchAll();
+}
 
 $success    = isset($_GET['saved']);
 $selectedId = (int)($_GET['activity_id'] ?? 0);

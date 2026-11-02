@@ -6,6 +6,24 @@ require_once __DIR__ . '/../includes/functions.php';
 requireRole('dean');
 $db = getDB();
 $year = (int)($_GET['year'] ?? date('Y'));
+$deptFilter = sanitize($_GET['department'] ?? 'all');
+
+// Build department filter clause
+$deptWhere = "";
+$deptParams = [];
+if ($deptFilter && $deptFilter !== 'all') {
+    $norm = normalizeDepartmentName($deptFilter);
+    if ($norm === 'IT') {
+        $deptWhere = " AND (u.department = 'IT Department' OR u.department LIKE '%IT%' OR u.department LIKE '%Information Technology%')";
+    } elseif ($norm === 'THM') {
+        $deptWhere = " AND (u.department = 'THM Department' OR u.department LIKE '%THM%' OR u.department LIKE '%Hospitality%' OR u.department LIKE '%Tourism%')";
+    } elseif ($norm === 'GE') {
+        $deptWhere = " AND (u.department = 'G.E. Department' OR u.department LIKE '%G.E%' OR u.department LIKE '%General Education%')";
+    } else {
+        $deptWhere = " AND u.department = ?";
+        $deptParams[] = $deptFilter;
+    }
+}
 
 // All supported activity sources in STI-ARMES
 $supportedSources = [
@@ -13,18 +31,19 @@ $supportedSources = [
     'faculty'     => 'Faculty'
 ];
 
-// 1. KPI by Source (Eligible records: approved & completed activities for the selected year)
+// 1. KPI by Source (Eligible records: approved & completed activities for the selected year and department)
 $bySourceStmt = $db->prepare("
     SELECT 
         a.source, 
         AVG(k.rating) as avg_kpi, 
         COUNT(DISTINCT a.id) as cnt 
     FROM activities a 
+    JOIN users u ON a.faculty_id = u.id
     LEFT JOIN kpi_evaluations k ON a.id = k.activity_id 
-    WHERE YEAR(a.event_date) = ? AND a.status IN ('approved', 'completed') 
+    WHERE YEAR(a.event_date) = ? AND a.status IN ('approved', 'completed') $deptWhere
     GROUP BY a.source
 ");
-$bySourceStmt->execute([$year]);
+$bySourceStmt->execute(array_merge([$year], $deptParams));
 $rawBySource = $bySourceStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $sourceStats = [];
@@ -64,18 +83,18 @@ foreach ($rawBySource as $row) {
 
 // 2. Top Performing Events
 try {
-    $topPerfStmt = $db->prepare("SELECT a.title, a.event_date, u.name as fn, AVG(k.rating) as avg_kpi, pe.satisfaction_score, pe.actual_attendance, pe.target_attendance FROM activities a JOIN users u ON a.faculty_id=u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id LEFT JOIN post_event pe ON a.id=pe.activity_id WHERE YEAR(a.event_date)=? AND a.status IN ('approved', 'completed') GROUP BY a.id HAVING avg_kpi IS NOT NULL ORDER BY avg_kpi DESC LIMIT 10");
-    $topPerfStmt->execute([$year]);
+    $topPerfStmt = $db->prepare("SELECT a.title, a.event_date, u.name as fn, u.department as dept, AVG(k.rating) as avg_kpi, pe.satisfaction_score, pe.actual_attendance, pe.target_attendance FROM activities a JOIN users u ON a.faculty_id=u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id LEFT JOIN post_event pe ON a.id=pe.activity_id WHERE YEAR(a.event_date)=? AND a.status IN ('approved', 'completed') $deptWhere GROUP BY a.id HAVING avg_kpi IS NOT NULL ORDER BY avg_kpi DESC LIMIT 10");
+    $topPerfStmt->execute(array_merge([$year], $deptParams));
     $topPerf = $topPerfStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    $topPerfStmt = $db->prepare("SELECT a.title, a.event_date, u.name as fn, AVG(k.rating) as avg_kpi, NULL AS satisfaction_score, NULL AS actual_attendance, NULL AS target_attendance FROM activities a JOIN users u ON a.faculty_id=u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id LEFT JOIN post_event pe ON a.id=pe.activity_id WHERE YEAR(a.event_date)=? AND a.status IN ('approved', 'completed') GROUP BY a.id HAVING avg_kpi IS NOT NULL ORDER BY avg_kpi DESC LIMIT 10");
-    $topPerfStmt->execute([$year]);
+    $topPerfStmt = $db->prepare("SELECT a.title, a.event_date, u.name as fn, u.department as dept, AVG(k.rating) as avg_kpi, NULL AS satisfaction_score, NULL AS actual_attendance, NULL AS target_attendance FROM activities a JOIN users u ON a.faculty_id=u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id LEFT JOIN post_event pe ON a.id=pe.activity_id WHERE YEAR(a.event_date)=? AND a.status IN ('approved', 'completed') $deptWhere GROUP BY a.id HAVING avg_kpi IS NOT NULL ORDER BY avg_kpi DESC LIMIT 10");
+    $topPerfStmt->execute(array_merge([$year], $deptParams));
     $topPerf = $topPerfStmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 // 3. Monthly Activity Count (Use COUNT(DISTINCT a.id) to prevent duplicate counting on multiple evaluation rows)
-$monthlyStmt = $db->prepare("SELECT MONTH(a.event_date) as m, COUNT(DISTINCT a.id) as cnt, AVG(k.rating) as avg_kpi FROM activities a LEFT JOIN kpi_evaluations k ON a.id=k.activity_id WHERE YEAR(a.event_date)=? AND a.status IN ('approved','completed') GROUP BY MONTH(a.event_date) ORDER BY m");
-$monthlyStmt->execute([$year]);
+$monthlyStmt = $db->prepare("SELECT MONTH(a.event_date) as m, COUNT(DISTINCT a.id) as cnt, AVG(k.rating) as avg_kpi FROM activities a JOIN users u ON a.faculty_id = u.id LEFT JOIN kpi_evaluations k ON a.id=k.activity_id WHERE YEAR(a.event_date)=? AND a.status IN ('approved','completed') $deptWhere GROUP BY MONTH(a.event_date) ORDER BY m");
+$monthlyStmt->execute(array_merge([$year], $deptParams));
 $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
@@ -212,11 +231,21 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
       <div class="topbar-right">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <form method="GET" class="topbar-filter-form" style="display:flex;gap:8px;align-items:center;">
+          <select name="department" class="form-control" style="width:160px;">
+            <option value="all" <?= ($deptFilter === 'all' || empty($deptFilter)) ? 'selected' : '' ?>>All Departments</option>
+            <option value="IT Department" <?= ($deptFilter === 'IT Department' || $deptFilter === 'IT') ? 'selected' : '' ?>>IT Department</option>
+            <option value="G.E. Department" <?= ($deptFilter === 'G.E. Department' || $deptFilter === 'GE') ? 'selected' : '' ?>>G.E. Department</option>
+            <option value="THM Department" <?= ($deptFilter === 'THM Department' || $deptFilter === 'THM') ? 'selected' : '' ?>>THM Department</option>
+          </select>
           <select name="year" class="form-control" style="width:100px;">
             <?php foreach (range(date('Y'), date('Y') - 4) as $y): ?>
-              <option <?= $year === $y ? 'selected' : '' ?>><?= $y ?></option><?php endforeach; ?>
+              <option value="<?= $y ?>" <?= $year === $y ? 'selected' : '' ?>><?= $y ?></option>
+            <?php endforeach; ?>
           </select>
           <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+          <?php if ($deptFilter !== 'all' || $year !== (int)date('Y')): ?>
+            <a href="kpi-reports.php" class="btn btn-outline btn-sm">Reset</a>
+          <?php endif; ?>
         </form>
       <!-- User Profile Control -->
       <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
@@ -237,13 +266,15 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
               <select id="activity-selector" class="form-control">
                 <option value="">-- Choose a Completed / Approved Activity --</option>
                 <?php
-                // Fetch completed/approved activities for selector
-                $selectorStmt = $db->query("
-                    SELECT id, title, event_date, status 
-                    FROM activities 
-                    WHERE status IN ('completed', 'approved') 
-                    ORDER BY event_date DESC
+                // Fetch completed/approved activities for selector respecting department filter
+                $selectorStmt = $db->prepare("
+                    SELECT a.id, a.title, a.event_date, a.status 
+                    FROM activities a 
+                    JOIN users u ON a.faculty_id = u.id
+                    WHERE a.status IN ('completed', 'approved') $deptWhere
+                    ORDER BY a.event_date DESC
                 ");
+                $selectorStmt->execute($deptParams);
                 $selectorActs = $selectorStmt->fetchAll();
                 foreach ($selectorActs as $sa) {
                     echo '<option value="' . $sa['id'] . '">' . htmlspecialchars($sa['title']) . ' (' . date('M j, Y', strtotime($sa['event_date'])) . ')</option>';
@@ -369,7 +400,7 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
                   ?>
                     <tr>
                       <td style="text-align:center;font-size:1.1rem;"><?= $medal ?: $i + 1 ?></td>
-                      <td><strong><?= htmlspecialchars($tp['title']) ?></strong></td>
+                      <td><strong><?= htmlspecialchars($tp['title']) ?></strong><?php if (!empty($tp['dept'])): ?><br><span class="text-sm text-muted"><?= htmlspecialchars($tp['dept']) ?></span><?php endif; ?></td>
                       <td><?= htmlspecialchars($tp['fn']) ?></td>
                       <td><?= $tp['event_date'] ? date('M j, Y', strtotime($tp['event_date'])) : '—' ?></td>
                       <td><?php

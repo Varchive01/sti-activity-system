@@ -636,8 +636,10 @@ function renderAiEvaluationQuestions($jsonStr) {
         if (!is_array($q)) continue;
         $questionText = htmlspecialchars($q['question'] ?? '');
         $type = htmlspecialchars($q['type'] ?? 'rating');
-        $typeLabel = ($type === 'open_ended' || $type === 'text') ? 'Open-ended' : 'Rating Scale';
-        $badgeClass = ($type === 'open_ended' || $type === 'text') ? 'badge-secondary' : 'badge-info';
+        $isShort = ($type === 'short_answer' || $type === 'short-answer' || $type === 'short_text');
+        $isOpen = ($type === 'open_ended' || $type === 'text');
+        $typeLabel = $isShort ? 'Short Answer' : ($isOpen ? 'Open-ended' : 'Rating Scale');
+        $badgeClass = ($isShort || $isOpen) ? 'badge-secondary' : 'badge-info';
         
         $html .= '<div class="ai-question-item" style="padding: 12px; background: var(--bg-subtle, #f8f9fa); border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.01);">';
         $html .= '  <div style="display: flex; justify-content: space-between; align-items: center;">';
@@ -842,7 +844,7 @@ function checkProposalEscalations(PDO $db, ?int $userId = null, ?string $role = 
     }
 
     $params = [];
-    if ($role === 'faculty') {
+    if (in_array($role, ['faculty', 'program_head'], true)) {
         $sql = "
             SELECT id, faculty_id, title, status, source, updated_at 
             FROM activities 
@@ -1125,7 +1127,7 @@ function checkTaskProgressReminders(PDO $db, ?int $userId = null, ?string $role 
     if ($activityId !== null && $activityId > 0) {
         $whereClauses[] = "ft.activity_id = ?";
         $params[] = $activityId;
-    } elseif ($userId !== null && $userId > 0 && $role === 'faculty') {
+    } elseif ($userId !== null && $userId > 0 && in_array($role, ['faculty', 'program_head'], true)) {
         $whereClauses[] = "(a.faculty_id = ? OR ft.assigned_user_id = ?)";
         $params[] = $userId;
         $params[] = $userId;
@@ -1541,4 +1543,569 @@ function sendTaskAssignmentNotification(PDO $db, int $assignedUserId, int $activ
         return false;
     }
 }
+
+/**
+ * Normalizes department string for robust comparison across formats:
+ * - 'IT Department', 'IT', 'Information Technology Department' -> 'IT'
+ * - 'THM Department', 'THM', 'Hospitality and Tourism' -> 'THM'
+ * - 'G.E. Department', 'GE', 'General Education Department' -> 'GE'
+ */
+function normalizeDepartmentName(?string $dept): string
+{
+    if (!$dept) {
+        return '';
+    }
+    $clean = strtoupper(trim($dept));
+    if (str_contains($clean, 'THM') || str_contains($clean, 'HOSPITALITY') || str_contains($clean, 'TOURISM')) {
+        return 'THM';
+    }
+    if (str_contains($clean, 'GE') || str_contains($clean, 'G.E') || str_contains($clean, 'GENERAL')) {
+        return 'GE';
+    }
+    if (preg_match('/\b(IT|I\.T)\b/', $clean) || str_contains($clean, 'INFORMATION') || str_contains($clean, 'TECHNOLOGY')) {
+        return 'IT';
+    }
+    return $clean;
+}
+
+/**
+ * Check whether a user has permission to access (view or modify) an activity.
+ *
+ * Access Rules:
+ * - Dean, Admin 1, and Admin 2: Full access across departments for both 'view' and 'modify'.
+ * - Faculty:
+ *     - 'view': Allowed if user created the activity OR is assigned to any task in the activity.
+ *     - 'modify': Allowed ONLY if user created the activity.
+ * - Program Head:
+ *     - 'view': Allowed if the activity belongs to their department (created by a faculty in their department
+ *       or created by the program head), OR if the program head is assigned a task, OR if any faculty member
+ *       from their department is assigned a task in this activity (shared / cross-department activity).
+ *       Activities belonging exclusively to other departments are DENIED (false).
+ *     - 'modify': Allowed ONLY if the activity belongs to their department (created by a faculty in their department
+ *       or created by the program head). Modifying another department's activity is DENIED (false).
+ *
+ * @param int $activityId
+ * @param string $action 'view' or 'modify'
+ * @param int|null $userId
+ * @param string|null $userRole
+ * @param string|null $userDept
+ * @return bool
+ */
+function canUserAccessActivity(int $activityId, string $action = 'view', ?int $userId = null, ?string $userRole = null, ?string $userDept = null): bool
+{
+    if ($activityId <= 0) {
+        return false;
+    }
+
+    if ($userId === null || $userRole === null) {
+        if (function_exists('currentUser')) {
+            $cur = currentUser();
+            $userId   = $userId   ?? (int)($cur['id'] ?? 0);
+            $userRole = $userRole ?? ($cur['role'] ?? '');
+            $userDept = $userDept ?? ($cur['dept'] ?? '');
+        } else {
+            $userId   = $userId   ?? (int)($_SESSION['user_id'] ?? 0);
+            $userRole = $userRole ?? ($_SESSION['user_role'] ?? '');
+            $userDept = $userDept ?? ($_SESSION['user_dept'] ?? '');
+        }
+    }
+
+    if (!$userId || !$userRole) {
+        return false;
+    }
+
+    // 1. Dean, Admin 1, and Admin 2 have full institutional access across departments
+    if (in_array($userRole, ['dean', 'admin1', 'admin2'], true)) {
+        return true;
+    }
+
+    $db = function_exists('getDB') ? getDB() : ($GLOBALS['testDb'] ?? null);
+    if (!$db) {
+        return false;
+    }
+
+    // Fetch activity and creator details
+    $stmt = $db->prepare("
+        SELECT a.id, a.faculty_id, u.department AS creator_department
+        FROM activities a
+        LEFT JOIN users u ON a.faculty_id = u.id
+        WHERE a.id = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$activityId]);
+    $act = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$act) {
+        return false;
+    }
+
+    $creatorId = (int)$act['faculty_id'];
+    $creatorDept = (string)($act['creator_department'] ?? '');
+    $isCreator = ($creatorId === (int)$userId);
+
+    // 2. Faculty access rules
+    if ($userRole === 'faculty') {
+        if ($isCreator) {
+            return true;
+        }
+
+        // Active collaborator check (Co-Author or Contributor)
+        try {
+            $collabStmt = $db->prepare("
+                SELECT COUNT(*) FROM proposal_collaborators 
+                WHERE activity_id = ? AND user_id = ? AND status = 'active'
+            ");
+            $collabStmt->execute([$activityId, $userId]);
+            if ((int)$collabStmt->fetchColumn() > 0) {
+                return true;
+            }
+        } catch (\PDOException $e) {
+            // Fallback gracefully if table not yet migrated
+        }
+
+        if ($action === 'modify') {
+            return false;
+        }
+        // Action is 'view'
+        $taskStmt = $db->prepare("SELECT COUNT(*) FROM faculty_tasks WHERE activity_id = ? AND assigned_user_id = ?");
+        $taskStmt->execute([$activityId, $userId]);
+        return ((int)$taskStmt->fetchColumn() > 0);
+    }
+
+    // 3. Program Head access rules
+    if ($userRole === 'program_head') {
+        if (empty($userDept)) {
+            $uStmt = $db->prepare("SELECT department FROM users WHERE id = ? LIMIT 1");
+            $uStmt->execute([$userId]);
+            $userDept = (string)$uStmt->fetchColumn();
+        }
+
+        // Check if activity belongs to this Program Head's department
+        $deptMatches = false;
+        if (!empty($userDept) && !empty($creatorDept)) {
+            if (strcasecmp(trim($userDept), trim($creatorDept)) === 0) {
+                $deptMatches = true;
+            } else {
+                $normUser = normalizeDepartmentName($userDept);
+                $normCreator = normalizeDepartmentName($creatorDept);
+                if ($normUser !== '' && $normUser === $normCreator) {
+                    $deptMatches = true;
+                }
+            }
+        }
+
+        // Own activity or department activity
+        if ($isCreator || $deptMatches) {
+            return true;
+        }
+
+        // Active collaborator check
+        try {
+            $collabStmt = $db->prepare("
+                SELECT COUNT(*) FROM proposal_collaborators 
+                WHERE activity_id = ? AND user_id = ? AND status = 'active'
+            ");
+            $collabStmt->execute([$activityId, $userId]);
+            if ((int)$collabStmt->fetchColumn() > 0) {
+                return true;
+            }
+        } catch (\PDOException $e) {
+            // Fallback gracefully
+        }
+
+        // If action is modify and not in their department, strictly deny
+        if ($action === 'modify') {
+            return false;
+        }
+
+        // If action is view, check for shared / cross-department activity involvement
+        // Check if Program Head themselves is assigned to a task
+        $phTaskStmt = $db->prepare("SELECT COUNT(*) FROM faculty_tasks WHERE activity_id = ? AND assigned_user_id = ?");
+        $phTaskStmt->execute([$activityId, $userId]);
+        if ((int)$phTaskStmt->fetchColumn() > 0) {
+            return true;
+        }
+
+        // Check if any task in this activity is assigned to a faculty member in the Program Head's department
+        $sharedStmt = $db->prepare("
+            SELECT u.department
+            FROM faculty_tasks ft
+            JOIN users u ON ft.assigned_user_id = u.id
+            WHERE ft.activity_id = ?
+        ");
+        $sharedStmt->execute([$activityId]);
+        $tasks = $sharedStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $normUserDept = normalizeDepartmentName($userDept);
+        foreach ($tasks as $t) {
+            $tDept = (string)($t['department'] ?? '');
+            if (strcasecmp(trim($tDept), trim($userDept)) === 0) {
+                return true;
+            }
+            if ($normUserDept !== '' && normalizeDepartmentName($tDept) === $normUserDept) {
+                return true;
+            }
+        }
+
+        // Belonging exclusively to another department with no shared tasks -> strictly deny
+        return false;
+    }
+
+    return false;
+}
+
+/**
+ * Require that the current user has permission to access an activity,
+ * otherwise respond with HTTP 403 Forbidden and terminate execution.
+ *
+ * @param int $activityId
+ * @param string $action 'view' or 'modify'
+ * @return void
+ */
+function requireActivityAccess(int $activityId, string $action = 'view'): void
+{
+    if (!canUserAccessActivity($activityId, $action)) {
+        http_response_code(403);
+        $isJson = (!empty($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json')) ||
+                  (!empty($_SERVER['CONTENT_TYPE']) && str_contains($_SERVER['CONTENT_TYPE'], 'application/json')) ||
+                  (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+                  (isset($_SERVER['REQUEST_URI']) && str_contains($_SERVER['REQUEST_URI'], '/api/'));
+
+        if ($isJson) {
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode([
+                'success' => false,
+                'error'   => 'Access denied: You do not have permission to ' . $action . ' this activity.'
+            ]);
+            exit;
+        }
+
+        die('Access denied: You do not have permission to ' . htmlspecialchars($action) . ' this activity.');
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COLLABORATIVE PROPOSAL FUNCTIONS (TASK 14)
+// ══════════════════════════════════════════════════════════════════════════════
+
+if (!function_exists('formatCollaboratorRole')) {
+    function formatCollaboratorRole(string $role): string {
+        switch (strtolower(trim($role))) {
+            case 'owner':
+                return 'Proposal Owner';
+            case 'co_author':
+            case 'co-author':
+                return 'Co-Author';
+            case 'contributor':
+            default:
+                return 'Contributor';
+        }
+    }
+}
+
+if (!function_exists('getProposalCollaborators')) {
+    /**
+     * Retrieves all collaborators for an activity, including the proposal owner.
+     */
+    function getProposalCollaborators(int $activityId, ?PDO $db = null): array {
+        if ($activityId <= 0) return [];
+        $db = $db ?? (function_exists('getDB') ? getDB() : null);
+        if (!$db) return [];
+
+        // 1. Get proposal owner from activities
+        $actStmt = $db->prepare("
+            SELECT a.id, a.faculty_id, a.status, u.name, u.email, u.department, u.role as system_role
+            FROM activities a
+            JOIN users u ON a.faculty_id = u.id
+            WHERE a.id = ?
+            LIMIT 1
+        ");
+        $actStmt->execute([$activityId]);
+        $owner = $actStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$owner) return [];
+
+        $collaborators = [];
+
+        // Add owner as the first collaborator
+        $collaborators[] = [
+            'id'             => 0,
+            'activity_id'    => $activityId,
+            'user_id'        => (int)$owner['faculty_id'],
+            'role'           => 'owner',
+            'role_label'     => 'Proposal Owner',
+            'name'           => $owner['name'],
+            'email'          => $owner['email'],
+            'department'     => $owner['department'],
+            'system_role'    => $owner['system_role'],
+            'added_by'       => (int)$owner['faculty_id'],
+            'added_by_name'  => $owner['name'],
+            'added_at'       => null,
+            'is_owner'       => true,
+            'can_remove'     => false,
+            'status'         => 'active'
+        ];
+
+        // 2. Fetch assigned collaborators from proposal_collaborators
+        try {
+            $collabStmt = $db->prepare("
+                SELECT pc.id, pc.activity_id, pc.user_id, pc.role, pc.added_by, pc.added_at, pc.status,
+                       u.name, u.email, u.department, u.role as system_role,
+                       ab.name as added_by_name
+                FROM proposal_collaborators pc
+                JOIN users u ON pc.user_id = u.id
+                LEFT JOIN users ab ON pc.added_by = ab.id
+                WHERE pc.activity_id = ? AND pc.status = 'active' AND pc.user_id != ?
+                ORDER BY pc.added_at ASC, pc.id ASC
+            ");
+            $collabStmt->execute([$activityId, (int)$owner['faculty_id']]);
+            $rows = $collabStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($rows as $r) {
+                $collaborators[] = [
+                    'id'             => (int)$r['id'],
+                    'activity_id'    => $activityId,
+                    'user_id'        => (int)$r['user_id'],
+                    'role'           => $r['role'],
+                    'role_label'     => formatCollaboratorRole($r['role']),
+                    'name'           => $r['name'],
+                    'email'          => $r['email'],
+                    'department'     => $r['department'],
+                    'system_role'    => $r['system_role'],
+                    'added_by'       => (int)$r['added_by'],
+                    'added_by_name'  => $r['added_by_name'] ?? 'System',
+                    'added_at'       => $r['added_at'],
+                    'is_owner'       => false,
+                    'can_remove'     => true,
+                    'status'         => $r['status']
+                ];
+            }
+        } catch (\PDOException $e) {
+            // Fallback gracefully
+        }
+
+        return $collaborators;
+    }
+}
+
+if (!function_exists('isProposalCollaborator')) {
+    function isProposalCollaborator(int $activityId, int $userId, ?PDO $db = null): bool {
+        if ($activityId <= 0 || $userId <= 0) return false;
+        $db = $db ?? (function_exists('getDB') ? getDB() : null);
+        if (!$db) return false;
+
+        $actStmt = $db->prepare("SELECT faculty_id FROM activities WHERE id = ? LIMIT 1");
+        $actStmt->execute([$activityId]);
+        $ownerId = (int)$actStmt->fetchColumn();
+        if ($ownerId === $userId) return true;
+
+        try {
+            $stmt = $db->prepare("SELECT COUNT(*) FROM proposal_collaborators WHERE activity_id = ? AND user_id = ? AND status = 'active'");
+            $stmt->execute([$activityId, $userId]);
+            return ((int)$stmt->fetchColumn() > 0);
+        } catch (\PDOException $e) {
+            return false;
+        }
+    }
+}
+
+if (!function_exists('getProposalUserRole')) {
+    function getProposalUserRole(int $activityId, int $userId, ?PDO $db = null): ?string {
+        if ($activityId <= 0 || $userId <= 0) return null;
+        $db = $db ?? (function_exists('getDB') ? getDB() : null);
+        if (!$db) return null;
+
+        $actStmt = $db->prepare("SELECT faculty_id FROM activities WHERE id = ? LIMIT 1");
+        $actStmt->execute([$activityId]);
+        $ownerId = (int)$actStmt->fetchColumn();
+        if ($ownerId === $userId) return 'owner';
+
+        try {
+            $stmt = $db->prepare("SELECT role FROM proposal_collaborators WHERE activity_id = ? AND user_id = ? AND status = 'active' LIMIT 1");
+            $stmt->execute([$activityId, $userId]);
+            $role = $stmt->fetchColumn();
+            return $role ?: null;
+        } catch (\PDOException $e) {
+            return null;
+        }
+    }
+}
+
+if (!function_exists('addProposalCollaborator')) {
+    function addProposalCollaborator(int $activityId, int $targetUserId, string $role, int $addedBy, ?PDO $db = null): array {
+        $db = $db ?? (function_exists('getDB') ? getDB() : null);
+        if (!$db) return ['success' => false, 'error' => 'Database unavailable.'];
+
+        // 1. Validate activity
+        $actStmt = $db->prepare("SELECT id, faculty_id, title, status FROM activities WHERE id = ? LIMIT 1");
+        $actStmt->execute([$activityId]);
+        $activity = $actStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$activity) {
+            return ['success' => false, 'error' => 'Activity proposal not found.'];
+        }
+
+        // Only editable proposals can have collaborators added
+        if (!in_array($activity['status'], ['draft', 'returned_for_revision'], true)) {
+            return ['success' => false, 'error' => 'Cannot add collaborators: This proposal is currently locked under review or completed.'];
+        }
+
+        // Only proposal owner or authorized role can add collaborators
+        $ownerId = (int)$activity['faculty_id'];
+        $userRole = null;
+        if (function_exists('currentUser')) {
+            $cur = currentUser();
+            $userRole = $cur['role'] ?? null;
+        }
+        $isAuthorizedAdder = ($addedBy === $ownerId || in_array($userRole, ['program_head', 'dean', 'admin1', 'admin2'], true));
+        if (!$isAuthorizedAdder) {
+            return ['success' => false, 'error' => 'Unauthorized: Only the proposal owner may add contributors.'];
+        }
+
+        // 2. Validate target user
+        $uStmt = $db->prepare("SELECT id, name, role, department FROM users WHERE id = ? LIMIT 1");
+        $uStmt->execute([$targetUserId]);
+        $targetUser = $uStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$targetUser) {
+            return ['success' => false, 'error' => 'Target user account not found.'];
+        }
+
+        // Only valid faculty accounts may be invited as contributors
+        if (!in_array($targetUser['role'], ['faculty', 'program_head'], true)) {
+            return ['success' => false, 'error' => 'Only valid faculty members may be invited as proposal contributors.'];
+        }
+
+        // Target user cannot be the owner
+        if ($targetUserId === $ownerId) {
+            return ['success' => false, 'error' => 'The proposal owner is already the primary author of this activity.'];
+        }
+
+        // Role normalization
+        $allowedRoles = ['co_author', 'contributor'];
+        $cleanRole = in_array(strtolower($role), $allowedRoles, true) ? strtolower($role) : 'contributor';
+
+        // 3. Prevent duplicate active collaborators
+        $checkStmt = $db->prepare("SELECT id, status, role FROM proposal_collaborators WHERE activity_id = ? AND user_id = ? LIMIT 1");
+        $checkStmt->execute([$activityId, $targetUserId]);
+        $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($existing && $existing['status'] === 'active') {
+            return ['success' => false, 'error' => "{$targetUser['name']} is already an active collaborator on this proposal."];
+        }
+
+        if ($existing) {
+            // Re-activate previously removed collaborator
+            $upd = $db->prepare("UPDATE proposal_collaborators SET role = ?, added_by = ?, added_at = NOW(), status = 'active' WHERE id = ?");
+            $upd->execute([$cleanRole, $addedBy, $existing['id']]);
+        } else {
+            // Insert new collaborator
+            $ins = $db->prepare("
+                INSERT INTO proposal_collaborators (activity_id, user_id, role, added_by, status)
+                VALUES (?, ?, ?, ?, 'active')
+            ");
+            $ins->execute([$activityId, $targetUserId, $cleanRole, $addedBy]);
+        }
+
+        // 4. Log contribution
+        $roleLabel = formatCollaboratorRole($cleanRole);
+        logProposalContribution($activityId, $addedBy, 'added_collaborator', 'Collaborators', "Added {$targetUser['name']} as {$roleLabel}", $db);
+
+        return [
+            'success'    => true,
+            'message'    => "Successfully added {$targetUser['name']} as {$roleLabel}.",
+            'user_id'    => $targetUserId,
+            'name'       => $targetUser['name'],
+            'role'       => $cleanRole,
+            'role_label' => $roleLabel
+        ];
+    }
+}
+
+if (!function_exists('removeProposalCollaborator')) {
+    function removeProposalCollaborator(int $activityId, int $targetUserId, int $removedBy, ?PDO $db = null): array {
+        $db = $db ?? (function_exists('getDB') ? getDB() : null);
+        if (!$db) return ['success' => false, 'error' => 'Database unavailable.'];
+
+        $actStmt = $db->prepare("SELECT id, faculty_id, status FROM activities WHERE id = ? LIMIT 1");
+        $actStmt->execute([$activityId]);
+        $activity = $actStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$activity) {
+            return ['success' => false, 'error' => 'Activity proposal not found.'];
+        }
+
+        if (!in_array($activity['status'], ['draft', 'returned_for_revision'], true)) {
+            return ['success' => false, 'error' => 'Cannot remove collaborators: This proposal is currently locked under review or completed.'];
+        }
+
+        $ownerId = (int)$activity['faculty_id'];
+        $userRole = null;
+        if (function_exists('currentUser')) {
+            $cur = currentUser();
+            $userRole = $cur['role'] ?? null;
+        }
+        $isAuthorizedRemover = ($removedBy === $ownerId || in_array($userRole, ['program_head', 'dean', 'admin1', 'admin2'], true));
+        if (!$isAuthorizedRemover) {
+            return ['success' => false, 'error' => 'Unauthorized: Only the proposal owner may remove collaborators.'];
+        }
+
+        if ($targetUserId === $ownerId) {
+            return ['success' => false, 'error' => 'The proposal owner cannot be removed from their own activity.'];
+        }
+
+        // Fetch user name for log
+        $uStmt = $db->prepare("SELECT name FROM users WHERE id = ? LIMIT 1");
+        $uStmt->execute([$targetUserId]);
+        $targetName = $uStmt->fetchColumn() ?: 'Faculty member';
+
+        $del = $db->prepare("UPDATE proposal_collaborators SET status = 'removed' WHERE activity_id = ? AND user_id = ?");
+        $del->execute([$activityId, $targetUserId]);
+
+        logProposalContribution($activityId, $removedBy, 'removed_collaborator', 'Collaborators', "Removed {$targetName} from proposal collaborators", $db);
+
+        return [
+            'success' => true,
+            'message' => "Successfully removed {$targetName} from proposal collaborators."
+        ];
+    }
+}
+
+if (!function_exists('logProposalContribution')) {
+    function logProposalContribution(int $activityId, int $userId, string $action, ?string $section = null, ?string $details = null, ?PDO $db = null): bool {
+        if ($activityId <= 0 || $userId <= 0) return false;
+        $db = $db ?? (function_exists('getDB') ? getDB() : null);
+        if (!$db) return false;
+
+        try {
+            $collabRole = getProposalUserRole($activityId, $userId, $db) ?: 'contributor';
+            $ins = $db->prepare("
+                INSERT INTO proposal_contribution_logs (activity_id, user_id, user_role, action, section, details)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ");
+            return $ins->execute([$activityId, $userId, $collabRole, $action, $section, $details]);
+        } catch (\PDOException $e) {
+            return false;
+        }
+    }
+}
+
+if (!function_exists('getProposalContributionLogs')) {
+    function getProposalContributionLogs(int $activityId, int $limit = 50, ?PDO $db = null): array {
+        if ($activityId <= 0) return [];
+        $db = $db ?? (function_exists('getDB') ? getDB() : null);
+        if (!$db) return [];
+
+        try {
+            $stmt = $db->prepare("
+                SELECT pcl.*, u.name as user_name, u.department as user_department
+                FROM proposal_contribution_logs pcl
+                JOIN users u ON pcl.user_id = u.id
+                WHERE pcl.activity_id = ?
+                ORDER BY pcl.created_at DESC, pcl.id DESC
+                LIMIT " . (int)$limit . "
+            ");
+            $stmt->execute([$activityId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            return [];
+        }
+    }
+}
+
 

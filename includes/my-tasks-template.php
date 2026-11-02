@@ -16,7 +16,8 @@ if (!function_exists('calculateTaskTiming')) {
                 'key'      => 'Completed',
                 'label'    => 'Completed',
                 'badge'    => '<span class="badge badge-success" style="background:#10b981;color:#fff;">Completed</span>',
-                'color'    => '#10b981'
+                'color'    => '#10b981',
+                'bg_light' => 'rgba(16, 185, 129, 0.12)'
             ];
         }
 
@@ -27,7 +28,8 @@ if (!function_exists('calculateTaskTiming')) {
                 'key'      => 'Delayed',
                 'label'    => 'Delayed',
                 'badge'    => '<span class="badge badge-danger" style="background:#ef4444;color:#fff;">Delayed (Overdue)</span>',
-                'color'    => '#ef4444'
+                'color'    => '#ef4444',
+                'bg_light' => 'rgba(239, 68, 68, 0.14)'
             ];
         }
 
@@ -36,7 +38,8 @@ if (!function_exists('calculateTaskTiming')) {
                 'key'      => 'Delayed',
                 'label'    => 'Delayed',
                 'badge'    => '<span class="badge badge-danger" style="background:#ef4444;color:#fff;">Delayed</span>',
-                'color'    => '#ef4444'
+                'color'    => '#ef4444',
+                'bg_light' => 'rgba(239, 68, 68, 0.14)'
             ];
         }
 
@@ -47,7 +50,8 @@ if (!function_exists('calculateTaskTiming')) {
                     'key'      => 'At Risk',
                     'label'    => 'At Risk',
                     'badge'    => '<span class="badge badge-warning" style="background:#f59e0b;color:#fff;">At Risk (' . $diffDays . 'd left)</span>',
-                    'color'    => '#f59e0b'
+                    'color'    => '#f59e0b',
+                    'bg_light' => 'rgba(245, 158, 11, 0.14)'
                 ];
             }
         }
@@ -56,29 +60,62 @@ if (!function_exists('calculateTaskTiming')) {
             'key'      => 'On Track',
             'label'    => 'On Track',
             'badge'    => '<span class="badge badge-primary" style="background:#0284c7;color:#fff;">On Track</span>',
-            'color'    => '#0284c7'
+            'color'    => '#0284c7',
+            'bg_light' => 'rgba(2, 132, 199, 0.12)'
         ];
     }
 }
 
-// Filters (Strictly scoped to session user)
-$searchFilter = sanitize($_GET['q'] ?? '');
-$statusFilter = sanitize($_GET['status'] ?? '');
+// Filters (Strictly scoped to session user or department if program_head)
+$searchFilter   = sanitize($_GET['q'] ?? '');
+$statusFilter   = sanitize($_GET['status'] ?? '');
+$timingFilter   = sanitize($_GET['timing'] ?? '');
+$activityFilter = (int)($_GET['activity_id'] ?? 0);
 
-$sql = "
-    SELECT ft.*,
-           a.id as activity_id,
-           a.title as activity_title,
-           a.event_date,
-           a.status as activity_status,
-           u.name as leader_name,
-           u.department as leader_dept
-    FROM faculty_tasks ft
-    JOIN activities a ON ft.activity_id = a.id
-    JOIN users u ON a.faculty_id = u.id
-    WHERE ft.assigned_user_id = ?
-";
-$params = [(int)$user['id']];
+$isPH = (($user['role'] ?? '') === 'program_head');
+if ($isPH) {
+    $userDept = $user['dept'] ?? ($user['department'] ?? '');
+    $sql = "
+        SELECT ft.*,
+               a.id as activity_id,
+               a.title as activity_title,
+               a.event_date,
+               a.status as activity_status,
+               u.name as leader_name,
+               u.department as leader_dept,
+               au.name as assigned_to_name,
+               au.department as assigned_to_dept
+        FROM faculty_tasks ft
+        JOIN activities a ON ft.activity_id = a.id
+        JOIN users u ON a.faculty_id = u.id
+        LEFT JOIN users au ON ft.assigned_user_id = au.id
+        WHERE (u.department = ? OR au.department = ? OR ft.assigned_user_id = ? OR a.faculty_id = ?)
+    ";
+    $params = [$userDept, $userDept, (int)$user['id'], (int)$user['id']];
+} else {
+    $sql = "
+        SELECT ft.*,
+               a.id as activity_id,
+               a.title as activity_title,
+               a.event_date,
+               a.status as activity_status,
+               u.name as leader_name,
+               u.department as leader_dept,
+               au.name as assigned_to_name,
+               au.department as assigned_to_dept
+        FROM faculty_tasks ft
+        JOIN activities a ON ft.activity_id = a.id
+        JOIN users u ON a.faculty_id = u.id
+        LEFT JOIN users au ON ft.assigned_user_id = au.id
+        WHERE ft.assigned_user_id = ?
+    ";
+    $params = [(int)$user['id']];
+}
+
+if ($activityFilter > 0) {
+    $sql .= " AND ft.activity_id = ?";
+    $params[] = $activityFilter;
+}
 
 if ($searchFilter !== '') {
     $sql .= " AND (ft.task_title LIKE ? OR ft.assigned_task LIKE ? OR a.title LIKE ?)";
@@ -96,11 +133,85 @@ $sql .= " ORDER BY ft.due_date ASC, ft.id DESC";
 
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
-$tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$rawTasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Metrics calculation strictly for this authenticated user
-$allTasksStmt = $db->prepare("SELECT status, due_date FROM faculty_tasks WHERE assigned_user_id = ?");
-$allTasksStmt->execute([(int)$user['id']]);
+// Process & Enrich Rows for Gantt & Table views
+$enrichedTasks  = [];
+$activitiesList = [];
+
+foreach ($rawTasks as $r) {
+    $actId = (int)$r['activity_id'];
+    $activitiesList[$actId] = $r['activity_title'];
+
+    $tTitle  = $r['task_title'] ?: ($r['assigned_task'] ?: 'Untitled Task');
+    $tDesc   = $r['task_description'] ?: ($r['contribution_desc'] ?: '');
+    $tMember = !empty($r['assigned_to_name']) ? $r['assigned_to_name'] : (!empty($r['faculty_name']) ? $r['faculty_name'] : 'Unassigned');
+    $tRole   = $r['role_in_event'] ?: '—';
+    $tDue    = !empty($r['due_date']) ? date('Y-m-d', strtotime($r['due_date'])) : null;
+    $tStatus = in_array($r['status'], ['Not Started', 'In Progress', 'Completed', 'Delayed']) ? $r['status'] : 'Not Started';
+    $tPct    = max(0, min(100, (int)($r['completion_pct'] ?? 0)));
+    $timing  = calculateTaskTiming($tStatus, $tDue);
+
+    $createdAtDate = !empty($r['created_at']) ? date('Y-m-d', strtotime($r['created_at'])) : date('Y-m-d');
+    $startDate     = $createdAtDate;
+    $endDate       = $tDue ?: (!empty($r['event_date']) ? date('Y-m-d', strtotime($r['event_date'])) : $createdAtDate);
+    if (strtotime($startDate) > strtotime($endDate)) {
+        $startDate = $endDate;
+    }
+
+    $item = [
+        'id'                  => (int)$r['id'],
+        'activity_id'         => $actId,
+        'activity_title'      => $r['activity_title'],
+        'activity_status'     => $r['activity_status'],
+        'leader_name'         => $r['leader_name'] ?? 'Faculty Leader',
+        'leader_dept'         => $r['leader_dept'] ?? '',
+        'task_title'          => $tTitle,
+        'task_description'    => $tDesc,
+        'committee'           => $r['committee'] ?: 'General',
+        'assigned_user_id'    => $r['assigned_user_id'] ? (int)$r['assigned_user_id'] : null,
+        'assigned_to_name'    => $r['assigned_to_name'] ?? null,
+        'assigned_to_dept'    => $r['assigned_to_dept'] ?? null,
+        'member'              => $tMember,
+        'role'                => $tRole,
+        'due_date'            => $tDue,
+        'start_date'          => $startDate,
+        'end_date'            => $endDate,
+        'status'              => $tStatus,
+        'completion_pct'      => $tPct,
+        'timing_key'          => $timing['key'],
+        'timing_label'        => $timing['label'],
+        'timing_badge'        => $timing['badge'],
+        'timing_color'        => $timing['color'],
+        'timing_bg'           => $timing['bg_light'],
+        'created_at'          => $r['created_at'],
+    ];
+
+    if ($timingFilter !== '' && $timing['key'] !== $timingFilter) {
+        continue;
+    }
+
+    $enrichedTasks[] = $item;
+}
+ksort($activitiesList);
+$tasks = $enrichedTasks;
+
+// Metrics calculation strictly for this authenticated user / department
+if ($isPH) {
+    $userDept = $user['dept'] ?? ($user['department'] ?? '');
+    $allTasksStmt = $db->prepare("
+        SELECT ft.status, ft.due_date 
+        FROM faculty_tasks ft
+        JOIN activities a ON ft.activity_id = a.id
+        JOIN users u ON a.faculty_id = u.id
+        LEFT JOIN users au ON ft.assigned_user_id = au.id
+        WHERE (u.department = ? OR au.department = ? OR ft.assigned_user_id = ? OR a.faculty_id = ?)
+    ");
+    $allTasksStmt->execute([$userDept, $userDept, (int)$user['id'], (int)$user['id']]);
+} else {
+    $allTasksStmt = $db->prepare("SELECT status, due_date FROM faculty_tasks WHERE assigned_user_id = ?");
+    $allTasksStmt->execute([(int)$user['id']]);
+}
 $allUserTasks = $allTasksStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $totalCount      = count($allUserTasks);
@@ -290,27 +401,74 @@ $allActivitiesBase = $allActivitiesBase ?? (BASE_URL . '/' . $role . '/activitie
       </div>
     </div>
 
+    <!-- Filters & View Jump Bar -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <a href="#ganttSection" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:4px;">
+          <span>📊</span> Gantt Timeline
+        </a>
+        <a href="#tableSection" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:4px;">
+          <span>📋</span> Task Records Table
+        </a>
+      </div>
+      <div style="font-size:0.82rem;color:var(--text-muted);font-weight:600;">
+        <?= count($tasks) ?> <?= count($tasks) === 1 ? 'task' : 'tasks' ?> listed
+      </div>
+    </div>
+
     <!-- Filters -->
     <form method="GET" class="filters" style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
-      <input type="text" name="q" class="form-control" placeholder="Search tasks or activities…" value="<?= htmlspecialchars($searchFilter) ?>" style="max-width:280px;">
-      <select name="status" class="form-control" style="max-width:180px;">
+      <input type="text" name="q" class="form-control" placeholder="Search tasks or activities…" value="<?= htmlspecialchars($searchFilter) ?>" style="max-width:220px;">
+      
+      <?php if (!empty($activitiesList)): ?>
+        <select name="activity_id" class="form-control" style="max-width:190px;">
+          <option value="">All Activities</option>
+          <?php foreach ($activitiesList as $aId => $aTitle): ?>
+            <option value="<?= $aId ?>" <?= $activityFilter === $aId ? 'selected' : '' ?>>
+              <?= htmlspecialchars(mb_strimwidth($aTitle, 0, 24, '...')) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      <?php endif; ?>
+
+      <select name="status" class="form-control" style="max-width:140px;">
         <option value="">All Statuses</option>
         <option value="Not Started" <?= $statusFilter === 'Not Started' ? 'selected' : '' ?>>Not Started</option>
         <option value="In Progress" <?= $statusFilter === 'In Progress' ? 'selected' : '' ?>>In Progress</option>
         <option value="Completed" <?= $statusFilter === 'Completed' ? 'selected' : '' ?>>Completed</option>
         <option value="Delayed" <?= $statusFilter === 'Delayed' ? 'selected' : '' ?>>Delayed</option>
       </select>
+
+      <select name="timing" class="form-control" style="max-width:140px;">
+        <option value="">All Timing</option>
+        <option value="Completed" <?= $timingFilter === 'Completed' ? 'selected' : '' ?>>Completed</option>
+        <option value="On Track" <?= $timingFilter === 'On Track' ? 'selected' : '' ?>>On Track</option>
+        <option value="At Risk" <?= $timingFilter === 'At Risk' ? 'selected' : '' ?>>At Risk</option>
+        <option value="Delayed" <?= $timingFilter === 'Delayed' ? 'selected' : '' ?>>Delayed</option>
+      </select>
+
       <button type="submit" class="btn btn-primary btn-sm">Filter</button>
-      <?php if ($searchFilter !== '' || $statusFilter !== ''): ?>
+      <?php if ($searchFilter !== '' || $statusFilter !== '' || $timingFilter !== '' || $activityFilter > 0): ?>
         <a href="tasks.php" class="btn btn-outline btn-sm">Clear</a>
       <?php endif; ?>
-      <span style="margin-left:auto;font-size:0.82rem;color:var(--text-muted);font-weight:600;">
-        <?= count($tasks) ?> <?= count($tasks) === 1 ? 'task' : 'tasks' ?> listed
-      </span>
     </form>
 
+    <!-- ── Task Timeline (Gantt Visualization) ── -->
+    <?php
+    $ganttTasks = $tasks;
+    $ganttOptions = [
+        'title'                 => 'Task Timeline (Gantt Visualization)',
+        'subtitle'              => $isPH ? ('Department Activity Timeline — ' . ($userDept ?: 'Department')) : 'Personal Assigned Tasks Timeline',
+        'viewActivityBase'      => $viewActivityBase,
+        'emptyMessage'          => ($searchFilter !== '' || $statusFilter !== '' || $timingFilter !== '' || $activityFilter > 0) ? 'No task assignments matching the current filter criteria.' : ($isPH ? 'No department task assignments found.' : 'You currently have no tasks assigned to you across any activity proposals.'),
+        'showNotice'            => true,
+        'canManageDeliverables' => true
+    ];
+    include __DIR__ . '/gantt-timeline-component.php';
+    ?>
+
     <!-- Table Card -->
-    <div class="tasks-table-card">
+    <div class="tasks-table-card" id="tableSection">
       <?php if (empty($tasks)): ?>
         <div class="empty-state-box">
           <div style="font-size: 2.6rem; margin-bottom: 10px;">📋</div>
@@ -374,6 +532,11 @@ $allActivitiesBase = $allActivitiesBase ?? (BASE_URL . '/' . $role . '/activitie
                     <div style="font-size: 0.75rem; color: var(--text-muted);">
                       Lead: <?= htmlspecialchars($t['leader_name'] ?? 'Faculty Leader') ?>
                     </div>
+                    <?php if (!empty($t['assigned_to_name']) && ($user['role'] ?? '') === 'program_head'): ?>
+                      <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+                        Assigned: <strong style="color: var(--text-main);"><?= htmlspecialchars($t['assigned_to_name']) ?></strong>
+                      </div>
+                    <?php endif; ?>
                   </td>
                   <td>
                     <span style="font-size: 0.82rem; font-weight: 600;">

@@ -3,11 +3,88 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 $user = currentUser();
 $db = getDB();
 $facultyUsersStmt = $db->query("SELECT id, name, department FROM users WHERE role = 'faculty' ORDER BY name ASC");
 $facultyUsers = $facultyUsersStmt ? $facultyUsersStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+
+$facultyDepartmentGroups = [
+  'THM Department' => [
+    'Mr. Aldwin D. Alminar, LPT',
+    'Ms. Andrea J. Gatbunton, LPT',
+    'Ms. Divine Grace E. Ibarrola, LPT',
+    'Ms. Mary Darlene A. Mariano, LPT',
+    'Ms. Julieta Caridad C. Cruz',
+    'Mr. Exequiel L. Magnipis',
+    'Mr. Frankie Chiu, RN, MBA'
+  ],
+  'Information Technology Department' => [
+    'Mr. Dave Lord M. Rubaya',
+    'Ms. Michelle Carlos, MAEd, LPT',
+    'Mr. Ar-Jay C. Agbayani',
+    'Ms. Emilou G. Magnaye, LPT',
+    'Mr. John Cedrick Agapito',
+    'Mr. Jedekiah Veloso',
+    'Mr. Shintaro Lagare',
+    'Mr. Geo V. De Leon',
+    'Ms. Johainna Kristel T. Montejo',
+    'Mr. Felmar Solbita',
+    'Mr. Michael André Sayson'
+  ],
+  'General Education Department' => [
+    'Mr. Tristan S. Unabia',
+    'Mr. Ian Jade C. Barangan, LPT',
+    'Mr. Eulysses Neil Patrick B. Edquilag, LPT',
+    'Mr. Gregg Anthony J. Rana',
+    'Mr. Ricky E. Manliguis, LPT',
+    'Ms. Regina Kate D. Dominguez, LPT',
+    'Mr. Benedicto A. Arnoco, LPT',
+    'Ms. Jennylyn Q. Abarra, MAEd PE, LPT',
+    'Ms. Ruby Ann G. Dasalla, LPT',
+    'Ms. Perine O. Dela Cruz, LPT'
+  ]
+];
+
+if (!function_exists('renderFacultyTaskOptgroups')) {
+  function renderFacultyTaskOptgroups(array $groups, array $facultyUsers = [], $selectedUserId = null, $selectedName = null): string {
+    $simplify = function(string $n): string {
+      $clean = preg_replace('/\b(Mr|Ms|Mrs|Dr|LPT|MAEd|PE|RN|MBA)\b\.?/i', '', $n);
+      return preg_replace('/[^a-zA-Z0-9]/', '', strtolower($clean));
+    };
+    $html = '';
+    foreach ($groups as $dept => $names) {
+      $html .= '<optgroup label="' . htmlspecialchars($dept, ENT_QUOTES) . '">';
+      foreach ($names as $facName) {
+        $matchedId = '';
+        $target = $simplify($facName);
+        if (!empty($facultyUsers)) {
+          foreach ($facultyUsers as $fu) {
+            $uName = $fu['name'] ?? '';
+            if (strcasecmp(trim($uName), trim($facName)) === 0 || ($target !== '' && $simplify($uName) === $target)) {
+              $matchedId = (int)$fu['id'];
+              break;
+            }
+          }
+        }
+        $isSel = false;
+        if (!empty($selectedUserId) && $matchedId && (int)$selectedUserId === (int)$matchedId) {
+          $isSel = true;
+        } elseif (!empty($selectedName)) {
+          $selTarget = $simplify($selectedName);
+          if (strcasecmp(trim($selectedName), trim($facName)) === 0 || ($target !== '' && $selTarget === $target)) {
+            $isSel = true;
+          }
+        }
+        $selAttr = $isSel ? ' selected' : '';
+        $valAttr = $matchedId ? (string)$matchedId : '';
+        $html .= '<option value="' . htmlspecialchars($valAttr, ENT_QUOTES) . '" data-name="' . htmlspecialchars($facName, ENT_QUOTES) . '"' . $selAttr . '>' . htmlspecialchars($facName, ENT_QUOTES) . '</option>';
+      }
+      $html .= '</optgroup>';
+    }
+    return $html;
+  }
+}
 $todayManila = date('Y-m-d');
 $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 ?>
@@ -17,6 +94,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="base-url" content="<?= BASE_URL ?>">
+  <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
   <title>New Proposal – STI Activity System</title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
   <style>
@@ -524,6 +603,146 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       border-bottom-color: var(--border, #1E2D45);
     }
 
+    /* Target Participants Table & Header Controls */
+    .target-participants-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .total-participants-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--text-main, #1e293b);
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 6px 12px;
+      border-radius: 6px;
+    }
+    .target-participants-panel .dynamic-table {
+      background: #ffffff !important;
+      border: 1px solid #e2e8f0 !important;
+      border-radius: 8px !important;
+    }
+    .target-participants-panel .dynamic-table table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #ffffff !important;
+    }
+    .target-participants-panel .dynamic-table table th {
+      background: #f8fafc !important;
+      color: #475569 !important;
+      border-bottom: 1px solid #e2e8f0 !important;
+      font-size: 0.8rem !important;
+      font-weight: 600 !important;
+      padding: 10px 12px !important;
+      text-transform: none !important;
+      letter-spacing: normal !important;
+    }
+    .target-participants-panel .dynamic-table table td {
+      background: #ffffff !important;
+      border-bottom: 1px solid #f1f5f9 !important;
+      padding: 8px 12px !important;
+      vertical-align: middle;
+    }
+    [data-theme="dark"] .target-participants-panel .dynamic-table {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .target-participants-panel .dynamic-table table {
+      background: var(--bg-card, #0F1B2E) !important;
+    }
+    [data-theme="dark"] .target-participants-panel .dynamic-table table th {
+      background: var(--bg-card-elevated, #15243C) !important;
+      color: var(--text-secondary, #CBD5E1) !important;
+      border-bottom-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .target-participants-panel .dynamic-table table td {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-bottom-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .total-participants-badge {
+      background: var(--bg-card-elevated, #15243C) !important;
+      border-color: var(--border, #1E2D45) !important;
+      color: var(--text-main, #F8FAFC) !important;
+    }
+
+    /* ── Activity Evaluation and KPI Measurement Styles ── */
+    .kpi-component-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 20px;
+      transition: box-shadow 0.2s ease;
+    }
+    .kpi-component-card .dynamic-table {
+      background: #ffffff !important;
+      border: 1px solid #e2e8f0 !important;
+      border-radius: 8px !important;
+      overflow-x: auto;
+    }
+    .kpi-component-card .dynamic-table table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #ffffff !important;
+      margin: 0;
+    }
+    .kpi-component-card .dynamic-table table th {
+      background: #f8fafc !important;
+      color: #475569 !important;
+      border-bottom: 1px solid #e2e8f0 !important;
+      font-size: 0.8rem !important;
+      font-weight: 600 !important;
+      padding: 10px 12px !important;
+      text-transform: none !important;
+    }
+    .kpi-component-card .dynamic-table table td {
+      background: #ffffff !important;
+      border-bottom: 1px solid #f1f5f9 !important;
+      padding: 8px 12px !important;
+      vertical-align: middle;
+    }
+    .kpi-legend-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    [data-theme="dark"] .kpi-component-card {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .kpi-component-card h3 {
+      color: var(--text-main, #F8FAFC) !important;
+    }
+    [data-theme="dark"] .kpi-component-card .dynamic-table {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .kpi-component-card .dynamic-table table {
+      background: var(--bg-card, #0F1B2E) !important;
+    }
+    [data-theme="dark"] .kpi-component-card .dynamic-table table th {
+      background: var(--bg-card-elevated, #15243C) !important;
+      color: var(--text-secondary, #CBD5E1) !important;
+      border-bottom-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .kpi-component-card .dynamic-table table td {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-bottom-color: var(--border, #1E2D45) !important;
+      color: var(--text-main, #F8FAFC) !important;
+    }
+    [data-theme="dark"] .kpi-legend-card {
+      background: var(--bg-card-elevated, #15243C) !important;
+      border-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .kpi-legend-card div {
+      color: var(--text-main, #F8FAFC) !important;
+    }
+
     /* ── Evaluation Tool styles ── */
     .eval-question-row {
       display: grid;
@@ -1009,8 +1228,10 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
   <?php include __DIR__ . '/../includes/sidebar.php'; ?>
   <div class="main-wrap">
     <header class="topbar">
-      <div class="page-title">New Activity Proposal</div>
-      <div class="topbar-right">
+      <div class="page-title" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span>New Activity Proposal</span>
+      </div>
+      <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <a href="<?= BASE_URL ?>/faculty/dashboard.php" class="btn btn-outline btn-sm">← Back</a>
       <!-- User Profile Control -->
@@ -1058,11 +1279,23 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Meaningful Input Required:</strong> One or more fields contain random characters, keyboard mashing, or insufficient text. Please provide valid information before submitting.
         </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'invalid_score'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Invalid Assessment Score:</strong> Test scores and attendance values cannot be negative. Please enter valid non-negative values.
+        </div>
       <?php elseif (isset($_GET['error'])): ?>
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Error:</strong> An error occurred while saving the proposal. Please try again.
         </div>
       <?php endif; ?>
+
+      <!-- Offline & Sync Status Banner -->
+      <div id="offlineAlertBanner" class="alert alert-warning" style="display:none;margin-bottom:16px;align-items:center;gap:10px;border-left:4px solid #F59E0B;">
+        <span style="font-size:1.3rem;">📡</span>
+        <div style="flex:1;">
+          <strong>Offline Mode:</strong> Internet connection is currently unavailable. Changes will be saved locally to this device and automatically synchronized with the server when connectivity returns.
+        </div>
+      </div>
 
       <!-- Wizard Steps -->
       <div class="wizard-steps" id="wizardSteps">
@@ -1091,7 +1324,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           <div class="step-num">8</div>Faculty Tasks
         </div>
         <div class="wizard-step locked" data-step="9">
-          <div class="step-num">9</div>Evaluation
+          <div class="step-num">9</div>Evaluation & KPI
         </div>
       </div>
 
@@ -1152,31 +1385,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Venue <span class="text-danger">*</span></label>
-                  <input type="text" name="venue" id="f1_venue" class="form-control" placeholder="e.g. STI Marikina Auditorium">
-                  <span class="field-error" id="e_venue">Venue is required.</span>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Target Participants <span class="text-danger">*</span></label>
-                  <input type="number" name="target_participants" id="f1_target_participants" class="form-control" placeholder="e.g. 200" min="1">
-                  <span class="field-error" id="e_target_participants">Target participants is required.</span>
-                </div>
-
-                <div class="form-group col-span-2">
-                  <label class="form-label" for="f1_venue_address">Venue Address <span class="text-danger">*</span></label>
-                  <div class="venue-address-wrapper">
-                    <input type="text" name="venue_address" id="f1_venue_address" class="form-control" placeholder="Full address" autocomplete="off">
-                    <div id="venue_address_dropdown" class="venue-address-dropdown" role="listbox" aria-label="Suggested venue address">
-                      <div class="venue-address-item" role="option" tabindex="0" onmousedown="selectVenueAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila', event)" onclick="selectVenueAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila', event)">
-                        289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila
-                      </div>
-                    </div>
-                  </div>
-                  <span class="field-error" id="e_venue_address">Venue address is required.</span>
-                </div>
-
-                <div class="form-group col-span-2">
                   <label class="form-label">Theme <span class="text-danger">*</span></label>
                   <div class="theme-input-wrapper" style="position: relative; width: 100%;">
                     <input type="text" name="theme" id="f1_theme" class="form-control" placeholder="e.g. Igniting Excellence, Empowering Tomorrow" style="padding-right: 42px;" aria-busy="false">
@@ -1193,13 +1401,85 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                   <div id="themeAiStatus" style="margin-top: 6px;"></div>
                 </div>
 
+                <div class="form-group">
+                  <label class="form-label">Venue <span class="text-danger">*</span></label>
+                  <input type="text" name="venue" id="f1_venue" class="form-control" placeholder="e.g. STI Marikina Auditorium">
+                  <span class="field-error" id="e_venue">Venue is required.</span>
+                </div>
+
+                <div class="form-group col-span-2">
+                  <label class="form-label" for="f1_venue_address">Venue Address <span class="text-danger">*</span></label>
+                  <div class="venue-address-wrapper">
+                    <input type="text" name="venue_address" id="f1_venue_address" class="form-control" placeholder="Full address" autocomplete="off">
+                    <div id="venue_address_dropdown" class="venue-address-dropdown" role="listbox" aria-label="Suggested venue address">
+                      <div class="venue-address-item" role="option" tabindex="0" onmousedown="selectVenueAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila', event)" onclick="selectVenueAddress('289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila', event)">
+                        289 L. de Guzman Street, Concepcion I, Marikina City, 1807 Metro Manila
+                      </div>
+                    </div>
+                  </div>
+                  <span class="field-error" id="e_venue_address">Venue address is required.</span>
+                </div>
+
                 <div class="form-group col-span-2">
                   <label class="form-label">Event Poster <span class="text-danger">*</span></label>
                   <input type="file" name="poster_file" id="f1_poster_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" required>
                   <span class="field-error" id="e_poster_file">Event poster is required.</span>
                   <small style="color: var(--text-muted);">Upload an image poster for this event (JPG, PNG, WEBP, GIF). Videos are not allowed.</small>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Target Participants Panel -->
+          <div class="card target-participants-panel" id="target-participants-card" style="margin-top: 20px;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <h2 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 6px;">
+                👥 Target Participants <span class="text-danger">*</span>
+              </h2>
+              <div class="target-participants-controls" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-outline btn-sm" id="btn-add-section" onclick="addParticipantSectionRow()" style="font-weight: 600;">+ Add Section</button>
+                <div class="total-participants-badge" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 0.875rem; color: var(--text-main, #1e293b); background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 6px;">
+                  <span>Total Target Participants:</span>
+                  <span id="target-participants-total-display" style="color: var(--primary, #0284c7); font-size: 1rem; font-weight: 700;">0</span>
                 </div>
+              </div>
+            </div>
+            <div class="card-body" style="padding: 20px;">
+              <input type="hidden" name="target_participants" id="f1_target_participants" value="0">
+              <span class="field-error" id="e_target_participants" style="margin-bottom: 12px;">Target participants is required and must have at least 1 participant.</span>
+
+              <div class="dynamic-table" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto;">
+                <table class="table" style="margin: 0; width: 100%; border-collapse: collapse; background: #ffffff;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                      <th style="width: 50px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No.</th>
+                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Involved Subject / Section <span class="text-danger">*</span></th>
+                      <th style="width: 180px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No. of Participants <span class="text-danger">*</span></th>
+                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Subject Teacher</th>
+                      <th style="width: 70px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="participant-sections-body">
+                    <tr class="participant-row" style="border-bottom: 1px solid #f1f5f9;">
+                      <td class="part-row-num" style="text-align: center; font-weight: 600; color: #64748b; font-size: 0.85rem; padding: 10px 12px; vertical-align: middle;">
+                        1
+                      </td>
+                      <td style="padding: 10px 12px;">
+                        <input type="text" name="part_section[]" class="form-control part-section-input" placeholder="e.g. BSIT 301 / Data Structures" value="">
+                      </td>
+                      <td style="padding: 10px 12px;">
+                        <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="" oninput="updateTotalTargetParticipants()">
+                      </td>
+                      <td style="padding: 10px 12px;">
+                        <input type="text" name="part_teacher[]" class="form-control part-teacher-input" placeholder="e.g. Prof. Juan Dela Cruz" value="">
+                      </td>
+                      <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
+                        <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Cannot delete the only row" disabled style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1; opacity: 0.4; cursor: not-allowed;">✕</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
           <div class="nav-btns">
@@ -1211,8 +1491,11 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         <!-- ── STEP 2: Objectives & Academic Alignment ── -->
         <div class="wizard-panel" id="panel-2">
           <div class="card">
-            <div class="card-header">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
               <h2>🎯 Objectives & Academic Alignment</h2>
+              <button type="button" class="btn btn-outline btn-sm" id="btnGenObjectives" onclick="forceRegenerateObjectives()" style="font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+                <span>⚡ Generate Objectives with AI</span>
+              </button>
             </div>
             <div class="card-body">
               <div class="step-error-banner" id="err-banner-2" data-default-msg="⚠️ Please fill in all required fields before continuing.">⚠️ Please fill in all required fields before continuing.</div>
@@ -1359,30 +1642,77 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                   <tbody id="manpower-body">
                     <tr>
                       <td>
-                        <select name="mp_role[]" class="form-control">
-                          <option>Medic</option>
-                          <option>Customer Service</option>
-                          <option>Usher</option>
-                          <option>Marshall</option>
-                          <option>Emcee</option>
-                          <option>Floor Director</option>
-                          <option>AV Support</option>
-                          <option>Tabulator</option>
-                          <option>Other</option>
+                        <select name="mp_role[]" class="form-control" onchange="updateManpowerSummary()">
+                          <option value="Medic">Medic</option>
+                          <option value="Customer Service">Customer Service</option>
+                          <option value="Usher">Usher</option>
+                          <option value="Marshall">Marshall</option>
+                          <option value="Emcee">Emcee</option>
+                          <option value="Floor Director">Floor Director</option>
+                          <option value="Sound & AVP Support">Sound & AVP Support</option>
+                          <option value="Tabulators">Tabulators</option>
+                          <option value="Photographers">Photographers</option>
+                          <option value="Videographers">Videographers</option>
+                          <option value="Expected Guest(s)">Expected Guest(s)</option>
+                          <option value="Students' Audience">Students' Audience</option>
+                          <option value="Adviser(s) / Teacher(s) / Staff(s)">Adviser(s) / Teacher(s) / Staff(s)</option>
+                          <option value="VIP">VIP</option>
+                          <option value="Sponsor(s)">Sponsor(s)</option>
                         </select>
                       </td>
-                      <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Full name"></td>
+                      <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Full name" oninput="updateManpowerSummary()"></td>
                       <td>
-                        <select name="mp_type[]" class="form-control">
+                        <select name="mp_type[]" class="form-control" onchange="updateManpowerSummary()">
                           <option value="faculty">Faculty</option>
                           <option value="staff">Staff</option>
                           <option value="student">Student</option>
                         </select>
                       </td>
-                      <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
+                      <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this); updateManpowerSummary();">✕</button></td>
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              <!-- Manpower Summary Table -->
+              <div class="manpower-summary-wrap" style="margin-top: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                  <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-main, #1e293b);">
+                    Manpower Summary
+                  </h3>
+                  <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-main, #1e293b); background: #ffffff; border: 1px solid #e2e8f0; padding: 4px 10px; border-radius: 6px;">
+                    Total Persons Involved: <span id="mp-summary-unique-total" style="font-weight: 700;">0</span> <span style="font-size: 0.75rem; font-weight: 400; color: #64748b;">(distinct individuals)</span>
+                  </div>
+                </div>
+                <div class="dynamic-table" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto;">
+                  <table class="table" id="manpower-summary-table" style="width: 100%; border-collapse: collapse; margin: 0; background: #ffffff;">
+                    <thead>
+                      <tr style="border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: left; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Role / Position</th>
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: center; width: 100px; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Faculty</th>
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: center; width: 100px; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Staff</th>
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: center; width: 100px; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Students</th>
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: center; width: 110px; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Total #</th>
+                      </tr>
+                    </thead>
+                    <tbody id="manpower-summary-body" style="background: #ffffff;">
+                      <tr>
+                        <td colspan="5" style="text-align: center; color: #64748b; font-size: 0.82rem; padding: 14px; background: #ffffff;">
+                          No manpower assigned yet.
+                        </td>
+                      </tr>
+                    </tbody>
+                    <tfoot id="manpower-summary-foot" style="background: #ffffff; border-top: 1px solid #e2e8f0;">
+                      <tr style="border-top: 1px solid #e2e8f0; background: #ffffff; font-weight: 600;">
+                        <td style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: left; background: #ffffff;">Total</td>
+                        <td id="mp-sum-faculty" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; background: #ffffff;">0</td>
+                        <td id="mp-sum-staff" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; background: #ffffff;">0</td>
+                        <td id="mp-sum-students" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; background: #ffffff;">0</td>
+                        <td id="mp-sum-total" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; font-weight: 700; background: #ffffff;">0</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -1524,11 +1854,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                       <td>
                         <select name="ft_user_id[]" class="form-control ft-user-select" onchange="syncFtName(this)">
                           <option value="">-- Unassigned / External --</option>
-                          <?php foreach ($facultyUsers as $fu): ?>
-                            <option value="<?= (int)$fu['id'] ?>" data-name="<?= htmlspecialchars($fu['name'], ENT_QUOTES) ?>">
-                              <?= htmlspecialchars($fu['name'] . (!empty($fu['department']) ? ' (' . $fu['department'] . ')' : '')) ?>
-                            </option>
-                          <?php endforeach; ?>
+                          <?= renderFacultyTaskOptgroups($facultyDepartmentGroups, $facultyUsers) ?>
                         </select>
                         <input type="text" name="ft_name[]" class="form-control ft-name-field" style="margin-top: 4px; font-size: 0.8rem;" placeholder="External name (if unassigned)">
                       </td>
@@ -1549,23 +1875,61 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           </div>
         </div>
 
-        <!-- ── STEP 9: Evaluation Tool ── -->
+        <!-- ── STEP 9: Key Performance Indicators & Evaluation ── -->
         <div class="wizard-panel" id="panel-9">
-          <div class="card">
-            <div class="card-header">
-              <h2>
+          <!-- SECTION 1: Key Performance Indicators -->
+          <div class="card" id="kpi-table-card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <h2 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+                📈 Key Performance Indicators
+              </h2>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-add-kpi" onclick="addKpiRow()">+ Add KPI</button>
+            </div>
+            <div class="card-body" style="padding: 20px;">
+              <div class="dynamic-table" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto;">
+                <table class="table" style="margin: 0; width: 100%; border-collapse: collapse; background: #ffffff;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Criteria / Indicator</th>
+                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Target Metric</th>
+                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Evaluation Method</th>
+                      <th style="width: 70px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="kpi-body">
+                    <tr>
+                      <td style="padding: 10px 12px;"><input type="text" name="kpi_indicator[]" class="form-control kpi-field" placeholder="e.g. Number of Attendees"></td>
+                      <td style="padding: 10px 12px;"><input type="text" name="kpi_target[]" class="form-control kpi-field" placeholder="e.g. 500 Participants"></td>
+                      <td style="padding: 10px 12px;"><input type="text" name="kpi_method[]" class="form-control kpi-field" placeholder="e.g. Attendance Sheet"></td>
+                      <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
+                        <button type="button" class="btn btn-outline btn-sm btn-delete-kpi" onclick="removeKpiRow(this)" title="Delete KPI" disabled style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1; opacity: 0.4; cursor: not-allowed;">✕</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 2: AI-Generated Evaluation Tool -->
+          <div class="card" id="ai-evaluation-tool-card" style="margin-top: 20px;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <h2 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
                 🤖 AI-Generated Evaluation Tool
               </h2>
-              <span id="evalStatusBadge">
-                <span id="evalStatusIndicator"></span> <span id="evalStatusText">Empty</span>
-              </span>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span id="evalStatusBadge">
+                  <span id="evalStatusIndicator"></span> <span id="evalStatusText">Empty</span>
+                </span>
+                <button type="button" class="btn btn-outline btn-sm" id="btn-regenerate-eval" onclick="regenerateEvaluationWithAi(true)" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
+                  ↻ Regenerate with AI
+                </button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="openPreviewModal()" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
+                  👁 Preview Tool
+                </button>
+              </div>
             </div>
-            <div class="card-body" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
-
-              <!-- Hidden compatibility KPI fields -->
-              <input type="hidden" name="kpi_indicator[]" value="Participant Evaluation">
-              <input type="hidden" name="kpi_target[]" value="Satisfactory Rating">
-              <input type="hidden" name="kpi_method[]" value="Evaluation Form">
+            <div class="card-body" style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
 
               <!-- Needs Update Notice -->
               <div id="evalChangeNotice" class="alert alert-warning" style="display:none; flex-direction:column; gap:8px; font-size:0.8rem; padding:10px 14px; margin-bottom:4px; border-radius:6px; border-left: 4px solid #d97706; background: #fffbeb;">
@@ -1582,8 +1946,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
               <!-- AI Generation Loading & Status -->
               <div id="evalGenStatus" style="display:none; margin-bottom:4px; padding:10px 14px; border-radius:6px; font-size:.85rem;"></div>
 
-              <div class="info-alert">
-                These evaluation questions are automatically generated based on your activity objectives. Review them, customize or add questions, and prepare the evaluation link for attendees.
+              <div class="info-alert" style="margin-bottom: 4px;">
+                These evaluation questions are automatically generated based on your activity objectives. You can customize them, add manual rating/open-ended questions, and generate the Google Form for student responses.
               </div>
 
               <!-- Hidden JSON field -->
@@ -1594,23 +1958,13 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                 <!-- Dynamically populated -->
               </div>
 
-              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 4px;">
-                <button type="button" class="btn btn-outline btn-sm btn-add-manual-q" onclick="addManualQuestion()">
-                  + Add Question
-                </button>
-                <div class="footer-actions" style="display:flex; gap:8px;">
-                  <button type="button" class="btn btn-outline btn-sm" id="btn-regenerate-eval" onclick="regenerateEvaluationWithAi(true)" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
-                    ↻ Regenerate
-                  </button>
-                  <button type="button" class="btn btn-outline btn-sm" onclick="openPreviewModal()" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
-                    👁 Preview Tool
-                  </button>
-                </div>
-              </div>
+              <button type="button" class="btn btn-outline btn-sm btn-add-manual-q" onclick="addManualQuestion()" style="align-self: flex-start;">
+                + Add Question
+              </button>
 
               <!-- Google Forms Evaluation Link section -->
-              <div style="margin-top:20px; padding-top:20px; border-top: 1px solid var(--border);">
-                <label class="form-label">Google Forms Evaluation Link <span class="text-danger">*</span></label>
+              <div style="margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--border, #e2e8f0);">
+                <label class="form-label" style="font-weight: 600;">Google Forms Evaluation Link <span class="text-danger">*</span></label>
                 <div style="display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;">
                   <div style="flex:1; min-width:240px;">
                     <input type="url" name="eval_form_link" id="f9_eval_form_link" class="form-control" placeholder="https://forms.gle/..." required>
@@ -1630,7 +1984,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
                 <div class="scu-heading" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"></div>
                 <p class="scu-msg" style="font-size:.875rem;margin-bottom:10px;line-height:1.4;font-weight:500;"></p>
                 <div class="scu-alt-wrap" style="display:none;margin-bottom:10px;">
-                  <div style="font-size:.85rem;font-weight:700;margin-bottom:8px;color:#9b2c2c;">&#x1F916; AI-Suggested Alternative Slots:</div>
+                  <div style="font-size:.85rem;font-weight:700;margin-bottom:8px;color:#9b2c2c;">🤖 AI-Suggested Alternative Slots:</div>
                   <div class="scu-alt-list" style="display:flex;flex-direction:column;gap:8px;"></div>
                 </div>
                 <div class="scu-advisory-wrap" style="display:none;margin-bottom:10px;"></div>
@@ -1755,6 +2109,9 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       }
       document.getElementById('panel-' + n).classList.add('active');
       currentStep = n;
+      if (n === 9 && typeof syncKpiSectionTables === 'function') {
+        syncKpiSectionTables();
+      }
       window.scrollTo({
         top: 0,
         behavior: 'smooth'
@@ -1890,10 +2247,13 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     let isObjectivesProtected = false;
     let lastAiGeneralObjective = '';
     let lastAiSpecificObjectives = '';
+    let lastRequestedObjTitle = '';
+    let lastRequestedObjTheme = '';
     let currentObjRequestId = 0;
     let currentObjAbortController = null;
     let objDebounceTimer = null;
     let isObjGenerating = false;
+    let currentObjPromise = null;
 
     function hashStr(str) {
       let hash = 0;
@@ -1914,6 +2274,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         currentObjAbortController = null;
       }
       isObjGenerating = false;
+      currentObjPromise = null;
       setObjectiveSpinner(false);
     }
 
@@ -1946,8 +2307,14 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         case 'UPDATED':
         case 'SUCCESS':
           setObjectiveSpinner(false);
-          statusEl.style.display = 'none';
-          statusEl.innerHTML = '';
+          statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;';
+          statusEl.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <span>✅ SMART Objectives generated by AI.</span>
+              <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;font-weight:600;padding:0;">
+                ↻ Regenerate Objectives
+              </button>
+            </div>`;
           break;
 
         case 'OUTDATED':
@@ -1964,8 +2331,14 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 
         case 'MANUAL':
           setObjectiveSpinner(false);
-          statusEl.style.display = 'none';
-          statusEl.innerHTML = '';
+          statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;';
+          statusEl.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <span>✏️ Custom objectives entered.</span>
+              <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;font-weight:600;padding:0;">
+                ↻ Regenerate Objectives with AI
+              </button>
+            </div>`;
           break;
 
         case 'ERROR':
@@ -1983,7 +2356,24 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         case 'WAITING':
         default:
           setObjectiveSpinner(false);
-          statusEl.style.display = 'none';
+          const titleElWait = document.getElementById('f1_title') || document.querySelector('[name="title"]');
+          const genElWait = document.getElementById('f2_general_objectives');
+          const specElWait = document.getElementById('f2_specific_objectives');
+          const curTitleWait = (titleElWait?.value || '').trim();
+          const hasAnyObj = (genElWait && genElWait.value.trim() !== '') || (specElWait && specElWait.value.trim() !== '');
+          if (!hasAnyObj && curTitleWait.length >= 4) {
+            statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:12px 16px;border-radius:6px;font-size:0.875rem;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;';
+            statusEl.innerHTML = `
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                <span>💡 You can automatically generate SMART objectives based on your Title & Theme.</span>
+                <button type="button" onclick="forceRegenerateObjectives()" style="background:#0284c7;color:#fff;border:none;border-radius:4px;padding:5px 12px;font-size:0.85rem;cursor:pointer;font-weight:600;">
+                  ⚡ Generate Objectives with AI
+                </button>
+              </div>`;
+          } else {
+            statusEl.style.display = 'none';
+            statusEl.innerHTML = '';
+          }
           break;
       }
     }
@@ -2024,17 +2414,28 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       const specEl = document.getElementById('f2_specific_objectives');
       const titleEl = document.getElementById('f1_title');
       const themeEl = document.getElementById('f1_theme');
-      if (!genEl || !specEl || !titleEl) return;
+      if (!genEl || !specEl || !titleEl) return null;
 
       const currentTitle = contextOverride?.title ?? titleEl.value.trim();
       const currentTheme = contextOverride?.theme ?? (themeEl ? themeEl.value.trim() : '');
 
-      if (currentTitle.length < 4) return;
+      if (currentTitle.length < 4) return null;
 
       // Protected manual content: never silently overwrite unless forced
       if (isObjectivesProtected && !forced) {
         renderObjectivesStatus('OUTDATED');
-        return;
+        return null;
+      }
+
+      // If already generating for this exact title & theme and not forced, return existing in-flight promise
+      if (isObjGenerating && currentObjPromise && !forced && lastRequestedObjTitle === currentTitle && lastRequestedObjTheme === currentTheme) {
+        return currentObjPromise;
+      }
+
+      // Clear pending debounce timer
+      if (objDebounceTimer) {
+        clearTimeout(objDebounceTimer);
+        objDebounceTimer = null;
       }
 
       // Abort in-flight objective request and cancel any pending evaluation generation
@@ -2047,6 +2448,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       currentObjAbortController = new AbortController();
 
       const requestId = ++currentObjRequestId;
+      lastRequestedObjTitle = currentTitle;
+      lastRequestedObjTheme = currentTheme;
       isObjGenerating = true;
       renderObjectivesStatus('GENERATING');
 
@@ -2059,91 +2462,121 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         rationale:           (document.getElementById('f2_rationale')?.value || '').trim()
       };
 
-      try {
-        const res = await fetch('<?= BASE_URL ?>/api/generate-objectives.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal: currentObjAbortController.signal
-        });
-
-        // Stale check
-        if (requestId !== currentObjRequestId || currentObjAbortController.signal.aborted) {
-          return;
-        }
-
-        // Verify title & theme haven't changed in the meantime
-        const nowTitle = (titleEl.value || '').trim();
-        const nowTheme = (themeEl ? themeEl.value.trim() : '');
-        if (nowTitle.length >= 4 && (nowTitle !== currentTitle || nowTheme !== currentTheme)) {
-          return;
-        }
-
-        const data = await res.json();
-        if (res.ok && data.success && data.general_objective && data.specific_objectives) {
-          const specVal = Array.isArray(data.specific_objectives)
-            ? data.specific_objectives.join('\n')
-            : (data.specific_objectives || '');
-
-          lastAiGeneralObjective = data.general_objective;
-          lastAiSpecificObjectives = specVal;
-          isObjectivesProtected = false;
-
-          try {
-            sessionStorage.setItem('sti_ai_gen_obj_' + hashStr(data.general_objective.trim()), '1');
-            sessionStorage.setItem('sti_ai_spec_obj_' + hashStr(specVal.trim()), '1');
-          } catch (e) {}
-
-          genEl.value = data.general_objective;
-          if (typeof data.specific_objectives === 'string') {
-            specEl.value = data.specific_objectives;
-          } else {
-            specEl.value = specVal;
-          }
-
-          // Subtle green pulse on objective textareas
-          [genEl, specEl].forEach(el => {
-            el.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
-            el.style.borderColor = '#22c55e';
-            el.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
-            setTimeout(() => {
-              el.style.borderColor = '';
-              el.style.boxShadow = '';
-            }, 1000);
+      const execPromise = (async () => {
+        try {
+          const res = await fetch('<?= BASE_URL ?>/api/generate-objectives.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: currentObjAbortController.signal
           });
 
-          // Clear validation errors if showing
-          const eGen = document.getElementById('e_general_objectives');
-          const eSpec = document.getElementById('e_specific_objectives');
-          if (eGen) eGen.style.display = 'none';
-          if (eSpec) eSpec.style.display = 'none';
-          genEl.classList.remove('is-invalid');
-          specEl.classList.remove('is-invalid');
+          // Stale check
+          if (requestId !== currentObjRequestId || currentObjAbortController.signal.aborted) {
+            return null;
+          }
 
-          renderObjectivesStatus('UPDATED');
+          // Verify title & theme haven't changed in the meantime
+          const nowTitle = (titleEl.value || '').trim();
+          const nowTheme = (themeEl ? themeEl.value.trim() : '');
+          if (nowTitle.length >= 4 && (nowTitle !== currentTitle || nowTheme !== currentTheme)) {
+            return null;
+          }
 
+          const data = await res.json();
+          if (res.ok && data.success && data.general_objective && data.specific_objectives) {
+            // Check manual edit protection again before writing (in case user edited while fetch was in flight)
+            if (isObjectivesProtected && !forced) {
+              renderObjectivesStatus('OUTDATED');
+              return null;
+            }
+
+            const specVal = Array.isArray(data.specific_objectives)
+              ? data.specific_objectives.join('\n')
+              : (data.specific_objectives || '');
+
+            lastAiGeneralObjective = data.general_objective;
+            lastAiSpecificObjectives = specVal;
+            isObjectivesProtected = false;
+
+            try {
+              sessionStorage.setItem('sti_ai_gen_obj_' + hashStr(data.general_objective.trim()), '1');
+              sessionStorage.setItem('sti_ai_spec_obj_' + hashStr(specVal.trim()), '1');
+            } catch (e) {}
+
+            genEl.value = data.general_objective;
+            if (typeof data.specific_objectives === 'string') {
+              specEl.value = data.specific_objectives;
+            } else {
+              specEl.value = specVal;
+            }
+
+            // Dispatch input and change events so all listeners and validation recognize the new values
+            genEl.dispatchEvent(new Event('input', { bubbles: true }));
+            genEl.dispatchEvent(new Event('change', { bubbles: true }));
+            specEl.dispatchEvent(new Event('input', { bubbles: true }));
+            specEl.dispatchEvent(new Event('change', { bubbles: true }));
+
+            // Subtle green pulse on objective textareas
+            [genEl, specEl].forEach(el => {
+              el.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
+              el.style.borderColor = '#22c55e';
+              el.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
+              setTimeout(() => {
+                el.style.borderColor = '';
+                el.style.boxShadow = '';
+              }, 1000);
+            });
+
+            // Clear validation errors if showing
+            const eGen = document.getElementById('e_general_objectives');
+            const eSpec = document.getElementById('e_specific_objectives');
+            if (eGen) eGen.style.display = 'none';
+            if (eSpec) eSpec.style.display = 'none';
+            genEl.classList.remove('is-invalid');
+            specEl.classList.remove('is-invalid');
+
+            // Also clear banner if step 2 was invalid
+            const banner2 = document.getElementById('err-banner-2');
+            if (banner2 && !document.querySelector('#panel-2 .is-invalid')) {
+              banner2.style.display = 'none';
+            }
+
+            renderObjectivesStatus('UPDATED');
+
+            if (requestId === currentObjRequestId) {
+              isObjGenerating = false;
+              setObjectiveSpinner(false);
+            }
+
+            if (typeof triggerAutomaticEvaluation === 'function') {
+              triggerAutomaticEvaluation(true);
+            }
+
+            return {
+              general_objective: data.general_objective,
+              specific_objectives: specVal
+            };
+          } else {
+            throw new Error(data.error || 'Empty or invalid response from AI.');
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') return null;
+          if (requestId !== currentObjRequestId) return null;
+          console.warn('autoGenerateObjectives error:', err);
+          renderObjectivesStatus('ERROR', err.message);
+          return null;
+        } finally {
           if (requestId === currentObjRequestId) {
             isObjGenerating = false;
+            currentObjPromise = null;
             setObjectiveSpinner(false);
           }
+        }
+      })();
 
-          if (typeof triggerAutomaticEvaluation === 'function') {
-            triggerAutomaticEvaluation(true);
-          }
-        } else {
-          throw new Error(data.error || 'Empty or invalid response from AI.');
-        }
-      } catch (err) {
-        if (err.name === 'AbortError') return;
-        if (requestId !== currentObjRequestId) return;
-        console.warn('autoGenerateObjectives error:', err);
-        renderObjectivesStatus('ERROR', err.message);
-      } finally {
-        if (requestId === currentObjRequestId) {
-          isObjGenerating = false;
-          setObjectiveSpinner(false);
-        }
-      }
+      currentObjPromise = execPromise;
+      return execPromise;
     }
 
     // Keep backwards compatibility for generateObjectives(forced)
@@ -2157,10 +2590,14 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     let isThemeManuallyEdited = false;
     let lastAiGeneratedTheme = '';
     let lastGeneratedTitle = '';
+    let lastRequestedThemeTitle = '';
     let currentThemeRequestId = 0;
     let currentThemeAbortController = null;
     let themeDebounceTimer = null;
     let isThemeGenerating = false;
+    let currentThemePromise = null;
+    let isDraftSavingPending = false;
+    let isBypassingThemeWaitOnDraft = false;
 
     function cancelPendingThemeGeneration() {
       if (themeDebounceTimer) {
@@ -2172,6 +2609,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         currentThemeAbortController = null;
       }
       isThemeGenerating = false;
+      currentThemePromise = null;
       setThemeSpinner(false);
     }
 
@@ -2298,15 +2736,26 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     async function autoGenerateTheme(forced = false) {
       const titleEl = document.getElementById('f1_title');
       const themeEl = document.getElementById('f1_theme');
-      if (!titleEl || !themeEl) return;
+      if (!titleEl || !themeEl) return null;
 
       const titleVal = titleEl.value.trim();
-      if (titleVal.length < 4) return;
+      if (titleVal.length < 4) return null;
 
       // Never overwrite manually edited theme unless forced by Faculty
       if (isThemeManuallyEdited && !forced) {
         renderThemeStatus('OUTDATED');
-        return;
+        return null;
+      }
+
+      // If already generating for this exact title and not forced, return existing in-flight promise
+      if (isThemeGenerating && currentThemePromise && !forced && lastRequestedThemeTitle === titleVal) {
+        return currentThemePromise;
+      }
+
+      // Clear any pending debounce timer
+      if (themeDebounceTimer) {
+        clearTimeout(themeDebounceTimer);
+        themeDebounceTimer = null;
       }
 
       // Abort any in-flight request to prevent race conditions and cancel pending evaluation
@@ -2319,6 +2768,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       currentThemeAbortController = new AbortController();
 
       const requestId = ++currentThemeRequestId;
+      lastRequestedThemeTitle = titleVal;
       isThemeGenerating = true;
       renderThemeStatus('GENERATING');
 
@@ -2339,73 +2789,88 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
 
       console.log('[TRACE autoGenerateTheme] Request #' + requestId + ' Payload:', JSON.stringify(payload));
 
-      try {
-        const res = await fetch('<?= BASE_URL ?>/api/generate-theme.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal: currentThemeAbortController.signal
-        });
+      const execPromise = (async () => {
+        try {
+          const res = await fetch('<?= BASE_URL ?>/api/generate-theme.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: currentThemeAbortController.signal
+          });
 
-        // Ignore stale response if superseded by a newer request or if title changed in the meantime
-        const currentTitleNow = (titleEl ? titleEl.value.trim() : '');
-        if (requestId !== currentThemeRequestId || currentThemeAbortController.signal.aborted || currentTitleNow !== titleVal) {
-          return;
-        }
+          // Ignore stale response if superseded by a newer request or if title changed in the meantime
+          const currentTitleNow = (titleEl ? titleEl.value.trim() : '');
+          if (requestId !== currentThemeRequestId || currentThemeAbortController.signal.aborted || currentTitleNow !== titleVal) {
+            return null;
+          }
 
-        const data = await res.json();
-        if (res.ok && data.success && data.theme) {
-          lastAiGeneratedTheme = data.theme;
-          lastGeneratedTitle = titleVal;
-          isThemeManuallyEdited = false;
-          try { sessionStorage.setItem('sti_ai_theme_' + data.theme.trim(), '1'); } catch (e) {}
-
-          // Automatically populate / replace Theme input
-          themeEl.value = data.theme;
-          themeEl.dispatchEvent(new Event('change', { bubbles: true }));
-
-          // Hide validation error if showing
-          const errEl = document.getElementById('e_theme');
-          if (errEl) errEl.style.display = 'none';
-          themeEl.classList.remove('is-invalid');
-
-          // Subtle green pulse on input
-          themeEl.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
-          themeEl.style.borderColor = '#22c55e';
-          themeEl.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
-          setTimeout(() => {
-            themeEl.style.borderColor = '';
-            themeEl.style.boxShadow = '';
-          }, 1000);
-
-          renderThemeStatus('SUCCESS');
-
-          // Event hook: Dispatched ONCE for completed Title -> Theme cascade
-          const currentTriggerSource = forced ? 'manual_theme_regen' : 'auto_theme';
-          document.dispatchEvent(new CustomEvent('activityThemeChanged', {
-            bubbles: true,
-            detail: {
-              theme: data.theme,
-              title: titleVal,
-              isAiGenerated: true,
-              isManual: false,
-              triggerSource: currentTriggerSource // triggerSource: 'auto_theme'
+          const data = await res.json();
+          if (res.ok && data.success && data.theme) {
+            // Check again: if user manually edited the theme while fetch was in flight, do not overwrite!
+            if (isThemeManuallyEdited && !forced) {
+              renderThemeStatus('OUTDATED');
+              return null;
             }
-          }));
-        } else {
-          throw new Error(data.error || 'Empty or invalid response from AI.');
+
+            lastAiGeneratedTheme = data.theme;
+            lastGeneratedTitle = titleVal;
+            isThemeManuallyEdited = false;
+            try { sessionStorage.setItem('sti_ai_theme_' + data.theme.trim(), '1'); } catch (e) {}
+
+            // Automatically populate / replace Theme input
+            themeEl.value = data.theme;
+            themeEl.dispatchEvent(new Event('change', { bubbles: true }));
+
+            // Hide validation error if showing
+            const errEl = document.getElementById('e_theme');
+            if (errEl) errEl.style.display = 'none';
+            themeEl.classList.remove('is-invalid');
+
+            // Subtle green pulse on input
+            themeEl.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
+            themeEl.style.borderColor = '#22c55e';
+            themeEl.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
+            setTimeout(() => {
+              themeEl.style.borderColor = '';
+              themeEl.style.boxShadow = '';
+            }, 1000);
+
+            renderThemeStatus('SUCCESS');
+
+            // Event hook: Dispatched ONCE for completed Title -> Theme cascade
+            const currentTriggerSource = forced ? 'manual_theme_regen' : 'auto_theme';
+            document.dispatchEvent(new CustomEvent('activityThemeChanged', {
+              bubbles: true,
+              detail: {
+                theme: data.theme,
+                title: titleVal,
+                isAiGenerated: true,
+                isManual: false,
+                triggerSource: currentTriggerSource // triggerSource: 'auto_theme'
+              }
+            }));
+
+            return data.theme;
+          } else {
+            throw new Error(data.error || 'Empty or invalid response from AI.');
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') return null;
+          if (requestId !== currentThemeRequestId) return null;
+          console.warn('autoGenerateTheme error:', err);
+          renderThemeStatus('ERROR', err.message);
+          return null;
+        } finally {
+          if (requestId === currentThemeRequestId) {
+            isThemeGenerating = false;
+            currentThemePromise = null;
+            setThemeSpinner(false);
+          }
         }
-      } catch (err) {
-        if (err.name === 'AbortError') return;
-        if (requestId !== currentThemeRequestId) return;
-        console.warn('autoGenerateTheme error:', err);
-        renderThemeStatus('ERROR', err.message);
-      } finally {
-        if (requestId === currentThemeRequestId) {
-          isThemeGenerating = false;
-          setThemeSpinner(false);
-        }
-      }
+      })();
+
+      currentThemePromise = execPromise;
+      return execPromise;
     }
 
     function setThemeSpinner(show) {
@@ -2500,7 +2965,20 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         case 'WAITING':
         default:
           setThemeSpinner(false);
-          statusEl.innerHTML = '';
+          const titleElWaiting = document.getElementById('f1_title') || document.querySelector('[name="title"]');
+          const themeElWaiting = document.getElementById('f1_theme') || document.querySelector('[name="theme"]');
+          const curTitleWaiting = (titleElWaiting?.value || '').trim();
+          const curThemeWaiting = (themeElWaiting?.value || '').trim();
+          if (curTitleWaiting.length >= 4 && curThemeWaiting === '') {
+            statusEl.innerHTML = `
+              <div style="font-size: 0.8rem; display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap;">
+                <button type="button" onclick="forceRegenerateTheme()" style="background: none; border: none; color: #0284c7; cursor: pointer; text-decoration: underline; font-size: 0.8rem; padding: 0;">
+                  ⚡ Generate Theme with AI
+                </button>
+              </div>`;
+          } else {
+            statusEl.innerHTML = '';
+          }
           break;
       }
     }
@@ -2646,10 +3124,6 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
             err: 'e_venue'
           },
           {
-            id: 'f1_target_participants',
-            err: 'e_target_participants'
-          },
-          {
             id: 'f1_venue_address',
             err: 'e_venue_address'
           },
@@ -2661,6 +3135,46 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         fields.forEach(f => {
           if (!checkField(f.id, f.err)) valid = false;
         });
+
+        // Validate target participants dynamic table
+        updateTotalTargetParticipants();
+        const partRows = document.querySelectorAll('#participant-sections-body tr.participant-row');
+        if (partRows.length === 0) {
+          valid = false;
+          showError('e_target_participants');
+        } else {
+          let hasEmptyPart = false;
+          partRows.forEach(row => {
+            const secInput = row.querySelector('.part-section-input');
+            const countInput = row.querySelector('.part-count-input');
+            if (secInput && !secInput.value.trim()) {
+              secInput.classList.add('is-invalid');
+              hasEmptyPart = true;
+              valid = false;
+            } else if (secInput) {
+              secInput.classList.remove('is-invalid');
+            }
+            if (countInput) {
+              const cnt = parseInt(countInput.value, 10);
+              if (isNaN(cnt) || cnt < 0 || countInput.value.trim() === '') {
+                countInput.classList.add('is-invalid');
+                hasEmptyPart = true;
+                valid = false;
+              } else {
+                countInput.classList.remove('is-invalid');
+              }
+            }
+          });
+
+          const totalVal = parseInt(document.getElementById('f1_target_participants')?.value || '0', 10);
+          if (totalVal <= 0 || hasEmptyPart) {
+            valid = false;
+            showError('e_target_participants');
+          } else {
+            hideError('e_target_participants');
+          }
+        }
+
         if (!validatePosterInput('f1_poster_file', 'e_poster_file')) valid = false;
       } else if (step === 2) {
         let hasEmptyRequired = false;
@@ -3432,7 +3946,111 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
             startEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             startEl.focus();
           }
+          return;
         }
+
+        // Prevent duplicate draft submissions
+        if (isDraftSavingPending) {
+          e.preventDefault();
+          return;
+        }
+
+        // If theme wait was already completed or bypassed, let native submission proceed
+        if (isBypassingThemeWaitOnDraft) {
+          return;
+        }
+
+        // Check if Section 1 (Theme) or Section 2 (Objectives) generation is pending or in-flight
+        const curTitle = (document.getElementById('f1_title')?.value || '').trim();
+        const curTheme = (document.getElementById('f1_theme')?.value || '').trim();
+        const curGen = (document.getElementById('f2_general_objectives')?.value || '').trim();
+        const curSpec = (document.getElementById('f2_specific_objectives')?.value || '').trim();
+
+        const isThemePendingOrInFlight = (themeDebounceTimer !== null) || isThemeGenerating || (currentThemePromise !== null);
+        const isEligibleEmptyTheme = (curTitle.length >= 4 && curTheme === '' && !isThemeManuallyEdited);
+        const isObjPendingOrInFlight = (objDebounceTimer !== null) || isObjGenerating || (currentObjPromise !== null);
+        const isEligibleEmptyObj = (curTitle.length >= 4 && curGen === '' && curSpec === '' && !isObjectivesProtected);
+
+        if (isThemePendingOrInFlight || isEligibleEmptyTheme || isObjPendingOrInFlight || isEligibleEmptyObj) {
+          e.preventDefault();
+          isDraftSavingPending = true;
+
+          const draftBtns = document.querySelectorAll('button[name="action"][value="draft"], button[type="submit"][value="draft"]');
+          const submitBtn = document.getElementById('submitBtn');
+          draftBtns.forEach(btn => {
+            btn.dataset.origText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving (waiting for AI Content...)';
+          });
+          if (submitBtn) submitBtn.disabled = true;
+
+          // If Theme debounce was waiting, cancel debounce and kick off generation immediately
+          if (themeDebounceTimer !== null) {
+            clearTimeout(themeDebounceTimer);
+            themeDebounceTimer = null;
+            currentThemePromise = autoGenerateTheme(false);
+          } else if (!isThemeGenerating && isEligibleEmptyTheme) {
+            currentThemePromise = autoGenerateTheme(false);
+          }
+
+          // If Objectives debounce was waiting, trigger immediate generation
+          if (objDebounceTimer !== null) {
+            clearTimeout(objDebounceTimer);
+            objDebounceTimer = null;
+            currentObjPromise = autoGenerateObjectives(false);
+          } else if (!isObjGenerating && isEligibleEmptyObj) {
+            currentObjPromise = autoGenerateObjectives(false);
+          }
+
+          (async () => {
+            if (currentThemePromise) {
+              try {
+                await currentThemePromise;
+              } catch (waitErr) {
+                console.warn('Error waiting for theme generation:', waitErr);
+              }
+            }
+
+            if (currentObjPromise) {
+              try {
+                await currentObjPromise;
+              } catch (waitObjErr) {
+                console.warn('Error waiting for objectives generation:', waitObjErr);
+              }
+            }
+
+            const finalThemeEl = document.getElementById('f1_theme');
+            const finalThemeVal = finalThemeEl ? finalThemeEl.value.trim() : '';
+
+            if (finalThemeVal === '' && isEligibleEmptyTheme) {
+              const proceed = confirm("⚠️ AI Theme generation could not be completed at this time.\n\nDo you want to save this proposal as a draft with an empty theme for now?");
+              if (!proceed) {
+                isDraftSavingPending = false;
+                draftBtns.forEach(btn => {
+                  if (btn.dataset.origText) btn.innerHTML = btn.dataset.origText;
+                  btn.disabled = false;
+                });
+                if (submitBtn) submitBtn.disabled = false;
+                return;
+              }
+            }
+
+            serializeEvaluationQuestions();
+            if (window.fpSaveToHidden) {
+              window.fpSaveToHidden();
+            }
+
+            const actionInput = document.getElementById('proposalFormAction');
+            if (actionInput) actionInput.value = 'draft';
+
+            isBypassingThemeWaitOnDraft = true;
+            const formEl = document.getElementById('proposalForm');
+            HTMLFormElement.prototype.submit.call(formEl);
+          })();
+
+          return;
+        }
+
         return;
       }
 
@@ -3469,10 +4087,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
     });
 
     // ── Dynamic row management ────────────────────────────────────────
-    const facultyOptionsHtml = `<?= addslashes(implode('', array_map(function($fu) {
-        $dept = !empty($fu['department']) ? ' (' . htmlspecialchars($fu['department'], ENT_QUOTES) . ')' : '';
-        return '<option value="' . (int)$fu['id'] . '" data-name="' . htmlspecialchars($fu['name'], ENT_QUOTES) . '">' . htmlspecialchars($fu['name'] . $dept, ENT_QUOTES) . '</option>';
-    }, $facultyUsers))) ?>`;
+    const facultyOptionsHtml = `<?= addslashes(renderFacultyTaskOptgroups($facultyDepartmentGroups, $facultyUsers)) ?>`;
 
     function syncFtName(sel) {
       const tr = sel.closest('tr');
@@ -3480,11 +4095,12 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       const nameInput = tr.querySelector('input.ft-name-field');
       if (!nameInput) return;
       const opt = sel.options[sel.selectedIndex];
-      if (sel.value && opt && opt.dataset.name) {
+      if (opt && opt.dataset.name) {
         nameInput.value = opt.dataset.name;
         nameInput.readOnly = true;
         nameInput.style.backgroundColor = 'var(--bg-muted, #f8fafc)';
       } else {
+        nameInput.value = '';
         nameInput.readOnly = false;
         nameInput.style.backgroundColor = '';
       }
@@ -3511,21 +4127,33 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       manpower: `
         <tr>
           <td>
-            <select name="mp_role[]" class="form-control">
-              <option>Medic</option><option>Customer Service</option><option>Usher</option>
-              <option>Marshall</option><option>Emcee</option><option>Floor Director</option>
-              <option>AV Support</option><option>Tabulator</option><option>Other</option>
+            <select name="mp_role[]" class="form-control" onchange="updateManpowerSummary()">
+              <option value="Medic">Medic</option>
+              <option value="Customer Service">Customer Service</option>
+              <option value="Usher">Usher</option>
+              <option value="Marshall">Marshall</option>
+              <option value="Emcee">Emcee</option>
+              <option value="Floor Director">Floor Director</option>
+              <option value="Sound & AVP Support">Sound & AVP Support</option>
+              <option value="Tabulators">Tabulators</option>
+              <option value="Photographers">Photographers</option>
+              <option value="Videographers">Videographers</option>
+              <option value="Expected Guest(s)">Expected Guest(s)</option>
+              <option value="Students' Audience">Students' Audience</option>
+              <option value="Adviser(s) / Teacher(s) / Staff(s)">Adviser(s) / Teacher(s) / Staff(s)</option>
+              <option value="VIP">VIP</option>
+              <option value="Sponsor(s)">Sponsor(s)</option>
             </select>
           </td>
-          <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Full name"></td>
+          <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Full name" oninput="updateManpowerSummary()"></td>
           <td>
-            <select name="mp_type[]" class="form-control">
+            <select name="mp_type[]" class="form-control" onchange="updateManpowerSummary()">
               <option value="faculty">Faculty</option>
               <option value="staff">Staff</option>
               <option value="student">Student</option>
             </select>
           </td>
-          <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
+          <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this); updateManpowerSummary();">✕</button></td>
         </tr>`,
       schedule: `
         <tr>
@@ -3566,6 +4194,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       tmp.innerHTML = rowTemplates[table];
       tbody.appendChild(tmp.firstElementChild);
       if (table === 'materials') updateTotal();
+      if (table === 'manpower') updateManpowerSummary();
     }
 
     function removeRow(btn) {
@@ -3574,6 +4203,129 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       if (tbody.querySelectorAll('tr').length > 1) {
         tr.remove();
         if (tbody.id === 'materials-body') updateTotal();
+        if (tbody.id === 'manpower-body') updateManpowerSummary();
+      }
+    }
+
+    // ── Manpower Summary ───────────────────────────────────────────────
+    function updateManpowerSummary() {
+      const summaryBody = document.getElementById('manpower-summary-body');
+      if (!summaryBody) return;
+
+      const MANPOWER_ROLES = [
+        "Medic",
+        "Customer Service",
+        "Usher",
+        "Marshall",
+        "Emcee",
+        "Floor Director",
+        "Sound & AVP Support",
+        "Tabulators",
+        "Photographers",
+        "Videographers",
+        "Expected Guest(s)",
+        "Students' Audience",
+        "Adviser(s) / Teacher(s) / Staff(s)",
+        "VIP",
+        "Sponsor(s)"
+      ];
+
+      const rows = document.querySelectorAll('#manpower-body tr');
+      const countsByRole = {};
+      const uniquePersons = new Set();
+
+      rows.forEach((tr, index) => {
+        const roleSel = tr.querySelector('select[name="mp_role[]"]');
+        const personInp = tr.querySelector('input[name="mp_person[]"]');
+        const typeSel = tr.querySelector('select[name="mp_type[]"]');
+
+        const role = roleSel ? roleSel.value.trim() : '';
+        const person = personInp ? personInp.value.trim() : '';
+        const type = typeSel ? typeSel.value.trim().toLowerCase() : 'faculty';
+
+        if (!role || !person) return;
+
+        if (!countsByRole[role]) {
+          countsByRole[role] = {
+            faculty: new Set(),
+            staff: new Set(),
+            student: new Set()
+          };
+        }
+
+        const personKey = person.toLowerCase();
+        uniquePersons.add(personKey);
+
+        if (type === 'staff') {
+          countsByRole[role].staff.add(personKey);
+        } else if (type === 'student') {
+          countsByRole[role].student.add(personKey);
+        } else {
+          countsByRole[role].faculty.add(personKey);
+        }
+      });
+
+      const presentRoles = [];
+      MANPOWER_ROLES.forEach(r => {
+        if (countsByRole[r]) presentRoles.push(r);
+      });
+      Object.keys(countsByRole).forEach(r => {
+        if (!presentRoles.includes(r)) presentRoles.push(r);
+      });
+
+      summaryBody.innerHTML = '';
+
+      let colFaculty = 0;
+      let colStaff = 0;
+      let colStudents = 0;
+      let colTotal = 0;
+
+      if (presentRoles.length === 0) {
+        summaryBody.innerHTML = `
+          <tr>
+            <td colspan="5" style="text-align: center; color: #64748b; font-size: 0.82rem; padding: 14px; background: #ffffff;">
+              No manpower assigned yet.
+            </td>
+          </tr>
+        `;
+      } else {
+        presentRoles.forEach(role => {
+          const fCount = countsByRole[role].faculty.size;
+          const sCount = countsByRole[role].staff.size;
+          const stuCount = countsByRole[role].student.size;
+          const rTotal = fCount + sCount + stuCount;
+
+          colFaculty += fCount;
+          colStaff += sCount;
+          colStudents += stuCount;
+          colTotal += rTotal;
+
+          const tr = document.createElement('tr');
+          tr.style.borderBottom = '1px solid #f1f5f9';
+          tr.style.background = '#ffffff';
+          tr.innerHTML = `
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; background: #ffffff;">${escapeHtml(role)}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: #334155; text-align: center; background: #ffffff;">${fCount}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: #334155; text-align: center; background: #ffffff;">${sCount}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: #334155; text-align: center; background: #ffffff;">${stuCount}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; font-weight: 600; background: #ffffff;">${rTotal}</td>
+          `;
+          summaryBody.appendChild(tr);
+        });
+      }
+
+      const elF = document.getElementById('mp-sum-faculty');
+      const elS = document.getElementById('mp-sum-staff');
+      const elStu = document.getElementById('mp-sum-students');
+      const elTot = document.getElementById('mp-sum-total');
+      const elUnique = document.getElementById('mp-summary-unique-total');
+
+      if (elF) elF.textContent = colFaculty;
+      if (elS) elS.textContent = colStaff;
+      if (elStu) elStu.textContent = colStudents;
+      if (elTot) elTot.textContent = colTotal;
+      if (elUnique) {
+        elUnique.textContent = uniquePersons.size;
       }
     }
 
@@ -3599,9 +4351,305 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       }
     });
 
+    // ── Target Participants Section Table Functions ───────────────────
+    function renumberParticipantRows() {
+      const tbody = document.getElementById('participant-sections-body');
+      if (!tbody) return;
+      const rows = tbody.querySelectorAll('tr.participant-row');
+      rows.forEach((row, idx) => {
+        const numCell = row.querySelector('.part-row-num');
+        if (numCell) numCell.textContent = idx + 1;
+        const delBtn = row.querySelector('.btn-delete-section');
+        if (delBtn) {
+          if (rows.length <= 1) {
+            delBtn.disabled = true;
+            delBtn.style.opacity = '0.4';
+            delBtn.style.cursor = 'not-allowed';
+            delBtn.title = 'Cannot delete the only row';
+          } else {
+            delBtn.disabled = false;
+            delBtn.style.opacity = '1';
+            delBtn.style.cursor = 'pointer';
+            delBtn.title = 'Delete section';
+          }
+        }
+      });
+    }
+
+    function updateTotalTargetParticipants() {
+      const countInputs = document.querySelectorAll('#participant-sections-body input.part-count-input');
+      let total = 0;
+      countInputs.forEach(input => {
+        const val = parseInt(input.value, 10);
+        if (!isNaN(val) && val > 0) {
+          total += val;
+        }
+      });
+      
+      const displayEl = document.getElementById('target-participants-total-display');
+      if (displayEl) {
+        displayEl.textContent = total.toLocaleString();
+      }
+      
+      const hiddenInput = document.getElementById('f1_target_participants');
+      if (hiddenInput) {
+        hiddenInput.value = total > 0 ? total : '';
+      }
+
+      const errEl = document.getElementById('e_target_participants');
+      if (errEl && total > 0) {
+        errEl.style.display = 'none';
+      }
+
+      if (typeof syncKpiSectionTables === 'function') {
+        syncKpiSectionTables();
+      }
+    }
+
+    // ── Synchronization for Activity Evaluation & KPI Measurement Tables ─
+    function syncKpiSectionTables() {
+      const partRows = document.querySelectorAll('#participant-sections-body tr.participant-row');
+      const attTbody = document.getElementById('kpi-attendance-table-body');
+      const learnTbody = document.getElementById('kpi-learning-table-body');
+      if (!attTbody || !learnTbody) return;
+
+      // Preserve any values currently typed by user in Step 9 inputs if re-syncing
+      const currentActualInputs = attTbody.querySelectorAll('.part-actual-input');
+      const currentPreInputs = learnTbody.querySelectorAll('.part-pre-input');
+      const currentPostInputs = learnTbody.querySelectorAll('.part-post-input');
+
+      const cachedActuals = [];
+      const cachedPres = [];
+      const cachedPosts = [];
+
+      currentActualInputs.forEach((inp, i) => { cachedActuals[i] = inp.value; });
+      currentPreInputs.forEach((inp, i) => { cachedPres[i] = inp.value; });
+      currentPostInputs.forEach((inp, i) => { cachedPosts[i] = inp.value; });
+
+      attTbody.innerHTML = '';
+      learnTbody.innerHTML = '';
+
+      let totalTarget = 0;
+
+      partRows.forEach((row, idx) => {
+        const secInput = row.querySelector('.part-section-input');
+        const cntInput = row.querySelector('.part-count-input');
+        const secName = (secInput && secInput.value.trim()) ? secInput.value.trim() : `Section ${idx + 1}`;
+        const targetCount = (cntInput && parseInt(cntInput.value, 10) > 0) ? parseInt(cntInput.value, 10) : 0;
+        totalTarget += targetCount;
+
+        // Retrieve existing or typed values
+        let actualVal = (cachedActuals[idx] !== undefined && cachedActuals[idx] !== '') 
+          ? cachedActuals[idx] 
+          : (row.getAttribute('data-actual-attendees') || '');
+        let preVal = (cachedPres[idx] !== undefined && cachedPres[idx] !== '') 
+          ? cachedPres[idx] 
+          : (row.getAttribute('data-pre-test') || '');
+        let postVal = (cachedPosts[idx] !== undefined && cachedPosts[idx] !== '') 
+          ? cachedPosts[idx] 
+          : (row.getAttribute('data-post-test') || '');
+
+        // Attendance Row
+        const attTr = document.createElement('tr');
+        attTr.style.borderBottom = '1px solid #f1f5f9';
+        attTr.className = 'kpi-attendance-row';
+        attTr.setAttribute('data-target-count', targetCount);
+        attTr.innerHTML = `
+          <td style="text-align: center; color: #64748b; font-size: 0.85rem; padding: 10px 12px; vertical-align: middle;">${idx + 1}</td>
+          <td style="padding: 10px 12px; font-weight: 500; vertical-align: middle;">${escapeHtml(secName)}</td>
+          <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: #0284c7; vertical-align: middle;">${targetCount.toLocaleString()}</td>
+          <td style="padding: 10px 12px; text-align: center; vertical-align: middle; color: var(--text-muted, #64748b); font-size: 0.82rem;">
+            <span class="text-muted">To be recorded after the activity</span>
+            <input type="hidden" name="part_actual_attendees[]" class="part-actual-input" value="${escapeHtml(actualVal)}">
+          </td>
+          <td class="kpi-attendance-result-cell" style="padding: 10px 12px; text-align: center; vertical-align: middle;">
+            <span class="text-muted" style="font-size:0.8rem;">— (Post-activity)</span>
+          </td>
+        `;
+        attTbody.appendChild(attTr);
+
+        // Learning Outcome Row
+        const learnTr = document.createElement('tr');
+        learnTr.style.borderBottom = '1px solid #f1f5f9';
+        learnTr.className = 'kpi-learning-row';
+        const kpiVal = row.getAttribute('data-learning-kpi') || '';
+        learnTr.innerHTML = `
+          <td style="text-align: center; color: #64748b; font-size: 0.85rem; padding: 10px 12px; vertical-align: middle;">${idx + 1}</td>
+          <td style="padding: 10px 12px; font-weight: 500; vertical-align: middle;">${escapeHtml(secName)}</td>
+          <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: #0284c7; vertical-align: middle;">${targetCount.toLocaleString()}</td>
+          <td class="kpi-learning-result-cell" style="padding: 10px 12px; text-align: center; vertical-align: middle; color: var(--text-muted, #64748b); font-size: 0.82rem;">
+            <span class="text-muted">To be recorded after the activity</span>
+            <input type="hidden" name="part_pre_test[]" class="part-pre-input" value="${escapeHtml(preVal)}">
+            <input type="hidden" name="part_post_test[]" class="part-post-input" value="${escapeHtml(postVal)}">
+            <input type="hidden" name="part_learning_kpi[]" value="${escapeHtml(kpiVal)}">
+          </td>
+        `;
+        learnTbody.appendChild(learnTr);
+      });
+
+      // Update total target badge and footer in Component A
+      const targetTotalEl = document.getElementById('kpi-attendance-target-total');
+      if (targetTotalEl) targetTotalEl.textContent = totalTarget.toLocaleString();
+      const footTargetEl = document.getElementById('kpi-attendance-footer-target');
+      if (footTargetEl) footTargetEl.textContent = totalTarget.toLocaleString();
+
+      updateKpiAttendanceCalculations();
+      updateKpiLearningCalculations();
+    }
+
+    function updateKpiAttendanceCalculations() {
+      const attRows = document.querySelectorAll('#kpi-attendance-table-body tr.kpi-attendance-row');
+      let totalTarget = 0;
+
+      attRows.forEach((tr) => {
+        const targetCount = parseInt(tr.getAttribute('data-target-count'), 10) || 0;
+        totalTarget += targetCount;
+      });
+
+      const footTargetEl = document.getElementById('kpi-attendance-footer-target');
+      if (footTargetEl) footTargetEl.textContent = totalTarget.toLocaleString();
+
+      const targetTotalEl = document.getElementById('kpi-attendance-target-total');
+      if (targetTotalEl) targetTotalEl.textContent = totalTarget.toLocaleString();
+
+      const footActualEl = document.getElementById('kpi-attendance-footer-actual');
+      if (footActualEl) footActualEl.textContent = 'To be recorded after the activity';
+
+      const footResultEl = document.getElementById('kpi-attendance-footer-result');
+      if (footResultEl) footResultEl.innerHTML = '<span class="text-muted" style="font-size:0.8rem;">— (Post-activity)</span>';
+    }
+
+    function updateKpiLearningCalculations() {
+      const learnRows = document.querySelectorAll('#kpi-learning-table-body tr.kpi-learning-row');
+      learnRows.forEach((tr) => {
+        const resCell = tr.querySelector('.kpi-learning-result-cell span.text-muted');
+        if (resCell) {
+          resCell.textContent = 'To be recorded after the activity';
+        }
+      });
+    }
+
+    function addParticipantSectionRow(section = '', count = '', teacher = '') {
+      const tbody = document.getElementById('participant-sections-body');
+      if (!tbody) return;
+      const currentCount = tbody.querySelectorAll('tr.participant-row').length;
+      const newIndex = currentCount + 1;
+      
+      const tr = document.createElement('tr');
+      tr.className = 'participant-row';
+      tr.style.borderBottom = '1px solid #f1f5f9';
+      tr.innerHTML = `
+        <td class="part-row-num" style="text-align: center; font-weight: 600; color: #64748b; font-size: 0.85rem; padding: 10px 12px; vertical-align: middle;">
+          ${newIndex}
+        </td>
+        <td style="padding: 10px 12px;">
+          <input type="text" name="part_section[]" class="form-control part-section-input" placeholder="e.g. BSIT 301 / Data Structures" value="${escapeHtml(section)}">
+        </td>
+        <td style="padding: 10px 12px;">
+          <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="${escapeHtml(count)}" oninput="updateTotalTargetParticipants()">
+        </td>
+        <td style="padding: 10px 12px;">
+          <input type="text" name="part_teacher[]" class="form-control part-teacher-input" placeholder="e.g. Prof. Juan Dela Cruz" value="${escapeHtml(teacher)}">
+        </td>
+        <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
+          <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Delete section" style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1;">✕</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+      renumberParticipantRows();
+      updateTotalTargetParticipants();
+    }
+
+    function removeParticipantSectionRow(btn) {
+      const tbody = document.getElementById('participant-sections-body');
+      if (!tbody) return;
+      const rows = tbody.querySelectorAll('tr.participant-row');
+      if (rows.length <= 1) {
+        return; // Never allow deletion of the last remaining row
+      }
+      const tr = btn.closest('tr');
+      if (tr) {
+        tr.remove();
+        renumberParticipantRows();
+        updateTotalTargetParticipants();
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        renumberParticipantRows();
+        updateTotalTargetParticipants();
+        syncKpiSectionTables();
+        updateManpowerSummary();
+        const pBody = document.getElementById('participant-sections-body');
+        if (pBody) {
+          pBody.addEventListener('input', () => {
+            syncKpiSectionTables();
+          });
+        }
+      });
+    } else {
+      renumberParticipantRows();
+      updateTotalTargetParticipants();
+      syncKpiSectionTables();
+      updateManpowerSummary();
+      const pBody = document.getElementById('participant-sections-body');
+      if (pBody) {
+        pBody.addEventListener('input', () => {
+          syncKpiSectionTables();
+        });
+      }
+    }
+
     // ── KPI ──────────────────────────────────────────────────────────
+    function checkKpiDeleteButtons() {
+      const tbody = document.getElementById('kpi-body');
+      if (!tbody) return;
+      const rows = tbody.querySelectorAll('tr');
+      rows.forEach(row => {
+        const delBtn = row.querySelector('.btn-delete-kpi');
+        if (delBtn) {
+          if (rows.length <= 1) {
+            delBtn.disabled = true;
+            delBtn.style.opacity = '0.4';
+            delBtn.style.cursor = 'not-allowed';
+          } else {
+            delBtn.disabled = false;
+            delBtn.style.opacity = '1';
+            delBtn.style.cursor = 'pointer';
+          }
+        }
+      });
+    }
+
+    function addKpiRow(ind = '', target = '', method = '') {
+      const tbody = document.getElementById('kpi-body');
+      if (!tbody) return;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding: 10px 12px;"><input type="text" name="kpi_indicator[]" class="form-control kpi-field" placeholder="e.g. Number of Attendees" value="${escapeHtml(ind)}"></td>
+        <td style="padding: 10px 12px;"><input type="text" name="kpi_target[]" class="form-control kpi-field" placeholder="e.g. 500 Participants" value="${escapeHtml(target)}"></td>
+        <td style="padding: 10px 12px;"><input type="text" name="kpi_method[]" class="form-control kpi-field" placeholder="e.g. Attendance Sheet" value="${escapeHtml(method)}"></td>
+        <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
+          <button type="button" class="btn btn-outline btn-sm btn-delete-kpi" onclick="removeKpiRow(this)" title="Delete KPI" style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1;">✕</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+      checkKpiDeleteButtons();
+    }
+
+    function removeKpiRow(btn) {
+      const tbody = document.getElementById('kpi-body');
+      if (!tbody) return;
+      const rows = tbody.querySelectorAll('tr');
+      if (rows.length <= 1) return; // Do not allow deleting the final remaining row
+      const tr = btn.closest('tr');
+      if (tr) tr.remove();
+      checkKpiDeleteButtons();
+    }
+
     function addKPI() {
-      addRow('kpi');
+      addKpiRow();
     }
 
     // ── Evaluation Tool ──────────────────────────────────────────────
@@ -3779,13 +4827,19 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           return;
         }
 
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
 
-        if (data && (data.quota_exhausted || (data.error && data.error === 'QUOTA_EXHAUSTED'))) {
+        if (!data) {
+          throw new Error(`Server returned HTTP ${res.status}.`);
+        }
+
+        if (data.quota_exhausted || (data.error && data.error === 'QUOTA_EXHAUSTED')) {
           throw new Error("QUOTA_EXHAUSTED");
-        } else if (res.status === 429 || (data && (data.rate_limited || (data.error && (data.error.includes('429') || data.error.includes('limit')))))) {
+        } else if (res.status === 429 || (data && (data.rate_limited || (data.error && (data.error.includes('429') || data.error.includes('limit') || data.error === 'RATE_LIMIT'))))) {
           throw new Error("RATE_LIMIT");
-        } else if (!res.ok || (data && data.error)) {
+        } else if (data.auth_error || (data.error && data.error === 'AUTH_ERROR')) {
+          throw new Error("AUTH_ERROR: " + (data.message || 'Invalid or missing API key.'));
+        } else if (!res.ok || (data && (data.error || data.success === false))) {
           throw new Error(data.message || data.error || `API Error: HTTP ${res.status}`);
         }
 
@@ -3810,7 +4864,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           serializeEvaluationQuestions();
           setEvaluationState('READY');
         } else {
-          throw new Error(data.error || 'Empty response from AI.');
+          throw new Error(data.message || data.error || 'Empty response from AI.');
         }
       } catch (err) {
         if (err.name === 'AbortError') return;
@@ -3818,13 +4872,17 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         console.warn('autoGenerateEvaluation error:', err);
         let errMsg = err.message || 'Unknown error';
         let isQuota = false;
+        let isAuth = false;
         if (errMsg === 'QUOTA_EXHAUSTED') {
           errMsg = 'AI service quota has been reached. You can add evaluation questions manually below.';
           isQuota = true;
         } else if (errMsg === 'RATE_LIMIT') {
-          errMsg = 'AI service rate limit reached. Please wait a moment and try again.';
+          errMsg = 'AI service rate limit reached. Please wait a moment and click Retry.';
+        } else if (errMsg.startsWith('AUTH_ERROR')) {
+          errMsg = errMsg.replace(/^AUTH_ERROR:\s*/, '');
+          isAuth = true;
         }
-        setEvaluationState('ERROR', errMsg, isQuota);
+        setEvaluationState('ERROR', errMsg, isQuota, isAuth);
       } finally {
         if (requestId === currentEvalRequestId) {
           isGeneratingEval = false;
@@ -3891,7 +4949,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       });
     }
 
-    function setEvaluationState(state, errorMsg = '', isQuota = false) {
+    function setEvaluationState(state, errorMsg = '', isQuota = false, isAuth = false) {
       const badge = document.getElementById('evalStatusBadge');
       const indicator = document.getElementById('evalStatusIndicator');
       const text = document.getElementById('evalStatusText');
@@ -3918,8 +4976,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           if (regenBtn) regenBtn.disabled = false;
           if (statusEl) {
             statusEl.style.display = 'block';
-            statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#f0f9ff; color:#0369a1; border:1px solid #e0f2fe; margin-bottom:10px;';
-            statusEl.innerText = errorMsg || 'Please complete the activity title, theme, and objectives to generate evaluation questions.';
+            statusEl.style.cssText = 'padding:10px 14px; font-size:0.75rem; border-radius:6px; background:#f0f9ff; color:#0369a1; border:1px solid #e0f2fe; margin-bottom:10px;';
+            statusEl.innerText = errorMsg || (questionsList.length === 0 ? 'No evaluation questions generated yet. Click "⚡ Regenerate" to create questions with AI.' : 'Please complete the activity title, theme, and objectives to generate evaluation questions.');
           }
           break;
         case 'GENERATING':
@@ -3936,7 +4994,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           if (regenBtn) regenBtn.disabled = true;
           if (statusEl) {
             statusEl.style.display = 'block';
-            statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; margin-bottom:10px;';
+            statusEl.style.cssText = 'padding:10px 14px; font-size:0.75rem; border-radius:6px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; margin-bottom:10px;';
             statusEl.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;">' +
               '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="animation:spin 1s linear infinite;">' +
               '<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>' +
@@ -3981,11 +5039,11 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           if (regenBtn) regenBtn.disabled = false;
           if (statusEl) {
             statusEl.style.display = 'block';
-            statusEl.style.cssText = 'padding:10px; font-size:0.75rem; border-radius:6px; background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; margin-bottom:10px;';
-            const actionHtml = isQuota
+            statusEl.style.cssText = 'padding:10px 14px; font-size:0.75rem; border-radius:6px; background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; margin-bottom:10px;';
+            const actionHtml = isQuota || isAuth
               ? `<div style="margin-top:6px; color:#475569; font-size:0.75rem; font-weight:500;">💡 Manual evaluation question entry is active. Use the <strong>+ Add Question</strong> button below to customize your questions.</div>`
-              : `<div style="margin-top:6px;"><button type="button" class="btn btn-outline btn-xs" style="background:#fff; border:1px solid #fca5a5; padding:2px 8px; font-size:0.7rem; height:auto; line-height:1.2;" onclick="regenerateEvaluationWithAi(false)">Retry</button></div>`;
-            statusEl.innerHTML = `⚠️ <span>Unable to generate evaluation questions right now.</span> <br> <span style="font-size:0.7rem; opacity:0.85;">${escapeHtml(errorMsg || 'Network error')}</span>` + actionHtml;
+              : `<div style="margin-top:6px;"><button type="button" class="btn btn-outline btn-xs" style="background:#fff; border:1px solid #fca5a5; padding:2px 8px; font-size:0.7rem; height:auto; line-height:1.2; color:#b91c1c;" onclick="regenerateEvaluationWithAi(true)">Retry</button></div>`;
+            statusEl.innerHTML = `⚠️ <span style="font-weight:600;">Evaluation Question Generation Error</span> <br> <span style="font-size:0.75rem; opacity:0.95;">${escapeHtml(errorMsg || 'Unable to generate evaluation questions right now.')}</span>` + actionHtml;
           }
           break;
       }
@@ -4200,16 +5258,38 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         }
       }
 
+      // Read activity ID if available (0 for unsaved new proposals)
+      const actIdEl = document.getElementById('proposalActivityId') || document.querySelector('[name="activity_id"]');
+      const activityId = actIdEl && actIdEl.value ? parseInt(actIdEl.value, 10) : 0;
+
+      // Ensure evaluation questions are serialized and gathered from memory / DOM
+      if (typeof serializeEvaluationQuestions === 'function') {
+        serializeEvaluationQuestions();
+      }
+
+      let currentQuestions = [];
+      if (typeof questionsList !== 'undefined' && Array.isArray(questionsList) && questionsList.length > 0) {
+        currentQuestions = questionsList;
+      } else {
+        const hiddenInput = document.getElementById('f10_evaluation_questions');
+        if (hiddenInput && hiddenInput.value) {
+          try { currentQuestions = JSON.parse(hiddenInput.value); } catch (e) {}
+        }
+      }
+
+      if (!currentQuestions || !Array.isArray(currentQuestions) || currentQuestions.length === 0) {
+        showStatus('⚠️ Please generate or add evaluation questions first before creating a Google Form.', 'warning');
+        return;
+      }
+
+      const title = (document.getElementById('f1_title')?.value || document.querySelector('[name="title"]')?.value || '').trim() || 'Activity Evaluation';
+
       // Prevent duplicate requests
       isCreatingGoogleForm = true;
       if (btn) btn.disabled = true;
       if (spinner) spinner.style.display = 'inline-block';
       if (btnText) btnText.textContent = 'Creating Form...';
       if (statusMsg) statusMsg.style.display = 'none';
-
-      // Read activity ID if available
-      const actIdEl = document.getElementById('proposalActivityId') || document.querySelector('[name="activity_id"]');
-      const activityId = actIdEl && actIdEl.value ? parseInt(actIdEl.value, 10) : 0;
 
       try {
         const response = await fetch('<?= BASE_URL ?>/api/create-google-form.php', {
@@ -4218,7 +5298,11 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
             'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
-          body: JSON.stringify({ activity_id: activityId })
+          body: JSON.stringify({
+            activity_id: activityId,
+            title: title,
+            questions: currentQuestions
+          })
         });
 
         const data = await response.json().catch(() => null);
@@ -4231,7 +5315,7 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
             const errSpan = document.getElementById('e_eval_form_link');
             if (errSpan) errSpan.style.display = 'none';
           }
-          showStatus('Google Form created successfully! Link populated.', 'success');
+          showStatus(data.message || 'Google Form created successfully! Link populated.', 'success');
         } else {
           // Handle response cleanly without exposing credentials or sensitive tokens
           const errMsg = (data && data.error) ? String(data.error) : '';
@@ -4240,10 +5324,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
               linkInput.value = data.form_url || data.responder_uri;
             }
             showStatus('A Google Form has already been created for this activity.', 'info');
-          } else if (errMsg.includes('Valid activity ID is required') || activityId <= 0) {
-            showStatus('⚠️ Please save this proposal as a draft first before creating a Google Form so your questions are stored.', 'warning');
-          } else if (errMsg.toLowerCase().includes('client id') || errMsg.toLowerCase().includes('configuration') || errMsg.toLowerCase().includes('token') || errMsg.toLowerCase().includes('googleoauth') || response.status === 500) {
-            showStatus('⚠️ Google Forms integration is not configured on this system. You can manually create a form and paste the link above.', 'warning');
+          } else if (errMsg) {
+            showStatus('⚠️ ' + escapeHtml(errMsg), 'warning');
           } else {
             showStatus('⚠️ Unable to create Google Form. Please paste your Google Form link manually.', 'warning');
           }
@@ -4331,6 +5413,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="<?= BASE_URL ?>/assets/js/schedule-conflict-ui.js?v=<?= time() ?>"></script>
   <script src="<?= BASE_URL ?>/assets/js/proposal-ai-validator.js?v=<?= time() ?>"></script>
+  <script src="<?= BASE_URL ?>/assets/js/offline-drafts.js?v=<?= time() ?>"></script>
+  <script src="<?= BASE_URL ?>/assets/js/ai-proposal-guidance.js?v=<?= time() ?>"></script>
   <script>
     if (typeof ScheduleConflictUI !== 'undefined') {
       ScheduleConflictUI.init({
@@ -4350,6 +5434,13 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         baseUrl:       '<?= BASE_URL ?>',
         formSelector:  '#proposalForm',
         modalSelector: '#aiProposalValidationModal'
+      });
+    }
+
+    if (typeof AIProposalGuidance !== 'undefined') {
+      AIProposalGuidance.init({
+        baseUrl:      '<?= BASE_URL ?>',
+        formSelector: '#proposalForm'
       });
     }
 

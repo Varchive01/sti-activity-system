@@ -89,18 +89,10 @@ if (!$activity) {
 }
 
 // Role-based access control:
-// Faculty can only import for their own activities; Admin1/Admin2/Dean can import for any activity.
-if ($user['role'] === 'faculty') {
-    if ((int)$activity['faculty_id'] !== (int)$user['id']) {
-        sendImportJsonResponse(403, [
-            'success' => false,
-            'error'   => 'Forbidden: You do not have permission to import evaluation responses for another faculty member\'s activity.'
-        ]);
-    }
-} elseif (!in_array($user['role'], ['admin1', 'admin2', 'dean'], true)) {
+if (!canUserAccessActivity($activityId, 'modify', $user['id'], $user['role'], $user['dept'])) {
     sendImportJsonResponse(403, [
         'success' => false,
-        'error'   => 'Forbidden: Access denied.'
+        'error'   => 'Forbidden: You do not have permission to import evaluation responses for this activity.'
     ]);
 }
 

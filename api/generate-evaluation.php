@@ -3,7 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 
 header('Content-Type: application/json');
 
@@ -15,10 +15,23 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // Read raw JSON input
 $inputJSON = file_get_contents('php://input');
-$input = json_decode($inputJSON, true);
+$input = !empty($inputJSON) ? json_decode($inputJSON, true) : null;
+if (!is_array($input) && !empty($_POST)) {
+    $input = $_POST;
+}
+if (!is_array($input) && php_sapi_name() === 'cli') {
+    $cliInput = @stream_get_contents(STDIN);
+    if (!empty($cliInput)) {
+        $input = json_decode($cliInput, true);
+    }
+}
 
-if (!$input) {
-    echo json_encode(['error' => 'Invalid JSON input.']);
+if (!is_array($input)) {
+    http_response_code(400);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Invalid JSON input.'
+    ]);
     exit;
 }
 
@@ -70,11 +83,40 @@ CRITICAL GUIDELINES:
 ";
 
 // Call Gemini API
-$apiKey = defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '';
+if (!function_exists('getGeminiApiKeySecure')) {
+    function getGeminiApiKeySecure(): string
+    {
+        $key = getenv('GEMINI_API_KEY');
+        if (!$key && defined('GEMINI_API_KEY')) {
+            $key = GEMINI_API_KEY;
+        }
+        if (!$key && isset($_ENV['GEMINI_API_KEY'])) {
+            $key = $_ENV['GEMINI_API_KEY'];
+        }
+        if (!$key && isset($_SERVER['GEMINI_API_KEY'])) {
+            $key = $_SERVER['GEMINI_API_KEY'];
+        }
+        if (!$key) {
+            $envFile = __DIR__ . '/../.env';
+            if (file_exists($envFile)) {
+                $envVars = @parse_ini_file($envFile);
+                if (isset($envVars['GEMINI_API_KEY'])) {
+                    $key = (string)$envVars['GEMINI_API_KEY'];
+                }
+            }
+        }
+        return trim((string)$key);
+    }
+}
+
+$apiKey = getGeminiApiKeySecure();
 if (empty($apiKey) || $apiKey === 'YOUR_API_KEY_HERE') {
+    http_response_code(500);
     echo json_encode([
-        'error' => 'Configuration Error: Gemini API key is missing.',
-        'details' => 'Please configure the GEMINI_API_KEY in the .env file.'
+        'success'    => false,
+        'error'      => 'AUTH_ERROR',
+        'auth_error' => true,
+        'message'    => 'Configuration Error: Gemini API key is missing. Please configure GEMINI_API_KEY in the environment or .env file.'
     ]);
     exit;
 }
@@ -89,14 +131,33 @@ $data = [
     ]
 ];
 
-$modelsToTry = ['gemini-flash-latest', 'gemini-3.6-flash'];
+$modelsToTry = [
+    'gemini-flash-lite-latest',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-flash-latest',
+    'gemini-3.5-flash'
+];
+
+// Windows/XAMPP CA certificate bundle resolution
+$caBundle = null;
+if (class_exists('GoogleOAuthService') && method_exists('GoogleOAuthService', 'resolveCaBundle')) {
+    $caBundle = GoogleOAuthService::resolveCaBundle();
+} elseif (file_exists('C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem')) {
+    $caBundle = 'C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem';
+} elseif (file_exists('C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem')) {
+    $caBundle = 'C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem';
+}
+
 $response = '';
 $httpCode = 0;
 $curlError = '';
 $success = false;
 
 foreach ($modelsToTry as $modelName) {
-    $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $modelName . ':generateContent?key=' . $apiKey;
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $modelName . ':generateContent?key=' . urlencode($apiKey);
     $maxAttempts = 2;
     $attempt = 0;
     
@@ -107,9 +168,10 @@ foreach ($modelsToTry as $modelName) {
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_TIMEOUT, 40);
-        if (file_exists('C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem')) {
-            curl_setopt($ch, CURLOPT_CAINFO, 'C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem');
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+        if ($caBundle && file_exists($caBundle)) {
+            curl_setopt($ch, CURLOPT_CAINFO, $caBundle);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
             curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         } else {
@@ -127,10 +189,10 @@ foreach ($modelsToTry as $modelName) {
             break 2; // Break both loops, we are successful!
         }
         
-        // If quota is exhausted (daily/tier limit), stop retrying immediately
+        // If quota is exhausted (daily/tier limit), stop retrying this model
         if (strpos($response, 'RESOURCE_EXHAUSTED') !== false || strpos($response, 'Quota exceeded') !== false || strpos($response, 'quotaMetric') !== false) {
-            error_log("Gemini API quota exhausted in generate-evaluation. Halting retries.");
-            break 2;
+            error_log("Gemini API quota exhausted for model $modelName in generate-evaluation. Trying next model.");
+            break;
         }
 
         // Bounded retry on temporary 503 or transient 429 rate limit
@@ -145,12 +207,17 @@ foreach ($modelsToTry as $modelName) {
         break; // For other errors (like 400/403/404), try next model directly
     }
     
-    error_log("Gemini API Model $modelName failed with HTTP $httpCode. Trying fallback model...");
+    error_log("Gemini API Model $modelName returned HTTP $httpCode. Trying fallback model...");
 }
 
-if ($curlError) {
+if ($curlError && !$success) {
     error_log("Gemini API cURL Error (generate-evaluation): " . $curlError);
-    echo json_encode(['error' => 'cURL Error: ' . $curlError]);
+    http_response_code(503);
+    echo json_encode([
+        'success' => false,
+        'error'   => 'NETWORK_ERROR',
+        'message' => 'Network error: Unable to connect to AI service. Please check your internet connection and try again.'
+    ]);
     exit;
 }
 
@@ -158,15 +225,37 @@ if ($httpCode !== 200) {
     error_log("Gemini API Error (HTTP $httpCode) in generate-evaluation: " . $response);
     $isQuotaExhausted = (strpos($response, 'RESOURCE_EXHAUSTED') !== false || strpos($response, 'Quota exceeded') !== false || strpos($response, 'quotaMetric') !== false);
     $isRateLimited = ($httpCode === 429);
+    $isAuthError = ($httpCode === 400 && (strpos($response, 'API_KEY_INVALID') !== false || strpos($response, 'API key not valid') !== false)) || $httpCode === 401 || $httpCode === 403;
 
+    $userMessage = 'Unable to generate evaluation questions right now. Please try again.';
+    $errorCode = 'API Error: HTTP ' . $httpCode;
+    $httpStatusOut = 502;
+    if ($isAuthError) {
+        $errorCode = 'AUTH_ERROR';
+        $userMessage = 'Authentication Error: Gemini API key is invalid or unauthorized.';
+        $httpStatusOut = 401;
+    } elseif ($isQuotaExhausted) {
+        $errorCode = 'QUOTA_EXHAUSTED';
+        $userMessage = 'AI service quota has been reached. You can add and customize evaluation questions manually.';
+        $httpStatusOut = 429;
+    } elseif ($isRateLimited) {
+        $errorCode = 'RATE_LIMIT';
+        $userMessage = 'AI service rate limit reached. Please wait a moment and try again.';
+        $httpStatusOut = 429;
+    } elseif ($httpCode >= 500) {
+        $errorCode = 'SERVER_ERROR';
+        $userMessage = 'The AI service is temporarily unavailable. Please try again in a few moments.';
+        $httpStatusOut = 503;
+    }
+
+    http_response_code($httpStatusOut);
     echo json_encode([
-        'error' => $isQuotaExhausted ? 'QUOTA_EXHAUSTED' : ($isRateLimited ? 'RATE_LIMIT' : 'API Error: HTTP ' . $httpCode),
+        'success'         => false,
+        'error'           => $errorCode,
         'quota_exhausted' => $isQuotaExhausted,
-        'rate_limited' => $isRateLimited,
-        'message' => $isQuotaExhausted 
-            ? 'AI service quota has been reached. You can add and customize evaluation questions manually.' 
-            : ($isRateLimited ? 'AI service rate limit reached. Please wait a moment and try again.' : 'Unable to generate evaluation questions right now.'),
-        'details' => $response
+        'rate_limited'    => $isRateLimited,
+        'auth_error'      => $isAuthError,
+        'message'         => $userMessage
     ]);
     exit;
 }

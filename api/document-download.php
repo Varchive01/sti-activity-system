@@ -59,6 +59,10 @@ if ($deliverableId > 0) {
             (int)$deliv['uploaded_by'] === (int)$user['id']) {
             $isAuthorized = true;
         }
+    } elseif ($role === 'program_head') {
+        if (canUserAccessActivity((int)$deliv['activity_id'], 'view', $user['id'], $role, $user['dept'])) {
+            $isAuthorized = true;
+        }
     }
 
     if (!$isAuthorized) {
@@ -70,7 +74,7 @@ if ($deliverableId > 0) {
     $originalName = $deliv['file_name'] ?: basename($storedPath);
 } elseif ($activityId > 0 && $type === 'poster') {
     // 3c. Retrieve activity record for poster
-    $stmt = $db->prepare("SELECT id, faculty_id, title, poster_path FROM activities WHERE id = ? LIMIT 1");
+    $stmt = $db->prepare("SELECT id, faculty_id, title, poster_path, status FROM activities WHERE id = ? LIMIT 1");
     $stmt->execute([$activityId]);
     $act = $stmt->fetch();
 
@@ -82,8 +86,16 @@ if ($deliverableId > 0) {
     if (in_array($role, ['admin1', 'admin2', 'dean'], true)) {
         $isAuthorized = true;
     } elseif ($role === 'faculty') {
-        // Authenticated faculty can view proposal posters
-        $isAuthorized = true;
+        // Faculty can view posters of activities they own or non-draft proposals
+        if ((int)$act['faculty_id'] === (int)$user['id']) {
+            $isAuthorized = true;
+        } elseif (!in_array($act['status'] ?? '', ['draft', 'returned_for_revision'], true)) {
+            $isAuthorized = true;
+        }
+    } elseif ($role === 'program_head') {
+        if (canUserAccessActivity($activityId, 'view', $user['id'], $role, $user['dept'])) {
+            $isAuthorized = true;
+        }
     }
 
     if (!$isAuthorized) {
@@ -116,6 +128,10 @@ if ($deliverableId > 0) {
     } elseif ($role === 'faculty') {
         // Faculty can only access floor plans for activities they own
         if ((int)$fp['faculty_id'] === (int)$user['id']) {
+            $isAuthorized = true;
+        }
+    } elseif ($role === 'program_head') {
+        if (canUserAccessActivity($activityId, 'view', $user['id'], $role, $user['dept'])) {
             $isAuthorized = true;
         }
     }
@@ -151,6 +167,10 @@ if ($deliverableId > 0) {
     } elseif ($role === 'faculty') {
         // Faculty can access if they own the activity or uploaded the document
         if ((int)$doc['faculty_id'] === (int)$user['id'] || (int)$doc['uploaded_by'] === (int)$user['id']) {
+            $isAuthorized = true;
+        }
+    } elseif ($role === 'program_head') {
+        if (canUserAccessActivity((int)$doc['activity_id'], 'view', $user['id'], $role, $user['dept'])) {
             $isAuthorized = true;
         }
     }
@@ -189,6 +209,21 @@ if (str_starts_with($cleanRelative, 'uploads/')) {
 }
 
 $targetFullPath = realpath($baseUploadDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $cleanRelative));
+
+// Backward compatibility: If not found directly, check category subfolder
+if (!$targetFullPath || !is_file($targetFullPath)) {
+    if ($type === 'poster') {
+        $candidate = realpath($baseUploadDir . DIRECTORY_SEPARATOR . 'posters' . DIRECTORY_SEPARATOR . basename($cleanRelative));
+        if ($candidate && is_file($candidate)) {
+            $targetFullPath = $candidate;
+        }
+    } elseif ($type === 'floorplan') {
+        $candidate = realpath($baseUploadDir . DIRECTORY_SEPARATOR . 'floorplans' . DIRECTORY_SEPARATOR . basename($cleanRelative));
+        if ($candidate && is_file($candidate)) {
+            $targetFullPath = $candidate;
+        }
+    }
+}
 
 // Traversal and existence verification
 $canonicalBase = rtrim(str_replace('\\', '/', $baseUploadDir), '/') . '/';

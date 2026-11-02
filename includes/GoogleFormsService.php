@@ -25,10 +25,19 @@ class GoogleFormsService
         ?ClientInterface $httpClient = null
     ) {
         $this->oauthService = $oauthService ?? new GoogleOAuthService();
-        $this->httpClient   = $httpClient ?? new Client([
-            'timeout'     => 20.0,
-            'http_errors' => false,
-        ]);
+        if ($httpClient === null) {
+            $options = [
+                'timeout'     => 20.0,
+                'http_errors' => false,
+            ];
+            $caBundle = GoogleOAuthService::resolveCaBundle();
+            if ($caBundle !== null) {
+                $options['verify'] = $caBundle;
+            }
+            $this->httpClient = new Client($options);
+        } else {
+            $this->httpClient = $httpClient;
+        }
     }
 
     /**

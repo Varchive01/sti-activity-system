@@ -222,6 +222,7 @@ try {
             'status' => 200,
             'body'   => [
                 'replies' => [
+                    ['createItem' => ['itemId' => '00000000', 'questionId' => ['google_q_sec']]],
                     ['createItem' => ['itemId' => '00000001', 'questionId' => ['google_q_001']]],
                     ['createItem' => ['itemId' => '00000002', 'questionId' => ['google_q_002']]],
                 ],
@@ -249,13 +250,15 @@ try {
 
     assertTest("2.1 Responder URL persisted in activities.evaluation_method", $savedMethod === $mockResponderUri, "Expected '{$mockResponderUri}', got '{$savedMethod}'");
 
-    $hasGoogleQ1 = isset($savedQuestions[0]['google_question_id']) && $savedQuestions[0]['google_question_id'] === 'google_q_001';
-    $hasGoogleQ2 = isset($savedQuestions[1]['google_question_id']) && $savedQuestions[1]['google_question_id'] === 'google_q_002';
-    $preservedQ1 = ($savedQuestions[0]['id'] ?? '') === 'q1' && ($savedQuestions[0]['type'] ?? '') === 'rating';
-    $preservedQ2 = ($savedQuestions[1]['id'] ?? '') === 'q2' && ($savedQuestions[1]['type'] ?? '') === 'open_ended';
+    $hasGoogleQSec = isset($savedQuestions[0]['google_question_id']) && $savedQuestions[0]['google_question_id'] === 'google_q_sec';
+    $hasGoogleQ1 = isset($savedQuestions[1]['google_question_id']) && $savedQuestions[1]['google_question_id'] === 'google_q_001';
+    $hasGoogleQ2 = isset($savedQuestions[2]['google_question_id']) && $savedQuestions[2]['google_question_id'] === 'google_q_002';
+    $isSectionQ = ($savedQuestions[0]['question'] ?? '') === 'Section' && ($savedQuestions[0]['type'] ?? '') === 'short_answer';
+    $preservedQ1 = ($savedQuestions[1]['id'] ?? '') === 'q1' && ($savedQuestions[1]['type'] ?? '') === 'rating';
+    $preservedQ2 = ($savedQuestions[2]['id'] ?? '') === 'q2' && ($savedQuestions[2]['type'] ?? '') === 'open_ended';
 
-    assertTest("2.2 Google questionId persisted in activities.evaluation_questions", $hasGoogleQ1 && $hasGoogleQ2);
-    assertTest("2.3 Original question attributes and ordering preserved", $preservedQ1 && $preservedQ2);
+    assertTest("2.2 Google questionId persisted in activities.evaluation_questions", $hasGoogleQSec && $hasGoogleQ1 && $hasGoogleQ2);
+    assertTest("2.3 Original question attributes and ordering preserved", $isSectionQ && $preservedQ1 && $preservedQ2);
 
     $savedFormLink = $actRow['google_form_link'] ?? '';
     assertTest("2.4 API formId persisted in activities.google_form_link", $savedFormLink === $mockFormId, "Expected '{$mockFormId}', got '{$savedFormLink}'");
@@ -438,6 +441,233 @@ try {
 
     assertTest("9.1 Sensitive access token is NOT leaked in API error response", !str_contains($rawResponseText, $sensitiveAccessToken));
     assertTest("9.2 Client secrets are NOT exposed in raw output", !str_contains($rawResponseText, 'test-client-secret'));
+
+    // -------------------------------------------------------------------------
+    // TEST 10: Unsaved Proposal Form Creation (activity_id: 0)
+    // -------------------------------------------------------------------------
+    echo "\n--- 10. Unsaved Proposal Form Creation Tests (activity_id: 0) ---\n";
+
+    $mockUnsavedFormId = 'unsaved_form_xyz789';
+    $mockUnsavedResponder = 'https://docs.google.com/forms/d/e/unsaved_form_xyz789/viewform';
+    $mockUnsavedResponses = [
+        [
+            'status' => 200,
+            'body'   => [
+                'formId'       => $mockUnsavedFormId,
+                'responderUri' => $mockUnsavedResponder,
+                'revisionId'   => '00000001',
+            ],
+        ],
+        [
+            'status' => 200,
+            'body'   => [
+                'replies' => [
+                    ['createItem' => ['itemId' => 'item_unsaved_sec', 'questionId' => ['q_unsaved_sec']]],
+                    ['createItem' => ['itemId' => 'item_unsaved_1', 'questionId' => ['q_unsaved_1']]],
+                    ['createItem' => ['itemId' => 'item_unsaved_2', 'questionId' => ['q_unsaved_2']]],
+                ],
+            ],
+        ],
+    ];
+
+    $dbCountBefore = (int)$db->query("SELECT COUNT(*) FROM activities")->fetchColumn();
+
+    $resUnsaved = executeCreateGoogleForm([
+        'activity_id' => 0,
+        'title'       => 'Unsaved New Proposal Activity',
+        'questions'   => $validQuestions,
+    ], $faculty1, $mockUnsavedResponses);
+
+    $dbCountAfter = (int)$db->query("SELECT COUNT(*) FROM activities")->fetchColumn();
+
+    assertTest("10.1 Unsaved proposal (activity_id: 0) returns success=true", ($resUnsaved['data']['success'] ?? false) === true);
+    assertTest("10.2 Unsaved proposal returns valid responder_uri", ($resUnsaved['data']['responder_uri'] ?? '') === $mockUnsavedResponder);
+    assertTest("10.3 Unsaved proposal returns questions_count", ($resUnsaved['data']['questions_count'] ?? 0) === 3);
+    assertTest("10.4 Unsaved proposal does NOT create temporary or dummy activity rows in DB", $dbCountBefore === $dbCountAfter);
+
+    // -------------------------------------------------------------------------
+    // TEST 11: Existing Draft with In-Memory Edited Questions
+    // -------------------------------------------------------------------------
+    echo "\n--- 11. Existing Draft with Edited In-Memory Questions ---\n";
+
+    $editedQuestions = [
+        [
+            'id'       => 'q_edit_1',
+            'question' => 'How relevant was the updated course curriculum?',
+            'type'     => 'rating',
+            'required' => true,
+        ],
+        [
+            'id'       => 'q_edit_2',
+            'question' => 'What additional topics should be covered in the next session?',
+            'type'     => 'open_ended',
+            'required' => false,
+        ],
+    ];
+
+    $actIdEdited = createTestActivity($db, (int)$faculty1['id'], 'Draft for Question Edit Test', $validQuestionsJson);
+    $createdActivityIds[] = $actIdEdited;
+
+    $mockEditedFormId = 'edited_form_draft_456';
+    $mockEditedResponder = 'https://docs.google.com/forms/d/e/edited_form_draft_456/viewform';
+    $mockEditedResponses = [
+        [
+            'status' => 200,
+            'body'   => [
+                'formId'       => $mockEditedFormId,
+                'responderUri' => $mockEditedResponder,
+                'revisionId'   => '00000001',
+            ],
+        ],
+        [
+            'status' => 200,
+            'body'   => [
+                'replies' => [
+                    ['createItem' => ['itemId' => 'item_ed_sec', 'questionId' => ['q_ed_sec']]],
+                    ['createItem' => ['itemId' => 'item_ed_1', 'questionId' => ['q_ed_1']]],
+                    ['createItem' => ['itemId' => 'item_ed_2', 'questionId' => ['q_ed_2']]],
+                ],
+            ],
+        ],
+    ];
+
+    $resEdited = executeCreateGoogleForm([
+        'activity_id' => $actIdEdited,
+        'title'       => 'Updated Draft Activity Title',
+        'questions'   => $editedQuestions,
+    ], $faculty1, $mockEditedResponses);
+
+    assertTest("11.1 Existing draft with updated questions returns success=true", ($resEdited['data']['success'] ?? false) === true);
+    assertTest("11.2 Existing draft returns newly generated responder_uri", ($resEdited['data']['responder_uri'] ?? '') === $mockEditedResponder);
+
+    // Verify activity record in DB updated with new link and did not destroy existing activity fields
+    $actCheck = $db->query("SELECT * FROM activities WHERE id = {$actIdEdited}")->fetch(PDO::FETCH_ASSOC);
+    assertTest("11.3 Existing activity in DB updated with new evaluation_method link", ($actCheck['evaluation_method'] ?? '') === $mockEditedResponder);
+    assertTest("11.4 Existing activity in DB updated with new google_form_link ID", ($actCheck['google_form_link'] ?? '') === $mockEditedFormId);
+    assertTest("11.5 Existing activity title and description preserved in DB", ($actCheck['title'] ?? '') === 'Draft for Question Edit Test');
+
+    // -------------------------------------------------------------------------
+    // TEST 12: Empty In-Memory Questions Rejected
+    // -------------------------------------------------------------------------
+    echo "\n--- 12. Empty In-Memory Questions Rejected ---\n";
+
+    $resEmpty = executeCreateGoogleForm([
+        'activity_id' => 0,
+        'title'       => 'No Questions Proposal',
+        'questions'   => [],
+    ], $faculty1, []);
+
+    assertTest("12.1 Empty questions array rejected with success=false", ($resEmpty['data']['success'] ?? true) === false);
+    assertTest("12.2 Rejection message instructs user to generate or add questions", str_contains($resEmpty['data']['error'] ?? '', 'questions'));
+
+    // -------------------------------------------------------------------------
+    // TEST 13: Section Question Integration & Deduplication Suite
+    // -------------------------------------------------------------------------
+    echo "\n--- 13. Section Question Integration & Deduplication Suite ---\n";
+
+    // 13.1 Generation from Create Proposal includes Section question as item 0
+    $actIdSecCreate = createTestActivity($db, (int)$faculty1['id'], 'Section Question Create Test', null);
+    $createdActivityIds[] = $actIdSecCreate;
+
+    $mockSecResponses1 = [
+        ['status' => 200, 'body' => ['formId' => 'form_sec_001', 'responderUri' => 'https://docs.google.com/forms/d/e/form_sec_001/viewform']],
+        ['status' => 200, 'body' => ['replies' => [
+            ['createItem' => ['itemId' => 'item_sec_1', 'questionId' => ['q_sec_1']]],
+            ['createItem' => ['itemId' => 'item_sec_2', 'questionId' => ['q_sec_2']]],
+            ['createItem' => ['itemId' => 'item_sec_3', 'questionId' => ['q_sec_3']]],
+        ]]],
+    ];
+
+    $resSecCreate = executeCreateGoogleForm([
+        'activity_id' => 0,
+        'title'       => 'Create Proposal With Section Question',
+        'questions'   => $validQuestions,
+    ], $faculty1, $mockSecResponses1);
+
+    assertTest("13.1 Create proposal (activity_id: 0) includes Section question (questions_count: 3)", ($resSecCreate['data']['questions_count'] ?? 0) === 3);
+
+    // 13.2 Generation from Edit Proposal persists Section question at index 0 in DB
+    $resSecEdit = executeCreateGoogleForm([
+        'activity_id' => $actIdSecCreate,
+        'title'       => 'Edit Proposal With Section Question',
+        'questions'   => $validQuestions,
+    ], $faculty1, $mockSecResponses1);
+
+    assertTest("13.2 Edit proposal (activity_id: > 0) succeeds", ($resSecEdit['data']['success'] ?? false) === true);
+
+    $dbSecRow = $db->query("SELECT evaluation_questions FROM activities WHERE id = {$actIdSecCreate}")->fetch(PDO::FETCH_ASSOC);
+    $dbSecQuestions = json_decode($dbSecRow['evaluation_questions'] ?? '[]', true);
+
+    $firstQ = $dbSecQuestions[0] ?? [];
+    $isSectionTitle = ($firstQ['question'] ?? '') === 'Section';
+    $isShortAnswer = ($firstQ['type'] ?? '') === 'short_answer';
+    $isRequired = ($firstQ['required'] ?? false) === true;
+    $hasGoogleId = !empty($firstQ['google_question_id']);
+
+    assertTest("13.3 Section question is first question (index 0) in DB", $isSectionTitle);
+    assertTest("13.4 Section question type is short_answer", $isShortAnswer);
+    assertTest("13.5 Section question is required (required: true)", $isRequired);
+    assertTest("13.6 Section question has Google questionId assigned", $hasGoogleId);
+
+    // 13.7 Verify no student name or student number question exists
+    $hasNameOrStudentId = false;
+    foreach ($dbSecQuestions as $qItem) {
+        $text = strtolower(trim($qItem['question'] ?? ''));
+        if (str_contains($text, 'student name') || str_contains($text, 'student number') || str_contains($text, 'student id')) {
+            $hasNameOrStudentId = true;
+            break;
+        }
+    }
+    assertTest("13.7 Form does NOT ask for student name or student number", !$hasNameOrStudentId);
+
+    // 13.8 Regeneration with Section question already in questionnaire does NOT create duplicate
+    $mockSecResponses2 = [
+        ['status' => 200, 'body' => ['formId' => 'form_sec_002', 'responderUri' => 'https://docs.google.com/forms/d/e/form_sec_002/viewform']],
+        ['status' => 200, 'body' => ['replies' => [
+            ['createItem' => ['itemId' => 'item_regen_1', 'questionId' => ['q_regen_1']]],
+            ['createItem' => ['itemId' => 'item_regen_2', 'questionId' => ['q_regen_2']]],
+            ['createItem' => ['itemId' => 'item_regen_3', 'questionId' => ['q_regen_3']]],
+        ]]],
+    ];
+
+    // Pass $dbSecQuestions which ALREADY contains the Section question at index 0
+    $resRegen = executeCreateGoogleForm([
+        'activity_id' => $actIdSecCreate,
+        'title'       => 'Regenerated Proposal Form',
+        'questions'   => $dbSecQuestions,
+        'force'       => true,
+    ], $faculty1, $mockSecResponses2);
+
+    assertTest("13.8 Regeneration succeeds with success=true", ($resRegen['data']['success'] ?? false) === true);
+    assertTest("13.9 Regeneration does NOT duplicate Section question (count remains 3)", ($resRegen['data']['questions_count'] ?? 0) === 3);
+
+    $dbRegenRow = $db->query("SELECT evaluation_questions FROM activities WHERE id = {$actIdSecCreate}")->fetch(PDO::FETCH_ASSOC);
+    $dbRegenQuestions = json_decode($dbRegenRow['evaluation_questions'] ?? '[]', true);
+
+    $sectionCount = 0;
+    foreach ($dbRegenQuestions as $qItem) {
+        if (strcasecmp(trim($qItem['question'] ?? ''), 'Section') === 0) {
+            $sectionCount++;
+        }
+    }
+    assertTest("13.10 Exactly ONE Section question present in regenerated questionnaire", $sectionCount === 1);
+
+    // 13.11 Multiple duplicate Section questions in payload are cleaned up to exactly one
+    $multiSectionQuestions = [
+        ['question' => 'Section', 'type' => 'short_answer', 'required' => true],
+        ['question' => 'How clear were the activity instructions?', 'type' => 'rating'],
+        ['question' => 'Section', 'type' => 'short_answer', 'required' => true], // Duplicate
+        ['question' => 'What suggestions do you have for future activities?', 'type' => 'open_ended'],
+        ['question' => 'SECTION', 'type' => 'text', 'required' => true], // Another duplicate
+    ];
+
+    $resMultiSec = executeCreateGoogleForm([
+        'activity_id' => 0,
+        'title'       => 'Multi Section Dedup Test',
+        'questions'   => $multiSectionQuestions,
+    ], $faculty1, $mockSecResponses2);
+
+    assertTest("13.11 Multiple duplicate Section questions deduplicated (questions_count: 3)", ($resMultiSec['data']['questions_count'] ?? 0) === 3);
 
 } finally {
     // Teardown: Clean up temporary test activities

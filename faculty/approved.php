@@ -3,12 +3,16 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('faculty');
+requireRole('faculty', 'program_head');
 $user = currentUser();
 $db   = getDB();
 
-// Fetch all activities relevant to this role
-$where = "WHERE a.faculty_id = {$user['id']} AND a.status IN ('approved', 'completed')";
+if ($user['role'] === 'program_head') {
+    $deptEsc = $db->quote($user['dept'] ?? '');
+    $where = "WHERE (u.department = $deptEsc OR a.faculty_id = {$user['id']}) AND a.status IN ('approved', 'completed')";
+} else {
+    $where = "WHERE a.faculty_id = {$user['id']} AND a.status IN ('approved', 'completed')";
+}
 
 $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JOIN users u ON a.faculty_id=u.id $where ORDER BY a.updated_at DESC")->fetchAll();
 ?>

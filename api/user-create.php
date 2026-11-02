@@ -78,36 +78,69 @@ if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     respondError('invalid_email', 'A valid email address is required.', $isJsonRequest, $redirectUrl);
 }
 
-// Validate Department (Optional, but if provided must be one of the 4 approved options)
+// 5. Authoritative Role Hierarchy & Permission Validation
+$assignedRole = '';
+if ($currentUser['role'] === 'dean') {
+    // Dean can create Faculty, Admin1, Admin2, Program Head. Cannot create another Dean.
+    if ($requestedRole === 'dean') {
+        respondError('forbidden_role', 'Dean cannot create another Dean account.', $isJsonRequest, $redirectUrl, 403);
+    }
+    if (!in_array($requestedRole, ['faculty', 'admin1', 'admin2', 'program_head'], true)) {
+        respondError('invalid_role', 'Invalid role requested.', $isJsonRequest, $redirectUrl, 422);
+    }
+    $assignedRole = $requestedRole;
+} elseif ($currentUser['role'] === 'admin2') {
+    // Admin2 can create Faculty and Program Head accounts
+    if (!in_array($requestedRole, ['faculty', 'program_head'], true)) {
+        respondError('forbidden_role', 'Admin 2 is not authorized to create administrative accounts.', $isJsonRequest, $redirectUrl, 403);
+    }
+    $assignedRole = $requestedRole;
+} else {
+    respondError('unauthorized', 'You are not authorized to create accounts.', $isJsonRequest, $redirectUrl, 403);
+}
+
+// Helper to normalize department inputs (e.g. IT -> IT Department, GE -> G.E. Department, THM -> THM Department)
+$normalizeDept = function(string $d): string {
+    $trimmed = trim($d);
+    $map = [
+        'it'              => 'IT Department',
+        'it department'   => 'IT Department',
+        'thm'             => 'THM Department',
+        'thm department'  => 'THM Department',
+        'ge'              => 'G.E. Department',
+        'g.e.'            => 'G.E. Department',
+        'g.e. department' => 'G.E. Department',
+        'ge department'   => 'G.E. Department',
+        'administration'  => 'Administration',
+    ];
+    $key = strtolower($trimmed);
+    return $map[$key] ?? $trimmed;
+};
+
+$normalizedDept = $department !== '' ? $normalizeDept($department) : '';
+
+// 6. Validate Department
 $allowedDepartments = [
     'IT Department',
     'G.E. Department',
     'THM Department',
     'Administration',
 ];
-if ($department !== '' && !in_array($department, $allowedDepartments, true)) {
-    respondError('invalid_department', 'Invalid department selected. Must be IT Department, G.E. Department, THM Department, or Administration.', $isJsonRequest, $redirectUrl, 422);
-}
 
-// 5. Authoritative Role Hierarchy & Permission Validation
-$assignedRole = '';
-if ($currentUser['role'] === 'dean') {
-    // Dean can create Faculty, Admin1, Admin2. Cannot create another Dean.
-    if ($requestedRole === 'dean') {
-        respondError('forbidden_role', 'Dean cannot create another Dean account.', $isJsonRequest, $redirectUrl, 403);
+if ($assignedRole === 'program_head') {
+    // Program Head MUST be assigned to an academic department: IT, THM, or GE
+    if ($normalizedDept === '' || !in_array($normalizedDept, ['IT Department', 'G.E. Department', 'THM Department'], true)) {
+        respondError('missing_program_head_department', 'Program Head must be assigned to a valid department: IT, THM, or GE.', $isJsonRequest, $redirectUrl, 422);
     }
-    if (!in_array($requestedRole, ['faculty', 'admin1', 'admin2'], true)) {
-        respondError('invalid_role', 'Invalid role requested.', $isJsonRequest, $redirectUrl, 422);
-    }
-    $assignedRole = $requestedRole;
-} elseif ($currentUser['role'] === 'admin2') {
-    // Admin2 can ONLY create Faculty accounts.
-    if ($requestedRole !== 'faculty') {
-        respondError('forbidden_role', 'Admin 2 is not authorized to create administrative accounts.', $isJsonRequest, $redirectUrl, 403);
-    }
-    $assignedRole = 'faculty';
+    $department = $normalizedDept;
 } else {
-    respondError('unauthorized', 'You are not authorized to create accounts.', $isJsonRequest, $redirectUrl, 403);
+    // For other roles, department is optional, but if provided must be one of the allowed departments
+    if ($normalizedDept !== '' && !in_array($normalizedDept, $allowedDepartments, true)) {
+        respondError('invalid_department', 'Invalid department selected. Must be IT Department, G.E. Department, THM Department, or Administration.', $isJsonRequest, $redirectUrl, 422);
+    }
+    if ($normalizedDept !== '') {
+        $department = $normalizedDept;
+    }
 }
 
 // 6. Validate Creator-Provided Default Password
