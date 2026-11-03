@@ -98,7 +98,7 @@ function runCallbackProcess(array $queryParams, string $sessionState, array $moc
     echo '|SESSION:' . json_encode(\$_SESSION);
     ";
 
-    $proc = proc_open('C:\xampp\php\php.exe', [
+    $proc = proc_open(PHP_BINARY, [
         0 => ['pipe', 'r'],
         1 => ['pipe', 'w'],
         2 => ['pipe', 'w'],
@@ -125,6 +125,8 @@ function runCallbackProcess(array $queryParams, string $sessionState, array $moc
     return ['redirect' => $redirect, 'cookie' => $cookie, 'session' => $sess, 'raw' => $out, 'err' => $err];
 }
 
+$facId = (int)$db->query("SELECT id FROM users WHERE email='faculty@sti.edu'")->fetchColumn();
+
 $state = 'test_state_sso_verify';
 $ssoResult = runCallbackProcess(
     ['state' => $state, 'code' => 'auth_code_123'],
@@ -133,7 +135,7 @@ $ssoResult = runCallbackProcess(
 );
 
 assertCheck("1.1 Microsoft SSO callback establishes application session",
-    !empty($ssoResult['session']['user_id']) && $ssoResult['session']['user_id'] === 1);
+    !empty($ssoResult['session']['user_id']) && $ssoResult['session']['user_id'] === $facId);
 assertCheck("1.2 Microsoft SSO session contains auth_method = 'microsoft'",
     ($ssoResult['session']['auth_method'] ?? '') === 'microsoft');
 assertCheck("1.3 Microsoft SSO session contains correct user role and department",
@@ -144,8 +146,8 @@ assertCheck("1.3 Microsoft SSO session contains correct user role and department
 // -------------------------------------------------------------------------
 echo "\n--- 2. Verifying SSO User with must_change_password = 1 Enters Dashboard Directly ---\n";
 
-// Set must_change_password = 1 for Faculty (ID 1)
-$db->exec("UPDATE users SET must_change_password = 1 WHERE id = 1");
+// Set must_change_password = 1 for Faculty
+$db->exec("UPDATE users SET must_change_password = 1 WHERE id = $facId");
 
 $ssoMustChange = runCallbackProcess(
     ['state' => $state, 'code' => 'auth_code_must_change'],
@@ -154,7 +156,7 @@ $ssoMustChange = runCallbackProcess(
 );
 
 // Reset back to 0
-$db->exec("UPDATE users SET must_change_password = 0 WHERE id = 1");
+$db->exec("UPDATE users SET must_change_password = 0 WHERE id = $facId");
 
 assertCheck("2.1 SSO user with must_change_password = 1 redirects to role dashboard directly",
     $ssoMustChange['redirect'] === BASE_URL . '/faculty/dashboard.php',
@@ -182,7 +184,7 @@ requireLogin();
 echo 'SUCCESS:' . \$u['email'] . '|AUTH:' . \$u['auth_method'] . '|MUST_CHANGE:' . \$u['must_change_password'];
 ";
 
-$proc2 = proc_open('C:\xampp\php\php.exe', [
+$proc2 = proc_open(PHP_BINARY, [
     0 => ['pipe', 'r'],
     1 => ['pipe', 'w'],
     2 => ['pipe', 'w'],
@@ -210,16 +212,16 @@ require_once 'config/database.php';
 require_once 'includes/auth.php';
 
 \$db = getDB();
-\$db->exec('UPDATE users SET must_change_password = 1 WHERE id = 1');
+\$db->exec('UPDATE users SET must_change_password = 1 WHERE email = \'faculty@sti.edu\'');
 
 \$user = login('faculty@sti.edu', 'password');
 
-\$db->exec('UPDATE users SET must_change_password = 0 WHERE id = 1');
+\$db->exec('UPDATE users SET must_change_password = 0 WHERE email = \'faculty@sti.edu\'');
 
 echo 'AUTH:' . (\$_SESSION['auth_method'] ?? 'none') . '|MUST_CHANGE:' . (\$_SESSION['must_change_password'] ?? -1);
 ";
 
-$procLocal = proc_open('C:\xampp\php\php.exe', [
+$procLocal = proc_open(PHP_BINARY, [
     0 => ['pipe', 'r'],
     1 => ['pipe', 'w'],
     2 => ['pipe', 'w'],
@@ -260,7 +262,7 @@ requireLogin();
 echo 'DID_NOT_REDIRECT';
 ";
 
-$proc3 = proc_open('C:\xampp\php\php.exe', [
+$proc3 = proc_open(PHP_BINARY, [
     0 => ['pipe', 'r'],
     1 => ['pipe', 'w'],
     2 => ['pipe', 'w'],
@@ -278,7 +280,7 @@ assertCheck("3.3 requireLogin() blocks local session with must_change_password =
 
 // Test live HTTP POST to login.php for normal login with must_change_password = 1
 $loginUrl = BASE_URL . '/auth/login.php';
-$db->exec("UPDATE users SET must_change_password = 1 WHERE id = 1");
+$db->exec("UPDATE users SET must_change_password = 1 WHERE email = 'faculty@sti.edu'");
 
 $chHttp = curl_init($loginUrl);
 curl_setopt_array($chHttp, [
@@ -292,7 +294,7 @@ $respHttp = curl_exec($chHttp);
 $httpRedirect = curl_getinfo($chHttp, CURLINFO_REDIRECT_URL);
 
 // Reset database state back to 0
-$db->exec("UPDATE users SET must_change_password = 0 WHERE id = 1");
+$db->exec("UPDATE users SET must_change_password = 0 WHERE email = 'faculty@sti.edu'");
 
 assertCheck("3.4 Live HTTP login with must_change_password = 1 redirects to auth/change-password.php",
     str_contains($httpRedirect, '/auth/change-password.php'),

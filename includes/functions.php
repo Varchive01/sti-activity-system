@@ -1929,6 +1929,260 @@ if (!function_exists('getProposalUserRole')) {
     }
 }
 
+if (!function_exists('cleanFacultyNameKey')) {
+    /**
+     * Normalizes a faculty member's name for comparison and deduplication:
+     * strips common academic titles, professional suffixes, middle initials, and non-alphanumeric characters.
+     */
+    function cleanFacultyNameKey(string $name): string {
+        $clean = preg_replace('/\b(Mr|Ms|Mrs|Dr|Prof|Dean|Atty|Engr|LPT|MAEd|PE|RN|MBA)\b\.?/i', '', $name);
+        $clean = preg_replace('/\b[a-zA-Z]\b\.?/i', ' ', $clean);
+        if (function_exists('iconv')) {
+            $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $clean);
+            if ($converted !== false) $clean = $converted;
+        }
+        return strtolower(preg_replace('/[^a-zA-Z]/', '', $clean));
+    }
+}
+
+if (!function_exists('normalizeFacultyDepartment')) {
+    /**
+     * Standardizes department names to official department labels (e.g. 'IT Department', 'THM Department', 'G.E. Department').
+     */
+    function normalizeFacultyDepartment(?string $dept): string {
+        $d = trim($dept ?? '');
+        if ($d === '' || strcasecmp($d, 'general') === 0) {
+            return 'G.E. Department';
+        }
+        if (preg_match('/^(information technology|it)(\s+department)?$/i', $d)) {
+            return 'IT Department';
+        }
+        if (preg_match('/^(hospitality management|thm|tourism)(\s+department)?$/i', $d)) {
+            return 'THM Department';
+        }
+        if (preg_match('/^(general education|ge|g\.e\.)(\s+department)?$/i', $d)) {
+            return 'G.E. Department';
+        }
+        if (!preg_match('/department/i', $d)) {
+            return $d . ' Department';
+        }
+        return $d;
+    }
+}
+
+if (!function_exists('getOfficialFacultyRoster')) {
+    /**
+     * Official 28 faculty members transcribed from the STI College Marikina organizational charts.
+     * Excludes Dr. Frederic D. Yulo (Dean).
+     */
+    function getOfficialFacultyRoster(): array {
+        return [
+            'IT Department' => [
+                'Dave Lord M. Rubaya',
+                'Michelle Carlos',
+                'Ar-Jay C. Agbayani',
+                'Emilou G. Magnaye',
+                'John Cedrick Agapito',
+                'Jedekiah Veloso',
+                'Shintaro Lagare',
+                'Geo V. De Leon',
+                'Johanna Kristel T. Montejo',
+                'Felmar Solbita',
+                'Michael André Sayson'
+            ],
+            'THM Department' => [
+                'Aldwin D. Alminar',
+                'Andrea J. Gatbonton',
+                'Divine Grace E. Ibarroll',
+                'Mary Darlene A. Mariano',
+                'Julieta Caridad C. Cruz',
+                'Exequiel L. Magnipis',
+                'Frankie Chiu'
+            ],
+            'G.E. Department' => [
+                'Tristan S. Unabia',
+                'Ian Jade C. Barangan',
+                'Ulysses Neil Patrick B. Edquilang',
+                'Gregg Anthony J. Rana',
+                'Ricky E. Manliguis',
+                'Regina Kate D. Dominguez',
+                'Benedicto A. Arnoco',
+                'Jennilyn Q. Abarra',
+                'Ruby Ann G. Dasalla',
+                'Perine O. Dela Cruz'
+            ]
+        ];
+    }
+}
+
+if (!function_exists('getEligibleFacultyForDropdown')) {
+    /**
+     * Retrieves all 28 faculty members from the official STI organizational charts for the collaborator dropdown.
+     * - Grouped and labeled by department.
+     * - Existing active, eligible accounts remain selectable.
+     * - Missing accounts appear as disabled options labeled "Account Not Registered".
+     * - Ineligible accounts appear as disabled options labeled "Not Eligible".
+     * - Already assigned collaborators appear as disabled options labeled "Already Assigned".
+     * - Completely excludes Dr. Frederic D. Yulo.
+     * - Deduplicates accounts and eliminates test accounts.
+     */
+    function getEligibleFacultyForDropdown(?PDO $db = null, array $excludeIds = [], string $search = ''): array {
+        $db = $db ?? (function_exists('getDB') ? getDB() : null);
+        if (!$db) return [];
+
+        $cleanExcludeIds = array_unique(array_filter(array_map('intval', $excludeIds)));
+
+        // Check if status column exists in users table
+        static $hasStatusCol = null;
+        if ($hasStatusCol === null) {
+            try {
+                $colCheck = $db->query("SHOW COLUMNS FROM users LIKE 'status'")->fetch();
+                $hasStatusCol = !empty($colCheck);
+            } catch (\Throwable $e) {
+                $hasStatusCol = false;
+            }
+        }
+
+        // Fetch users from database, excluding test accounts and Dr. Frederic D. Yulo
+        $sql = "
+            SELECT id, name, email, department, role" . ($hasStatusCol ? ", status" : "") . "
+            FROM users 
+            WHERE LOWER(name) NOT LIKE '%bad email%'
+              AND LOWER(name) NOT LIKE '%unrelated%'
+              AND LOWER(name) NOT LIKE '%placeholder%'
+              AND LOWER(name) NOT LIKE '%dummy%'
+              AND LOWER(name) NOT LIKE '%test%'
+              AND email NOT LIKE '%@invalid%'
+              AND email NOT LIKE 'simulated_%'
+              AND email NOT LIKE 'fac_unrelated_%'
+            ORDER BY (CASE WHEN email LIKE '%@sti.edu%' OR email LIKE '%@marikina.sti.edu.ph%' THEN 0 ELSE 1 END) ASC, id ASC
+        ";
+
+        try {
+            $stmt = $db->query($sql);
+            $rawUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            $rawUsers = [];
+        }
+
+        // Exclude Dr. Frederic D. Yulo completely (Requirement 7)
+        $validUsers = [];
+        foreach ($rawUsers as $u) {
+            if (stripos($u['name'], 'Frederic') !== false && stripos($u['name'], 'Yulo') !== false) {
+                continue;
+            }
+            $validUsers[] = $u;
+        }
+
+        $roster = getOfficialFacultyRoster();
+        $search = trim($search);
+        $cleanList = [];
+
+        foreach ($roster as $dept => $names) {
+            foreach ($names as $officialName) {
+                if ($search !== '') {
+                    if (stripos($officialName, $search) === false && stripos($dept, $search) === false) {
+                        continue;
+                    }
+                }
+
+                $offKey = cleanFacultyNameKey($officialName);
+                $matchedUser = null;
+
+                // 1. Exact normalized match
+                foreach ($validUsers as $u) {
+                    if (cleanFacultyNameKey($u['name']) === $offKey) {
+                        $matchedUser = $u;
+                        break;
+                    }
+                }
+
+                // 2. Fuzzy match fallback (e.g. Ar-jay Agabayani vs Agbayani)
+                if (!$matchedUser) {
+                    foreach ($validUsers as $u) {
+                        $uKey = cleanFacultyNameKey($u['name']);
+                        similar_text($offKey, $uKey, $pct);
+                        if ($pct >= 85) {
+                            $matchedUser = $u;
+                            break;
+                        }
+                    }
+                }
+
+                if (!$matchedUser) {
+                    // Requirement 4: Missing accounts appear as disabled options labeled "Account Not Registered"
+                    $cleanList[] = [
+                        'id'           => null,
+                        'name'         => $officialName,
+                        'department'   => $dept,
+                        'role'         => null,
+                        'status'       => 'not_registered',
+                        'status_label' => 'Account Not Registered',
+                        'disabled'     => true,
+                        'display_text' => "{$officialName} ({$dept}) — Account Not Registered"
+                    ];
+                } else {
+                    $userStatus = $hasStatusCol ? ($matchedUser['status'] ?? 'active') : 'active';
+                    if ($userStatus !== 'active') {
+                        $cleanList[] = [
+                            'id'           => null,
+                            'name'         => $officialName,
+                            'department'   => $dept,
+                            'role'         => $matchedUser['role'],
+                            'status'       => 'inactive',
+                            'status_label' => 'Account Inactive',
+                            'disabled'     => true,
+                            'display_text' => "{$officialName} ({$dept}) — Account Inactive"
+                        ];
+                        continue;
+                    }
+
+                    $isEligibleRole = in_array($matchedUser['role'], ['faculty', 'program_head'], true);
+                    if (!$isEligibleRole) {
+                        // Requirement 5: Accounts with ineligible roles disabled and labeled "Not Eligible"
+                        $cleanList[] = [
+                            'id'           => null,
+                            'name'         => $officialName,
+                            'department'   => $dept,
+                            'role'         => $matchedUser['role'],
+                            'status'       => 'not_eligible',
+                            'status_label' => 'Not Eligible',
+                            'disabled'     => true,
+                            'display_text' => "{$officialName} ({$dept}) — Not Eligible"
+                        ];
+                    } elseif (in_array((int)$matchedUser['id'], $cleanExcludeIds, true)) {
+                        // Excluded: Proposal Owner or already active collaborator on this proposal
+                        $cleanList[] = [
+                            'id'           => null,
+                            'name'         => $officialName,
+                            'department'   => $dept,
+                            'role'         => $matchedUser['role'],
+                            'status'       => 'already_assigned',
+                            'status_label' => 'Already Assigned',
+                            'disabled'     => true,
+                            'display_text' => "{$officialName} ({$dept}) — Already Assigned"
+                        ];
+                    } else {
+                        // Requirement 3: Existing active, eligible accounts remain selectable
+                        $cleanList[] = [
+                            'id'           => (int)$matchedUser['id'],
+                            'name'         => $officialName,
+                            'department'   => $dept,
+                            'role'         => $matchedUser['role'],
+                            'status'       => 'eligible',
+                            'status_label' => null,
+                            'disabled'     => false,
+                            'display_text' => "{$officialName} ({$dept})"
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $cleanList;
+    }
+}
+
 if (!function_exists('addProposalCollaborator')) {
     function addProposalCollaborator(int $activityId, int $targetUserId, string $role, int $addedBy, ?PDO $db = null): array {
         $db = $db ?? (function_exists('getDB') ? getDB() : null);
@@ -1960,7 +2214,7 @@ if (!function_exists('addProposalCollaborator')) {
         }
 
         // 2. Validate target user
-        $uStmt = $db->prepare("SELECT id, name, role, department FROM users WHERE id = ? LIMIT 1");
+        $uStmt = $db->prepare("SELECT id, name, email, role, department FROM users WHERE id = ? LIMIT 1");
         $uStmt->execute([$targetUserId]);
         $targetUser = $uStmt->fetch(PDO::FETCH_ASSOC);
         if (!$targetUser) {
@@ -1972,8 +2226,15 @@ if (!function_exists('addProposalCollaborator')) {
             return ['success' => false, 'error' => 'Only valid faculty members may be invited as proposal contributors.'];
         }
 
-        // Target user cannot be the owner
-        if ($targetUserId === $ownerId) {
+        // Target user cannot be the owner (by ID or canonical name)
+        $ownerStmt = $db->prepare("SELECT name FROM users WHERE id = ? LIMIT 1");
+        $ownerStmt->execute([$ownerId]);
+        $ownerName = (string)$ownerStmt->fetchColumn();
+
+        $targetKey = cleanFacultyNameKey($targetUser['name']);
+        $ownerKey = cleanFacultyNameKey($ownerName);
+
+        if ($targetUserId === $ownerId || ($targetKey !== '' && $targetKey === $ownerKey)) {
             return ['success' => false, 'error' => 'The proposal owner is already the primary author of this activity.'];
         }
 
@@ -1981,13 +2242,29 @@ if (!function_exists('addProposalCollaborator')) {
         $allowedRoles = ['co_author', 'contributor'];
         $cleanRole = in_array(strtolower($role), $allowedRoles, true) ? strtolower($role) : 'contributor';
 
-        // 3. Prevent duplicate active collaborators
+        // 3. Prevent duplicate active collaborators (by ID or canonical name)
         $checkStmt = $db->prepare("SELECT id, status, role FROM proposal_collaborators WHERE activity_id = ? AND user_id = ? LIMIT 1");
         $checkStmt->execute([$activityId, $targetUserId]);
         $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
         if ($existing && $existing['status'] === 'active') {
             return ['success' => false, 'error' => "{$targetUser['name']} is already an active collaborator on this proposal."];
+        }
+
+        // Check if an active collaborator with the same person's name already exists
+        $collabUsersStmt = $db->prepare("
+            SELECT u.name FROM proposal_collaborators pc 
+            JOIN users u ON pc.user_id = u.id 
+            WHERE pc.activity_id = ? AND pc.status = 'active'
+        ");
+        $collabUsersStmt->execute([$activityId]);
+        $activeCollabNames = $collabUsersStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        if ($targetKey !== '') {
+            foreach ($activeCollabNames as $acn) {
+                if (cleanFacultyNameKey($acn) === $targetKey) {
+                    return ['success' => false, 'error' => "{$targetUser['name']} is already an active collaborator on this proposal."];
+                }
+            }
         }
 
         if ($existing) {
@@ -2007,6 +2284,22 @@ if (!function_exists('addProposalCollaborator')) {
         $roleLabel = formatCollaboratorRole($cleanRole);
         logProposalContribution($activityId, $addedBy, 'added_collaborator', 'Collaborators', "Added {$targetUser['name']} as {$roleLabel}", $db);
 
+        // 5. Dispatch real-time in-system & email notifications (Task 18)
+        try {
+            if (function_exists('dispatchCollaboratorNotification')) {
+                dispatchCollaboratorNotification($activityId, $addedBy, 'collaborator_added', [
+                    'target_user_id'    => $targetUserId,
+                    'target_user_name'  => $targetUser['name'],
+                    'target_user_email' => $targetUser['email'] ?? '',
+                    'role'              => $cleanRole,
+                    'role_label'        => $roleLabel,
+                    'proposal_title'    => $activity['title'] ?? ''
+                ], $db);
+            }
+        } catch (\Throwable $notifEx) {
+            error_log("Failed to dispatch collaborator_added notifications: " . $notifEx->getMessage());
+        }
+
         return [
             'success'    => true,
             'message'    => "Successfully added {$targetUser['name']} as {$roleLabel}.",
@@ -2023,7 +2316,7 @@ if (!function_exists('removeProposalCollaborator')) {
         $db = $db ?? (function_exists('getDB') ? getDB() : null);
         if (!$db) return ['success' => false, 'error' => 'Database unavailable.'];
 
-        $actStmt = $db->prepare("SELECT id, faculty_id, status FROM activities WHERE id = ? LIMIT 1");
+        $actStmt = $db->prepare("SELECT id, faculty_id, title, status FROM activities WHERE id = ? LIMIT 1");
         $actStmt->execute([$activityId]);
         $activity = $actStmt->fetch(PDO::FETCH_ASSOC);
         if (!$activity) {
@@ -2049,15 +2342,31 @@ if (!function_exists('removeProposalCollaborator')) {
             return ['success' => false, 'error' => 'The proposal owner cannot be removed from their own activity.'];
         }
 
-        // Fetch user name for log
-        $uStmt = $db->prepare("SELECT name FROM users WHERE id = ? LIMIT 1");
+        // Fetch user details for log & notifications
+        $uStmt = $db->prepare("SELECT id, name, email FROM users WHERE id = ? LIMIT 1");
         $uStmt->execute([$targetUserId]);
-        $targetName = $uStmt->fetchColumn() ?: 'Faculty member';
+        $targetUserRow = $uStmt->fetch(PDO::FETCH_ASSOC);
+        $targetName = $targetUserRow['name'] ?? 'Faculty member';
+        $targetEmail = $targetUserRow['email'] ?? '';
 
         $del = $db->prepare("UPDATE proposal_collaborators SET status = 'removed' WHERE activity_id = ? AND user_id = ?");
         $del->execute([$activityId, $targetUserId]);
 
         logProposalContribution($activityId, $removedBy, 'removed_collaborator', 'Collaborators', "Removed {$targetName} from proposal collaborators", $db);
+
+        // Dispatch real-time in-system & email notifications (Task 18)
+        try {
+            if (function_exists('dispatchCollaboratorNotification')) {
+                dispatchCollaboratorNotification($activityId, $removedBy, 'collaborator_removed', [
+                    'target_user_id'    => $targetUserId,
+                    'target_user_name'  => $targetName,
+                    'target_user_email' => $targetEmail,
+                    'proposal_title'    => $activity['title'] ?? ''
+                ], $db);
+            }
+        } catch (\Throwable $notifEx) {
+            error_log("Failed to dispatch collaborator_removed notifications: " . $notifEx->getMessage());
+        }
 
         return [
             'success' => true,
@@ -2107,5 +2416,342 @@ if (!function_exists('getProposalContributionLogs')) {
         }
     }
 }
+
+if (!function_exists('dispatchCollaboratorNotification')) {
+    /**
+     * Dispatches real-time in-system and email notifications for collaborative proposal events (Task 18).
+     *
+     * @param int $activityId Proposal ID
+     * @param int $actorId ID of user performing the action (strictly excluded from receiving self-notifications)
+     * @param string $eventType One of: 'collaborator_added', 'collaborator_removed', 'proposal_updated', 'proposal_submitted'
+     * @param array $eventData Contextual event data:
+     *      - target_user_id (int)
+     *      - target_user_name (string)
+     *      - target_user_email (string)
+     *      - role (string)
+     *      - role_label (string)
+     *      - proposal_title (string)
+     *      - sections (string|array)
+     *      - description (string)
+     *      - event_key (string)
+     * @param PDO|null $db
+     * @return array Summary of dispatch results ['in_system_count' => int, 'email_count' => int, 'skipped_count' => int, 'recipients' => array]
+     */
+    function dispatchCollaboratorNotification(
+        int $activityId,
+        int $actorId,
+        string $eventType,
+        array $eventData = [],
+        ?PDO $db = null
+    ): array {
+        if ($activityId <= 0) {
+            return ['success' => false, 'error' => 'Invalid activity ID'];
+        }
+
+        $db = $db ?? (function_exists('getDB') ? getDB() : null);
+        if (!$db) {
+            return ['success' => false, 'error' => 'Database connection unavailable'];
+        }
+
+        // 1. Resolve proposal details
+        $proposalTitle = trim((string)($eventData['proposal_title'] ?? ''));
+        if ($proposalTitle === '') {
+            $actStmt = $db->prepare("SELECT title, status FROM activities WHERE id = ? LIMIT 1");
+            $actStmt->execute([$activityId]);
+            $actRow = $actStmt->fetch(PDO::FETCH_ASSOC);
+            $proposalTitle = $actRow['title'] ?? "Activity #{$activityId}";
+        }
+
+        // 2. Resolve actor name
+        $actorName = 'A collaborator';
+        if ($actorId > 0) {
+            $uStmt = $db->prepare("SELECT name FROM users WHERE id = ? LIMIT 1");
+            $uStmt->execute([$actorId]);
+            $fetchedName = $uStmt->fetchColumn();
+            if ($fetchedName) {
+                $actorName = $fetchedName;
+            }
+        }
+
+        // 3. Resolve active collaborators list (includes Owner)
+        $collaborators = getProposalCollaborators($activityId, $db);
+        $collabMap = [];
+        foreach ($collaborators as $c) {
+            $collabMap[(int)$c['user_id']] = $c;
+        }
+
+        // Base URL for links
+        $baseUrl = defined('BASE_URL') ? BASE_URL : 'http://localhost/sti-activity-system';
+        $proposalLink = "{$baseUrl}/faculty/proposal-view.php?id={$activityId}";
+
+        // Prepare statements for in-system notifications & deduplication
+        $checkNotifStmt = $db->prepare("
+            SELECT id FROM notifications 
+            WHERE user_id = ? AND activity_id = ? AND message = ? 
+              AND created_at >= (NOW() - INTERVAL 30 SECOND) 
+            LIMIT 1
+        ");
+        $insertNotifStmt = $db->prepare("
+            INSERT INTO notifications (user_id, activity_id, message, is_read, created_at)
+            VALUES (?, ?, ?, 0, NOW())
+        ");
+
+        // Lazy-instantiate EmailService safely
+        $emailService = null;
+        if (!class_exists('EmailService')) {
+            $emailServicePath = __DIR__ . '/EmailService.php';
+            if (file_exists($emailServicePath)) {
+                require_once $emailServicePath;
+            }
+        }
+        if (class_exists('EmailService')) {
+            try {
+                $emailService = new EmailService();
+            } catch (\Throwable $e) {
+                error_log("EmailService instantiation error: " . $e->getMessage());
+            }
+        }
+
+        $inSystemCount = 0;
+        $emailCount = 0;
+        $skippedCount = 0;
+        $notifiedUserIds = [];
+
+        // Internal helper to deliver to a single recipient
+        $sendToUser = function(
+            int $userId,
+            string $recipientName,
+            string $recipientEmail,
+            string $inSystemMsg,
+            string $emailSubject,
+            string $emailStatus,
+            string $emailBodyMsg,
+            string $notificationType
+        ) use (
+            $activityId,
+            $actorId,
+            $proposalTitle,
+            $proposalLink,
+            $checkNotifStmt,
+            $insertNotifStmt,
+            $emailService,
+            &$inSystemCount,
+            &$emailCount,
+            &$skippedCount,
+            &$notifiedUserIds
+        ) {
+            // STRICT RULE: Never notify the actor about their own change!
+            if ($userId === $actorId || $userId <= 0) {
+                return;
+            }
+
+            // Deduplication for in-system notification (within 30 seconds)
+            $checkNotifStmt->execute([$userId, $activityId, $inSystemMsg]);
+            if ($checkNotifStmt->fetch()) {
+                $skippedCount++;
+                return;
+            }
+
+            // 1. Deliver In-System Notification
+            try {
+                $insertNotifStmt->execute([$userId, $activityId, $inSystemMsg]);
+                $inSystemCount++;
+                $notifiedUserIds[] = $userId;
+            } catch (\Throwable $ne) {
+                error_log("Failed to insert notification for user {$userId}: " . $ne->getMessage());
+            }
+
+            // 2. Deliver Email Notification
+            if ($emailService && !empty($recipientEmail)) {
+                try {
+                    $sent = $emailService->sendNotification(
+                        $recipientEmail,
+                        $recipientName,
+                        $emailSubject,
+                        $proposalTitle,
+                        $emailStatus,
+                        $emailBodyMsg,
+                        $proposalLink,
+                        $activityId,
+                        $notificationType
+                    );
+                    if ($sent) {
+                        $emailCount++;
+                    }
+                } catch (\Throwable $me) {
+                    error_log("Failed sending collaborative email to {$recipientEmail}: " . $me->getMessage());
+                }
+            }
+        };
+
+        $dateTimeStr = date('F j, Y g:i A');
+
+        // 4. Branch by event type
+        switch ($eventType) {
+            case 'collaborator_added':
+                $targetUserId = (int)($eventData['target_user_id'] ?? 0);
+                $targetName   = trim((string)($eventData['target_user_name'] ?? ''));
+                $targetEmail  = trim((string)($eventData['target_user_email'] ?? ''));
+                $roleLabel    = trim((string)($eventData['role_label'] ?? formatCollaboratorRole($eventData['role'] ?? 'contributor')));
+
+                if ($targetUserId <= 0) break;
+
+                // If name/email not provided in eventData, fetch from users table
+                if ($targetName === '' || $targetEmail === '') {
+                    $uStmt = $db->prepare("SELECT name, email FROM users WHERE id = ? LIMIT 1");
+                    $uStmt->execute([$targetUserId]);
+                    $tRow = $uStmt->fetch(PDO::FETCH_ASSOC);
+                    if ($tRow) {
+                        if ($targetName === '') $targetName = $tRow['name'];
+                        if ($targetEmail === '') $targetEmail = $tRow['email'];
+                    }
+                }
+
+                // 4a. Notify the newly added collaborator
+                $inviteMsg = "You have been added as a {$roleLabel} to the proposal '{$proposalTitle}' by {$actorName}.";
+                $inviteEmailSubject = "Collaboration Invitation: {$proposalTitle}";
+                $inviteEmailBody = "You have been invited by {$actorName} to collaborate on the activity proposal '{$proposalTitle}' as a {$roleLabel}.\n\nYou can access and edit your assigned sections directly using the link below.";
+                $sendToUser(
+                    $targetUserId,
+                    $targetName,
+                    $targetEmail,
+                    $inviteMsg,
+                    $inviteEmailSubject,
+                    "Invited as {$roleLabel}",
+                    $inviteEmailBody,
+                    "collab_invite_{$activityId}_{$targetUserId}"
+                );
+
+                // 4b. Notify existing active collaborators about the new member
+                foreach ($collabMap as $uid => $collab) {
+                    if ($uid === $targetUserId || $uid === $actorId) continue;
+                    $teamMsg = "{$actorName} added {$targetName} as a {$roleLabel} to proposal '{$proposalTitle}'.";
+                    $teamSubject = "Team Update: {$proposalTitle}";
+                    $teamBody = "{$actorName} has added {$targetName} ({$roleLabel}) to the collaborative team for proposal '{$proposalTitle}'.";
+                    $sendToUser(
+                        $uid,
+                        $collab['name'],
+                        $collab['email'],
+                        $teamMsg,
+                        $teamSubject,
+                        "Collaborator Added",
+                        $teamBody,
+                        "collab_team_add_{$activityId}_{$targetUserId}_{$uid}"
+                    );
+                }
+                break;
+
+            case 'collaborator_removed':
+                $targetUserId = (int)($eventData['target_user_id'] ?? 0);
+                $targetName   = trim((string)($eventData['target_user_name'] ?? ''));
+                $targetEmail  = trim((string)($eventData['target_user_email'] ?? ''));
+
+                if ($targetUserId <= 0) break;
+
+                if ($targetName === '' || $targetEmail === '') {
+                    $uStmt = $db->prepare("SELECT name, email FROM users WHERE id = ? LIMIT 1");
+                    $uStmt->execute([$targetUserId]);
+                    $tRow = $uStmt->fetch(PDO::FETCH_ASSOC);
+                    if ($tRow) {
+                        if ($targetName === '') $targetName = $tRow['name'];
+                        if ($targetEmail === '') $targetEmail = $tRow['email'];
+                    }
+                }
+
+                // 4a. Notify the removed collaborator
+                $remMsg = "You have been removed from the collaborative team for proposal '{$proposalTitle}' by {$actorName}.";
+                $remSubject = "Collaboration Update: {$proposalTitle}";
+                $remBody = "You have been removed from the collaborative team for the activity proposal '{$proposalTitle}' by {$actorName}.";
+                $sendToUser(
+                    $targetUserId,
+                    $targetName,
+                    $targetEmail,
+                    $remMsg,
+                    $remSubject,
+                    "Removed",
+                    $remBody,
+                    "collab_removed_{$activityId}_{$targetUserId}"
+                );
+
+                // 4b. Notify remaining collaborators about the membership change
+                foreach ($collabMap as $uid => $collab) {
+                    if ($uid === $targetUserId || $uid === $actorId) continue;
+                    $teamMsg = "{$actorName} removed {$targetName} from the collaborative team for proposal '{$proposalTitle}'.";
+                    $teamSubject = "Team Update: {$proposalTitle}";
+                    $teamBody = "{$actorName} has removed {$targetName} from the collaborative team for proposal '{$proposalTitle}'.";
+                    $sendToUser(
+                        $uid,
+                        $collab['name'],
+                        $collab['email'],
+                        $teamMsg,
+                        $teamSubject,
+                        "Collaborator Removed",
+                        $teamBody,
+                        "collab_team_rem_{$activityId}_{$targetUserId}_{$uid}"
+                    );
+                }
+                break;
+
+            case 'proposal_updated':
+                $sections = $eventData['sections'] ?? 'Proposal Details';
+                if (is_array($sections)) {
+                    $sections = implode(', ', array_filter($sections));
+                }
+                $sections = trim((string)$sections) ?: 'Proposal Details';
+                $description = trim((string)($eventData['description'] ?? "Saved edits to {$sections}"));
+                $customKey = trim((string)($eventData['event_key'] ?? ''));
+                $eventHash = $customKey !== '' ? $customKey : substr(md5($sections . '_' . date('YmdHi')), 0, 8);
+
+                $updMsg = "{$actorName} updated {$sections} in proposal '{$proposalTitle}'. ({$description})";
+                $updSubject = "Proposal Updated: {$proposalTitle}";
+                $updBody = "{$actorName} made changes to the proposal '{$proposalTitle}'.\n\nAffected Section(s): {$sections}\nDescription: {$description}\nDate & Time: {$dateTimeStr}";
+
+                foreach ($collabMap as $uid => $collab) {
+                    if ($uid === $actorId) continue;
+                    $sendToUser(
+                        $uid,
+                        $collab['name'],
+                        $collab['email'],
+                        $updMsg,
+                        $updSubject,
+                        "Draft Updated",
+                        $updBody,
+                        "collab_upd_{$activityId}_{$eventHash}_{$uid}"
+                    );
+                }
+                break;
+
+            case 'proposal_submitted':
+                $subMsg = "The shared proposal '{$proposalTitle}' was submitted for approval by {$actorName}.";
+                $subSubject = "Proposal Submitted: {$proposalTitle}";
+                $subBody = "The shared activity proposal '{$proposalTitle}' has been submitted for administrative review and approval by {$actorName}.\n\nDate & Time: {$dateTimeStr}";
+
+                foreach ($collabMap as $uid => $collab) {
+                    if ($uid === $actorId) continue;
+                    $sendToUser(
+                        $uid,
+                        $collab['name'],
+                        $collab['email'],
+                        $subMsg,
+                        $subSubject,
+                        "Submitted for Review",
+                        $subBody,
+                        "collab_sub_{$activityId}_{$uid}"
+                    );
+                }
+                break;
+        }
+
+        return [
+            'success'         => true,
+            'event_type'      => $eventType,
+            'in_system_count' => $inSystemCount,
+            'email_count'     => $emailCount,
+            'skipped_count'   => $skippedCount,
+            'recipients'      => $notifiedUserIds
+        ];
+    }
+}
+
 
 

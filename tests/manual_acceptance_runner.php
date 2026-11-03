@@ -93,11 +93,11 @@ $accounts = [
     'admin2' => ['name' => 'Ian Jade Barangan', 'email' => 'ian@sti.edu', 'password' => 'password', 'role' => 'admin2', 'dept' => 'Events Committee Head'],
     'dean'   => ['name' => 'Dr. Frederic Yulo', 'email' => 'dean@sti.edu', 'password' => 'password', 'role' => 'dean', 'dept' => 'Administration'],
     'fac_it' => ['name' => 'Maria Santos', 'email' => 'faculty@sti.edu', 'password' => 'password', 'role' => 'faculty', 'dept' => 'IT Department'],
-    'fac_thm'=> ['name' => 'Andrea Gatbunton', 'email' => 'fac_thm_accept@test.com', 'password' => 'Password123!', 'role' => 'faculty', 'dept' => 'THM Department'],
-    'fac_ge' => ['name' => 'Ricky Manliguis', 'email' => 'fac_ge_accept@test.com', 'password' => 'Password123!', 'role' => 'faculty', 'dept' => 'G.E. Department'],
-    'ph_it'  => ['name' => 'Dave Lord Rubaya', 'email' => 'ph_it_accept@test.com', 'password' => 'Password123!', 'role' => 'program_head', 'dept' => 'IT Department'],
-    'ph_thm' => ['name' => 'Aldwin Alminar', 'email' => 'ph_thm_accept@test.com', 'password' => 'Password123!', 'role' => 'program_head', 'dept' => 'THM Department'],
-    'ph_ge'  => ['name' => 'Tristan Unabia', 'email' => 'ph_ge_accept@test.com', 'password' => 'Password123!', 'role' => 'program_head', 'dept' => 'G.E. Department']
+    'fac_thm'=> ['name' => 'Andrea Gatbunton', 'email' => 'fac_thm_accept@test.com', 'password' => 'password', 'role' => 'faculty', 'dept' => 'THM Department'],
+    'fac_ge' => ['name' => 'Ricky Manliguis', 'email' => 'fac_ge_accept@test.com', 'password' => 'password', 'role' => 'faculty', 'dept' => 'G.E. Department'],
+    'ph_it'  => ['name' => 'Dave Lord Rubaya', 'email' => 'ph_it_accept@test.com', 'password' => 'password', 'role' => 'program_head', 'dept' => 'IT Department'],
+    'ph_thm' => ['name' => 'Aldwin Alminar', 'email' => 'ph_thm_accept@test.com', 'password' => 'password', 'role' => 'program_head', 'dept' => 'THM Department'],
+    'ph_ge'  => ['name' => 'Tristan Unabia', 'email' => 'ph_ge_accept@test.com', 'password' => 'password', 'role' => 'program_head', 'dept' => 'G.E. Department']
 ];
 
 $cleanupUserIds = [];
@@ -109,10 +109,12 @@ foreach ($accounts as $k => $acc) {
 
     if ($existing) {
         $accounts[$k]['id'] = (int)$existing['id'];
-        $newHash = password_hash($acc['password'], PASSWORD_DEFAULT);
-        $db->prepare("UPDATE users SET password = ?, department = ?, role = ? WHERE id = ?")
-           ->execute([$newHash, $acc['dept'], $acc['role'], $existing['id']]);
-        echo "Found & refreshed account: {$acc['name']} ({$acc['role']} - {$acc['dept']})\n";
+        if (!password_verify($acc['password'], $existing['password'])) {
+            $newHash = password_hash($acc['password'], PASSWORD_DEFAULT);
+            $db->prepare("UPDATE users SET password = ?, department = ?, role = ? WHERE id = ?")
+               ->execute([$newHash, $acc['dept'], $acc['role'], $existing['id']]);
+        }
+        echo "Found verified account: {$acc['name']} ({$acc['role']} - {$acc['dept']})\n";
     } else {
         $hash = password_hash($acc['password'], PASSWORD_DEFAULT);
         $ins = $db->prepare("INSERT INTO users (name, email, password, role, department, must_change_password) VALUES (?, ?, ?, ?, ?, 0)");

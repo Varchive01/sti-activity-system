@@ -91,7 +91,15 @@ $pwdAcceptHash = password_hash('Password123!', PASSWORD_DEFAULT);
 
 $ownerUser = $db->query("SELECT * FROM users WHERE email = 'faculty@sti.edu'")->fetch(PDO::FETCH_ASSOC);
 $collabB = $db->query("SELECT * FROM users WHERE email = 'fac_thm_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+if (!$collabB) {
+    $db->prepare("INSERT INTO users (name, email, password, role, department, must_change_password) VALUES ('Andrea Gatbonton', 'fac_thm_accept@test.com', ?, 'faculty', 'THM Department', 0)")->execute([$pwdHash]);
+    $collabB = $db->query("SELECT * FROM users WHERE email = 'fac_thm_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+}
 $collabC = $db->query("SELECT * FROM users WHERE email = 'fac_ge_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+if (!$collabC) {
+    $db->prepare("INSERT INTO users (name, email, password, role, department, must_change_password) VALUES ('Ricky Manliguis', 'fac_ge_accept@test.com', ?, 'faculty', 'G.E. Department', 0)")->execute([$pwdHash]);
+    $collabC = $db->query("SELECT * FROM users WHERE email = 'fac_ge_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+}
 $phIt = $db->query("SELECT * FROM users WHERE email = 'ph_it_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
 if (!$phIt) {
     $phIt = $db->query("SELECT * FROM users WHERE email = 'dave@sti.edu'")->fetch(PDO::FETCH_ASSOC);
@@ -108,16 +116,12 @@ if (!$unrelatedFac) {
     $unrelatedFac = $db->query("SELECT * FROM users WHERE email = 'fac_unrelated_test@test.com'")->fetch(PDO::FETCH_ASSOC);
 }
 
-// Reset passwords to known values
-$db->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE id IN (?, ?, ?, ?)")->execute([$pwdAcceptHash, $ownerUser['id'], $collabB['id'], $collabC['id'], $unrelatedFac['id']]);
-$db->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE id IN (?, ?)")->execute([$pwdAcceptHash, $phIt['id'], $phThm['id']]);
-
-// Login sessions
-$ownerCookie = loginUser($baseUrl, $ownerUser['email'], 'Password123!');
-$collabBCookie = loginUser($baseUrl, $collabB['email'], 'Password123!');
-$collabCCookie = loginUser($baseUrl, $collabC['email'], 'Password123!');
-$unrelatedCookie = loginUser($baseUrl, $unrelatedFac['email'], 'Password123!');
-$phItCookie = loginUser($baseUrl, $phIt['email'], 'Password123!');
+// Login sessions using standard account credentials without overwriting database hashes
+$ownerCookie = loginUser($baseUrl, $ownerUser['email'], 'password');
+$collabBCookie = !empty($collabB) ? loginUser($baseUrl, $collabB['email'], 'password') : null;
+$collabCCookie = !empty($collabC) ? loginUser($baseUrl, $collabC['email'], 'password') : null;
+$unrelatedCookie = !empty($unrelatedFac) ? loginUser($baseUrl, $unrelatedFac['email'], 'password') : null;
+$phItCookie = loginUser($baseUrl, $phIt['email'], 'password');
 
 assertCheck(!empty($ownerCookie), "Owner ({$ownerUser['name']}) logged in successfully.");
 assertCheck(!empty($collabBCookie), "Contributor B ({$collabB['name']}) logged in successfully.");
@@ -311,7 +315,7 @@ echo "\n--- TEST CASE 13: Program Head Department Permissions Remain Enforced --
 // PH IT can view because activity is in IT department
 $resPhItView = makeRequest("{$baseUrl}/faculty/proposal-view.php?id={$testActivityId}", 'GET', [], $phItCookie);
 // PH THM cannot view/edit an IT proposal where they are not assigned
-$resPhThmView = makeRequest("{$baseUrl}/faculty/proposal-view.php?id={$testActivityId}", 'GET', [], loginUser($baseUrl, $phThm['email'], 'Password123!'));
+$resPhThmView = makeRequest("{$baseUrl}/faculty/proposal-view.php?id={$testActivityId}", 'GET', [], loginUser($baseUrl, $phThm['email'], 'password'));
 assertCheck($resPhItView['code'] === 200, "Test 13a: Program Head IT can view department proposal #{$testActivityId} (HTTP 200).");
 assertCheck($resPhThmView['code'] === 403, "Test 13b: Program Head THM blocked from unassigned other-department proposal (HTTP 403).");
 

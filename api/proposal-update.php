@@ -1079,28 +1079,121 @@ try {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // Log Collaborative Contribution (Task 14)
+    // Log Collaborative Contribution (Task 14) & Notifications (Task 18)
     // ══════════════════════════════════════════════════════════════════════════
     try {
         $contribSections = [];
-        if (!empty($s1Editable)) $contribSections[] = 'Event Details';
-        if (!empty($s2Editable)) $contribSections[] = 'Objectives';
-        if (!empty($s3Editable)) $contribSections[] = 'Materials & Budget';
-        if (!empty($s5Editable)) $contribSections[] = 'Manpower & Committees';
-        if (!empty($s6Editable)) $contribSections[] = 'Schedule & Program';
-        if (!empty($s7Editable)) $contribSections[] = 'Guidelines';
-        if (!empty($s8Editable)) $contribSections[] = 'Faculty Tasks';
-        if (!empty($s9Editable)) $contribSections[] = 'KPI & Evaluation';
+        $changedSections = [];
+
+        // Check each section for actual changes
+        $detailsChanged = (
+            $title !== trim($activity['title'] ?? '') ||
+            $theme !== trim($activity['theme'] ?? '') ||
+            $venue !== trim($activity['venue'] ?? '') ||
+            $venueAddress !== trim($activity['venue_address'] ?? '') ||
+            (int)$targetParticipants !== (int)($activity['target_participants'] ?? 0)
+        );
+        if (!empty($s1Editable)) {
+            $contribSections[] = 'Event Details';
+            if ($detailsChanged) $changedSections[] = 'Event Details';
+        }
+
+        $objChanged = (
+            $generalObjectives !== trim($activity['general_objectives'] ?? '') ||
+            $specificObjectives !== trim($activity['specific_objectives'] ?? '') ||
+            $involvedSubjects !== trim($activity['involved_subjects'] ?? '') ||
+            $rationale !== trim($activity['rationale'] ?? '')
+        );
+        if (!empty($s2Editable)) {
+            $contribSections[] = 'Objectives';
+            if ($objChanged) $changedSections[] = 'Objectives';
+        }
+
+        $materialsChanged = !empty($_POST['item_desc']) || !empty($_POST['materials_changed']);
+        if (!empty($s3Editable)) {
+            $contribSections[] = 'Materials & Budget';
+            if ($materialsChanged) $changedSections[] = 'Materials & Budget';
+        }
+
+        $manpowerChanged = !empty($_POST['committee']) || !empty($_POST['manpower_changed']);
+        if (!empty($s5Editable)) {
+            $contribSections[] = 'Manpower & Committees';
+            if ($manpowerChanged) $changedSections[] = 'Manpower & Committees';
+        }
+
+        $schedChanged = (
+            (!empty($saveEventDate) && $saveEventDate !== ($activity['event_date'] ?? '')) ||
+            (!empty($saveStartTime) && $saveStartTime !== ($activity['start_time'] ?? '')) ||
+            (!empty($saveEndTime) && $saveEndTime !== ($activity['end_time'] ?? '')) ||
+            !empty($_POST['schedule_rows']) || !empty($_POST['sched_date']) || !empty($_POST['prog_activity'])
+        );
+        if (!empty($s6Editable)) {
+            $contribSections[] = 'Schedule & Program';
+            if ($schedChanged) $changedSections[] = 'Schedule & Program';
+        }
+
+        $guidelinesChanged = (
+            (isset($_POST['guidelines']) && trim($_POST['guidelines']) !== trim($activity['guidelines'] ?? '')) ||
+            (isset($_POST['house_rules']) && trim($_POST['house_rules']) !== trim($activity['house_rules'] ?? ''))
+        );
+        if (!empty($s7Editable)) {
+            $contribSections[] = 'Guidelines';
+            if ($guidelinesChanged) $changedSections[] = 'Guidelines';
+        }
+
+        $tasksChanged = !empty($_POST['ft_title']) || !empty($_POST['tasks_changed']);
+        if (!empty($s8Editable)) {
+            $contribSections[] = 'Faculty Tasks';
+            if ($tasksChanged) $changedSections[] = 'Faculty Tasks';
+        }
+
+        $kpiChanged = !empty($_POST['kpi_indicator']) || !empty($_POST['kpi_criteria']) || !empty($_POST['kpi_changed']);
+        if (!empty($s9Editable)) {
+            $contribSections[] = 'KPI & Evaluation';
+            if ($kpiChanged) $changedSections[] = 'KPI & Evaluation';
+        }
+
+        $attachmentsChanged = (
+            !empty($_FILES['poster_file']['name']) ||
+            !empty($_FILES['floor_plan_file']['name']) ||
+            !empty($_POST['floor_plan_image'])
+        );
+        if ($attachmentsChanged) {
+            $contribSections[] = 'Supporting Documents & Attachments';
+            $changedSections[] = 'Supporting Documents & Attachments';
+        }
 
         $sectionSummary = !empty($contribSections) ? implode(', ', $contribSections) : 'Proposal Information';
+        $changedSummary = !empty($changedSections) ? implode(', ', $changedSections) : $sectionSummary;
+
         $actionDesc = ($action === 'submit') ? 'submitted_proposal' : 'updated_draft';
         $detailsDesc = ($action === 'submit') 
             ? "Submitted proposal for approval ({$sectionSummary})" 
-            : "Saved edits to {$sectionSummary}";
+            : "Saved edits to {$changedSummary}";
 
-        logProposalContribution($id, (int)$user['id'], $actionDesc, $sectionSummary, $detailsDesc, $db);
+        logProposalContribution($id, (int)$user['id'], $actionDesc, ($action === 'submit' ? $sectionSummary : $changedSummary), $detailsDesc, $db);
+
+        // Collaborative Proposal Notifications (Task 18)
+        if ($action === 'submit') {
+            if (function_exists('dispatchCollaboratorNotification')) {
+                dispatchCollaboratorNotification($id, (int)$user['id'], 'proposal_submitted', [
+                    'proposal_title' => $title,
+                    'status_label'   => 'Submitted for Review'
+                ], $db);
+            }
+        } elseif (!empty($changedSections)) {
+            if (function_exists('dispatchCollaboratorNotification')) {
+                dispatchCollaboratorNotification($id, (int)$user['id'], 'proposal_updated', [
+                    'proposal_title' => $title,
+                    'sections'       => $changedSummary,
+                    'description'    => $detailsDesc,
+                    'date_time'      => date('Y-m-d H:i:s'),
+                    'event_key'      => $_POST['event_key'] ?? ''
+                ], $db);
+            }
+        }
     } catch (\Throwable $collabLogEx) {
-        error_log("Failed to log proposal contribution: " . $collabLogEx->getMessage());
+        error_log("Failed to log proposal contribution or dispatch notifications: " . $collabLogEx->getMessage());
     }
 
     if ($isAjax) {

@@ -59,12 +59,12 @@ function currentUser(): array
 
 function login(string $email, string $password): array|false
 {
-    $db   = getDB();
-    $stmt = $db->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
-    $stmt->execute([trim($email)]);
+    $db         = getDB();
+    $cleanEmail = strtolower(trim($email));
+    $stmt       = $db->prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1');
+    $stmt->execute([$cleanEmail]);
     $user = $stmt->fetch();
 
-    // password_verify handles bcrypt, argon2, etc.
     if (!$user || !password_verify($password, $user['password'])) {
         return false;
     }

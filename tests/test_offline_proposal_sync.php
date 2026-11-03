@@ -86,8 +86,8 @@ $cFileFacIt = $cookieDir . '/fac_it.txt';
 $cFileDean  = $cookieDir . '/dean.txt';
 
 // Authenticate test sessions
-makeRequest($baseUrl . '/auth/login.php', 'POST', ['email' => 'ph_it_accept@test.com', 'password' => 'Password123!'], $cFilePhIt);
-makeRequest($baseUrl . '/auth/login.php', 'POST', ['email' => 'ph_thm_accept@test.com', 'password' => 'Password123!'], $cFilePhThm);
+makeRequest($baseUrl . '/auth/login.php', 'POST', ['email' => 'ph_it_accept@test.com', 'password' => 'password'], $cFilePhIt);
+makeRequest($baseUrl . '/auth/login.php', 'POST', ['email' => 'ph_thm_accept@test.com', 'password' => 'password'], $cFilePhThm);
 makeRequest($baseUrl . '/auth/login.php', 'POST', ['email' => 'faculty@sti.edu', 'password' => 'password'], $cFileFacIt);
 makeRequest($baseUrl . '/auth/login.php', 'POST', ['email' => 'dean@sti.edu', 'password' => 'password'], $cFileDean);
 

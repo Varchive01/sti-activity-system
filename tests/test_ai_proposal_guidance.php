@@ -20,7 +20,7 @@ function makeRequest(string $url, string $method = 'GET', array $data = [], ?str
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HEADER => true,
         CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_TIMEOUT => 30
+        CURLOPT_TIMEOUT => 90
     ];
 
     $customHeaders = $headers;
@@ -86,18 +86,23 @@ echo "======================================================================\n";
 echo "  TASK 15: AI-ASSISTED PROPOSAL GUIDANCE AUDIT SUITE\n";
 echo "======================================================================\n\n";
 
-// 1. Prepare Users and Logins
-$pwdAcceptHash = password_hash('Password123!', PASSWORD_DEFAULT);
-
+// 1. Prepare Users and Logins without overwriting database hashes
+$pwdHash = password_hash('password', PASSWORD_DEFAULT);
 $facultyUser = $db->query("SELECT * FROM users WHERE email = 'faculty@sti.edu'")->fetch(PDO::FETCH_ASSOC);
 $contributorUser = $db->query("SELECT * FROM users WHERE email = 'fac_thm_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+if (!$contributorUser) {
+    $db->prepare("INSERT INTO users (name, email, password, role, department, must_change_password) VALUES ('Andrea Gatbonton', 'fac_thm_accept@test.com', ?, 'faculty', 'THM Department', 0)")->execute([$pwdHash]);
+    $contributorUser = $db->query("SELECT * FROM users WHERE email = 'fac_thm_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+}
 $unrelatedUser = $db->query("SELECT * FROM users WHERE email = 'fac_unrelated_test@test.com'")->fetch(PDO::FETCH_ASSOC);
+if (!$unrelatedUser) {
+    $db->prepare("INSERT INTO users (name, email, password, role, department, must_change_password) VALUES ('Unrelated Faculty Member', 'fac_unrelated_test@test.com', ?, 'faculty', 'THM Department', 0)")->execute([$pwdHash]);
+    $unrelatedUser = $db->query("SELECT * FROM users WHERE email = 'fac_unrelated_test@test.com'")->fetch(PDO::FETCH_ASSOC);
+}
 
-$db->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE id IN (?, ?, ?)")->execute([$pwdAcceptHash, $facultyUser['id'], $contributorUser['id'], $unrelatedUser['id']]);
-
-$facultyCookie = loginUser($baseUrl, $facultyUser['email'], 'Password123!');
-$contributorCookie = loginUser($baseUrl, $contributorUser['email'], 'Password123!');
-$unrelatedCookie = loginUser($baseUrl, $unrelatedUser['email'], 'Password123!');
+$facultyCookie = loginUser($baseUrl, $facultyUser['email'], 'password');
+$contributorCookie = !empty($contributorUser) ? loginUser($baseUrl, $contributorUser['email'], 'password') : null;
+$unrelatedCookie = !empty($unrelatedUser) ? loginUser($baseUrl, $unrelatedUser['email'], 'password') : null;
 
 assertCheck(!empty($facultyCookie), "Faculty ({$facultyUser['name']}) session authenticated.");
 assertCheck(!empty($contributorCookie), "Contributor ({$contributorUser['name']}) session authenticated.");

@@ -97,9 +97,15 @@ $pwdStandardHash = password_hash('password', PASSWORD_DEFAULT);
 
 // IT Program Head
 $phIt = $db->query("SELECT * FROM users WHERE email = 'ph_it_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+if (!$phIt) {
+    $phIt = $db->query("SELECT * FROM users WHERE email = 'dave@sti.edu'")->fetch(PDO::FETCH_ASSOC);
+}
 
 // THM Program Head
 $phThm = $db->query("SELECT * FROM users WHERE email = 'ph_thm_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+if (!$phThm) {
+    $phThm = $db->query("SELECT * FROM users WHERE email = 'aldwin@sti.edu'")->fetch(PDO::FETCH_ASSOC);
+}
 
 // IT Faculty
 $facIt = $db->query("SELECT * FROM users WHERE email = 'faculty@sti.edu'")->fetch(PDO::FETCH_ASSOC);
@@ -113,10 +119,15 @@ if (!$facIt2) {
 
 // THM Faculty
 $facThm = $db->query("SELECT * FROM users WHERE email = 'fac_thm_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+if (!$facThm) {
+    $db->prepare("INSERT INTO users (name, email, password, role, department, must_change_password) VALUES ('THM Faculty Member', 'fac_thm_accept@test.com', ?, 'faculty', 'THM Department', 0)")->execute([$pwdStandardHash]);
+    $facThm = $db->query("SELECT * FROM users WHERE email = 'fac_thm_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+}
 
-// Ensure passwords and must_change_password = 0
-$db->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE id IN (?, ?)")->execute([$pwdAcceptHash, $phIt['id'], $phThm['id']]);
-$db->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE id IN (?, ?, ?)")->execute([$pwdStandardHash, $facIt['id'], $facIt2['id'], $facThm['id']]);
+// Ensure test accounts exist without overwriting database hashes
+if (!empty($facIt2)) {
+    $db->prepare("UPDATE users SET must_change_password = 0 WHERE id = ?")->execute([$facIt2['id']]);
+}
 
 // ── 1. Create Test Fixtures: Distinct Department Activities and Tasks ──
 echo "--- 1. Setting Up Department Test Fixtures ---\n";
@@ -167,8 +178,8 @@ assertCheck($taskIt1Id > 0 && $taskIt2Id > 0 && $taskThmId > 0, "Created tasks f
 // ── 2. Authenticate Roles ───────────────────────────────────────────
 echo "\n--- 2. Role Authentication ---\n";
 $deanCookie   = loginUser($baseUrl, 'dean@sti.edu', 'password');
-$phItCookie   = loginUser($baseUrl, $phIt['email'], 'Password123!');
-$phThmCookie  = loginUser($baseUrl, $phThm['email'], 'Password123!');
+$phItCookie   = loginUser($baseUrl, $phIt['email'], 'password');
+$phThmCookie  = loginUser($baseUrl, $phThm['email'], 'password');
 $facItCookie  = loginUser($baseUrl, $facIt['email'], 'password');
 $facThmCookie = loginUser($baseUrl, $facThm['email'], 'password');
 

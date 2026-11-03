@@ -46,13 +46,11 @@ class GeminiProposalGuidanceService
         $prompt = $this->buildGuidancePrompt($proposal);
 
         $modelsToTry = [
-            'gemini-3.5-flash-lite',
-            'gemini-3.1-flash-lite',
-            'gemini-flash-lite-latest',
-            'gemini-3.7-flash',
-            'gemini-3.6-flash',
+            'gemini-2.5-flash',
             'gemini-flash-latest',
-            'gemini-3.5-flash'
+            'gemini-3.5-flash',
+            'gemini-3.7-flash',
+            'gemini-flash-lite-latest'
         ];
 
         $payloadData = [
@@ -88,7 +86,7 @@ class GeminiProposalGuidanceService
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payloadData));
-                curl_setopt($ch, CURLOPT_TIMEOUT, 35);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 20);
                 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 
                 // Windows CA Bundle detection

@@ -154,6 +154,7 @@ if (empty($recent_all)) {
     .card-header h3,
     .dashboard-main .card-header h2,
     .dashboard-rail .card-header h2,
+    .dashboard-full-width .card-header h2,
     .stat-val,
     a.stat-card .stat-val,
     .stat-grid a.stat-card .stat-val,
@@ -182,6 +183,7 @@ if (empty($recent_all)) {
 
     .dashboard-layout {
       gap: 20px;
+      align-items: stretch;
     }
 
     .dashboard-main {
@@ -191,6 +193,8 @@ if (empty($recent_all)) {
 
     .dashboard-rail {
       gap: 16px;
+      display: flex;
+      flex-direction: column;
     }
 
     .dashboard-rail-sticky {
@@ -198,6 +202,30 @@ if (empty($recent_all)) {
       display: flex;
       flex-direction: column;
       gap: 16px;
+      flex: 1 1 auto;
+      height: 100%;
+    }
+
+    .card-source-breakdown {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 220px;
+    }
+
+    .card-source-breakdown .card-body {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+
+    .dashboard-full-width {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
+      margin-top: 20px;
     }
 
     /* ── Topbar Filter & Form Controls ── */
@@ -448,7 +476,8 @@ if (empty($recent_all)) {
 
     /* ── 2. Shared Dashboard Card Styling (Exact Faculty Parity) ── */
     .dashboard-main .card,
-    .dashboard-rail .card {
+    .dashboard-rail .card,
+    .dashboard-full-width .card {
       background: var(--bg-card);
       border-radius: 14px;
       border: 1px solid var(--border);
@@ -457,7 +486,8 @@ if (empty($recent_all)) {
     }
 
     .dashboard-main .card-header,
-    .dashboard-rail .card-header {
+    .dashboard-rail .card-header,
+    .dashboard-full-width .card-header {
       padding: 14px 20px;
       border-bottom: 1px solid var(--border);
       display: flex;
@@ -469,7 +499,8 @@ if (empty($recent_all)) {
     }
 
     .dashboard-main .card-header h2,
-    .dashboard-rail .card-header h2 {
+    .dashboard-rail .card-header h2,
+    .dashboard-full-width .card-header h2 {
       font-family: 'Plus Jakarta Sans', sans-serif !important;
       font-size: 1.02rem;
       font-weight: 700;
@@ -482,7 +513,8 @@ if (empty($recent_all)) {
     }
 
     .dashboard-main .card-header h3,
-    .dashboard-rail .card-header h3 {
+    .dashboard-rail .card-header h3,
+    .dashboard-full-width .card-header h3 {
       font-family: 'Plus Jakarta Sans', sans-serif !important;
       font-size: 0.95rem;
       font-weight: 700;
@@ -491,7 +523,8 @@ if (empty($recent_all)) {
     }
 
     .dashboard-main .card-body,
-    .dashboard-rail .card-body {
+    .dashboard-rail .card-body,
+    .dashboard-full-width .card-body {
       background: var(--bg-card);
       padding: 18px 20px;
     }
@@ -500,6 +533,7 @@ if (empty($recent_all)) {
     .btn-primary,
     .dashboard-main .card-header .btn-primary,
     .dashboard-rail .card-header .btn-primary,
+    .dashboard-full-width .card-header .btn-primary,
     table td .btn-primary,
     .activity-table td .btn-primary {
       padding: 4px 12px;
@@ -523,6 +557,7 @@ if (empty($recent_all)) {
     .btn-primary:hover,
     .dashboard-main .card-header .btn-primary:hover,
     .dashboard-rail .card-header .btn-primary:hover,
+    .dashboard-full-width .card-header .btn-primary:hover,
     table td .btn-primary:hover,
     .activity-table td .btn-primary:hover {
       filter: brightness(1.08);
@@ -532,6 +567,7 @@ if (empty($recent_all)) {
     .btn-outline,
     .dashboard-main .card-header .btn-outline,
     .dashboard-rail .card-header .btn-outline,
+    .dashboard-full-width .card-header .btn-outline,
     table td .btn-outline,
     .activity-table td .btn-outline {
       padding: 4px 12px;
@@ -554,6 +590,7 @@ if (empty($recent_all)) {
     .btn-outline:hover,
     .dashboard-main .card-header .btn-outline:hover,
     .dashboard-rail .card-header .btn-outline:hover,
+    .dashboard-full-width .card-header .btn-outline:hover,
     table td .btn-outline:hover,
     .activity-table td .btn-outline:hover {
       border-color: var(--accent, var(--sti-blue));
@@ -563,7 +600,8 @@ if (empty($recent_all)) {
 
     /* ── 4. Tables (Exact Faculty Parity) ── */
     .dashboard-main .table-wrap,
-    .dashboard-rail .table-wrap {
+    .dashboard-rail .table-wrap,
+    .dashboard-full-width .table-wrap {
       border: none;
       border-radius: 0;
       background: transparent;
@@ -696,17 +734,20 @@ if (empty($recent_all)) {
 
     /* ── 6. Dark Mode Overrides ── */
     [data-theme="dark"] .dashboard-main .card,
-    [data-theme="dark"] .dashboard-rail .card {
+    [data-theme="dark"] .dashboard-rail .card,
+    [data-theme="dark"] .dashboard-full-width .card {
       background: var(--bg-card);
       border-color: var(--border);
     }
     [data-theme="dark"] .dashboard-main .card-header,
-    [data-theme="dark"] .dashboard-rail .card-header {
+    [data-theme="dark"] .dashboard-rail .card-header,
+    [data-theme="dark"] .dashboard-full-width .card-header {
       background: var(--bg-card);
       border-color: var(--border);
     }
     [data-theme="dark"] .dashboard-main .card-body,
-    [data-theme="dark"] .dashboard-rail .card-body {
+    [data-theme="dark"] .dashboard-rail .card-body,
+    [data-theme="dark"] .dashboard-full-width .card-body {
       background: var(--bg-card);
     }
     [data-theme="dark"] .stat-card,
@@ -717,6 +758,7 @@ if (empty($recent_all)) {
     }
     [data-theme="dark"] .btn-primary,
     [data-theme="dark"] .dashboard-main .card-header .btn-primary,
+    [data-theme="dark"] .dashboard-full-width .card-header .btn-primary,
     [data-theme="dark"] table td .btn-primary {
       background: var(--accent, #38BDF8);
       border-color: var(--accent, #38BDF8);
@@ -724,6 +766,7 @@ if (empty($recent_all)) {
     }
     [data-theme="dark"] .btn-primary:hover,
     [data-theme="dark"] .dashboard-main .card-header .btn-primary:hover,
+    [data-theme="dark"] .dashboard-full-width .card-header .btn-primary:hover,
     [data-theme="dark"] table td .btn-primary:hover {
       box-shadow: 0 2px 8px rgba(56, 189, 248, 0.35);
       filter: brightness(1.1);
@@ -744,6 +787,12 @@ if (empty($recent_all)) {
       }
       .dashboard-rail-sticky {
         position: static;
+        height: auto;
+      }
+      .card-source-breakdown {
+        flex: none;
+        height: auto;
+        min-height: auto;
       }
       .topbar {
         height: auto;
@@ -1256,73 +1305,6 @@ if (empty($recent_all)) {
           </div>
         </div>
 
-        <!-- 4. AI Dashboard Insights -->
-        <div class="card" id="ai-insights-card">
-          <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <h2>🤖 AI KPI &amp; Institutional Analytics</h2>
-              <span id="ai-type-badge" class="badge badge-primary" style="display:none; font-size:0.75rem;">AI Generated</span>
-              <span id="ai-stale-badge" class="badge badge-warning" style="display:none; font-size:0.75rem;">Outdated Data</span>
-            </div>
-            <button id="update-insights-btn" class="btn btn-outline btn-sm" style="display:none;">Update AI Insights</button>
-          </div>
-          <div class="card-body" id="ai-insights-body">
-            <div style="text-align:center; padding:24px;">
-              <div style="font-size:1.5rem; margin-bottom:8px;">🤖</div>
-              <div class="text-sm text-muted">Checking institutional insights...</div>
-            </div>
-          </div>
-          <div class="ai-disclaimer" style="font-size:0.75rem; color:var(--text-muted); text-align:center; padding-bottom:12px; font-style:italic;">
-            * AI-generated insights are advisory only and should be reviewed by authorized administrators before making decisions.
-          </div>
-        </div>
-
-        <!-- 5. All Activities (System-wide View) -->
-        <div class="card">
-          <div class="card-header">
-            <h2>All Activities — System-wide View</h2>
-            <a href="<?= BASE_URL ?>/dean/activities.php" class="btn btn-outline btn-sm">View All</a>
-          </div>
-          <div class="card-body" style="padding:0;">
-            <div class="table-wrap">
-              <table class="activity-table">
-                <thead>
-                  <tr>
-                    <th class="col-title">Title</th>
-                    <th class="col-faculty">Faculty</th>
-                    <th class="col-date">Date</th>
-                    <th class="col-source">Source</th>
-                    <th class="col-status">Status</th>
-                    <th class="col-actions">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                <?php if (empty($recent_all)): ?>
-                  <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">No activities found.</td></tr>
-                <?php else: foreach ($recent_all as $a): ?>
-                  <tr>
-                    <td class="col-title"><div class="act-title"><?= htmlspecialchars($a['title']) ?></div></td>
-                    <td class="col-faculty" style="color:var(--text-secondary);font-size:0.85rem;font-weight:500;"><?= htmlspecialchars($a['fname']) ?></td>
-                    <td class="col-date"><span class="act-date"><?= $a['event_date'] ? date('M j, Y', strtotime($a['event_date'])) : '—' ?></span></td>
-                    <td class="col-source"><span class="badge badge-secondary"><?= ucfirst(str_replace('_',' ',$a['source'])) ?></span></td>
-                    <td class="col-status"><?= getStatusBadge($a['status']) ?></td>
-                    <td class="col-actions">
-                      <div class="act-actions">
-                        <?php if ($a['status'] === 'pending_final_approval'): ?>
-                          <a href="<?= BASE_URL ?>/dean/review.php?id=<?= $a['id'] ?>" class="btn btn-primary btn-sm">Review</a>
-                        <?php else: ?>
-                          <a href="<?= BASE_URL ?>/dean/view-activity.php?id=<?= $a['id'] ?>" class="btn btn-outline btn-sm">View</a>
-                        <?php endif; ?>
-                      </div>
-                    </td>
-                  </tr>
-                <?php endforeach; endif; ?>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
       </div><!-- dashboard-main -->
 
       <!-- Right Widget Rail (~32%) -->
@@ -1358,7 +1340,7 @@ if (empty($recent_all)) {
           </div>
 
           <!-- Source Breakdown -->
-          <div class="card">
+          <div class="card card-source-breakdown">
             <div class="card-header"><h2>Activities by Source — <?= $selectedYear ?></h2></div>
             <div class="card-body">
               <?php
@@ -1384,6 +1366,78 @@ if (empty($recent_all)) {
       </div><!-- dashboard-rail -->
 
     </div><!-- dashboard-layout -->
+
+    <!-- Full-Width Cards Section -->
+    <div class="dashboard-full-width">
+
+      <!-- 4. AI Dashboard Insights -->
+      <div class="card" id="ai-insights-card">
+        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <h2>🤖 AI KPI &amp; Institutional Analytics</h2>
+            <span id="ai-type-badge" class="badge badge-primary" style="display:none; font-size:0.75rem;">AI Generated</span>
+            <span id="ai-stale-badge" class="badge badge-warning" style="display:none; font-size:0.75rem;">Outdated Data</span>
+          </div>
+          <button id="update-insights-btn" class="btn btn-outline btn-sm" style="display:none;">Update AI Insights</button>
+        </div>
+        <div class="card-body" id="ai-insights-body">
+          <div style="text-align:center; padding:24px;">
+            <div style="font-size:1.5rem; margin-bottom:8px;">🤖</div>
+            <div class="text-sm text-muted">Checking institutional insights...</div>
+          </div>
+        </div>
+        <div class="ai-disclaimer" style="font-size:0.75rem; color:var(--text-muted); text-align:center; padding-bottom:12px; font-style:italic;">
+          * AI-generated insights are advisory only and should be reviewed by authorized administrators before making decisions.
+        </div>
+      </div>
+
+      <!-- 5. All Activities (System-wide View) -->
+      <div class="card">
+        <div class="card-header">
+          <h2>All Activities — System-wide View</h2>
+          <a href="<?= BASE_URL ?>/dean/activities.php" class="btn btn-outline btn-sm">View All</a>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <div class="table-wrap">
+            <table class="activity-table">
+              <thead>
+                <tr>
+                  <th class="col-title">Title</th>
+                  <th class="col-faculty">Faculty</th>
+                  <th class="col-date">Date</th>
+                  <th class="col-source">Source</th>
+                  <th class="col-status">Status</th>
+                  <th class="col-actions">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+              <?php if (empty($recent_all)): ?>
+                <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">No activities found.</td></tr>
+              <?php else: foreach ($recent_all as $a): ?>
+                <tr>
+                  <td class="col-title"><div class="act-title"><?= htmlspecialchars($a['title']) ?></div></td>
+                  <td class="col-faculty" style="color:var(--text-secondary);font-size:0.85rem;font-weight:500;"><?= htmlspecialchars($a['fname']) ?></td>
+                  <td class="col-date"><span class="act-date"><?= $a['event_date'] ? date('M j, Y', strtotime($a['event_date'])) : '—' ?></span></td>
+                  <td class="col-source"><span class="badge badge-secondary"><?= ucfirst(str_replace('_',' ',$a['source'])) ?></span></td>
+                  <td class="col-status"><?= getStatusBadge($a['status']) ?></td>
+                  <td class="col-actions">
+                    <div class="act-actions">
+                      <?php if ($a['status'] === 'pending_final_approval'): ?>
+                        <a href="<?= BASE_URL ?>/dean/review.php?id=<?= $a['id'] ?>" class="btn btn-primary btn-sm">Review</a>
+                      <?php else: ?>
+                        <a href="<?= BASE_URL ?>/dean/view-activity.php?id=<?= $a['id'] ?>" class="btn btn-outline btn-sm">View</a>
+                      <?php endif; ?>
+                    </div>
+                  </td>
+                </tr>
+              <?php endforeach; endif; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- dashboard-full-width -->
   </div><!-- content -->
 </div><!-- main-wrap -->
 

@@ -297,35 +297,37 @@ function timeAgo($datetime)
       transform: translateY(-1px);
     }
 
-    /* ── 2. Five Summary Metric Cards (Matching Program Head Design System) ── */
+    /* ── 2. Five Summary Metric Cards (White Cards with Thin Bottom Accent) ── */
     .stat-grid {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 14px;
-      margin-bottom: 24px;
+      gap: 12px;
+      align-items: stretch;
       width: 100%;
+      margin-bottom: 24px;
     }
 
     .stat-card,
     a.stat-card,
     .stat-grid a.stat-card {
-      background: var(--bg-card, #FFFFFF) !important;
+      position: relative;
+      background: #FFFFFF !important;
       border: 1px solid var(--border, #E2E8F0) !important;
       border-radius: 12px !important;
-      padding: 16px 18px !important;
       box-shadow: 0 1px 3px rgba(10, 22, 40, 0.04) !important;
-      position: relative !important;
-      overflow: hidden !important;
+      padding: 14px 16px 13px !important;
       display: flex !important;
       flex-direction: column !important;
-      justify-content: space-between !important;
+      justify-content: flex-start !important;
+      align-items: flex-start !important;
       text-decoration: none !important;
       color: inherit !important;
       cursor: pointer;
+      min-height: 114px;
       box-sizing: border-box;
-      min-height: 112px;
+      overflow: hidden !important;
       transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-      outline: none;
+      outline: none !important;
     }
 
     .stat-card:hover,
@@ -336,75 +338,55 @@ function timeAgo($datetime)
       border-color: #CBD5E1 !important;
     }
 
-    .stat-card:focus-visible,
-    a.stat-card:focus-visible,
-    .stat-grid a.stat-card:focus-visible {
-      outline: 2px solid #0284C7 !important;
-      outline-offset: 2px;
-    }
-
-    /* Thin Colored Top Accent Line (3px top border) */
+    /* Thin colored bottom accent line */
     .stat-card::after,
     a.stat-card::after,
     .stat-grid a.stat-card::after {
-      content: '' !important;
-      position: absolute !important;
-      top: 0 !important;
-      bottom: auto !important;
-      left: 0 !important;
-      right: 0 !important;
-      height: 3px !important;
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
       z-index: 2;
+      pointer-events: none;
     }
-    .stat-card-total::after,
-    .stat-grid a.stat-card.stat-card-total::after     { background: #0284C7 !important; }
-    .stat-card-pending::after,
-    .stat-grid a.stat-card.stat-card-pending::after   { background: #F59E0B !important; }
-    .stat-card-approved::after,
-    .stat-grid a.stat-card.stat-card-approved::after  { background: #10B981 !important; }
-    .stat-card-revision::after,
-    .stat-grid a.stat-card.stat-card-revision::after  { background: #64748B !important; }
-    .stat-card-completed::after,
-    .stat-grid a.stat-card.stat-card-completed::after { background: #8B5CF6 !important; }
 
-    /* Card Header: Uppercase Status Label & Colored Outline Icon */
-    .stat-card-header {
-      display: flex !important;
-      align-items: center !important;
-      justify-content: space-between !important;
-      margin-bottom: 8px !important;
-      width: 100% !important;
+    /* 1. All Time: multi-segment accent (amber, green, blue) */
+    .stat-card.stat-card-total::after,
+    .stat-grid a.stat-card.stat-card-total::after {
+      background: linear-gradient(90deg, #F59E0B 0%, #F59E0B 33.3%, #10B981 33.3%, #10B981 66.6%, #0284C7 66.6%, #0284C7 100%) !important;
     }
-    .stat-label {
-      font-size: 0.78rem !important;
-      font-weight: 700 !important;
-      color: var(--text-muted, #64748B) !important;
-      text-transform: uppercase !important;
-      letter-spacing: 0.04em !important;
-      line-height: 1.2 !important;
-      margin: 0 !important;
+
+    /* 2. In Review: amber accent */
+    .stat-card.stat-card-pending::after,
+    .stat-grid a.stat-card.stat-card-pending::after {
+      background: #F59E0B !important;
     }
-    .stat-val {
-      font-family: 'Plus Jakarta Sans', sans-serif !important;
-      font-size: 1.85rem !important;
-      font-weight: 800 !important;
-      color: var(--text-main, #0A1628) !important;
-      line-height: 1.1 !important;
-      margin: 4px 0 !important;
-      letter-spacing: -0.025em !important;
+
+    /* 3. Ready: green accent */
+    .stat-card.stat-card-approved::after,
+    .stat-grid a.stat-card.stat-card-approved::after {
+      background: #10B981 !important;
     }
-    .stat-sub {
-      font-size: 0.72rem !important;
-      color: var(--text-muted, #64748B) !important;
-      line-height: 1.25 !important;
-      margin: 0 !important;
+
+    /* 4. Action Required: slate accent */
+    .stat-card.stat-card-revision::after,
+    .stat-grid a.stat-card.stat-card-revision::after {
+      background: #64748B !important;
+    }
+
+    /* 5. Finished: blue accent */
+    .stat-card.stat-card-completed::after,
+    .stat-grid a.stat-card.stat-card-completed::after {
+      background: #0284C7 !important;
     }
 
     /* Dark Mode Card Background & Borders */
     [data-theme="dark"] .stat-card,
     [data-theme="dark"] a.stat-card,
     [data-theme="dark"] .stat-grid a.stat-card {
-      background: var(--bg-card, #0F172A) !important;
+      background: #0F172A !important;
       border-color: rgba(255, 255, 255, 0.08) !important;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
     }
@@ -414,12 +396,103 @@ function timeAgo($datetime)
       border-color: rgba(255, 255, 255, 0.16) !important;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
     }
+
+    /* Compact Soft-Tinted Icon Containers */
+    .stat-icon {
+      width: 28px !important;
+      height: 28px !important;
+      min-width: 28px !important;
+      border-radius: 7px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      margin-bottom: 10px !important;
+      flex-shrink: 0 !important;
+    }
+
+    .stat-icon svg {
+      width: 15px !important;
+      height: 15px !important;
+    }
+
+    .stat-card-total .stat-icon     { background: rgba(2, 132, 199, 0.12) !important; color: #0284C7 !important; }
+    .stat-card-pending .stat-icon   { background: rgba(245, 158, 11, 0.14) !important; color: #D97706 !important; }
+    .stat-card-approved .stat-icon  { background: rgba(16, 185, 129, 0.14) !important; color: #059669 !important; }
+    .stat-card-revision .stat-icon  { background: rgba(100, 116, 139, 0.12) !important; color: #475569 !important; }
+    .stat-card-completed .stat-icon { background: rgba(2, 132, 199, 0.12) !important; color: #0284C7 !important; }
+
+    [data-theme="dark"] .stat-card-total .stat-icon     { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; }
+    [data-theme="dark"] .stat-card-pending .stat-icon   { background: rgba(251, 191, 36, 0.18) !important; color: #fbbf24 !important; }
+    [data-theme="dark"] .stat-card-approved .stat-icon  { background: rgba(52, 211, 153, 0.15) !important; color: #34d399 !important; }
+    [data-theme="dark"] .stat-card-revision .stat-icon  { background: rgba(148, 163, 184, 0.15) !important; color: #94a3b8 !important; }
+    [data-theme="dark"] .stat-card-completed .stat-icon { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; }
+
+    .stat-card-info {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 100% !important;
+      align-items: flex-start !important;
+      text-align: left !important;
+    }
+
+    .stat-card-meta {
+      font-size: 0.65rem !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.04em !important;
+      text-transform: uppercase !important;
+      color: #64748B !important;
+      margin-bottom: 3px !important;
+      line-height: 1.2 !important;
+      text-align: left !important;
+    }
+    [data-theme="dark"] .stat-card-meta {
+      color: #94A3B8 !important;
+    }
+
+    .stat-card-row {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      width: 100% !important;
+      margin-bottom: 2px !important;
+    }
+
+    .stat-val {
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      font-size: 1.65rem !important;
+      font-weight: 800 !important;
+      line-height: 1.1 !important;
+      color: #0A1628 !important;
+      letter-spacing: -0.025em !important;
+      text-align: left !important;
+      margin: 0 !important;
+    }
     [data-theme="dark"] .stat-val {
-      color: var(--text-main, #F8FAFC) !important;
+      color: #F8FAFC !important;
+    }
+
+    .stat-label,
+    .label-default,
+    .label-amber,
+    .label-green,
+    .label-purple,
+    .stat-sub {
+      font-size: 0.72rem !important;
+      font-weight: 500 !important;
+      line-height: 1.25 !important;
+      color: #64748B !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      text-align: left !important;
     }
     [data-theme="dark"] .stat-label,
+    [data-theme="dark"] .label-default,
+    [data-theme="dark"] .label-amber,
+    [data-theme="dark"] .label-green,
+    [data-theme="dark"] .label-purple,
     [data-theme="dark"] .stat-sub {
-      color: var(--text-muted, #94A3B8) !important;
+      color: #94A3B8 !important;
     }
 
     /* ── 3. Upcoming Activities Card (Full Width) ── */
@@ -906,66 +979,86 @@ function timeAgo($datetime)
       <div class="dashboard-layout">
         <div class="dashboard-main">
 
-          <!-- 1. Five Summary Metric Cards (Matching Program Head Design System) -->
+          <!-- 1. Five Summary Metric Cards -->
           <div class="stat-grid">
-            <!-- 1. All Time — Total Proposals -->
+            <!-- All Time -->
             <a href="<?= BASE_URL ?>/faculty/activities.php" class="stat-card stat-card-total">
-              <div class="stat-card-header">
-                <span class="stat-label">Total Proposals</span>
-                <svg fill="none" stroke="#0284C7" viewBox="0 0 24 24" width="18" height="18">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              <div class="stat-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
               </div>
-              <div class="stat-val"><?= number_format($s['total'] ?? 0) ?></div>
-              <div class="stat-sub">All time proposals</div>
+              <div class="stat-card-info">
+                <div class="stat-card-meta">ALL TIME</div>
+                <div class="stat-card-row">
+                  <div class="stat-val"><?= $s['total'] ?></div>
+                </div>
+                <div class="stat-label label-default">Total Proposals</div>
+              </div>
             </a>
 
-            <!-- 2. In Review — Pending Review -->
+            <!-- In Review -->
             <a href="<?= BASE_URL ?>/faculty/pending.php" class="stat-card stat-card-pending">
-              <div class="stat-card-header">
-                <span class="stat-label">Pending Review</span>
-                <svg fill="none" stroke="#F59E0B" viewBox="0 0 24 24" width="18" height="18">
+              <div class="stat-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <div class="stat-val"><?= number_format($s['pending'] ?? 0) ?></div>
-              <div class="stat-sub">Awaiting review or endorsement</div>
+              <div class="stat-card-info">
+                <div class="stat-card-meta">IN REVIEW</div>
+                <div class="stat-card-row">
+                  <div class="stat-val"><?= $s['pending'] ?></div>
+                </div>
+                <div class="stat-label label-amber">Pending Review</div>
+              </div>
             </a>
 
-            <!-- 3. Ready — Approved -->
+            <!-- Ready / Approved -->
             <a href="<?= BASE_URL ?>/faculty/approved.php" class="stat-card stat-card-approved">
-              <div class="stat-card-header">
-                <span class="stat-label">Approved</span>
-                <svg fill="none" stroke="#10B981" viewBox="0 0 24 24" width="18" height="18">
+              <div class="stat-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <div class="stat-val"><?= number_format($s['approved'] ?? 0) ?></div>
-              <div class="stat-sub">Ready or underway</div>
+              <div class="stat-card-info">
+                <div class="stat-card-meta">READY</div>
+                <div class="stat-card-row">
+                  <div class="stat-val"><?= $s['approved'] ?></div>
+                </div>
+                <div class="stat-label label-green">Approved</div>
+              </div>
             </a>
 
-            <!-- 4. Action Required — Revision Needed -->
+            <!-- Action Required -->
             <a href="<?= BASE_URL ?>/faculty/returned.php" class="stat-card stat-card-revision">
-              <div class="stat-card-header">
-                <span class="stat-label">Revision Needed</span>
-                <svg fill="none" stroke="#64748B" viewBox="0 0 24 24" width="18" height="18">
+              <div class="stat-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
               </div>
-              <div class="stat-val"><?= number_format($s['revisions'] ?? 0) ?></div>
-              <div class="stat-sub">Action required</div>
+              <div class="stat-card-info">
+                <div class="stat-card-meta">ACTION REQUIRED</div>
+                <div class="stat-card-row">
+                  <div class="stat-val"><?= $s['revisions'] ?></div>
+                </div>
+                <div class="stat-label label-default">Revision Needed</div>
+              </div>
             </a>
 
-            <!-- 5. Finished — Completed -->
+            <!-- Finished / Completed -->
             <a href="<?= BASE_URL ?>/faculty/activities.php?status=completed" class="stat-card stat-card-completed">
-              <div class="stat-card-header">
-                <span class="stat-label">Completed</span>
-                <svg fill="none" stroke="#8B5CF6" viewBox="0 0 24 24" width="18" height="18">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              <div class="stat-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                 </svg>
               </div>
-              <div class="stat-val"><?= number_format($s['completed'] ?? 0) ?></div>
-              <div class="stat-sub">Concluded activities</div>
+              <div class="stat-card-info">
+                <div class="stat-card-meta">FINISHED</div>
+                <div class="stat-card-row">
+                  <div class="stat-val"><?= $s['completed'] ?></div>
+                </div>
+                <div class="stat-label label-purple">Completed</div>
+              </div>
             </a>
           </div>
 

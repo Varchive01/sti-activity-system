@@ -45,7 +45,7 @@ assert($res['code'] === 401);
 // 2. Login as Program Head IT
 $res = httpCall($baseUrl . '/auth/login.php', 'POST', [
     'email' => 'ph_it_accept@test.com',
-    'password' => 'Password123!'
+    'password' => 'password'
 ], $cookieFile);
 echo "2. Login: HTTP {$res['code']}\n";
 

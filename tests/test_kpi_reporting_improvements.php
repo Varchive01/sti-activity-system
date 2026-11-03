@@ -85,7 +85,15 @@ $pwdStandardHash = password_hash('password', PASSWORD_DEFAULT);
 
 $dean = $db->query("SELECT * FROM users WHERE email = 'dean@sti.edu'")->fetch(PDO::FETCH_ASSOC);
 $phIt = $db->query("SELECT * FROM users WHERE email = 'ph_it_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+if (!$phIt) {
+    $db->prepare("INSERT INTO users (name, email, password, role, department, must_change_password) VALUES ('Dave Lord Rubaya', 'ph_it_accept@test.com', ?, 'program_head', 'IT Department', 0)")->execute([$pwdAcceptHash]);
+    $phIt = $db->query("SELECT * FROM users WHERE email = 'ph_it_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+}
 $phThm = $db->query("SELECT * FROM users WHERE email = 'ph_thm_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+if (!$phThm) {
+    $db->prepare("INSERT INTO users (name, email, password, role, department, must_change_password) VALUES ('Aldwin Alminar', 'ph_thm_accept@test.com', ?, 'program_head', 'THM Department', 0)")->execute([$pwdAcceptHash]);
+    $phThm = $db->query("SELECT * FROM users WHERE email = 'ph_thm_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
+}
 $facIt = $db->query("SELECT * FROM users WHERE email = 'faculty@sti.edu'")->fetch(PDO::FETCH_ASSOC);
 
 $facThm = $db->query("SELECT * FROM users WHERE email = 'fac_thm_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
@@ -94,15 +102,10 @@ if (!$facThm) {
     $facThm = $db->query("SELECT * FROM users WHERE email = 'fac_thm_accept@test.com'")->fetch(PDO::FETCH_ASSOC);
 }
 
-// Reset passwords
-$db->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?")->execute([$pwdStandardHash, $dean['id']]);
-$db->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE id IN (?, ?)")->execute([$pwdAcceptHash, $phIt['id'], $phThm['id']]);
-$db->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE id IN (?, ?)")->execute([$pwdStandardHash, $facIt['id'], $facThm['id']]);
-
-// Login cookies
+// Login cookies without overwriting database hashes
 $deanCookie = loginUser($baseUrl, 'dean@sti.edu', 'password');
-$phItCookie = loginUser($baseUrl, 'ph_it_accept@test.com', 'Password123!');
-$phThmCookie = loginUser($baseUrl, 'ph_thm_accept@test.com', 'Password123!');
+$phItCookie = loginUser($baseUrl, $phIt['email'], 'password');
+$phThmCookie = loginUser($baseUrl, $phThm['email'], 'password');
 $facItCookie = loginUser($baseUrl, 'faculty@sti.edu', 'password');
 
 // --- Setup Test Activities in IT and THM Departments ---

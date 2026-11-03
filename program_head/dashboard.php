@@ -296,63 +296,168 @@ function renderActivityStatusBadge(string $status): string {
       background: rgba(255, 255, 255, 0.2);
     }
 
-    /* Stat Cards Grid */
+    /* Stat Cards Grid (Replicating Faculty Original Summary Card Styling) */
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      align-items: stretch;
+      width: 100%;
       margin-bottom: 24px;
     }
 
     .stat-card {
-      background: var(--bg-card, #FFFFFF);
-      border: 1px solid var(--border, #E2E8F0);
-      border-radius: 12px;
-      padding: 16px 18px;
-      box-shadow: 0 1px 3px rgba(10, 22, 40, 0.04);
       position: relative;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
+      background: #FFFFFF !important;
+      border: 1px solid var(--border, #E2E8F0) !important;
+      border-radius: 12px !important;
+      box-shadow: 0 1px 3px rgba(10, 22, 40, 0.04) !important;
+      padding: 14px 16px 13px !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: flex-start !important;
+      align-items: flex-start !important;
+      text-decoration: none !important;
+      color: inherit !important;
+      min-height: 114px;
+      box-sizing: border-box;
+      overflow: hidden !important;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      outline: none !important;
     }
 
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(10, 22, 40, 0.08) !important;
+      border-color: #CBD5E1 !important;
+    }
+
+    /* Thin colored bottom accent line */
     .stat-card::after {
       content: '';
       position: absolute;
-      top: 0;
+      bottom: 0;
       left: 0;
       right: 0;
       height: 3px;
+      z-index: 2;
+      pointer-events: none;
     }
-    .stat-card-total::after     { background: #0284C7; }
-    .stat-card-pending::after   { background: #F59E0B; }
-    .stat-card-approved::after  { background: #10B981; }
-    .stat-card-completed::after { background: #8B5CF6; }
 
-    .stat-card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
+    /* 1. Total: multi-segment accent (amber, green, blue) */
+    .stat-card.stat-card-total::after {
+      background: linear-gradient(90deg, #F59E0B 0%, #F59E0B 33.3%, #10B981 33.3%, #10B981 66.6%, #0284C7 66.6%, #0284C7 100%) !important;
     }
+
+    /* 2. Pending: amber accent */
+    .stat-card.stat-card-pending::after {
+      background: #F59E0B !important;
+    }
+
+    /* 3. Approved: green accent */
+    .stat-card.stat-card-approved::after {
+      background: #10B981 !important;
+    }
+
+    /* 4. Completed: purple accent */
+    .stat-card.stat-card-completed::after {
+      background: #8B5CF6 !important;
+    }
+
+    /* Dark Mode Card Background & Borders */
+    [data-theme="dark"] .stat-card {
+      background: #0F172A !important;
+      border-color: rgba(255, 255, 255, 0.08) !important;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
+    }
+    [data-theme="dark"] .stat-card:hover {
+      border-color: rgba(255, 255, 255, 0.16) !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+    }
+
+    /* Compact Soft-Tinted Icon Containers */
+    .stat-icon {
+      width: 28px !important;
+      height: 28px !important;
+      min-width: 28px !important;
+      border-radius: 7px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      margin-bottom: 10px !important;
+      flex-shrink: 0 !important;
+    }
+
+    .stat-icon svg {
+      width: 15px !important;
+      height: 15px !important;
+    }
+
+    .stat-card-total .stat-icon     { background: rgba(2, 132, 199, 0.12) !important; color: #0284C7 !important; }
+    .stat-card-pending .stat-icon   { background: rgba(245, 158, 11, 0.14) !important; color: #D97706 !important; }
+    .stat-card-approved .stat-icon  { background: rgba(16, 185, 129, 0.14) !important; color: #059669 !important; }
+    .stat-card-completed .stat-icon { background: rgba(139, 92, 246, 0.14) !important; color: #7C3AED !important; }
+
+    [data-theme="dark"] .stat-card-total .stat-icon     { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; }
+    [data-theme="dark"] .stat-card-pending .stat-icon   { background: rgba(251, 191, 36, 0.18) !important; color: #fbbf24 !important; }
+    [data-theme="dark"] .stat-card-approved .stat-icon  { background: rgba(52, 211, 153, 0.15) !important; color: #34d399 !important; }
+    [data-theme="dark"] .stat-card-completed .stat-icon { background: rgba(196, 181, 253, 0.18) !important; color: #c4b5fd !important; }
+
+    .stat-card-info {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 100% !important;
+      align-items: flex-start !important;
+      text-align: left !important;
+    }
+
+    .stat-card-meta,
     .stat-label {
-      font-size: 0.78rem;
-      font-weight: 700;
-      color: var(--text-muted, #64748B);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      font-size: 0.65rem !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.04em !important;
+      text-transform: uppercase !important;
+      color: #64748B !important;
+      margin-bottom: 3px !important;
+      line-height: 1.2 !important;
+      text-align: left !important;
     }
+    [data-theme="dark"] .stat-card-meta,
+    [data-theme="dark"] .stat-label {
+      color: #94A3B8 !important;
+    }
+
+    .stat-card-row {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      width: 100% !important;
+      margin-bottom: 2px !important;
+    }
+
     .stat-val {
-      font-size: 1.85rem;
-      font-weight: 800;
-      color: var(--text-main, #0A1628);
-      line-height: 1.1;
-      margin: 4px 0;
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      font-size: 1.65rem !important;
+      font-weight: 800 !important;
+      line-height: 1.1 !important;
+      color: #0A1628 !important;
+      letter-spacing: -0.025em !important;
+      margin: 0 !important;
+      text-align: left !important;
     }
+    [data-theme="dark"] .stat-val {
+      color: #F8FAFC !important;
+    }
+
     .stat-sub {
-      font-size: 0.72rem;
-      color: var(--text-muted, #64748B);
+      font-size: 0.72rem !important;
+      font-weight: 500 !important;
+      line-height: 1.25 !important;
+      color: #64748B !important;
+      text-align: left !important;
+    }
+    [data-theme="dark"] .stat-sub {
+      color: #94A3B8 !important;
     }
 
     /* Section Cards & Tables */
@@ -511,7 +616,8 @@ function renderActivityStatusBadge(string $status): string {
     /* Responsive adjustments */
     @media (max-width: 1024px) {
       .stat-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 10px;
       }
     }
     @media (max-width: 768px) {
@@ -531,7 +637,17 @@ function renderActivityStatusBadge(string $status): string {
         justify-content: center;
       }
       .stat-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 10px;
+      }
+    }
+    @media (max-width: 480px) {
+      .stat-grid {
+        grid-template-columns: 1fr !important;
+        gap: 8px;
+      }
+      .stat-card {
+        padding: 12px 14px !important;
       }
     }
   </style>
@@ -558,50 +674,66 @@ function renderActivityStatusBadge(string $status): string {
       <div class="stat-grid">
         <!-- 1. Total Department Activities -->
         <div class="stat-card stat-card-total">
-          <div class="stat-card-header">
-            <span class="stat-label">Total Activities</span>
-            <svg fill="none" stroke="#0284C7" viewBox="0 0 24 24" width="18" height="18">
+          <div class="stat-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
           </div>
-          <div class="stat-val"><?= number_format($totalActivities) ?></div>
-          <div class="stat-sub"><?= htmlspecialchars($dept) ?> proposals</div>
+          <div class="stat-card-info">
+            <div class="stat-card-meta">Total Activities</div>
+            <div class="stat-card-row">
+              <div class="stat-val"><?= number_format($totalActivities) ?></div>
+            </div>
+            <div class="stat-sub"><?= htmlspecialchars($dept) ?> proposals</div>
+          </div>
         </div>
 
         <!-- 2. Pending Proposals -->
         <div class="stat-card stat-card-pending">
-          <div class="stat-card-header">
-            <span class="stat-label">Pending Review</span>
-            <svg fill="none" stroke="#F59E0B" viewBox="0 0 24 24" width="18" height="18">
+          <div class="stat-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <div class="stat-val"><?= number_format($pendingProposals) ?></div>
-          <div class="stat-sub">Awaiting admin or dean action</div>
+          <div class="stat-card-info">
+            <div class="stat-card-meta">Pending Review</div>
+            <div class="stat-card-row">
+              <div class="stat-val"><?= number_format($pendingProposals) ?></div>
+            </div>
+            <div class="stat-sub">Awaiting admin or dean action</div>
+          </div>
         </div>
 
         <!-- 3. Approved Activities -->
         <div class="stat-card stat-card-approved">
-          <div class="stat-card-header">
-            <span class="stat-label">Approved</span>
-            <svg fill="none" stroke="#10B981" viewBox="0 0 24 24" width="18" height="18">
+          <div class="stat-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <div class="stat-val"><?= number_format($approvedActivities) ?></div>
-          <div class="stat-sub">Ready or underway</div>
+          <div class="stat-card-info">
+            <div class="stat-card-meta">Approved</div>
+            <div class="stat-card-row">
+              <div class="stat-val"><?= number_format($approvedActivities) ?></div>
+            </div>
+            <div class="stat-sub">Ready or underway</div>
+          </div>
         </div>
 
         <!-- 4. Completed Activities -->
         <div class="stat-card stat-card-completed">
-          <div class="stat-card-header">
-            <span class="stat-label">Completed</span>
-            <svg fill="none" stroke="#8B5CF6" viewBox="0 0 24 24" width="18" height="18">
+          <div class="stat-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <div class="stat-val"><?= number_format($completedActivities) ?></div>
-          <div class="stat-sub">Concluded with post-event</div>
+          <div class="stat-card-info">
+            <div class="stat-card-meta">Completed</div>
+            <div class="stat-card-row">
+              <div class="stat-val"><?= number_format($completedActivities) ?></div>
+            </div>
+            <div class="stat-sub">Concluded with post-event</div>
+          </div>
         </div>
       </div>
 

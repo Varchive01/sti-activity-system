@@ -545,12 +545,32 @@ $proposalPdfData = [
   </header>
 
   <div class="content">
-    <?php if ($activity['revision_notes']): ?>
-      <div class="alert alert-warning" style="margin-bottom: 20px; border-radius: 12px; padding: 14px 18px; border: 1px solid rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.08); display: flex; align-items: flex-start; gap: 10px;">
-        <span style="font-size: 1.1rem; line-height: 1;">⚠️</span>
+    <?php if (!empty($activity['revision_notes'])): ?>
+      <?php
+        $isRejected = ($activity['status'] === 'rejected');
+        $bannerHeading = $isRejected ? 'Rejection Reason' : 'Revision Notes';
+        $bannerIcon = $isRejected ? '🚫' : '⚠️';
+        $alertClass = $isRejected ? 'alert-danger' : 'alert-warning';
+        $borderColor = $isRejected ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)';
+        $bgColor = $isRejected ? 'rgba(239, 68, 68, 0.08)' : 'rgba(245, 158, 11, 0.08)';
+        $headingColor = $isRejected ? 'var(--danger, #EF4444)' : 'var(--warning, #F59E0B)';
+
+        $displayNote = $activity['revision_notes'];
+        if ($isRejected) {
+          if (!preg_match('/^Disapproved:\s*/i', $displayNote)) {
+            $displayNote = 'Disapproved: ' . $displayNote;
+          }
+        } else {
+          if (preg_match('/^Disapproved:\s*/i', $displayNote)) {
+            $displayNote = preg_replace('/^Disapproved:\s*/i', '', $displayNote);
+          }
+        }
+      ?>
+      <div class="alert <?= $alertClass ?>" style="margin-bottom: 20px; border-radius: 12px; padding: 14px 18px; border: 1px solid <?= $borderColor ?>; background: <?= $bgColor ?>; display: flex; align-items: flex-start; gap: 10px;">
+        <span style="font-size: 1.1rem; line-height: 1;"><?= $bannerIcon ?></span>
         <div>
-          <strong style="color: var(--warning, #F59E0B); display: block; margin-bottom: 2px;">Revision Notes</strong>
-          <span style="color: var(--text-main); font-size: 0.88rem;"><?= htmlspecialchars($activity['revision_notes']) ?></span>
+          <strong style="color: <?= $headingColor ?>; display: block; margin-bottom: 2px;"><?= $bannerHeading ?></strong>
+          <span style="color: var(--text-main); font-size: 0.88rem;"><?= htmlspecialchars($displayNote) ?></span>
         </div>
       </div>
     <?php endif; ?>
@@ -1203,17 +1223,32 @@ $proposalPdfData = [
       doc.line(marginX, currentY, pageWidth - marginX, currentY);
       currentY += 4;
 
-      // --- REVISION NOTES IF PRESENT ---
+      // --- REVISION NOTES / REJECTION REASON IF PRESENT ---
       if (PROPOSAL_PDF_DATA.revision_notes && PROPOSAL_PDF_DATA.revision_notes.trim()) {
         ensureSpace(14);
-        doc.setFillColor(254, 243, 199);
-        doc.setDrawColor(245, 158, 11);
-        const revLines = doc.splitTextToSize('Revision Notes: ' + PROPOSAL_PDF_DATA.revision_notes, contentWidth - 6);
+        const isRejected = (PROPOSAL_PDF_DATA.status && PROPOSAL_PDF_DATA.status.toLowerCase() === 'rejected');
+        const boxFill = isRejected ? [254, 242, 242] : [254, 243, 199];
+        const boxStroke = isRejected ? [239, 68, 68] : [245, 158, 11];
+        const textColor = isRejected ? [185, 28, 28] : [180, 83, 9];
+        const labelHeading = isRejected ? 'Rejection Reason: ' : 'Revision Notes: ';
+
+        let pdfNote = PROPOSAL_PDF_DATA.revision_notes;
+        if (isRejected) {
+          if (!pdfNote.toLowerCase().startsWith('disapproved:')) {
+            pdfNote = 'Disapproved: ' + pdfNote;
+          }
+        } else {
+          pdfNote = pdfNote.replace(/^disapproved:\s*/i, '');
+        }
+
+        doc.setFillColor(boxFill[0], boxFill[1], boxFill[2]);
+        doc.setDrawColor(boxStroke[0], boxStroke[1], boxStroke[2]);
+        const revLines = doc.splitTextToSize(labelHeading + pdfNote, contentWidth - 6);
         const boxH = (revLines.length * 4) + 6;
         doc.roundedRect(marginX, currentY, contentWidth, boxH, 1.5, 1.5, 'FD');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
-        doc.setTextColor(180, 83, 9);
+        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
         for (let i = 0; i < revLines.length; i++) {
           doc.text(revLines[i], marginX + 3, currentY + 4 + (i * 4));
         }

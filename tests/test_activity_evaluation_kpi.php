@@ -74,32 +74,31 @@ assertTest("proposal-create.php has wizard step 9 labeled 'Evaluation & KPI'",
 assertTest("proposal-create.php has unified section heading 'Activity Evaluation and KPI Measurement'",
     strpos($createContent, 'Activity Evaluation and KPI Measurement') !== false);
 
-assertTest("proposal-create.php includes Component A: Attendance KPI",
-    strpos($createContent, 'Component A: Attendance KPI') !== false &&
-    strpos($createContent, 'id="kpi-attendance-table-body"') !== false &&
-    strpos($createContent, 'Target counts are automatically retrieved from Step 1') !== false);
+assertTest("proposal-create.php includes Section 1: Key Performance Indicators table",
+    strpos($createContent, 'id="kpi-table-card"') !== false &&
+    strpos($createContent, 'Key Performance Indicators') !== false &&
+    strpos($createContent, 'Criteria / Indicator') !== false);
 
-assertTest("proposal-create.php includes Component B: Student Satisfaction Survey / Feedback",
-    strpos($createContent, 'Component B: Student Satisfaction Survey') !== false &&
-    strpos($createContent, 'Institutional Performance Rating Scale (STI College Marikina)') !== false &&
-    strpos($createContent, 'Very Satisfactory') !== false &&
-    strpos($createContent, '3 Stars (Target ≥ 3.0)') !== false);
+assertTest("proposal-create.php includes Section 2: AI-Generated Evaluation Tool",
+    strpos($createContent, 'id="ai-evaluation-tool-card"') !== false &&
+    strpos($createContent, 'AI-Generated Evaluation Tool') !== false &&
+    strpos($createContent, 'id="f10_evaluation_questions"') !== false &&
+    strpos($createContent, 'id="f9_eval_form_link"') !== false);
 
 assertTest("proposal-create.php Component B includes 4-star rubric descriptions",
     strpos($createContent, 'Excellent') !== false &&
     strpos($createContent, 'Satisfactory') !== false &&
     strpos($createContent, 'Needs Improvement') !== false);
 
-assertTest("proposal-create.php includes Component C: Learning Outcome KPI (Pre-test and Post-test)",
-    strpos($createContent, 'Component C: Learning Outcome KPI') !== false &&
-    strpos($createContent, 'id="kpi-learning-table-body"') !== false &&
-    strpos($createContent, 'Pre-test and post-test assessment') !== false || strpos($createContent, 'Pre-test / Post-test Assessment') !== false);
+assertTest("proposal-create.php includes Google Forms creation & evaluation preview",
+    strpos($createContent, 'id="btnCreateGoogleForm"') !== false &&
+    strpos($createContent, 'openPreviewModal()') !== false &&
+    strpos($createContent, 'btn-regenerate-eval') !== false);
 
-assertTest("proposal-create.php includes Institutional KPI Achievement Classifications legend",
-    strpos($createContent, 'Institutional KPI Achievement Classifications') !== false &&
-    strpos($createContent, 'Met the target') !== false &&
-    strpos($createContent, 'Close to the target') !== false &&
-    strpos($createContent, 'Did not meet the target') !== false);
+assertTest("proposal-create.php KPI table supports dynamic row addition and deletion",
+    strpos($createContent, 'addKpiRow()') !== false &&
+    strpos($createContent, 'removeKpiRow(this)') !== false &&
+    strpos($createContent, 'name="kpi_indicator[]"') !== false);
 
 assertTest("proposal-create.php has syncKpiSectionTables() and dynamic calculation functions",
     strpos($createContent, 'function syncKpiSectionTables()') !== false &&
@@ -122,25 +121,26 @@ assertTest("proposal-edit.php has wizard step 9 labeled 'Evaluation & KPI'",
 assertTest("proposal-edit.php has unified section heading 'Activity Evaluation and KPI Measurement'",
     strpos($editContent, 'Activity Evaluation and KPI Measurement') !== false);
 
-assertTest("proposal-edit.php includes Component A: Attendance KPI",
-    strpos($editContent, 'Component A: Attendance KPI') !== false &&
-    strpos($editContent, 'id="kpi-attendance-table-body"') !== false);
+assertTest("proposal-edit.php includes Section 1: Key Performance Indicators table",
+    strpos($editContent, 'id="kpi-table-card"') !== false &&
+    strpos($editContent, 'Key Performance Indicators') !== false &&
+    strpos($editContent, 'Criteria / Indicator') !== false);
 
-assertTest("proposal-edit.php includes Component B with 4-star rubric & unweighted note",
-    strpos($editContent, 'Component B: Student Satisfaction Survey') !== false &&
-    strpos($editContent, '3 Stars (Target ≥ 3.0)') !== false &&
-    strpos($editContent, 'unweighted average; official survey weights pending institutional confirmation') !== false);
+assertTest("proposal-edit.php includes Section 2: AI-Generated Evaluation Tool",
+    strpos($editContent, 'id="ai-evaluation-tool-card"') !== false &&
+    strpos($editContent, 'AI-Generated Evaluation Tool') !== false &&
+    strpos($editContent, 'id="f10_evaluation_questions"') !== false &&
+    strpos($editContent, 'id="f9_eval_form_link"') !== false);
 
-assertTest("proposal-edit.php includes Component C: Learning Outcome KPI",
-    strpos($editContent, 'Component C: Learning Outcome KPI') !== false &&
-    strpos($editContent, 'id="kpi-learning-table-body"') !== false &&
-    strpos($editContent, 'thresholds and formulas remain configurable and pending confirmation') !== false);
+assertTest("proposal-edit.php includes Google Forms creation & evaluation preview",
+    strpos($editContent, 'id="btnCreateGoogleForm"') !== false &&
+    strpos($editContent, 'openPreviewModal()') !== false &&
+    strpos($editContent, 'btn-regenerate-eval') !== false);
 
-assertTest("proposal-edit.php includes Institutional KPI Achievement Classifications legend",
-    strpos($editContent, 'Institutional KPI Achievement Classifications') !== false &&
-    strpos($editContent, '≥ 95% achievement') !== false &&
-    strpos($editContent, '70% – 94.9% achievement') !== false &&
-    (strpos($editContent, '< 70% achievement') !== false || strpos($editContent, '&lt; 70% achievement') !== false));
+assertTest("proposal-edit.php KPI table supports dynamic row addition and reviewer comments",
+    strpos($editContent, 'addKpiRow()') !== false &&
+    strpos($editContent, 'name="kpi_indicator[]"') !== false &&
+    strpos($editContent, 'revisionSections[\'kpi\']') !== false);
 
 assertTest("proposal-edit.php attaches data-* attributes to Step 1 participant rows",
     strpos($editContent, 'data-actual-attendees=') !== false &&
@@ -451,9 +451,10 @@ assertTest("proposal-create.php displays 'To be recorded after the activity' pla
     strpos($createContent, 'To be recorded after the activity') !== false);
 assertTest("proposal-create.php has removed editable number input for Actual Attendees",
     strpos($createContent, '<input type="number" name="part_actual_attendees[]"') === false);
-assertTest("proposal-create.php preserves attendance KPI formula and legend",
-    strpos($createContent, 'Achievement formula: (Actual Attendees ÷ Target Participants) × 100%') !== false &&
-    strpos($createContent, 'Institutional KPI Achievement Classifications') !== false);
+assertTest("proposal-create.php preserves KPI data model and inputs",
+    strpos($createContent, 'name="kpi_indicator[]"') !== false &&
+    strpos($createContent, 'name="kpi_target[]"') !== false &&
+    strpos($createContent, 'name="kpi_method[]"') !== false);
 
 // Learning Outcome KPI in Create Proposal
 assertTest("proposal-create.php has removed editable Pre-test Result input",
@@ -462,18 +463,19 @@ assertTest("proposal-create.php has removed editable Pre-test Result input",
 assertTest("proposal-create.php has removed editable Post-test Result input",
     strpos($createContent, '<input type="number" step="0.01" min="0" name="part_post_test[]"') === false &&
     strpos($createContent, 'name="part_post_test[]" class="form-control') === false);
-assertTest("proposal-create.php displays neutral notice that learning outcomes will be recorded after the activity",
-    strpos($createContent, 'learning KPI achievements will be recorded after the activity is conducted') !== false ||
-    strpos($createContent, 'learning outcomes will be recorded after the activity') !== false);
+assertTest("proposal-create.php separates proposal stage from post-activity recording",
+    strpos($createContent, '<input type="number" name="part_actual_attendees[]"') === false &&
+    strpos($createContent, '<input type="number" step="0.01" min="0" name="part_pre_test[]"') === false);
 
 // Attendance KPI in Edit Proposal
 assertTest("proposal-edit.php displays 'To be recorded after the activity' placeholder for actual attendance",
     strpos($editContent, 'To be recorded after the activity') !== false);
 assertTest("proposal-edit.php has removed editable number input for Actual Attendees",
     strpos($editContent, '<input type="number" name="part_actual_attendees[]"') === false);
-assertTest("proposal-edit.php preserves attendance KPI formula and legend",
-    strpos($editContent, 'Achievement formula: (Actual Attendees ÷ Target Participants) × 100%') !== false &&
-    strpos($editContent, 'Institutional KPI Achievement Classifications') !== false);
+assertTest("proposal-edit.php preserves KPI data model and inputs",
+    strpos($editContent, 'name="kpi_indicator[]"') !== false &&
+    strpos($editContent, 'name="kpi_target[]"') !== false &&
+    strpos($editContent, 'name="kpi_method[]"') !== false);
 
 // Learning Outcome KPI in Edit Proposal
 assertTest("proposal-edit.php has removed editable Pre-test Result input",
@@ -482,17 +484,21 @@ assertTest("proposal-edit.php has removed editable Pre-test Result input",
 assertTest("proposal-edit.php has removed editable Post-test Result input",
     strpos($editContent, '<input type="number" step="0.01" min="0" name="part_post_test[]"') === false &&
     strpos($editContent, 'name="part_post_test[]" class="form-control') === false);
-assertTest("proposal-edit.php displays neutral notice that learning outcomes will be recorded after the activity",
-    strpos($editContent, 'learning KPI achievements will be recorded after the activity is conducted') !== false ||
-    strpos($editContent, 'learning outcomes will be recorded after the activity') !== false);
+assertTest("proposal-edit.php separates proposal stage from post-activity recording",
+    strpos($editContent, '<input type="number" name="part_actual_attendees[]"') === false &&
+    strpos($editContent, '<input type="number" step="0.01" min="0" name="part_pre_test[]"') === false);
 
-assertTest("proposal-create.php displays 'Acceptable Attendance KPI: 95% of Expected Attendees.'",
-    strpos($createContent, 'Acceptable Attendance KPI: 95% of Expected Attendees.') !== false);
+assertTest("proposal-create.php Step 9 layout follows verified Section 1 KPI Table + Section 2 Evaluation Tool order",
+    strpos($createContent, 'id="kpi-table-card"') !== false &&
+    strpos($createContent, 'id="ai-evaluation-tool-card"') !== false &&
+    strpos($createContent, 'id="kpi-table-card"') < strpos($createContent, 'id="ai-evaluation-tool-card"'));
 assertTest("proposal-create.php has removed 110% threshold from visible attendance KPI legend",
     strpos($createContent, '≥ 110% achievement') === false && strpos($createContent, '110%') === false);
 
-assertTest("proposal-edit.php displays 'Acceptable Attendance KPI: 95% of Expected Attendees.'",
-    strpos($editContent, 'Acceptable Attendance KPI: 95% of Expected Attendees.') !== false);
+assertTest("proposal-edit.php Step 9 layout follows verified Section 1 KPI Table + Section 2 Evaluation Tool order",
+    strpos($editContent, 'id="kpi-table-card"') !== false &&
+    strpos($editContent, 'id="ai-evaluation-tool-card"') !== false &&
+    strpos($editContent, 'id="kpi-table-card"') < strpos($editContent, 'id="ai-evaluation-tool-card"'));
 assertTest("proposal-edit.php has removed 110% threshold from visible attendance KPI legend",
     strpos($editContent, '≥ 110% achievement') === false && strpos($editContent, '110%') === false);
 

@@ -506,7 +506,14 @@ $activities = $acts->fetchAll();
                 <a href="<?= BASE_URL ?>/faculty/proposal-view.php?id=<?= $a['id'] ?>" class="act-title">
                   <?= htmlspecialchars($a['title']) ?>
                 </a>
-                <?php if ($a['revision_notes']): ?><br><span class="text-sm" style="color:var(--warning);">⚠ Revision notes</span><?php endif; ?>
+                <?php if ($a['revision_notes']): ?>
+                  <br>
+                  <?php if ($a['status'] === 'rejected'): ?>
+                    <span class="text-sm" style="color:var(--danger, #dc2626);">⚠️ Rejection reason</span>
+                  <?php else: ?>
+                    <span class="text-sm" style="color:var(--warning);">⚠️ Revision notes</span>
+                  <?php endif; ?>
+                <?php endif; ?>
               </td>
               <td class="col-date"><span class="act-date"><?= $a['event_date'] ? date('M j, Y',strtotime($a['event_date'])) : '—' ?></span></td>
               <td class="col-venue"><span class="act-venue" title="<?= htmlspecialchars($a['venue']??'') ?>"><?= htmlspecialchars($a['venue']??'—') ?></span></td>

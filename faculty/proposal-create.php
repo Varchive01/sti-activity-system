@@ -87,6 +87,18 @@ if (!function_exists('renderFacultyTaskOptgroups')) {
 }
 $todayManila = date('Y-m-d');
 $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
+
+// Initialize temporary workspace session token for proposal collaborator invitation
+if (session_status() === PHP_SESSION_NONE) {
+  session_start();
+}
+if (empty($_SESSION['proposal_create_token'])) {
+  $_SESSION['proposal_create_token'] = bin2hex(random_bytes(16));
+}
+$sessionToken = $_SESSION['proposal_create_token'];
+if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSION['temp_collaborators'][$sessionToken])) {
+  $_SESSION['temp_collaborators'][$sessionToken] = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1283,11 +1295,35 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Invalid Assessment Score:</strong> Test scores and attendance values cannot be negative. Please enter valid non-negative values.
         </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'no_collaborators'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ No Collaborators Selected:</strong> Please add at least one Co-Author or Contributor before sending the proposal.
+        </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'missing_title'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Activity Title Required:</strong> Please enter an Activity Title before sharing this proposal with collaborators.
+        </div>
       <?php elseif (isset($_GET['error'])): ?>
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Error:</strong> An error occurred while saving the proposal. Please try again.
         </div>
       <?php endif; ?>
+
+      <!-- Active Collaborators Staging Banner (visible when collaborators workflow is chosen) -->
+      <div id="collabActiveHeaderBar" style="display:none; margin-bottom:16px; background:rgba(2, 132, 199, 0.08); border:1px solid #bae6fd; border-left:4px solid #0284c7; border-radius:8px; padding:12px 16px; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:1.1rem;">👥</span>
+          <div>
+            <strong style="color:#0369a1; font-size:0.9rem;">Collaborative Proposal Session:</strong>
+            <span id="collabHeaderSummary" style="font-size:0.85rem; color:#334155;">1 Owner, 0 Collaborators</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="openCollaboratorsModal()" style="font-size:0.8rem; padding:4px 12px; background:#fff;">
+            ⚙️ Manage Collaborators
+          </button>
+        </div>
+      </div>
 
       <!-- Offline & Sync Status Banner -->
       <div id="offlineAlertBanner" class="alert alert-warning" style="display:none;margin-bottom:16px;align-items:center;gap:10px;border-left:4px solid #F59E0B;">
@@ -1332,6 +1368,8 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
         <input type="hidden" name="faculty_id" value="<?= $user['id'] ?>">
         <input type="hidden" name="activity_id" id="proposalActivityId" value="<?= htmlspecialchars((string)($_GET['id'] ?? $_GET['activity_id'] ?? '')) ?>">
         <input type="hidden" name="action" id="proposalFormAction" value="draft">
+        <input type="hidden" name="proposal_session_token" id="proposal_session_token" value="<?= htmlspecialchars($sessionToken) ?>">
+        <input type="hidden" name="send_to_collaborators" id="send_to_collaborators" value="0">
         <!-- tracks the highest step the user has validly reached -->
         <input type="hidden" id="maxUnlockedStep" value="1">
 
@@ -1483,8 +1521,15 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
             </div>
           </div>
           <div class="nav-btns">
-            <div></div>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Objectives →</button>
+            <div>
+              <a href="<?= BASE_URL ?>/faculty/dashboard.php" class="btn btn-outline">Cancel</a>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <button type="button" class="btn btn-info send-to-collab-btn" onclick="handleSendToCollaborators()" style="display:none; background:#0284c7; color:#fff; border:none; padding:8px 16px; font-weight:600; border-radius:6px; cursor:pointer;">
+                Send to Collaborators
+              </button>
+              <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Objectives →</button>
+            </div>
           </div>
         </div>
 
@@ -1537,7 +1582,12 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           </div>
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Materials →</button>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <button type="button" class="btn btn-info send-to-collab-btn" onclick="handleSendToCollaborators()" style="display:none; background:#0284c7; color:#fff; border:none; padding:8px 16px; font-weight:600; border-radius:6px; cursor:pointer;">
+                Send to Collaborators
+              </button>
+              <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Materials →</button>
+            </div>
           </div>
         </div>
 
@@ -1585,7 +1635,12 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           </div>
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Floor Plan →</button>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <button type="button" class="btn btn-info send-to-collab-btn" onclick="handleSendToCollaborators()" style="display:none; background:#0284c7; color:#fff; border:none; padding:8px 16px; font-weight:600; border-radius:6px; cursor:pointer;">
+                Send to Collaborators
+              </button>
+              <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Floor Plan →</button>
+            </div>
           </div>
         </div>
 
@@ -1616,7 +1671,12 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           </div>
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next: People →</button>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <button type="button" class="btn btn-info send-to-collab-btn" onclick="handleSendToCollaborators()" style="display:none; background:#0284c7; color:#fff; border:none; padding:8px 16px; font-weight:600; border-radius:6px; cursor:pointer;">
+                Send to Collaborators
+              </button>
+              <button type="button" class="btn btn-primary" onclick="nextStep()">Next: People →</button>
+            </div>
           </div>
         </div>
 
@@ -1718,7 +1778,12 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           </div>
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Schedule →</button>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <button type="button" class="btn btn-info send-to-collab-btn" onclick="handleSendToCollaborators()" style="display:none; background:#0284c7; color:#fff; border:none; padding:8px 16px; font-weight:600; border-radius:6px; cursor:pointer;">
+                Send to Collaborators
+              </button>
+              <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Schedule →</button>
+            </div>
           </div>
         </div>
 
@@ -1788,7 +1853,12 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           </div>
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Guidelines →</button>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <button type="button" class="btn btn-info send-to-collab-btn" onclick="handleSendToCollaborators()" style="display:none; background:#0284c7; color:#fff; border:none; padding:8px 16px; font-weight:600; border-radius:6px; cursor:pointer;">
+                Send to Collaborators
+              </button>
+              <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Guidelines →</button>
+            </div>
           </div>
         </div>
 
@@ -1824,7 +1894,12 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           </div>
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Faculty Tasks →</button>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <button type="button" class="btn btn-info send-to-collab-btn" onclick="handleSendToCollaborators()" style="display:none; background:#0284c7; color:#fff; border:none; padding:8px 16px; font-weight:600; border-radius:6px; cursor:pointer;">
+                Send to Collaborators
+              </button>
+              <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Faculty Tasks →</button>
+            </div>
           </div>
         </div>
 
@@ -1871,7 +1946,12 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
           </div>
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Evaluation →</button>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <button type="button" class="btn btn-info send-to-collab-btn" onclick="handleSendToCollaborators()" style="display:none; background:#0284c7; color:#fff; border:none; padding:8px 16px; font-weight:600; border-radius:6px; cursor:pointer;">
+                Send to Collaborators
+              </button>
+              <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Evaluation →</button>
+            </div>
           </div>
         </div>
 
@@ -5506,6 +5586,403 @@ $tomorrowManila = date('Y-m-d', strtotime('+1 day'));
       </div>
     </div>
   </div>
+  <!-- ── Initial Collaborator Invitation Modal (Prompt before Proposal Form) ── -->
+  <div class="modal fade" id="initCollabPromptModal" tabindex="-1" aria-labelledby="initCollabPromptLabel" aria-hidden="true" style="display:none; background:rgba(0,0,0,0.65); z-index:9999;">
+    <div class="modal-dialog modal-dialog-centered" style="margin: 1.75rem auto; max-width: 480px;">
+      <div class="modal-content" style="border-radius:14px; overflow:hidden; border:none; box-shadow:0 16px 40px rgba(0,0,0,0.25); background:var(--bg-card, #fff);">
+        <div class="modal-header" style="padding: 18px 24px; border-bottom:1px solid var(--border, #e2e8f0); display:flex; align-items:center; justify-content:space-between; background:var(--bg-base, #f8fafc);">
+          <h5 class="modal-title fw-bold" id="initCollabPromptLabel" style="font-size:1.15rem; margin:0; display:flex; align-items:center; gap:8px; color:var(--text-main, #1e293b);">
+            👥 Add Collaborators?
+          </h5>
+        </div>
+        <div class="modal-body" style="padding: 24px; color:var(--text-main, #334155); font-size:0.95rem; line-height:1.5;">
+          <p style="margin:0 0 12px 0;">
+            Do you want to add a Co-Author or Contributor to this proposal?
+          </p>
+          <div style="font-size:0.82rem; color:var(--text-muted, #64748b); background:rgba(2, 132, 199, 0.08); border-left:3px solid var(--sti-blue, #0284c7); padding:10px 12px; border-radius:6px;">
+            You can invite faculty colleagues to collaborate on this proposal as <strong>Co-Authors</strong> (section editing) or <strong>Contributors</strong> (drafting &amp; review).
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 14px 24px; border-top:1px solid var(--border, #e2e8f0); display:flex; justify-content:flex-end; gap:12px; background:var(--bg-base, #f8fafc);">
+          <button type="button" class="btn btn-outline" id="btnInitCollabNo" onclick="handleInitCollabChoice(false)" style="font-size:0.875rem; padding:8px 18px; border-radius:6px; min-width:80px;">
+            No
+          </button>
+          <button type="button" class="btn btn-primary" id="btnInitCollabYes" onclick="handleInitCollabChoice(true)" style="font-size:0.875rem; padding:8px 20px; border-radius:6px; background:var(--sti-blue, #0284c7); border-color:var(--sti-blue, #0284c7); font-weight:600;">
+            Yes, Add Collaborator
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Manage Proposal Collaborators Modal ── -->
+  <div class="modal fade" id="collaboratorsModal" tabindex="-1" aria-labelledby="collaboratorsModalLabel" aria-hidden="true" style="display:none; background:rgba(0,0,0,0.65); z-index:9999;">
+    <div class="modal-dialog modal-dialog-centered modal-lg" style="margin: 1.75rem auto; max-width: 680px;">
+      <div class="modal-content" style="border-radius:12px; overflow:hidden; border:none; box-shadow:0 12px 32px rgba(0,0,0,0.2); background:var(--bg-card, #fff);">
+        <div class="modal-header" style="padding: 16px 20px; border-bottom:1px solid var(--border, #e2e8f0); display:flex; align-items:center; justify-content:space-between;">
+          <h5 class="modal-title fw-bold" id="collaboratorsModalLabel" style="font-size:1.1rem; margin:0; display:flex; align-items:center; gap:8px; color:var(--text-main, #1e293b);">
+            👥 Manage Proposal Collaborators
+          </h5>
+          <button type="button" class="btn-close" onclick="closeCollaboratorsModal()" aria-label="Close" style="background:none; border:none; font-size:1.3rem; color:var(--text-muted, #64748b); cursor:pointer; line-height:1;">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 20px; color:var(--text-main, #334155); max-height: calc(100vh - 220px); overflow-y: auto;">
+          <!-- Add Collaborator Section -->
+          <div style="background:var(--bg-base, #f8fafc); border:1px solid var(--border, #e2e8f0); border-radius:8px; padding:16px; margin-bottom:20px;">
+            <h6 style="font-weight:700; margin:0 0 10px 0; font-size:0.95rem; color:var(--text-main, #1e293b); display:flex; align-items:center; gap:6px;">
+              <span>➕</span> Add Faculty Contributor
+            </h6>
+            <div id="collabAlertContainer"></div>
+            <form id="addCollaboratorForm" onsubmit="submitAddCollaborator(event)" style="display:grid; grid-template-columns: 1fr 1fr auto; gap:10px; align-items:flex-end;">
+              <div>
+                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:4px; color:var(--text-muted, #64748b);">Faculty Member</label>
+                <select id="collabFacultySelect" class="form-control" style="width:100%; font-size:0.85rem; padding:8px 10px; border-radius:6px; border:1px solid var(--border, #cbd5e1);" required>
+                  <option value="">Loading faculty list...</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:4px; color:var(--text-muted, #64748b);">Contributor Role</label>
+                <select id="collabRoleSelect" class="form-control" style="width:100%; font-size:0.85rem; padding:8px 10px; border-radius:6px; border:1px solid var(--border, #cbd5e1);" required>
+                  <option value="co_author">Co-Author (Full section editing)</option>
+                  <option value="contributor">Contributor (Drafting &amp; Review)</option>
+                </select>
+              </div>
+              <div>
+                <button type="submit" id="btnAddCollaborator" class="btn btn-primary" style="padding:8px 16px; font-size:0.85rem; font-weight:600; border-radius:6px; white-space:nowrap;">
+                  Add Contributor
+                </button>
+              </div>
+            </form>
+            <div style="font-size:0.75rem; color:var(--text-muted, #64748b); margin-top:8px;">
+              * Only active faculty members not currently assigned to this proposal are listed.
+            </div>
+          </div>
+
+          <!-- Current Collaborators Table -->
+          <div>
+            <h6 style="font-weight:700; margin:0 0 10px 0; font-size:0.95rem; color:var(--text-main, #1e293b); display:flex; align-items:center; justify-content:space-between;">
+              <span>Assigned Collaborators (<span id="collabModalCount">1</span>)</span>
+              <span style="font-size:0.75rem; font-weight:normal; color:var(--text-muted, #64748b);">At least 3 faculty members can contribute</span>
+            </h6>
+            <div style="overflow-x:auto;">
+              <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                <thead>
+                  <tr style="border-bottom:2px solid var(--border, #e2e8f0); text-align:left; background:var(--bg-base, #f8fafc);">
+                    <th style="padding:10px 12px; font-weight:600; color:var(--text-muted, #64748b);">Faculty Member</th>
+                    <th style="padding:10px 12px; font-weight:600; color:var(--text-muted, #64748b);">Department</th>
+                    <th style="padding:10px 12px; font-weight:600; color:var(--text-muted, #64748b);">Role</th>
+                    <th style="padding:10px 12px; font-weight:600; color:var(--text-muted, #64748b);">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="collabTableBody">
+                  <tr>
+                    <td colspan="4" style="text-align:center; padding:16px; color:var(--text-muted, #64748b);">Loading collaborators...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="margin-top:16px; background:rgba(2, 132, 199, 0.08); border-left:3px solid var(--sti-blue, #0284c7); border-radius:6px; padding:10px 12px; font-size:0.78rem; color:var(--text-muted, #475569); line-height:1.45;">
+            <strong>Collaborative Policy:</strong> Multiple faculty members can contribute at different times. Sequential saves are protected by optimistic locking to prevent overwriting. Only the <strong>Proposal Owner</strong> can submit the finalized proposal for Dean/Admin approval.
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 12px 20px; border-top:1px solid var(--border, #e2e8f0); display:flex; justify-content:space-between; align-items:center; background:var(--bg-base, #f8fafc);">
+          <span style="font-size:0.78rem; color:var(--text-muted, #64748b);">* Collaborators will receive access when you click &quot;Send to Collaborators&quot;.</span>
+          <button type="button" class="btn btn-primary" onclick="closeCollaboratorsModal()" style="font-size:0.85rem; padding:6px 16px;">Proceed to Proposal Form</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Optional Collaborator Invitation Workflow (Task: Optional Collaborator Workflow) ──
+    const sessionToken = <?= json_encode($sessionToken) ?>;
+    let hasChosenCollaborators = false;
+    let stagedCollaboratorCount = 0;
+
+    document.addEventListener('DOMContentLoaded', function() {
+      // Check if user came from a redirect with skip_collab or error
+      const urlParams = new URLSearchParams(window.location.search);
+      if (!urlParams.has('skip_collab') && !urlParams.has('error')) {
+        const promptModal = document.getElementById('initCollabPromptModal');
+        if (promptModal) {
+          promptModal.style.display = 'block';
+          promptModal.classList.add('show');
+        }
+      }
+    });
+
+    function handleInitCollabChoice(wantsCollaborators) {
+      const promptModal = document.getElementById('initCollabPromptModal');
+      if (promptModal) {
+        promptModal.style.display = 'none';
+        promptModal.classList.remove('show');
+      }
+
+      if (wantsCollaborators) {
+        hasChosenCollaborators = true;
+        document.querySelectorAll('.send-to-collab-btn').forEach(btn => {
+          btn.style.display = 'inline-flex';
+        });
+        const headerBar = document.getElementById('collabActiveHeaderBar');
+        if (headerBar) headerBar.style.display = 'flex';
+        openCollaboratorsModal();
+      } else {
+        hasChosenCollaborators = false;
+        document.querySelectorAll('.send-to-collab-btn').forEach(btn => {
+          btn.style.display = 'none';
+        });
+        const headerBar = document.getElementById('collabActiveHeaderBar');
+        if (headerBar) headerBar.style.display = 'none';
+      }
+    }
+
+    function openCollaboratorsModal() {
+      const modal = document.getElementById('collaboratorsModal');
+      if (!modal) return;
+      modal.style.display = 'block';
+      modal.classList.add('show');
+      loadCollaborators();
+      loadAvailableFaculty();
+    }
+
+    function closeCollaboratorsModal() {
+      const modal = document.getElementById('collaboratorsModal');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+      }
+    }
+
+    async function loadCollaborators() {
+      const tbody = document.getElementById('collabTableBody');
+      const countEl = document.getElementById('collabModalCount');
+      const headerSummary = document.getElementById('collabHeaderSummary');
+      if (!tbody) return;
+
+      try {
+        const resp = await fetch(`<?= BASE_URL ?>/api/collaborators.php?action=list&session_token=${encodeURIComponent(sessionToken)}`);
+        const data = await resp.json();
+        if (!data.success) {
+          tbody.innerHTML = `<tr><td colspan="4" style="color:#ef4444;text-align:center;padding:12px;">Error: ${escapeHtml(data.error || 'Failed to load')}</td></tr>`;
+          return;
+        }
+
+        stagedCollaboratorCount = data.staged_count || 0;
+        if (countEl) countEl.textContent = data.collaborator_count;
+        if (headerSummary) {
+          headerSummary.textContent = `1 Owner, ${stagedCollaboratorCount} Collaborator${stagedCollaboratorCount === 1 ? '' : 's'}`;
+        }
+
+        if (!data.collaborators || data.collaborators.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:12px;color:var(--text-muted);">No collaborators assigned.</td></tr>`;
+          return;
+        }
+
+        let rowsHtml = '';
+        data.collaborators.forEach(c => {
+          const roleBadgeColor = c.role === 'owner' ? '#0284C7' : (c.role === 'co_author' ? '#10B981' : '#64748B');
+          const roleBadgeBg = c.role === 'owner' ? 'rgba(2, 132, 199, 0.12)' : (c.role === 'co_author' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(100, 116, 139, 0.12)');
+          const roleIcon = c.role === 'owner' ? '👑' : (c.role === 'co_author' ? '✍️' : '👤');
+
+          let actionCell = '<span style="color:var(--text-muted);font-size:0.78rem;">—</span>';
+          if (c.role !== 'owner') {
+            const escapedName = (c.name || '').replace(/'/g, "\\'");
+            actionCell = `<button type="button" class="btn btn-outline btn-sm" onclick="submitRemoveCollaborator(${c.user_id}, '${escapedName}')" style="color:#dc2626;border-color:#fca5a5;padding:3px 8px;font-size:0.75rem;">Remove</button>`;
+          }
+
+          rowsHtml += `
+            <tr style="border-bottom:1px solid var(--border, #e2e8f0);">
+              <td style="padding:10px 12px;font-weight:600;">
+                ${escapeHtml(c.name)}
+                ${c.is_owner ? ' <span style="font-size:0.72rem;background:#E2E8F0;padding:2px 5px;border-radius:4px;font-weight:normal;">(You / Owner)</span>' : ''}
+              </td>
+              <td style="padding:10px 12px;color:var(--text-muted);">${escapeHtml(c.department || '—')}</td>
+              <td style="padding:10px 12px;">
+                <span style="background:${roleBadgeBg};color:${roleBadgeColor};padding:3px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;display:inline-flex;align-items:center;gap:4px;">
+                  ${roleIcon} ${escapeHtml(c.role_label || c.role)}
+                </span>
+              </td>
+              <td style="padding:10px 12px;">${actionCell}</td>
+            </tr>
+          `;
+        });
+
+        tbody.innerHTML = rowsHtml;
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="4" style="color:#ef4444;text-align:center;padding:12px;">Network error loading collaborators.</td></tr>`;
+      }
+    }
+
+    async function loadAvailableFaculty() {
+      const sel = document.getElementById('collabFacultySelect');
+      if (!sel) return;
+
+      try {
+        const resp = await fetch(`<?= BASE_URL ?>/api/collaborators.php?action=search_faculty&session_token=${encodeURIComponent(sessionToken)}`);
+        const data = await resp.json();
+        if (!data.success || !Array.isArray(data.available_faculty)) {
+          sel.innerHTML = '<option value="">No faculty members available</option>';
+          return;
+        }
+
+        if (data.available_faculty.length === 0) {
+          sel.innerHTML = '<option value="">No faculty members found</option>';
+          return;
+        }
+
+        let opts = '<option value="">-- Select Faculty Member --</option>';
+        let currentDept = '';
+        data.available_faculty.forEach(f => {
+          if (f.department && f.department !== currentDept) {
+            if (currentDept !== '') opts += '</optgroup>';
+            currentDept = f.department;
+            opts += `<optgroup label="${escapeHtml(currentDept)}">`;
+          }
+          const disabledAttr = f.disabled ? ' disabled' : '';
+          const val = f.disabled ? '' : (f.id || '');
+          const label = f.display_text || `${f.name} (${f.department || 'General'})`;
+          opts += `<option value="${val}"${disabledAttr}>${escapeHtml(label)}</option>`;
+        });
+        if (currentDept !== '') opts += '</optgroup>';
+        sel.innerHTML = opts;
+      } catch (e) {
+        sel.innerHTML = '<option value="">Failed to load faculty list</option>';
+      }
+    }
+
+    async function submitAddCollaborator(e) {
+      e.preventDefault();
+      const sel = document.getElementById('collabFacultySelect');
+      const roleSel = document.getElementById('collabRoleSelect');
+      const btn = document.getElementById('btnAddCollaborator');
+      const alertBox = document.getElementById('collabAlertContainer');
+      if (!sel || !roleSel) return;
+
+      const targetId = sel.value;
+      const targetRole = roleSel.value;
+      if (!targetId) {
+        alert('Please select a faculty member.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Adding...';
+      if (alertBox) alertBox.innerHTML = '';
+
+      try {
+        const fd = new FormData();
+        fd.append('action', 'add');
+        fd.append('session_token', sessionToken);
+        fd.append('user_id', targetId);
+        fd.append('role', targetRole);
+
+        const resp = await fetch(`<?= BASE_URL ?>/api/collaborators.php`, {
+          method: 'POST',
+          body: fd
+        });
+        const res = await resp.json();
+
+        if (res.success) {
+          if (alertBox) {
+            alertBox.innerHTML = `<div class="alert alert-success" style="padding:8px 12px;font-size:0.82rem;margin-bottom:10px;">${escapeHtml(res.message || 'Collaborator added successfully!')}</div>`;
+          }
+          await loadCollaborators();
+          await loadAvailableFaculty();
+        } else {
+          if (alertBox) {
+            alertBox.innerHTML = `<div class="alert alert-danger" style="padding:8px 12px;font-size:0.82rem;margin-bottom:10px;">${escapeHtml(res.error || 'Failed to add collaborator.')}</div>`;
+          }
+        }
+      } catch (err) {
+        if (alertBox) {
+          alertBox.innerHTML = `<div class="alert alert-danger" style="padding:8px 12px;font-size:0.82rem;margin-bottom:10px;">Network error while adding collaborator.</div>`;
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Add Contributor';
+      }
+    }
+
+    async function submitRemoveCollaborator(userId, userName) {
+      if (!confirm(`Are you sure you want to remove ${userName} from this collaborative proposal?`)) {
+        return;
+      }
+
+      const alertBox = document.getElementById('collabAlertContainer');
+      try {
+        const fd = new FormData();
+        fd.append('action', 'remove');
+        fd.append('session_token', sessionToken);
+        fd.append('user_id', userId);
+
+        const resp = await fetch(`<?= BASE_URL ?>/api/collaborators.php`, {
+          method: 'POST',
+          body: fd
+        });
+        const res = await resp.json();
+
+        if (res.success) {
+          if (alertBox) {
+            alertBox.innerHTML = `<div class="alert alert-success" style="padding:8px 12px;font-size:0.82rem;margin-bottom:10px;">${escapeHtml(res.message || 'Collaborator removed.')}</div>`;
+          }
+          await loadCollaborators();
+          await loadAvailableFaculty();
+        } else {
+          if (alertBox) {
+            alertBox.innerHTML = `<div class="alert alert-danger" style="padding:8px 12px;font-size:0.82rem;margin-bottom:10px;">${escapeHtml(res.error || 'Failed to remove collaborator.')}</div>`;
+          }
+        }
+      } catch (err) {
+        if (alertBox) {
+          alertBox.innerHTML = `<div class="alert alert-danger" style="padding:8px 12px;font-size:0.82rem;margin-bottom:10px;">Network error while removing collaborator.</div>`;
+        }
+      }
+    }
+
+    function handleSendToCollaborators() {
+      // 1. Check title
+      const titleInput = document.getElementById('f1_title');
+      const titleVal = titleInput ? titleInput.value.trim() : '';
+      if (!titleVal) {
+        alert('Please enter an Activity Title before sending to collaborators.');
+        if (typeof goToStep === 'function') {
+          goToStep(1);
+        } else if (typeof showStep === 'function') {
+          showStep(1);
+        }
+        if (titleInput) titleInput.focus();
+        return;
+      }
+
+      // 2. Check staged collaborators count
+      if (stagedCollaboratorCount <= 0) {
+        alert('You have not added any collaborators yet. Please add at least one Co-Author or Contributor before sending.');
+        openCollaboratorsModal();
+        return;
+      }
+
+      // 3. Confirm before sending
+      if (!confirm(`Send this proposal draft to ${stagedCollaboratorCount} collaborator(s)? They will receive access and notifications.`)) {
+        return;
+      }
+
+      // 4. Set action to send_to_collaborators and submit
+      const actionInput = document.getElementById('proposalFormAction');
+      const sendFlagInput = document.getElementById('send_to_collaborators');
+      if (actionInput) actionInput.value = 'send_to_collaborators';
+      if (sendFlagInput) sendFlagInput.value = '1';
+
+      if (typeof serializeEvaluationQuestions === 'function') {
+        serializeEvaluationQuestions();
+      }
+
+      const form = document.getElementById('proposalForm');
+      if (form) {
+        form.submit();
+      }
+    }
+  </script>
 </body>
 
 </html>

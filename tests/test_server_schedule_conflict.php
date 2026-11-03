@@ -44,7 +44,12 @@ $facultyId = (int)$faculty['id'];
 
 // Helper to execute endpoint in subproc with session and post data
 function runSaveEndpoint(array $postData, int $userId) {
-    $script = __DIR__ . '/../api/proposal-save.php';
+    require_once __DIR__ . '/../services/GeminiProposalValidationService.php';
+    $aiService = new GeminiProposalValidationService('TEST_DUMMY_KEY');
+    $canonicalPayload = $aiService->getCanonicalProposalPayload($postData);
+    $currentHash = $aiService->calculateProposalHash($canonicalPayload);
+
+    $script = str_replace('\\', '/', realpath(__DIR__ . '/../api/proposal-save.php'));
     $postExport = var_export($postData, true);
     
     $code = "<?php
@@ -56,6 +61,15 @@ function runSaveEndpoint(array $postData, int $userId) {
     \$_SESSION['user_name'] = 'Faculty Tester';
     \$_SESSION['user_email'] = 'faculty@test.sti.edu';
     \$_SESSION['last_activity'] = time();
+    \$_SESSION['last_ai_validation'] = [
+        '{$currentHash}' => [
+            'result' => [
+                'sections' => [
+                    ['status' => 'success', 'section' => 'all']
+                ]
+            ]
+        ]
+    ];
     \$_POST = {$postExport};
     \$_SERVER['REQUEST_METHOD'] = 'POST';
     try {
@@ -135,13 +149,21 @@ $validTitle = "Valid Non-Conflicting Submission " . time();
 $beforeValidCount = (int)$db->query("SELECT COUNT(*) FROM activities WHERE title = '{$validTitle}'")->fetchColumn();
 
 $validOutput = runSaveEndpoint([
-    'title' => $validTitle,
-    'venue' => $testVenue,
-    'event_date' => $testDate,
-    'start_time' => '14:00',
-    'end_time'   => '16:00',
-    'source'     => 'faculty',
-    'action'     => 'submit'
+    'title'               => $validTitle,
+    'theme'               => 'Educational Technology Seminar',
+    'venue'               => $testVenue,
+    'event_date'          => $testDate,
+    'start_time'          => '14:00',
+    'end_time'            => '16:00',
+    'general_objectives'  => 'Promote awareness of cybersecurity topics across students.',
+    'specific_objectives' => '1. Understand modern network defense and cryptography.',
+    'rationale'           => 'Essential practical skills for all computer science students.',
+    'target_participants' => '50',
+    'floor_plan_required' => 'no',
+    'eval_form_link'      => 'https://forms.gle/sample123',
+    'kpi_criteria'        => ['90% of students attend and participate actively'],
+    'source'              => 'faculty',
+    'action'              => 'submit'
 ], $facultyId);
 
 $afterValidCount = (int)$db->query("SELECT COUNT(*) FROM activities WHERE title = '{$validTitle}'")->fetchColumn();
@@ -188,6 +210,9 @@ echo "\n--- 5. Cleanup Test Fixtures ---\n";
 $allIds = array_filter([$anchorId, $validActId, $draftActId]);
 if (!empty($allIds)) {
     $inList = implode(',', $allIds);
+    $db->exec("DELETE FROM documents WHERE activity_id IN ({$inList})");
+    $db->exec("DELETE FROM kpi_evaluations WHERE activity_id IN ({$inList})");
+    $db->exec("DELETE FROM approval_logs WHERE activity_id IN ({$inList})");
     $db->exec("DELETE FROM notifications WHERE activity_id IN ({$inList})");
     $db->exec("DELETE FROM email_logs WHERE activity_id IN ({$inList})");
     $db->exec("DELETE FROM activities WHERE id IN ({$inList})");

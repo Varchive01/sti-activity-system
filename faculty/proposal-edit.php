@@ -1327,6 +1327,16 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     </header>
     <div class="content">
 
+      <?php if (isset($_GET['shared']) && $_GET['shared'] === '1'): ?>
+        <div class="alert alert-success" style="margin-bottom:20px; border-left:6px solid #10b981; background:#ecfdf5; color:#065f46; border-radius:8px; padding:16px 20px; border:1px solid #a7f3d0; display:flex; align-items:center; gap:10px;">
+          <span style="font-size:1.4rem;">🎉</span>
+          <div>
+            <strong>Proposal Draft Created and Shared!</strong><br>
+            <span style="font-size:0.875rem;">Your proposal draft has been saved and shared with your assigned Co-Authors and Contributors. In-system and email notifications have been dispatched.</span>
+          </div>
+        </div>
+      <?php endif; ?>
+
       <?php if (isset($_GET['error']) && $_GET['error'] === 'past_date'): ?>
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Invalid Date:</strong> Event date must be tomorrow or a future date. Today and past dates are not permitted.
@@ -6172,19 +6182,29 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         const resp = await fetch(`<?= BASE_URL ?>/api/collaborators.php?action=search_faculty&activity_id=${collabActivityId}`);
         const data = await resp.json();
         if (!data.success || !Array.isArray(data.available_faculty)) {
-          sel.innerHTML = '<option value="">No additional faculty available</option>';
+          sel.innerHTML = '<option value="">No faculty members available</option>';
           return;
         }
 
         if (data.available_faculty.length === 0) {
-          sel.innerHTML = '<option value="">All active faculty are already collaborators</option>';
+          sel.innerHTML = '<option value="">No faculty members found</option>';
           return;
         }
 
         let opts = '<option value="">-- Select Faculty Member --</option>';
+        let currentDept = '';
         data.available_faculty.forEach(f => {
-          opts += `<option value="${f.id}">${escapeHtml(f.name)} (${escapeHtml(f.department || 'General')})</option>`;
+          if (f.department && f.department !== currentDept) {
+            if (currentDept !== '') opts += '</optgroup>';
+            currentDept = f.department;
+            opts += `<optgroup label="${escapeHtml(currentDept)}">`;
+          }
+          const disabledAttr = f.disabled ? ' disabled' : '';
+          const val = f.disabled ? '' : (f.id || '');
+          const label = f.display_text || `${f.name} (${f.department || 'General'})`;
+          opts += `<option value="${val}"${disabledAttr}>${escapeHtml(label)}</option>`;
         });
+        if (currentDept !== '') opts += '</optgroup>';
         sel.innerHTML = opts;
       } catch (e) {
         sel.innerHTML = '<option value="">Failed to load faculty list</option>';

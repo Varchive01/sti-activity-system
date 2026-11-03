@@ -144,13 +144,26 @@ try {
     exit;
 
 } catch (Exception $e) {
-    error_log("api/ai-proposal-guidance.php Exception: " . $e->getMessage());
-    http_response_code(500);
-    ob_clean();
-    echo json_encode([
-        'success' => false,
-        'error'   => 'An error occurred while generating AI proposal guidance. Please try again.'
-    ]);
-    exit;
+    error_log("api/ai-proposal-guidance.php Exception: " . $e->getMessage() . " - invoking fallback guidance engine.");
+    try {
+        $fallbackGuidance = isset($guidanceService) ? $guidanceService->getFallbackGuidance($input) : (new GeminiProposalGuidanceService())->getFallbackGuidance($input);
+        ob_clean();
+        echo json_encode([
+            'success'     => true,
+            'cached'      => false,
+            'activity_id' => $activityId,
+            'data_hash'   => $cacheKey ?? 'fallback',
+            'guidance'    => $fallbackGuidance
+        ]);
+        exit;
+    } catch (Exception $fallbackErr) {
+        http_response_code(500);
+        ob_clean();
+        echo json_encode([
+            'success' => false,
+            'error'   => 'An error occurred while generating AI proposal guidance. Please try again.'
+        ]);
+        exit;
+    }
 }
 

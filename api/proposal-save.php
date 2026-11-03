@@ -10,6 +10,7 @@ requireRole('faculty', 'program_head');
 $user   = currentUser();
 $db     = getDB();
 $action = $_POST['action'] ?? 'draft';
+$isSendToCollaborators = ($action === 'send_to_collaborators' || ($_POST['send_to_collaborators'] ?? '') === '1');
 $status = ($action === 'submit') ? 'submitted' : 'draft';
 
 $isAjax = (
@@ -17,6 +18,38 @@ $isAjax = (
     (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json')) ||
     (isset($_POST['is_ajax_sync']) && $_POST['is_ajax_sync'] === '1')
 );
+
+// Resolve session workspace token and staged collaborators
+$sessionToken = trim($_POST['proposal_session_token'] ?? '');
+$stagedCollabs = (!empty($sessionToken) && isset($_SESSION['temp_collaborators'][$sessionToken]) && is_array($_SESSION['temp_collaborators'][$sessionToken]))
+    ? $_SESSION['temp_collaborators'][$sessionToken]
+    : [];
+
+// Validation when owner clicks "Send to Collaborators"
+if ($isSendToCollaborators) {
+    $title = trim($_POST['title'] ?? '');
+    if ($title === '') {
+        if ($isAjax) {
+            http_response_code(400);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error' => 'Activity Title is required before sharing with collaborators.']);
+            exit;
+        }
+        header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=missing_title");
+        exit;
+    }
+
+    if (empty($stagedCollabs)) {
+        if ($isAjax) {
+            http_response_code(400);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error' => 'No collaborators have been added to share with.']);
+            exit;
+        }
+        header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=no_collaborators");
+        exit;
+    }
+}
 
 // Duplicate prevention for offline synchronization retries:
 // If an activity_id is already present and exists in the database, delegate to proposal-update.php
@@ -670,7 +703,9 @@ try {
         }
     }
 
-    $db->commit();
+    if ($db->inTransaction()) {
+        $db->commit();
+    }
 
     // ══════════════════════════════════════════════════════════════════════════
     // Collaborative Setup: Register Owner and Log Initial Creation (Task 14)
@@ -686,6 +721,31 @@ try {
         $actionDesc = ($status === 'submitted') ? 'submitted_proposal' : 'created_proposal';
         $detailsDesc = ($status === 'submitted') ? 'Created and submitted proposal for approval' : 'Created initial activity proposal draft';
         logProposalContribution($actId, (int)$user['id'], $actionDesc, 'Event Details', $detailsDesc, $db);
+
+        // If explicitly sent to collaborators by owner, attach staged collaborators and dispatch notifications
+        if ($isSendToCollaborators && !empty($stagedCollabs)) {
+            foreach ($stagedCollabs as $collab) {
+                $targetUserId = (int)$collab['user_id'];
+                $collabRole   = $collab['role'] ?? 'contributor';
+                if ($targetUserId > 0 && $targetUserId !== (int)$user['id']) {
+                    addProposalCollaborator($actId, $targetUserId, $collabRole, (int)$user['id'], $db);
+                }
+            }
+            logProposalContribution(
+                $actId,
+                (int)$user['id'],
+                'shared_with_collaborators',
+                'Collaboration',
+                'Owner shared proposal draft with collaborators (' . count($stagedCollabs) . ' member(s))',
+                $db
+            );
+        }
+
+        // Safely clear session-based temporary collaborators
+        if (!empty($sessionToken)) {
+            unset($_SESSION['temp_collaborators'][$sessionToken]);
+        }
+        unset($_SESSION['proposal_create_token']);
     } catch (\Throwable $collabEx) {
         error_log("Collaborator registration notice: " . $collabEx->getMessage());
     }
@@ -742,10 +802,21 @@ try {
             'success'     => true,
             'activity_id' => $actId,
             'status'      => $status,
-            'message'     => 'Proposal draft saved successfully.',
+            'shared'      => $isSendToCollaborators,
+            'message'     => $isSendToCollaborators
+                ? 'Proposal draft saved and shared with collaborators successfully.'
+                : 'Proposal draft saved successfully.',
+            'redirect'    => $isSendToCollaborators
+                ? BASE_URL . "/faculty/proposal-edit.php?id={$actId}&shared=1"
+                : BASE_URL . "/faculty/dashboard.php?saved=1",
             'updated_at'  => date('Y-m-d H:i:s'),
             'title'       => sanitize($_POST['title'] ?? '')
         ]);
+        exit;
+    }
+
+    if ($isSendToCollaborators) {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$actId}&shared=1");
         exit;
     }
 
@@ -773,6 +844,7 @@ try {
             error_log("Failed to clean up orphaned floor plan on creation rollback: " . $rollEx->getMessage());
         }
     }
+    error_log("proposal-save exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
     if ($isAjax) {
         http_response_code(500);
         header('Content-Type: application/json; charset=utf-8');
