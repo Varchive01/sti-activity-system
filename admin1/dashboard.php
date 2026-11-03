@@ -137,7 +137,7 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sir Ar-jay Dashboard – STI Activity System</title>
+  <title>Committee Dashboard – STI Activity System</title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
   <script>
     (function() {
@@ -1240,7 +1240,7 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
   <?php include __DIR__ . '/../includes/sidebar.php'; ?>
   <div class="main-wrap">
     <header class="topbar">
-      <div class="page-title">Review Dashboard — Sir Ar-jay</div>
+      <div class="page-title">Committee Dashboard</div>
       <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
         <!-- Year and Reporting Period Filter -->
         <form method="GET" class="topbar-filter-form" style="display:flex;gap:6px;align-items:center;">
