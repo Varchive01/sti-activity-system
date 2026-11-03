@@ -164,7 +164,7 @@ function renderActivityStatusBadge(string $status): string {
         'rejected'               => ['label' => 'Rejected', 'bg' => '#991B1B', 'color' => '#fff'],
     ];
     $conf = $map[$status] ?? ['label' => ucfirst(str_replace('_', ' ', $status)), 'bg' => '#64748B', 'color' => '#fff'];
-    return '<span class="badge" style="background:' . $conf['bg'] . ';color:' . $conf['color'] . ';padding:4px 9px;border-radius:999px;font-size:0.75rem;font-weight:600;">' . htmlspecialchars($conf['label']) . '</span>';
+    return '<span class="badge" style="background:' . $conf['bg'] . ';color:' . $conf['color'] . ';padding:4px 9px;border-radius:999px;font-size:0.72rem;font-weight:600;">' . htmlspecialchars($conf['label']) . '</span>';
 }
 ?>
 <!DOCTYPE html>
@@ -189,11 +189,57 @@ function renderActivityStatusBadge(string $status): string {
     })();
   </script>
   <style>
+    /* ── Typography Standardization: Plus Jakarta Sans Parity ── */
+    body, body *,
+    h1, h2, h3, h4, h5, h6,
+    .page-title,
+    .topbar .page-title,
+    .card-header h2,
+    .card-header h3,
+    .section-title,
+    .overview-title,
+    .stat-val,
+    .stat-card-meta,
+    .stat-label,
+    .stat-sub,
+    th, td,
+    .data-table th,
+    .data-table td,
+    .activity-table th,
+    .activity-table td,
+    .item-title,
+    .act-title,
+    .item-meta,
+    .act-date,
+    .badge,
+    .btn,
+    .topbar-user-name,
+    .topbar-user-role,
+    label, input, button, select, textarea {
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+    }
+
+    .page-title,
+    .topbar .page-title {
+      font-size: 1.15rem !important;
+      font-weight: 800 !important;
+      color: #0A1628 !important;
+      line-height: 1.2 !important;
+      letter-spacing: -0.02em !important;
+    }
+    [data-theme="dark"] .page-title,
+    [data-theme="dark"] .topbar .page-title {
+      color: #F8FAFC !important;
+    }
+
+    /* ── Content & Container Spacing ── */
     .content {
-      padding: 24px 28px;
-      max-width: 1440px;
-      margin: 0 auto;
+      padding: var(--content-padding-y, 28px) var(--content-padding-x, 32px);
       box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      margin: 0;
     }
 
     /* Program Head Hero Header */
@@ -413,7 +459,7 @@ function renderActivityStatusBadge(string $status): string {
 
     .stat-card-meta,
     .stat-label {
-      font-size: 0.65rem !important;
+      font-size: 0.72rem !important;
       font-weight: 700 !important;
       letter-spacing: 0.04em !important;
       text-transform: uppercase !important;
@@ -450,7 +496,7 @@ function renderActivityStatusBadge(string $status): string {
     }
 
     .stat-sub {
-      font-size: 0.72rem !important;
+      font-size: 0.75rem !important;
       font-weight: 500 !important;
       line-height: 1.25 !important;
       color: #64748B !important;
@@ -507,7 +553,7 @@ function renderActivityStatusBadge(string $status): string {
     }
 
     .section-desc {
-      font-size: 0.72rem;
+      font-size: 0.75rem;
       color: var(--text-muted, #64748B);
       margin: 1px 0 0 0;
     }
@@ -530,7 +576,7 @@ function renderActivityStatusBadge(string $status): string {
       color: var(--text-muted, #64748B);
       font-weight: 700;
       text-transform: uppercase;
-      font-size: 0.7rem;
+      font-size: 0.72rem;
       letter-spacing: 0.05em;
       border-bottom: 1px solid var(--border, #E2E8F0);
       text-align: left;
@@ -553,7 +599,8 @@ function renderActivityStatusBadge(string $status): string {
     }
 
     .item-title {
-      font-weight: 700;
+      font-size: 0.84rem;
+      font-weight: 600;
       color: var(--text-main, #0A1628);
       text-decoration: none;
       display: block;
@@ -564,7 +611,7 @@ function renderActivityStatusBadge(string $status): string {
     }
 
     .item-meta {
-      font-size: 0.72rem;
+      font-size: 0.75rem;
       color: var(--text-muted, #64748B);
       display: flex;
       align-items: center;
@@ -595,7 +642,7 @@ function renderActivityStatusBadge(string $status): string {
     }
 
     .progress-text {
-      font-size: 0.72rem;
+      font-size: 0.75rem;
       font-weight: 600;
       color: var(--text-muted, #64748B);
       min-width: 32px;
@@ -809,7 +856,7 @@ function renderActivityStatusBadge(string $status): string {
                       <?= renderActivityStatusBadge((string)$act['status']) ?>
                       <?php if ($isDelayed): ?>
                         <div style="margin-top:3px;">
-                          <span class="badge" style="background:#EF4444;color:#fff;font-size:0.68rem;padding:2px 6px;">Tasks Delayed</span>
+                          <span class="badge" style="background:#EF4444;color:#fff;font-size:0.72rem;padding:3px 8px;font-weight:600;">Tasks Delayed</span>
                         </div>
                       <?php endif; ?>
                     </td>
@@ -821,7 +868,7 @@ function renderActivityStatusBadge(string $status): string {
                           </div>
                           <span class="progress-text"><?= $progVal ?>%</span>
                         </div>
-                        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">
+                        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">
                           <?= (int)$act['task_count'] ?> assigned task<?= (int)$act['task_count'] === 1 ? '' : 's' ?>
                         </div>
                       <?php else: ?>
@@ -912,7 +959,7 @@ function renderActivityStatusBadge(string $status): string {
                         </div>
                         <span class="progress-text"><?= $pct ?>%</span>
                       </div>
-                      <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">
+                      <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">
                         Status: <strong><?= htmlspecialchars($task['status']) ?></strong>
                       </div>
                     </td>
@@ -942,7 +989,7 @@ function renderActivityStatusBadge(string $status): string {
             </div>
           </div>
           <div>
-            <span class="badge" style="background:rgba(139, 92, 246, 0.15);color:#7C3AED;padding:4px 10px;border-radius:999px;font-size:0.75rem;font-weight:700;">
+            <span class="badge" style="background:rgba(139, 92, 246, 0.15);color:#7C3AED;padding:4px 9px;border-radius:999px;font-size:0.72rem;font-weight:600;">
               <?= count($sharedActivities) ?> Shared
             </span>
           </div>
@@ -979,7 +1026,7 @@ function renderActivityStatusBadge(string $status): string {
                       </div>
                     </td>
                     <td>
-                      <div style="font-size:0.8rem;color:var(--text-main);">
+                      <div style="font-size:0.82rem;color:var(--text-main);">
                         <?= htmlspecialchars($sAct['involved_members'] ?? 'Department Faculty') ?>
                       </div>
                       <div class="item-meta">

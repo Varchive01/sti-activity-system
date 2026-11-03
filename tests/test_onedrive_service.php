@@ -234,6 +234,34 @@ assertTest("3.8 Empty nested path returns base folder ID",
     $emptyNestedRes['success'] === true && ($emptyNestedRes['folder_id'] ?? '') === 'base_root_id'
 );
 
+// Case 3.5: ensureActivityFolder creates sanitized activity path
+$mockResponses35 = [
+    // 1. root folder check -> 200 found
+    new Response(200, ['Content-Type' => 'application/json'], json_encode(['id' => 'root_id_demo', 'name' => 'STI_Activity_System_Documents'])),
+    // 2. check 'activities' -> 404
+    new Response(404, ['Content-Type' => 'application/json'], json_encode(['error' => ['code' => 'itemNotFound']])),
+    // 3. create 'activities' -> 201
+    new Response(201, ['Content-Type' => 'application/json'], json_encode(['id' => 'act_parent_id', 'name' => 'activities'])),
+    // 4. check 'activity_42_Tech_Symposium_2026' -> 404
+    new Response(404, ['Content-Type' => 'application/json'], json_encode(['error' => ['code' => 'itemNotFound']])),
+    // 5. create 'activity_42_Tech_Symposium_2026' -> 201
+    new Response(201, ['Content-Type' => 'application/json'], json_encode(['id' => 'act_42_folder_id', 'name' => 'activity_42_Tech_Symposium_2026'])),
+];
+$svc35 = createMockOneDriveService($mockResponses35);
+$actFolderRes = $svc35->ensureActivityFolder(42, 'Tech Symposium & Workshop 2026!');
+assertTest("3.9 ensureActivityFolder succeeds with sanitized folder name",
+    $actFolderRes['success'] === true && ($actFolderRes['folder_id'] ?? '') === 'act_42_folder_id'
+);
+assertTest("3.10 ensureActivityFolder path matches expected structure",
+    str_contains($actFolderRes['path'] ?? '', 'activities/activity_42_Tech_Symposium')
+);
+
+// Invalid activity ID rejected
+$invalidActRes = $svc35->ensureActivityFolder(0);
+assertTest("3.11 ensureActivityFolder rejects invalid ID <= 0",
+    $invalidActRes['success'] === false && str_contains($invalidActRes['error'] ?? '', 'Invalid activity ID')
+);
+
 // -------------------------------------------------------------------------
 // SECTION 4: File Upload & Metadata
 // -------------------------------------------------------------------------
@@ -284,6 +312,58 @@ assertTest("4.10 Uploading non-existent local file returns error without calling
 
 // Cleanup local fixture
 @unlink($tempLocalFile);
+
+// -------------------------------------------------------------------------
+// SECTION 4.5: File Download & Content Retrieval
+// -------------------------------------------------------------------------
+echo "\n--- 4.5 File Download & Content Retrieval Tests ---\n";
+
+// Case 4.11: Download in-memory
+$downloadBody = "Downloaded file binary stream payload from OneDrive";
+$historyDl = [];
+$svcDl = createMockOneDriveService([
+    new Response(200, ['Content-Type' => 'application/octet-stream'], $downloadBody),
+], null, $historyDl);
+
+$dlRes = $svcDl->downloadFile('item_drive_file_555');
+assertTest("4.11 downloadFile in-memory succeeds", $dlRes['success'] === true);
+assertTest("4.12 Downloaded content matches payload", ($dlRes['content'] ?? '') === $downloadBody);
+assertTest("4.13 Correct size returned", ($dlRes['size'] ?? 0) === strlen($downloadBody));
+assertTest("4.14 Item ID preserved in response", ($dlRes['item_id'] ?? '') === 'item_drive_file_555');
+assertTest("4.15 GET request targets /items/{item-id}/content",
+    isset($historyDl[0]['request']) &&
+    $historyDl[0]['request']->getMethod() === 'GET' &&
+    str_contains((string)$historyDl[0]['request']->getUri(), '/items/item_drive_file_555/content')
+);
+
+// Case 4.12: Download directly to destination path
+$destLocalFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'test_download_sink_' . uniqid() . '.bin';
+$svcDlSink = createMockOneDriveService([
+    new Response(200, ['Content-Type' => 'application/octet-stream'], $downloadBody),
+]);
+$dlSinkRes = $svcDlSink->downloadFile('item_drive_file_555', $destLocalFile);
+assertTest("4.16 downloadFile to local destination path succeeds", $dlSinkRes['success'] === true);
+assertTest("4.17 Destination file exists on disk", file_exists($destLocalFile));
+assertTest("4.18 Destination file content matches payload", file_get_contents($destLocalFile) === $downloadBody);
+assertTest("4.19 destination_path returned in response", ($dlSinkRes['destination_path'] ?? '') === $destLocalFile);
+@unlink($destLocalFile);
+
+// Case 4.13: Empty item ID rejected
+$emptyDlRes = $svcDl->downloadFile('');
+assertTest("4.20 Empty item ID rejected without API call",
+    $emptyDlRes['success'] === false && str_contains($emptyDlRes['error'] ?? '', 'item ID is required')
+);
+
+// Case 4.14: 404 item not found on download
+$svcDl404 = createMockOneDriveService([
+    new Response(404, ['Content-Type' => 'application/json'], json_encode([
+        'error' => ['code' => 'itemNotFound', 'message' => 'The resource could not be found.'],
+    ])),
+]);
+$dl404Res = $svcDl404->downloadFile('non_existent_item_id');
+assertTest("4.21 404 on download handled cleanly",
+    $dl404Res['success'] === false && str_contains($dl404Res['error'] ?? '', 'itemNotFound')
+);
 
 // -------------------------------------------------------------------------
 // SECTION 5: Microsoft Graph API Error Resilience

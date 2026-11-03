@@ -2753,5 +2753,36 @@ if (!function_exists('dispatchCollaboratorNotification')) {
     }
 }
 
+if (!function_exists('calculateAttendanceRate')) {
+    /**
+     * Calculates the attendance rate percentage based on actual and target attendance,
+     * safely capped at 100.0%.
+     *
+     * Handles zero, null, or negative target attendance safely without division by zero.
+     * Preserves original actual/target values; caps only the calculated percentage.
+     *
+     * @param mixed $actual Actual attendance count
+     * @param mixed $target Target attendance count
+     * @param int $precision Decimal precision for rounding (default 1)
+     * @return float|null Attendance percentage between 0.0 and 100.0, or null if target is invalid
+     */
+    function calculateAttendanceRate(mixed $actual, mixed $target, int $precision = 1): ?float
+    {
+        if ($target === null || !is_numeric($target) || (float)$target <= 0) {
+            return null;
+        }
+        if ($actual === null || !is_numeric($actual)) {
+            return 0.0;
+        }
+
+        $actualCount = max(0.0, (float)$actual);
+        $targetCount = (float)$target;
+
+        $rate = ($actualCount / $targetCount) * 100.0;
+        return min(100.0, round($rate, $precision));
+    }
+}
+
+
 
 

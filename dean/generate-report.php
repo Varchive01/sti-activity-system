@@ -559,6 +559,34 @@ if ($activityId > 0) {
   </script>
       <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
       <style>
+        /* ── Typography Standardization: Strict Plus Jakarta Sans ── */
+        body, body *,
+        h1, h2, h3, h4, h5, h6,
+        .page-title,
+        .topbar .page-title,
+        .card-header h2,
+        .card-header h3,
+        th, td, table th, table td,
+        .badge, .btn,
+        .topbar-user-name, .topbar-user-role,
+        label, .form-label, input, button, select, textarea {
+          font-family: 'Plus Jakarta Sans', sans-serif !important;
+        }
+
+        .page-title,
+        .topbar .page-title {
+          font-family: 'Plus Jakarta Sans', sans-serif !important;
+          font-size: 1.15rem !important;
+          font-weight: 800 !important;
+          color: #0A1628 !important;
+          line-height: 1.2 !important;
+          letter-spacing: -0.02em !important;
+        }
+        [data-theme="dark"] .page-title,
+        [data-theme="dark"] .topbar .page-title {
+          color: #F8FAFC !important;
+        }
+
         .print-only { display: block; }
         .no-print { display: block; }
         @page {
@@ -647,7 +675,7 @@ if ($activityId > 0) {
       <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     </head>
     <?php
-    $themeMap = ['faculty' => 'theme-faculty', 'admin1' => 'theme-arjay', 'admin2' => 'theme-ian', 'dean' => 'theme-dean'];
+    $themeMap = ['faculty' => 'theme-faculty', 'program_head' => 'theme-faculty', 'admin1' => 'theme-arjay', 'admin2' => 'theme-ian', 'dean' => 'theme-dean'];
     $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
     ?>
     <body class="<?= $bodyTheme ?>">
@@ -1510,7 +1538,7 @@ $activities = $acts->fetchAll();
 $total = count($activities);
 $totalAtt = array_sum(array_column($activities, 'actual_attendance'));
 $totalTarget = array_sum(array_column($activities, 'target_attendance'));
-$attendanceRate = $totalTarget > 0 ? number_format(($totalAtt / $totalTarget) * 100, 1) . '%' : 'No data';
+$attendanceRate = $totalTarget > 0 ? number_format(min(100.0, ($totalAtt / $totalTarget) * 100), 1) . '%' : 'No data';
 
 $completedActivities = array_filter($activities, fn($a) => $a['status'] === 'completed');
 $completedCount = count($completedActivities);
@@ -1638,7 +1666,7 @@ if (strtolower((string)($_GET['export'] ?? '')) === 'csv') {
         foreach ($activities as $idx => $a) {
             $tAtt = (int)($a['target_attendance'] ?? 0);
             $actAtt = $a['actual_attendance'] !== null ? (int)$a['actual_attendance'] : null;
-            $attPctStr = ($tAtt > 0 && $actAtt !== null) ? round(($actAtt / $tAtt) * 100) . '%' : 'No data';
+            $attPctStr = ($tAtt > 0 && $actAtt !== null) ? min(100, round(($actAtt / $tAtt) * 100)) . '%' : 'No data';
             $kpiStr = !empty($a['avg_kpi']) ? number_format((float)$a['avg_kpi'], 2) : 'No data';
             $satStr = ($a['satisfaction_score'] !== null && $a['satisfaction_score'] !== '') ? number_format((float)$a['satisfaction_score'], 1) . '/5' : 'No data';
             fputcsv($out, [
@@ -1686,6 +1714,41 @@ $years = [2026];
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
+/* ── Institutional Typography Standardization: Strict Plus Jakarta Sans ── */
+body, body *,
+h1, h2, h3, h4, h5, h6,
+.page-title,
+.topbar .page-title,
+.card-header h2,
+.card-header h3,
+.section-title,
+.overview-title,
+.summary-item .n,
+.summary-item .l,
+th, td,
+table th, table td,
+.badge,
+.btn,
+.topbar-user-name,
+.topbar-user-role,
+label, .form-label, input, button, select, textarea {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+.page-title,
+.topbar .page-title {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 1.15rem !important;
+  font-weight: 800 !important;
+  color: #0A1628 !important;
+  line-height: 1.2 !important;
+  letter-spacing: -0.02em !important;
+}
+[data-theme="dark"] .page-title,
+[data-theme="dark"] .topbar .page-title {
+  color: #F8FAFC !important;
+}
+
 .filter-bar{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;margin-bottom:20px;display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;}
 .filter-bar .form-group{margin-bottom:0;min-width:160px;}
 .summary-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;}
@@ -1968,7 +2031,7 @@ $years = [2026];
 </style>
 </head>
 <?php
-$themeMap = ['faculty' => 'theme-faculty', 'program_head' => 'theme-program-head', 'admin1' => 'theme-arjay', 'admin2' => 'theme-ian', 'dean' => 'theme-dean'];
+$themeMap = ['faculty' => 'theme-faculty', 'program_head' => 'theme-faculty', 'admin1' => 'theme-arjay', 'admin2' => 'theme-ian', 'dean' => 'theme-dean'];
 $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
 ?>
 <body class="<?= $bodyTheme ?>">
@@ -2210,7 +2273,7 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
             <?php if (empty($activities)): ?>
             <tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);">No activities match the selected filters.</td></tr>
             <?php else: foreach ($activities as $i=>$a):
-              $attPct = $a['target_attendance'] > 0 ? round(($a['actual_attendance']/$a['target_attendance'])*100) : null;
+              $attPct = ($a['target_attendance'] > 0 && $a['actual_attendance'] !== null) ? min(100, round(($a['actual_attendance'] / $a['target_attendance']) * 100)) : null;
             ?>
             <tr>
               <td class="text-muted"><?= $i+1 ?></td>
@@ -2272,7 +2335,7 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
               </thead>
               <tbody>
                 <?php foreach (array_values($completedDetails) as $ci => $ca):
-                  $cAttPct = $ca['target_attendance'] > 0 ? round(($ca['actual_attendance'] / $ca['target_attendance']) * 100, 1) : null;
+                  $cAttPct = ($ca['target_attendance'] > 0 && $ca['actual_attendance'] !== null) ? min(100.0, round(($ca['actual_attendance'] / $ca['target_attendance']) * 100, 1)) : null;
                 ?>
                 <tr>
                   <td class="text-muted"><?= $ci + 1 ?></td>
@@ -2406,7 +2469,7 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
           <thead><tr><th>Activity</th><th>KPI</th><th>Attendance Rate</th><th>Recommendations</th></tr></thead>
           <tbody>
           <?php foreach ($withRecs as $a):
-            $attPct2 = $a['target_attendance'] > 0 ? round(($a['actual_attendance']/$a['target_attendance'])*100) : 0;
+            $attPct2 = ($a['target_attendance'] > 0 && $a['actual_attendance'] !== null) ? min(100, round(($a['actual_attendance'] / $a['target_attendance']) * 100)) : 0;
             $rec = $db->prepare("SELECT recommendations FROM post_event WHERE activity_id=?");
             $rec->execute([$a['id']]);
             $recRow = $rec->fetch();
@@ -2515,7 +2578,7 @@ $reportPdfData = [
         ];
     }, $sourceBreakdown)),
     'detailed_activities' => array_values(array_map(function($i, $a) {
-        $attPct = $a['target_attendance'] > 0 ? round(($a['actual_attendance'] / $a['target_attendance']) * 100) : null;
+        $attPct = ($a['target_attendance'] > 0 && $a['actual_attendance'] !== null) ? min(100, round(($a['actual_attendance'] / $a['target_attendance']) * 100)) : null;
         $attStr = ($a['actual_attendance'] !== null && $a['target_attendance'] !== null)
             ? $a['actual_attendance'] . '/' . $a['target_attendance'] . ($attPct !== null ? " ({$attPct}%)" : '')
             : 'No data';
@@ -2532,7 +2595,7 @@ $reportPdfData = [
         ];
     }, array_keys($activities), $activities)),
     'completed_details' => array_values(array_map(function($ci, $ca) {
-        $cAttPct = $ca['target_attendance'] > 0 ? round(($ca['actual_attendance'] / $ca['target_attendance']) * 100, 1) : null;
+        $cAttPct = ($ca['target_attendance'] > 0 && $ca['actual_attendance'] !== null) ? min(100.0, round(($ca['actual_attendance'] / $ca['target_attendance']) * 100, 1)) : null;
         return [
             'num' => (string)($ci + 1),
             'title' => $ca['title'] . ($ca['venue'] ? " (Venue: " . $ca['venue'] . ")" : ''),

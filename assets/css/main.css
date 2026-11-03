@@ -200,6 +200,8 @@ h1, h2, h3, h4, h5, h6, .page-title, .brand, .modal-title {
 /* ── Role Typography: Exclusively Plus Jakarta Sans (No Syne) ── */
 body.theme-faculty,
 body.theme-faculty *,
+body.theme-program-head,
+body.theme-program-head *,
 body.theme-dean,
 body.theme-dean *,
 body.theme-arjay,

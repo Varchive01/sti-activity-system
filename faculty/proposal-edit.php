@@ -1319,6 +1319,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         <span>Edit Proposal</span>
       </div>
       <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+        <button type="button" class="btn btn-outline btn-sm" id="btnTopAiGuidance" onclick="AIProposalGuidance.requestGuidance()" style="display:inline-flex;align-items:center;gap:6px;font-weight:600;border-color:var(--sti-blue,#0284C7);color:var(--sti-blue,#0284C7);background:var(--bg-card,#fff);" title="Request AI proposal guidance and recommendations based on current content">
+          <span style="font-size:1.1rem;line-height:1;">✨</span>
+          <span>AI Proposal Guidance</span>
+        </button>
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <a href="<?= BASE_URL ?>/faculty/proposal-view.php?id=<?= $id ?>" class="btn btn-outline btn-sm">← Cancel</a>
       <!-- User Profile Control -->
@@ -1446,6 +1450,20 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- AI Proposal Guidance Toolbar (Available across all wizard steps) -->
+      <div class="ai-guidance-toolbar" style="margin-bottom:16px; background:var(--bg-card, #ffffff); border:1px solid var(--border, #e2e8f0); border-left:4px solid var(--sti-blue, #0284C7); border-radius:10px; padding:12px 18px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:1.4rem;">✨</span>
+          <div>
+            <strong style="color:var(--text-main, #1e293b); font-size:0.92rem;">AI Proposal Guidance:</strong>
+            <span style="font-size:0.84rem; color:var(--text-muted, #64748b);">Analyze completeness, SMART objectives, and schedule alignment with actionable suggestions before submission.</span>
+          </div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" id="btnGuidanceToolbar" onclick="AIProposalGuidance.requestGuidance()" style="display:inline-flex; align-items:center; gap:6px; font-weight:600; padding:7px 16px; border-radius:8px; white-space:nowrap; background:var(--sti-blue, #0284C7); border-color:var(--sti-blue, #0284C7); color:#fff; cursor:pointer;">
+          <span>✨</span> Request AI Guidance
+        </button>
       </div>
 
       <!-- Wizard Steps -->

@@ -351,6 +351,49 @@ class OneDriveService
     }
 
     /**
+     * Ensures an activity-specific folder exists in OneDrive under the root/activities/ folder.
+     * Naming pattern: activities/activity_{activity_id}_{sanitized_title} or activities/activity_{activity_id}
+     *
+     * @param int $activityId The ID of the activity
+     * @param string|null $activityTitle Optional human-readable title of the activity
+     * @return array{
+     *     success: bool,
+     *     folder_id?: string,
+     *     name?: string,
+     *     path?: string,
+     *     created?: bool,
+     *     error?: string
+     * }
+     */
+    public function ensureActivityFolder(int $activityId, ?string $activityTitle = null): array
+    {
+        if ($activityId <= 0) {
+            return [
+                'success' => false,
+                'error'   => 'Invalid activity ID provided.',
+            ];
+        }
+
+        $folderSlug = 'activity_' . $activityId;
+        if (!empty($activityTitle)) {
+            $cleanTitle = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($activityTitle));
+            $cleanTitle = trim((string)preg_replace('/_+/', '_', (string)$cleanTitle), '_');
+            if (!empty($cleanTitle)) {
+                $folderSlug .= '_' . substr($cleanTitle, 0, 50);
+            }
+        }
+
+        $relativePath = 'activities/' . $folderSlug;
+        $result = $this->ensureNestedFolder($relativePath);
+
+        if ($result['success']) {
+            $result['path'] = $relativePath;
+        }
+
+        return $result;
+    }
+
+    /**
      * Uploads a local file to Microsoft Graph OneDrive.
      *
      * @param string $localFilePath Absolute path to local file on disk
@@ -477,6 +520,116 @@ class OneDriveService
             return [
                 'success' => false,
                 'error'   => 'Failed to upload file to Microsoft Graph: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Downloads a file from OneDrive by its Microsoft Graph item ID.
+     * If $destinationPath is provided, streams the file directly to local disk.
+     * Otherwise, returns the file contents as binary/text string in the result array.
+     *
+     * @param string $itemId Microsoft Graph item ID of the file
+     * @param string|null $destinationPath Optional local target file path to save the downloaded file
+     * @return array{
+     *     success: bool,
+     *     item_id?: string,
+     *     size?: int,
+     *     content?: string,
+     *     destination_path?: string,
+     *     error?: string
+     * }
+     */
+    public function downloadFile(string $itemId, ?string $destinationPath = null): array
+    {
+        $itemId = trim($itemId);
+        if (empty($itemId)) {
+            return [
+                'success' => false,
+                'error'   => 'A valid OneDrive item ID is required for download.',
+            ];
+        }
+
+        $tokenResult = $this->getValidAccessToken();
+        if (!$tokenResult['success']) {
+            return [
+                'success' => false,
+                'error'   => $tokenResult['error'] ?? 'Authentication failed.',
+            ];
+        }
+
+        $token = $tokenResult['token'];
+        $downloadUrl = self::GRAPH_BASE_URL . '/me/drive/items/' . rawurlencode($itemId) . '/content';
+
+        $options = [
+            'http_errors'     => false,
+            'allow_redirects' => true,
+            'headers'         => [
+                'Authorization' => "Bearer {$token}",
+                'Accept'        => '*/*',
+            ],
+        ];
+
+        if ($destinationPath !== null) {
+            $destDir = dirname($destinationPath);
+            if (!is_dir($destDir) && !@mkdir($destDir, 0755, true) && !is_dir($destDir)) {
+                return [
+                    'success' => false,
+                    'error'   => 'Failed to create destination directory for download.',
+                ];
+            }
+            $options['sink'] = $destinationPath;
+        }
+
+        try {
+            $response = $this->httpClient->request('GET', $downloadUrl, $options);
+            $statusCode = $response->getStatusCode();
+
+            if ($statusCode >= 200 && $statusCode < 300) {
+                $bodySize = 0;
+                $content = null;
+
+                if ($destinationPath !== null) {
+                    $bodySize = file_exists($destinationPath) ? (int)filesize($destinationPath) : 0;
+                } else {
+                    $content = (string)$response->getBody();
+                    $bodySize = strlen($content);
+                }
+
+                $result = [
+                    'success' => true,
+                    'item_id' => $itemId,
+                    'size'    => $bodySize,
+                ];
+
+                if ($destinationPath !== null) {
+                    $result['destination_path'] = $destinationPath;
+                } else {
+                    $result['content'] = $content;
+                }
+
+                return $result;
+            }
+
+            if ($destinationPath !== null && file_exists($destinationPath)) {
+                @unlink($destinationPath);
+            }
+
+            $body = (string)$response->getBody();
+            $errMsg = $this->parseGraphError($statusCode, $body);
+
+            return [
+                'success' => false,
+                'error'   => $errMsg,
+            ];
+        } catch (\Throwable $e) {
+            if ($destinationPath !== null && file_exists($destinationPath)) {
+                @unlink($destinationPath);
+            }
+
+            return [
+                'success' => false,
+                'error'   => 'Failed to download file from Microsoft Graph: ' . $e->getMessage(),
             ];
         }
     }

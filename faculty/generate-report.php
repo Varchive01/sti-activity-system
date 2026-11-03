@@ -21,6 +21,35 @@ $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JO
 <meta charset="UTF-8">
 <title>Generate Report – STI Activity System</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+<style>
+/* ── Typography Standardization: Strict Plus Jakarta Sans ── */
+body, body *,
+h1, h2, h3, h4, h5, h6,
+.page-title,
+.topbar .page-title,
+.card-header h2,
+.card-header h3,
+th, td, table th, table td,
+.badge, .btn,
+.topbar-user-name, .topbar-user-role,
+label, .form-label, input, button, select, textarea {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+.page-title,
+.topbar .page-title {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 1.15rem !important;
+  font-weight: 800 !important;
+  color: #0A1628 !important;
+  line-height: 1.2 !important;
+  letter-spacing: -0.02em !important;
+}
+[data-theme="dark"] .page-title,
+[data-theme="dark"] .topbar .page-title {
+  color: #F8FAFC !important;
+}
+</style>
 </head>
 <body class="theme-faculty">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>

@@ -104,8 +104,9 @@ if (!function_exists('calculateActivityKpis')) {
         
         $attPct = null;
         if ($targetAttendance > 0 && $actualAttendance !== null) {
-            $acceptableTarget = $targetAttendance * 0.95;
-            $attPct = min(100.0, round(($actualAttendance / $acceptableTarget) * 100, 1));
+            $attPct = function_exists('calculateAttendanceRate')
+                ? calculateAttendanceRate($actualAttendance, $targetAttendance, 1)
+                : min(100.0, round(($actualAttendance / $targetAttendance) * 100, 1));
             $achievementScores[] = $attPct;
         }
         $attStatus = getKpiStatus($attPct);
@@ -340,7 +341,7 @@ if (!function_exists('getInstitutionalKpiSummary')) {
                     'event_date' => $act['event_date'],
                     'avg_kpi' => $avgKpi !== null ? number_format($avgKpi, 2) : '—',
                     'satisfaction_score' => $satisfaction !== null ? number_format($satisfaction, 1) : '—',
-                    'attendance_rate' => ($targetAtt !== null && $targetAtt > 0 && $actualAtt !== null) ? round(($actualAtt / $targetAtt) * 100, 1) : '—',
+                    'attendance_rate' => ($targetAtt !== null && $targetAtt > 0 && $actualAtt !== null) ? (min(100.0, round(($actualAtt / $targetAtt) * 100, 1)) . '%') : '—',
                     'overall_performance' => $score . '%'
                 ];
             }
@@ -348,8 +349,8 @@ if (!function_exists('getInstitutionalKpiSummary')) {
 
         $avgKpiRating = $kpiRatingsCount > 0 ? round($kpiRatingsSum / $kpiRatingsCount, 2) : null;
         $avgSatisfaction = $satisfactionCount > 0 ? round($satisfactionSum / $satisfactionCount, 1) : null;
-        $rawAttendanceRate = $attendanceTargetSum > 0 ? round(($attendanceActualSum / $attendanceTargetSum) * 100, 1) : null;
-        $overallAttendanceRate = $attendanceTargetSum > 0 ? min(100.0, round(($attendanceActualSum / ($attendanceTargetSum * 0.95)) * 100, 1)) : null;
+        $rawAttendanceRate = $attendanceTargetSum > 0 ? min(100.0, round(($attendanceActualSum / $attendanceTargetSum) * 100, 1)) : null;
+        $overallAttendanceRate = $attendanceTargetSum > 0 ? min(100.0, round(($attendanceActualSum / $attendanceTargetSum) * 100, 1)) : null;
         $overallKpiPerformance = !empty($overallPerfScores) ? round(array_sum($overallPerfScores) / count($overallPerfScores), 1) : null;
 
         // Deterministic signature for cache freshness

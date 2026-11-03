@@ -445,17 +445,18 @@ assertProfileTest(
 echo "\n--- 7. TOPBAR PROFILE INTEGRATION ACROSS ALL ROLES ---\n";
 
 $dashboards = [
-    'Faculty' => ['path' => __DIR__ . '/../faculty/dashboard.php', 'role' => 'faculty'],
-    'Admin 1' => ['path' => __DIR__ . '/../admin1/dashboard.php',  'role' => 'admin1'],
-    'Admin 2' => ['path' => __DIR__ . '/../admin2/dashboard.php',  'role' => 'admin2'],
-    'Dean'    => ['path' => __DIR__ . '/../dean/dashboard.php',    'role' => 'dean'],
+    'Faculty'      => ['path' => __DIR__ . '/../faculty/dashboard.php',      'role' => 'faculty'],
+    'Program Head' => ['path' => __DIR__ . '/../program_head/dashboard.php', 'role' => 'program_head'],
+    'Admin 1'      => ['path' => __DIR__ . '/../admin1/dashboard.php',        'role' => 'admin1'],
+    'Admin 2'      => ['path' => __DIR__ . '/../admin2/dashboard.php',        'role' => 'admin2'],
+    'Dean'         => ['path' => __DIR__ . '/../dean/dashboard.php',          'role' => 'dean'],
 ];
 
 foreach ($dashboards as $roleName => $info) {
     $sessionRole = [
         'user_id'       => $testUserId,
         'user_name'     => 'Dr. ' . $roleName . ' Test',
-        'user_email'    => strtolower($info['role']) . '_test@sti.edu',
+        'user_email'    => strtolower(str_replace(' ', '', $info['role'])) . '_test@sti.edu',
         'user_role'     => $info['role'],
         'role'          => $info['role'],
         'user_dept'     => 'Institutional Department',
@@ -474,15 +475,24 @@ foreach ($dashboards as $roleName => $info) {
         $hasTrigger,
         "Found id='topbarProfile': " . ($hasTrigger ? 'YES' : 'NO')
     );
+
+    // Standardized dropdown assertions
+    $hasViewProfile = str_contains($resDash['stdout'], 'id="tppBtnViewProfile"') && str_contains($resDash['stdout'], 'View Profile');
+    $hasLogout      = str_contains($resDash['stdout'], 'auth/logout.php') && str_contains($resDash['stdout'], 'Logout');
+    $noChangePass   = !str_contains($resDash['stdout'], 'auth/change-password.php');
+    $noSeparatePic  = !str_contains($resDash['stdout'], 'id="tppBtnChangePicture"');
+
     assertProfileTest(
-        "{$roleName} Dashboard contains popover menu with View Profile / Change Picture",
-        $hasPopover && str_contains($resDash['stdout'], 'View Profile') && str_contains($resDash['stdout'], 'Change Profile Picture'),
-        "Found popover menu: " . ($hasPopover ? 'YES' : 'NO')
+        "{$roleName} Dashboard dropdown follows standardized structure (View Profile + Logout; no separate Change Picture or Change Password)",
+        $hasPopover && $hasViewProfile && $hasLogout && $noChangePass && $noSeparatePic,
+        "View Profile: " . ($hasViewProfile ? 'YES' : 'NO') . " | Logout: " . ($hasLogout ? 'YES' : 'NO') . " | Change Password Removed: " . ($noChangePass ? 'YES' : 'NO') . " | Separate Change Pic Removed: " . ($noSeparatePic ? 'YES' : 'NO')
     );
+
+    $hasModalUpload = str_contains($resDash['stdout'], 'id="profileBtnUploadPic"') && str_contains($resDash['stdout'], 'profileAvatarPreview');
     assertProfileTest(
-        "{$roleName} Dashboard includes interactive User Profile modal",
-        $hasModal && str_contains($resDash['stdout'], 'Institutional Account Details'),
-        "Found profile modal: " . ($hasModal ? 'YES' : 'NO')
+        "{$roleName} Dashboard includes interactive User Profile modal with integrated picture update",
+        $hasModal && $hasModalUpload,
+        "Found profile modal with picture upload: " . ($hasModal && $hasModalUpload ? 'YES' : 'NO')
     );
 }
 

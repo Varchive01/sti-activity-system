@@ -395,7 +395,7 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
                     <td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">No KPI data for <?= $year ?>.</td>
                   </tr>
                   <?php else: foreach ($topPerf as $i => $tp):
-                    $attPct = $tp['target_attendance'] > 0 ? round(($tp['actual_attendance'] / $tp['target_attendance']) * 100) : null;
+                    $attPct = ($tp['target_attendance'] > 0 && $tp['actual_attendance'] !== null) ? min(100, round(($tp['actual_attendance'] / $tp['target_attendance']) * 100)) : null;
                     $medal = $i === 0 ? '🥇' : ($i === 1 ? '🥈' : ($i === 2 ? '🥉' : ''));
                   ?>
                     <tr>

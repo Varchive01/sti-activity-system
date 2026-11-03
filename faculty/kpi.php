@@ -44,7 +44,7 @@ if ($isProgramHead) {
 
     $targetSum = array_sum(array_map(fn($a) => (int)($a['target_attendance'] ?: $a['target_participants'] ?: 0), array_filter($deptActivities, fn($a) => $a['actual_attendance'] !== null)));
     $actualSum = array_sum(array_map(fn($a) => (int)($a['actual_attendance'] ?? 0), $deptActivities));
-    $deptTurnout = $targetSum > 0 ? number_format(($actualSum / $targetSum) * 100, 1) . '%' : 'No data';
+    $deptTurnout = $targetSum > 0 ? number_format(min(100.0, ($actualSum / $targetSum) * 100), 1) . '%' : 'No data';
 
     $satActs = array_filter($deptActivities, fn($a) => $a['satisfaction_score'] !== null && $a['satisfaction_score'] !== '');
     $deptAvgSat = !empty($satActs) ? number_format(array_sum(array_column($satActs, 'satisfaction_score')) / count($satActs), 1) . ' / 5.0' : 'No data';
@@ -138,14 +138,14 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
   box-shadow: 0 1px 3px rgba(0,0,0,0.03);
 }
 .summary-card .val {
-  font-family: 'Syne', sans-serif !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
   font-size: 1.45rem;
   font-weight: 800;
   color: var(--text-main);
   line-height: 1.2;
 }
 .summary-card .lbl {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -184,7 +184,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
 }
 .month-label {
   text-align: center;
-  font-size: .62rem;
+  font-size: .72rem;
   color: var(--text-muted);
   font-weight: 700;
   margin-top: 4px;
@@ -194,7 +194,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
   top: -18px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: .63rem;
+  font-size: .75rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -215,7 +215,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
   margin-bottom: 18px;
 }
 .kpi-card .event-name {
-  font-family: 'Syne', sans-serif !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
   font-size: 1.05rem;
   font-weight: 800;
   margin-bottom: 4px;
@@ -233,7 +233,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
   text-align: center;
 }
 .kpi-metric .val {
-  font-family: 'Syne', sans-serif !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
   font-size: 1.35rem;
   font-weight: 800;
 }
@@ -277,7 +277,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
 }
 </style>
 </head>
-<body class="<?= $isProgramHead ? 'theme-program-head' : 'theme-faculty' ?>">
+<body class="theme-faculty">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 <div class="main-wrap">
   <header class="topbar">
@@ -410,7 +410,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
                 <?php else: foreach ($deptActivities as $da):
                   $tAtt = (int)($da['target_attendance'] ?: $da['target_participants'] ?: 0);
                   $actAtt = $da['actual_attendance'] !== null ? (int)$da['actual_attendance'] : null;
-                  $attPct = ($tAtt > 0 && $actAtt !== null) ? round(($actAtt / $tAtt) * 100) : null;
+                  $attPct = ($tAtt > 0 && $actAtt !== null) ? min(100, round(($actAtt / $tAtt) * 100)) : null;
                 ?>
                   <tr>
                     <td><strong><?= htmlspecialchars($da['title']) ?></strong></td>
@@ -475,7 +475,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
     <?php foreach ($allReports as $r):
       [$kpiLabel, $kpiClass] = kpiClass($r['avg_kpi'] ?? 0);
       [$attLabel, $attClass] = attendanceClass($r['actual_attendance'], $r['target_attendance']);
-      $attPct = $r['target_attendance'] > 0 ? min(100, round(($r['actual_attendance']/($r['target_attendance'] * 0.95))*100)) : 0;
+      $attPct = ($r['target_attendance'] > 0 && isset($r['actual_attendance'])) ? min(100, round(($r['actual_attendance'] / $r['target_attendance']) * 100)) : 0;
       $kpiPct = $r['avg_kpi'] > 0 ? round(($r['avg_kpi']/4)*100) : 0;
 
       // Get individual KPI breakdown

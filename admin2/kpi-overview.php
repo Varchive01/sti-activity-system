@@ -24,7 +24,7 @@ try {
                COALESCE(pe.target_attendance,0) AS target_attendance,
                COALESCE(pe.satisfaction_score,0) AS satisfaction_score,
                CASE WHEN COALESCE(pe.target_attendance,0) > 0
-                    THEN ROUND((pe.actual_attendance / pe.target_attendance) * 100)
+                    THEN LEAST(100, ROUND((pe.actual_attendance / pe.target_attendance) * 100))
                     ELSE 0
                END AS att_pct
         FROM post_event pe

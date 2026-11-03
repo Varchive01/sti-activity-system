@@ -8,9 +8,8 @@
  * Features:
  * - Circular avatar/initial, user name, and role without permanent surrounding box.
  * - Clickable popover menu:
- *     - View Profile
- *     - Change Profile Picture
- *     - Change Password
+ *     - User Information (name, email, role)
+ *     - View Profile (with integrated profile-picture viewing & upload)
  *     - Logout
  * - Interactive User Profile Modal:
  *     - Real-time profile picture preview & upload (JPG, PNG, WEBP <= 2 MB)
@@ -841,14 +840,6 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
         <svg class="tpp-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
         <span>View Profile</span>
       </button>
-      <button type="button" class="tpp-item" id="tppBtnChangePicture" role="menuitem">
-        <svg class="tpp-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-        <span>Change Profile Picture</span>
-      </button>
-      <a href="<?= $baseUrl ?>/auth/change-password.php" class="tpp-item" role="menuitem">
-        <svg class="tpp-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-        <span>Change Password</span>
-      </a>
       <div class="tpp-divider"></div>
       <a href="<?= $baseUrl ?>/auth/logout.php" class="tpp-item tpp-danger" role="menuitem">
         <svg class="tpp-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
@@ -951,7 +942,6 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
   const topbarProfile = document.getElementById('topbarProfile');
   const profilePopover = document.getElementById('topbarProfilePopover');
   const btnViewProfile = document.getElementById('tppBtnViewProfile');
-  const btnChangePic = document.getElementById('tppBtnChangePicture');
   const profileBackdrop = document.getElementById('profileModalBackdrop');
   const btnCloseModal = document.getElementById('profileModalCloseBtn');
   const btnCancelModal = document.getElementById('profileBtnCancel');
@@ -1083,13 +1073,6 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
     btnViewProfile.addEventListener('click', function(e) {
       e.stopPropagation();
       openProfileModal(false);
-    });
-  }
-
-  if (btnChangePic) {
-    btnChangePic.addEventListener('click', function(e) {
-      e.stopPropagation();
-      openProfileModal(true);
     });
   }
 

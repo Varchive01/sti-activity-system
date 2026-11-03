@@ -1506,7 +1506,7 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
               <?php if (!empty($kpi['avg_rating'])): ?>
                 <?= (int)$kpi['events_evaluated'] ?> evaluated of <?= (int)$kpi['completed_activities'] ?> completed activity<?= $kpi['completed_activities'] == 1 ? '' : 'ies' ?>
                 <?php if (!empty($kpi['target_att']) && $kpi['target_att'] > 0 && isset($kpi['actual_att'])): ?>
-                  <br>Attendance: <?= round(($kpi['actual_att'] / $kpi['target_att']) * 100, 1) ?>% (<?= $kpi['actual_att'] ?>/<?= $kpi['target_att'] ?>)
+                  <br>Attendance: <?= min(100.0, round(($kpi['actual_att'] / $kpi['target_att']) * 100, 1)) ?>% (<?= $kpi['actual_att'] ?>/<?= $kpi['target_att'] ?>)
                 <?php endif; ?>
               <?php else: ?>
                 No completed student organization evaluations for the selected period
