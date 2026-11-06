@@ -22,8 +22,9 @@ if (!canUserAccessActivity($id, 'view', $user['id'], $user['role'], $user['dept'
 }
 
 // Collaborative Proposal Data (Task 14)
-$collaborators = getProposalCollaborators($id, $db);
-$contributionLogs = getProposalContributionLogs($id, 25, $db);
+$hasCollab = hasCollaboratorsTable($db);
+$collaborators = $hasCollab ? getProposalCollaborators($id, $db) : [];
+$contributionLogs = $hasCollab ? getProposalContributionLogs($id, 25, $db) : [];
 $canEditProposal = in_array($activity['status'], ['draft', 'returned_for_revision']) && canUserAccessActivity($id, 'modify', $user['id'], $user['role'], $user['dept']);
 
 $mats = $db->prepare("SELECT * FROM materials WHERE activity_id=?");
@@ -41,9 +42,19 @@ $schedules = $sc->fetchAll();
 $gl   = $db->prepare("SELECT * FROM guidelines WHERE activity_id=?");
 $gl->execute([$id]);
 $guidelines = $gl->fetch();
-$ft   = $db->prepare("SELECT ft.*, u.name as assigned_user_name FROM faculty_tasks ft LEFT JOIN users u ON ft.assigned_user_id = u.id WHERE ft.activity_id=? ORDER BY ft.id ASC");
-$ft->execute([$id]);
-$ftasks = $ft->fetchAll();
+
+$hasTasks = hasFacultyTasksTable($db);
+$ftasks = [];
+if ($hasTasks) {
+  try {
+    $ft = $db->prepare("SELECT ft.*, u.name as assigned_user_name FROM faculty_tasks ft LEFT JOIN users u ON ft.assigned_user_id = u.id WHERE ft.activity_id=? ORDER BY ft.id ASC");
+    $ft->execute([$id]);
+    $ftasks = $ft->fetchAll();
+  } catch (\Throwable $e) {
+    $ftasks = [];
+  }
+}
+
 $fp   = $db->prepare("SELECT * FROM floor_plans WHERE activity_id=?");
 $fp->execute([$id]);
 $floorplan = $fp->fetch();
