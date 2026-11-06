@@ -93,6 +93,14 @@ assertCheck(
     "Unique IDs count: " . count(array_unique($ids))
 );
 
+$excludedCheck = array_intersect(['van', 'rain', 'hilary', 'shaira'], $namesLower);
+assertCheck(
+    'Excluded Accounts',
+    'Van, Rain, Hilary, Shaira are strictly excluded from eligible roster',
+    empty($excludedCheck),
+    empty($excludedCheck) ? 'None present' : 'Found: ' . implode(', ', $excludedCheck)
+);
+
 // 2. Database Schema
 $colInfo = $db->query("SHOW COLUMNS FROM activity_participants LIKE 'teacher_name'")->fetch(PDO::FETCH_ASSOC);
 $isTextType = $colInfo && stripos($colInfo['Type'], 'text') !== false;
@@ -184,6 +192,11 @@ assertCheck(
     'JavaScript Engine',
     'teacher-multiselect.js creates removable tags',
     str_contains($jsContent, 'tms-tag-remove')
+);
+assertCheck(
+    'JavaScript Engine',
+    'teacher-multiselect.js explicitly excludes Van, Rain, Hilary, Shaira',
+    str_contains($jsContent, "'van', 'rain', 'hilary', 'shaira'")
 );
 
 // 6. CSS Styling

@@ -150,6 +150,10 @@
 
         const normName = name.toLowerCase();
 
+        // Exclude test/non-faculty accounts: Van, Rain, Hilary, Shaira
+        const excludedNames = ['van', 'rain', 'hilary', 'shaira'];
+        if (excludedNames.includes(normName)) return;
+
         // Prevent duplicate entries
         if (id && seenIds.has(id)) return;
         if (seenNames.has(normName)) return;

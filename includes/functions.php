@@ -2265,6 +2265,7 @@ if (!function_exists('getEligibleFacultyMembers')) {
               AND LOWER(name) NOT LIKE '%placeholder%'
               AND LOWER(name) NOT LIKE '%dummy%'
               AND LOWER(name) NOT LIKE '%test%'
+              AND LOWER(TRIM(name)) NOT IN ('van', 'rain', 'hilary', 'shaira')
               AND email NOT LIKE '%@invalid%'
               AND email NOT LIKE 'simulated_%'
               AND email NOT LIKE 'fac_unrelated_%'
@@ -2280,6 +2281,8 @@ if (!function_exists('getEligibleFacultyMembers')) {
 
             // De-duplicate strictly by unique account ID and normalized faculty name
             // Ensures every eligible faculty member appears exactly once (e.g. no duplicate Aldwin Alminar)
+            // Excludes non-faculty / test accounts: Van, Rain, Hilary, Shaira
+            $excludedNames = ['van', 'rain', 'hilary', 'shaira'];
             $uniqueList = [];
             $seenIds    = [];
             $seenNames  = [];
@@ -2297,6 +2300,11 @@ if (!function_exists('getEligibleFacultyMembers')) {
 
                 // Normalize name (strip redundant spaces, case-insensitive)
                 $normName = strtolower(preg_replace('/\s+/', ' ', $rawName));
+
+                // Exclude specific test/non-faculty names
+                if (in_array($normName, $excludedNames, true) || in_array(strtolower($rawName), $excludedNames, true)) {
+                    continue;
+                }
 
                 // If this name has already been registered (e.g. separate program_head and faculty rows), keep the canonical one
                 if (isset($seenNames[$normName])) {
@@ -2469,6 +2477,7 @@ if (!function_exists('getEligibleFacultyForDropdown')) {
               AND LOWER(name) NOT LIKE '%placeholder%'
               AND LOWER(name) NOT LIKE '%dummy%'
               AND LOWER(name) NOT LIKE '%test%'
+              AND LOWER(TRIM(name)) NOT IN ('van', 'rain', 'hilary', 'shaira')
               AND email NOT LIKE '%@invalid%'
               AND email NOT LIKE 'simulated_%'
               AND email NOT LIKE 'fac_unrelated_%'
