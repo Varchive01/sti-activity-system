@@ -12,13 +12,9 @@ $isProgramHead = ($user['role'] === 'program_head');
 
 if ($isProgramHead) {
     // 1. Identify Program Head's assigned department
-    $dept = trim($user['dept'] ?? '');
-    if (empty($dept)) {
-        $uStmt = $db->prepare("SELECT department FROM users WHERE id = ? LIMIT 1");
-        $uStmt->execute([$user['id']]);
-        $dept = (string)$uStmt->fetchColumn();
-    }
+    $dept = resolveUserDepartment($db, $user);
     $normDept = normalizeDepartmentName($dept);
+    $deptCond = buildDepartmentSqlCondition('u.department', $dept);
 
     // 2. Fetch all activities in this department (for aggregate performance metrics)
     $deptActsStmt = $db->prepare("
@@ -29,11 +25,11 @@ if ($isProgramHead) {
         JOIN users u ON a.faculty_id = u.id
         LEFT JOIN post_event pe ON a.id = pe.activity_id
         LEFT JOIN kpi_evaluations k ON a.id = k.activity_id
-        WHERE (u.department = ? OR a.faculty_id = ?)
+        WHERE (({$deptCond} AND a.status != 'draft') OR a.faculty_id = ?)
         GROUP BY a.id
         ORDER BY a.event_date DESC
     ");
-    $deptActsStmt->execute([$dept, $user['id']]);
+    $deptActsStmt->execute([$user['id']]);
     $deptActivities = $deptActsStmt->fetchAll(PDO::FETCH_ASSOC);
 
     // 3. Compute Department Performance Summaries
@@ -59,11 +55,11 @@ if ($isProgramHead) {
         FROM activities a 
         JOIN users u ON a.faculty_id = u.id 
         LEFT JOIN kpi_evaluations k ON a.id = k.activity_id 
-        WHERE (u.department = ? OR a.faculty_id = ?) AND a.status IN ('approved', 'completed') AND YEAR(a.event_date) = ?
+        WHERE ({$deptCond} OR a.faculty_id = ?) AND a.status IN ('approved', 'completed') AND YEAR(a.event_date) = ?
         GROUP BY MONTH(a.event_date) 
         ORDER BY m
     ");
-    $phMonthlyStmt->execute([$dept, $user['id'], $curYear]);
+    $phMonthlyStmt->execute([$user['id'], $curYear]);
     $phMonthly = $phMonthlyStmt->fetchAll(PDO::FETCH_ASSOC);
 
     // 5. Detailed post-event reports for card view
@@ -74,11 +70,11 @@ if ($isProgramHead) {
         JOIN users u ON a.faculty_id = u.id
         JOIN post_event pe ON a.id = pe.activity_id
         LEFT JOIN kpi_evaluations k ON a.id = k.activity_id
-        WHERE (u.department = ? OR a.faculty_id = ?)
+        WHERE ({$deptCond} OR a.faculty_id = ?)
         GROUP BY a.id, pe.id
         ORDER BY a.event_date DESC
     ");
-    $reports->execute([$dept, $user['id']]);
+    $reports->execute([$user['id']]);
 } else {
     // Faculty: Isolated strictly to personal activities
     $reports = $db->prepare("
@@ -160,6 +156,11 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
 @media (max-width: 600px) {
   .summary-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 360px) {
+  .summary-strip {
+    grid-template-columns: 1fr !important;
   }
 }
 
@@ -301,7 +302,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
           <div class="text-sm text-muted">Institutional metrics and evaluation benchmarks scoped to <?= htmlspecialchars($dept) ?></div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <a href="<?= BASE_URL ?>/dean/generate-report.php" class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+          <a href="<?= BASE_URL ?>/faculty/generate-report.php" class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
             📄 Generate Department Report
           </a>
           <a href="<?= BASE_URL ?>/dean/generate-report.php?export=csv" class="btn btn-outline btn-sm" style="display:inline-flex; align-items:center; gap:6px;">

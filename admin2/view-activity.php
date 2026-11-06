@@ -58,19 +58,20 @@ $rca  = $db->prepare("SELECT * FROM root_cause_analysis WHERE activity_id=?"); $
 $logs = $db->prepare("SELECT al.*,u.name,u.role as reviewer_role FROM approval_logs al JOIN users u ON al.reviewer_id=u.id WHERE al.activity_id=? ORDER BY al.acted_at"); $logs->execute([$id]); $history=$logs->fetchAll();
 
 $currentApprover = 'None';
-if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
-    $currentApprover = 'Events Committee Head';
+if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted'])) {
+    $currentApprover = 'Admin 1 (Committee Review)';
 } elseif (in_array($activity['status'], ['endorsed', 'pending_final_approval'])) {
-    $currentApprover = 'Dean';
+    $currentApprover = 'Dean (Final Approval)';
 } elseif ($activity['status'] === 'returned_for_revision') {
-    $currentApprover = 'Student Organization (Faculty)';
-} elseif (in_array($activity['status'], ['draft', 'submitted'])) {
-    $currentApprover = 'Student Organization (Faculty)';
+    $currentApprover = 'Faculty / Proponent (Revision)';
+} elseif ($activity['status'] === 'draft') {
+    $currentApprover = 'Faculty / Proponent (Draft)';
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta charset="UTF-8">
 <title>View Activity – STI</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
@@ -164,7 +165,7 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
     </div>
 
     <?php if (!empty($activity['poster_path'])): ?>
-    <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/' . $activity['poster_path']; ?>
+    <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=poster'; ?>
     <div class="section-title">🖼️ Event Poster</div>
     <div style="margin-bottom:24px; text-align:center;">
       <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank">
@@ -1076,8 +1077,12 @@ if (in_array($activity['status'], ['under_review', 'resubmitted'])) {
             }
           }
 
-          function confirmFinalizeAnalysis() {
-            if (confirm('Are you sure you want to finalize this analysis? This records your approval and marks the evaluation analysis as finalized.')) {
+          async function confirmFinalizeAnalysis() {
+            const msg = 'Are you sure you want to finalize this analysis? This records your approval and marks the evaluation analysis as finalized.';
+            const confirmed = window.STIModal
+              ? await window.STIModal.confirm(msg, { title: 'Finalize Evaluation Analysis?', confirmText: 'Finalize Analysis', cancelText: 'Cancel', variant: 'info' })
+              : confirm(msg);
+            if (confirmed) {
               submitAnalysisReview('finalize', true);
             }
           }

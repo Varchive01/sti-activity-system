@@ -155,7 +155,7 @@ $query = "
            au.department as assigned_user_dept,
            cb.name as creator_name
     FROM faculty_tasks ft
-    JOIN activities a ON ft.activity_id = a.id
+    JOIN activities a ON ft.activity_id = a.id AND a.status IN ('approved', 'completed')
     JOIN users u ON a.faculty_id = u.id
     LEFT JOIN users au ON ft.assigned_user_id = au.id
     LEFT JOIN users cb ON ft.created_by = cb.id
@@ -640,6 +640,12 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
         grid-template-columns: repeat(2, 1fr);
       }
     }
+    @media (max-width: 480px) {
+      .stat-grid-6 {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+    }
 
     .stat-card-widget {
       background: var(--bg-card);
@@ -727,6 +733,14 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
       gap: 10px;
       align-items: flex-end;
     }
+    @media (max-width: 640px) {
+      .filter-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .filter-group[style*="grid-column: span 2"] {
+        grid-column: span 1 !important;
+      }
+    }
     .filter-group {
       display: flex;
       flex-direction: column;
@@ -813,11 +827,14 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
     }
     .gantt-scroll-area {
       overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
       scrollbar-width: thin;
       max-height: 480px;
+      position: relative;
     }
     .gantt-chart-table {
       width: 100%;
+      min-width: 680px;
       border-collapse: collapse;
       table-layout: fixed;
     }
@@ -827,6 +844,9 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
       border-right: 1px solid var(--border);
       background: var(--bg-card);
       vertical-align: middle;
+      position: sticky;
+      left: 0;
+      z-index: 4;
     }
     .gantt-col-timeline {
       padding: 10px 16px;
@@ -842,7 +862,14 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
+    .gantt-timeline-scale th.gantt-col-meta {
+      z-index: 5;
+      background: var(--border-light, #f8fafd);
+    }
     [data-theme="dark"] .gantt-timeline-scale {
+      background: #0d1726;
+    }
+    [data-theme="dark"] .gantt-timeline-scale th.gantt-col-meta {
       background: #0d1726;
     }
     .gantt-timeline-scale-wrap {
@@ -962,6 +989,7 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
       inset: 0;
       background: rgba(10, 22, 40, 0.6);
       backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
       z-index: 9999;
       align-items: center;
       justify-content: center;
@@ -1020,6 +1048,34 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
       font-weight: 600;
       color: var(--text-main);
       word-break: break-word;
+    }
+
+    @media (max-width: 640px) {
+      .gantt-col-meta {
+        width: 160px;
+        padding: 8px 10px;
+      }
+      .inspect-modal-body {
+        grid-template-columns: 1fr;
+        padding: 14px;
+        gap: 10px;
+      }
+    }
+    @media (max-width: 480px) {
+      .gantt-col-meta {
+        width: 130px;
+        padding: 6px 8px;
+        font-size: 0.72rem;
+      }
+      .gantt-chart-table {
+        min-width: 560px;
+      }
+      .task-inspect-modal {
+        max-height: 92dvh;
+      }
+      .inspect-modal-header {
+        padding: 12px 14px;
+      }
     }
   </style>
 </head>

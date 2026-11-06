@@ -1050,7 +1050,7 @@ label, input, button, select, textarea {
               <textarea id="modalTaskDesc" name="task_description" class="form-control" rows="2" style="width: 100%;" placeholder="Describe the specific task deliverables or responsibilities..."></textarea>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="modal-grid-2col">
               <div>
                 <label class="form-label" style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 5px; color: var(--text-main);">
                   Assigned Committee
@@ -1092,7 +1092,7 @@ label, input, button, select, textarea {
               </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="modal-grid-2col">
               <div>
                 <label class="form-label" style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 5px; color: var(--text-main);">
                   Assigned Member / User
@@ -1238,17 +1238,21 @@ label, input, button, select, textarea {
           });
           const data = await res.json();
           if (!data || !data.success) {
-            alert(data.error || 'Failed to update task status.');
+            await alert(data.error || 'Failed to update task status.');
             window.location.reload();
           }
         } catch (err) {
-          alert('Network error while updating task status.');
+          await alert('Network error while updating task status.');
           window.location.reload();
         }
       }
 
       async function deleteTask(taskId) {
-        if (!confirm('Are you sure you want to remove this task assignment?')) return;
+        const msg = 'Are you sure you want to remove this task assignment?';
+        const confirmed = window.STIModal
+          ? await window.STIModal.confirm(msg, { title: 'Remove Task Assignment?', confirmText: 'Remove Task', cancelText: 'Cancel', variant: 'danger' })
+          : confirm(msg);
+        if (!confirmed) return;
         try {
           const res = await fetch('<?= BASE_URL ?>/api/task-assignment.php', {
             method: 'POST',

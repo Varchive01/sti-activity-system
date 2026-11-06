@@ -583,7 +583,7 @@ function getStatusBadge(string $status): string
 {
     $map = [
         'draft'                  => ['Draft',            'badge-secondary'],
-        'submitted'              => ['Submitted',        'badge-primary'],
+        'submitted'              => ['Under Review',     'badge-warning'],
         'under_review'           => ['Under Review',     'badge-warning'],
         'returned_for_revision'  => ['For Revision',     'badge-danger'],
         'resubmitted'            => ['Resubmitted',      'badge-warning'],
@@ -833,186 +833,188 @@ function validateScheduleRows(array $rows, bool $isRequired = true): array
  */
 function checkProposalEscalations(PDO $db, ?int $userId = null, ?string $role = null): array
 {
-    require_once __DIR__ . '/EmailService.php';
+    try {
+        require_once __DIR__ . '/EmailService.php';
 
-    if ($userId === null && function_exists('currentUser')) {
-        $cur = currentUser();
-        if ($cur) {
-            $userId = (int)($cur['id'] ?? 0);
-            $role   = $role ?? ($cur['role'] ?? null);
-        }
-    }
-
-    $params = [];
-    if (in_array($role, ['faculty', 'program_head'], true)) {
-        $sql = "
-            SELECT id, faculty_id, title, status, source, updated_at 
-            FROM activities 
-            WHERE faculty_id = ? 
-              AND status IN ('submitted', 'under_review', 'endorsed', 'pending_final_approval', 'resubmitted') 
-              AND updated_at < NOW() - INTERVAL 3 DAY
-        ";
-        $params = [$userId];
-    } elseif ($role === 'admin1') {
-        $sql = "
-            SELECT id, faculty_id, title, status, source, updated_at 
-            FROM activities 
-            WHERE status IN ('under_review', 'resubmitted') 
-              AND source = 'student_org' 
-              AND updated_at < NOW() - INTERVAL 3 DAY
-        ";
-    } elseif ($role === 'admin2') {
-        $sql = "
-            SELECT id, faculty_id, title, status, source, updated_at 
-            FROM activities 
-            WHERE ((status IN ('submitted', 'endorsed')) OR (status = 'resubmitted' AND source = 'faculty')) 
-              AND updated_at < NOW() - INTERVAL 3 DAY
-        ";
-    } elseif ($role === 'dean') {
-        $sql = "
-            SELECT id, faculty_id, title, status, source, updated_at 
-            FROM activities 
-            WHERE status = 'pending_final_approval' 
-              AND updated_at < NOW() - INTERVAL 3 DAY
-        ";
-    } else {
-        // Broad / system-wide check
-        $sql = "
-            SELECT id, faculty_id, title, status, source, updated_at 
-            FROM activities 
-            WHERE status IN ('submitted', 'under_review', 'endorsed', 'pending_final_approval', 'resubmitted') 
-              AND updated_at < NOW() - INTERVAL 3 DAY
-        ";
-    }
-
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
-    $stagnantActs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    if (empty($stagnantActs)) {
-        return ['checked' => 0, 'notified' => 0];
-    }
-
-    $emailService = new EmailService();
-    $baseUrl = defined('BASE_URL') ? BASE_URL : '';
-    $notifiedCount = 0;
-
-    $notifCheckStmt = $db->prepare("
-        SELECT COUNT(*) 
-        FROM notifications 
-        WHERE user_id = ? 
-          AND activity_id = ? 
-          AND (message LIKE '%stagnant%' OR message LIKE '%Escalation%') 
-          AND created_at > ?
-    ");
-
-    $insertNotifStmt = $db->prepare("
-        INSERT INTO notifications (user_id, activity_id, message) 
-        VALUES (?, ?, ?)
-    ");
-
-    $userStmt = $db->prepare("SELECT id, name, email, role FROM users WHERE id = ?");
-    $reviewersByRoleStmt = $db->prepare("SELECT id, name, email, role FROM users WHERE role = ?");
-
-    foreach ($stagnantActs as $act) {
-        $actId = (int)$act['id'];
-        $title = sanitize($act['title'] ?? 'Untitled Proposal');
-        $status = $act['status'];
-        $source = $act['source'] ?? 'faculty';
-        $updatedAt = $act['updated_at'];
-
-        // Determine stalled reviewer role
-        $reviewerRole = null;
-        if ($status === 'under_review' || ($status === 'resubmitted' && $source === 'student_org')) {
-            $reviewerRole = 'admin1';
-        } elseif ($status === 'submitted' || $status === 'endorsed' || ($status === 'resubmitted' && $source === 'faculty')) {
-            $reviewerRole = 'admin2';
-        } elseif ($status === 'pending_final_approval') {
-            $reviewerRole = 'dean';
-        }
-
-        $targets = [];
-
-        // 1. Reviewer target(s)
-        if ($reviewerRole !== null) {
-            $reviewersByRoleStmt->execute([$reviewerRole]);
-            $revRows = $reviewersByRoleStmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $revLink = match($reviewerRole) {
-                'admin1' => "{$baseUrl}/admin1/review.php?id={$actId}",
-                'admin2' => "{$baseUrl}/admin2/review.php?id={$actId}",
-                'dean'   => "{$baseUrl}/dean/review.php?id={$actId}",
-                default  => "{$baseUrl}/index.php",
-            };
-
-            $revMsg = ($reviewerRole === 'dean')
-                ? "Escalation Alert: Proposal '{$title}' has been pending final approval for 3 days and requires attention."
-                : "Escalation Alert: Proposal '{$title}' has been pending review for 3 days and requires attention.";
-
-            $revSubject = "Escalation Alert: Proposal Pending Review - {$title}";
-
-            foreach ($revRows as $rev) {
-                $targets[] = [
-                    'user'    => $rev,
-                    'message' => $revMsg,
-                    'subject' => $revSubject,
-                    'link'    => $revLink,
-                ];
+        if ($userId === null && function_exists('currentUser')) {
+            $cur = currentUser();
+            if ($cur) {
+                $userId = (int)($cur['id'] ?? 0);
+                $role   = $role ?? ($cur['role'] ?? null);
             }
         }
 
-        // 2. Faculty proponent target
-        if (!empty($act['faculty_id'])) {
-            $userStmt->execute([$act['faculty_id']]);
-            $facultyUser = $userStmt->fetch(PDO::FETCH_ASSOC);
-            if ($facultyUser) {
-                $targets[] = [
-                    'user'    => $facultyUser,
-                    'message' => "Your proposal '{$title}' has been stagnant under review for 3 days.",
-                    'subject' => "Proposal Update: Review Stagnant - {$title}",
-                    'link'    => "{$baseUrl}/faculty/proposal-view.php?id={$actId}",
-                ];
-            }
+        $params = [];
+        if (in_array($role, ['faculty', 'program_head'], true)) {
+            $sql = "
+                SELECT id, faculty_id, title, status, source, updated_at 
+                FROM activities 
+                WHERE faculty_id = ? 
+                  AND status IN ('submitted', 'under_review', 'endorsed', 'pending_final_approval', 'resubmitted') 
+                  AND updated_at < NOW() - INTERVAL 3 DAY
+            ";
+            $params = [$userId];
+        } elseif ($role === 'admin1') {
+            $sql = "
+                SELECT id, faculty_id, title, status, source, updated_at 
+                FROM activities 
+                WHERE status IN ('under_review', 'submitted', 'resubmitted') 
+                  AND updated_at < NOW() - INTERVAL 3 DAY
+            ";
+        } elseif ($role === 'admin2') {
+            $sql = "
+                SELECT id, faculty_id, title, status, source, updated_at 
+                FROM activities 
+                WHERE ((status IN ('submitted', 'endorsed')) OR (status IN ('under_review', 'resubmitted') AND source = 'faculty')) 
+                  AND updated_at < NOW() - INTERVAL 3 DAY
+            ";
+        } elseif ($role === 'dean') {
+            $sql = "
+                SELECT id, faculty_id, title, status, source, updated_at 
+                FROM activities 
+                WHERE status = 'pending_final_approval' 
+                  AND updated_at < NOW() - INTERVAL 3 DAY
+            ";
+        } else {
+            // Broad / system-wide check
+            $sql = "
+                SELECT id, faculty_id, title, status, source, updated_at 
+                FROM activities 
+                WHERE status IN ('submitted', 'under_review', 'endorsed', 'pending_final_approval', 'resubmitted') 
+                  AND updated_at < NOW() - INTERVAL 3 DAY
+            ";
         }
 
-        // Process targets with deduplication
-        foreach ($targets as $target) {
-            $u = $target['user'];
-            $uId = (int)$u['id'];
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $stagnantActs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Deduplication check: Has this user already received a stagnant/escalation notification after updatedAt?
-            $notifCheckStmt->execute([$uId, $actId, $updatedAt]);
-            if ((int)$notifCheckStmt->fetchColumn() === 0) {
-                // In-App Notification
-                $insertNotifStmt->execute([$uId, $actId, $target['message']]);
-                $notifiedCount++;
+        if (empty($stagnantActs)) {
+            return ['checked' => 0, 'notified' => 0];
+        }
 
-                // Automated Email Notification (safely handled & logged)
-                if (!empty($u['email'])) {
-                    try {
-                        $emailService->sendNotification(
-                            $u['email'],
-                            $u['name'] ?? 'User',
-                            $target['subject'],
-                            $title,
-                            $status,
-                            $target['message'],
-                            $target['link'],
-                            $actId,
-                            'proposal_escalated'
-                        );
-                    } catch (Throwable $e) {
-                        error_log("Failed sending escalation email for activity {$actId} to {$u['email']}: " . $e->getMessage());
+        $emailService = class_exists('EmailService') ? new EmailService() : null;
+        $baseUrl = defined('BASE_URL') ? BASE_URL : '';
+        $notifiedCount = 0;
+
+        $notifCheckStmt = $db->prepare("
+            SELECT COUNT(*) 
+            FROM notifications 
+            WHERE user_id = ? 
+              AND activity_id = ? 
+              AND (message LIKE '%stagnant%' OR message LIKE '%Escalation%') 
+              AND created_at > ?
+        ");
+
+        $insertNotifStmt = $db->prepare("
+            INSERT INTO notifications (user_id, activity_id, message) 
+            VALUES (?, ?, ?)
+        ");
+
+        $userStmt = $db->prepare("SELECT id, name, email, role FROM users WHERE id = ?");
+        $reviewersByRoleStmt = $db->prepare("SELECT id, name, email, role FROM users WHERE role = ?");
+
+        foreach ($stagnantActs as $act) {
+            $actId = (int)$act['id'];
+            $title = sanitize($act['title'] ?? 'Untitled Proposal');
+            $status = $act['status'];
+            $source = $act['source'] ?? 'faculty';
+            $updatedAt = $act['updated_at'];
+
+            // Determine stalled reviewer role
+            $reviewerRole = null;
+            if (in_array($status, ['under_review', 'submitted', 'resubmitted'], true)) {
+                $reviewerRole = 'admin1';
+            } elseif ($status === 'pending_final_approval') {
+                $reviewerRole = 'dean';
+            }
+
+            $targets = [];
+
+            // 1. Reviewer target(s)
+            if ($reviewerRole !== null) {
+                $reviewersByRoleStmt->execute([$reviewerRole]);
+                $revRows = $reviewersByRoleStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $revLink = match($reviewerRole) {
+                    'admin1' => "{$baseUrl}/admin1/review.php?id={$actId}",
+                    'admin2' => "{$baseUrl}/admin2/review.php?id={$actId}",
+                    'dean'   => "{$baseUrl}/dean/review.php?id={$actId}",
+                    default  => "{$baseUrl}/index.php",
+                };
+
+                $revMsg = ($reviewerRole === 'dean')
+                    ? "Escalation Alert: Proposal '{$title}' has been pending final approval for 3 days and requires attention."
+                    : "Escalation Alert: Proposal '{$title}' has been pending review for 3 days and requires attention.";
+
+                $revSubject = "Escalation Alert: Proposal Pending Review - {$title}";
+
+                foreach ($revRows as $rev) {
+                    $targets[] = [
+                        'user'    => $rev,
+                        'message' => $revMsg,
+                        'subject' => $revSubject,
+                        'link'    => $revLink,
+                    ];
+                }
+            }
+
+            // 2. Faculty proponent target
+            if (!empty($act['faculty_id'])) {
+                $userStmt->execute([$act['faculty_id']]);
+                $facultyUser = $userStmt->fetch(PDO::FETCH_ASSOC);
+                if ($facultyUser) {
+                    $targets[] = [
+                        'user'    => $facultyUser,
+                        'message' => "Your proposal '{$title}' has been stagnant under review for 3 days.",
+                        'subject' => "Proposal Update: Review Stagnant - {$title}",
+                        'link'    => "{$baseUrl}/faculty/proposal-view.php?id={$actId}",
+                    ];
+                }
+            }
+
+            // Process targets with deduplication
+            foreach ($targets as $target) {
+                $u = $target['user'];
+                $uId = (int)$u['id'];
+
+                // Deduplication check: Has this user already received a stagnant/escalation notification after updatedAt?
+                $notifCheckStmt->execute([$uId, $actId, $updatedAt]);
+                if ((int)$notifCheckStmt->fetchColumn() === 0) {
+                    // In-App Notification
+                    $insertNotifStmt->execute([$uId, $actId, $target['message']]);
+                    $notifiedCount++;
+
+                    // Automated Email Notification (safely handled & logged)
+                    if ($emailService && !empty($u['email'])) {
+                        try {
+                            $emailService->sendNotification(
+                                $u['email'],
+                                $u['name'] ?? 'User',
+                                $target['subject'],
+                                $title,
+                                $status,
+                                $target['message'],
+                                $target['link'],
+                                $actId,
+                                'proposal_escalated'
+                            );
+                        } catch (\Throwable $e) {
+                            error_log("Failed sending escalation email for activity {$actId} to {$u['email']}: " . $e->getMessage());
+                        }
                     }
                 }
             }
         }
-    }
 
-    return [
-        'checked'  => count($stagnantActs),
-        'notified' => $notifiedCount
-    ];
+        return [
+            'checked'  => count($stagnantActs),
+            'notified' => $notifiedCount
+        ];
+    } catch (\Throwable $e) {
+        error_log("checkProposalEscalations error: " . $e->getMessage());
+        return ['checked' => 0, 'notified' => 0];
+    }
 }
 
 /**
@@ -1024,9 +1026,14 @@ function checkProposalEscalations(PDO $db, ?int $userId = null, ?string $role = 
  */
 function getUnreadNotificationCount(PDO $db, int $userId): int
 {
-    $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
-    $stmt->execute([$userId]);
-    return (int)$stmt->fetchColumn();
+    try {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+        $stmt->execute([$userId]);
+        return (int)$stmt->fetchColumn();
+    } catch (\Throwable $e) {
+        error_log("getUnreadNotificationCount error: " . $e->getMessage());
+        return 0;
+    }
 }
 
 /**
@@ -1039,21 +1046,26 @@ function getUnreadNotificationCount(PDO $db, int $userId): int
  */
 function getUserNotifications(PDO $db, int $userId, int $limit = 10): array
 {
-    $limit = max(1, (int)$limit);
-    $stmt = $db->prepare("
-        SELECT n.*, a.title AS activity_title
-        FROM notifications n
-        LEFT JOIN activities a ON n.activity_id = a.id
-        WHERE n.user_id = ?
-        ORDER BY n.created_at DESC
-        LIMIT {$limit}
-    ");
-    $stmt->execute([$userId]);
-    return $stmt->fetchAll();
+    try {
+        $limit = max(1, (int)$limit);
+        $stmt = $db->prepare("
+            SELECT n.*, a.title AS activity_title
+            FROM notifications n
+            LEFT JOIN activities a ON n.activity_id = a.id
+            WHERE n.user_id = ?
+            ORDER BY n.created_at DESC
+            LIMIT {$limit}
+        ");
+        $stmt->execute([$userId]);
+        return $stmt->fetchAll();
+    } catch (\Throwable $e) {
+        error_log("getUserNotifications error: " . $e->getMessage());
+        return [];
+    }
 }
 
 /**
- * Ensure task_reminder_logs table exists for deduplication
+ * Ensure task_reminder_logs, email_logs, and proposal_collaborators tables exist for production resilience
  */
 function ensureTaskReminderLogsTable(PDO $db): void
 {
@@ -1074,9 +1086,37 @@ function ensureTaskReminderLogsTable(PDO $db): void
                 INDEX idx_task_reminder (task_id, reminder_type, user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS email_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                recipient_email VARCHAR(180) NOT NULL,
+                recipient_name VARCHAR(120) NOT NULL,
+                subject VARCHAR(255) NOT NULL,
+                activity_id INT NULL,
+                notification_type VARCHAR(60) NOT NULL,
+                delivery_method VARCHAR(30) NOT NULL DEFAULT 'phpmailer',
+                status ENUM('sent','failed') NOT NULL DEFAULT 'sent',
+                error_message TEXT NULL,
+                sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS proposal_collaborators (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                activity_id INT NOT NULL,
+                user_id INT NOT NULL,
+                role ENUM('owner', 'co_author', 'contributor') NOT NULL DEFAULT 'contributor',
+                added_by INT NOT NULL,
+                added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                status ENUM('active', 'removed') NOT NULL DEFAULT 'active',
+                UNIQUE KEY uniq_activity_user (activity_id, user_id),
+                INDEX idx_collab_user (user_id, status),
+                INDEX idx_collab_activity (activity_id, status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
         $ensured = true;
-    } catch (Throwable $e) {
-        // Table may already exist
+    } catch (\Throwable $e) {
+        // Table may already exist or user lacks DDL privilege; ignore safely
     }
 }
 
@@ -1110,255 +1150,260 @@ function ensureTaskReminderLogsTable(PDO $db): void
  */
 function checkTaskProgressReminders(PDO $db, ?int $userId = null, ?string $role = null, ?int $activityId = null): array
 {
-    ensureTaskReminderLogsTable($db);
-    require_once __DIR__ . '/EmailService.php';
+    try {
+        ensureTaskReminderLogsTable($db);
+        require_once __DIR__ . '/EmailService.php';
 
-    if ($userId === null && function_exists('currentUser')) {
-        $cur = currentUser();
-        if ($cur) {
-            $userId = (int)($cur['id'] ?? 0);
-            $role   = $role ?? ($cur['role'] ?? null);
+        if ($userId === null && function_exists('currentUser')) {
+            $cur = currentUser();
+            if ($cur) {
+                $userId = (int)($cur['id'] ?? 0);
+                $role   = $role ?? ($cur['role'] ?? null);
+            }
         }
-    }
 
-    $whereClauses = ["a.status != 'rejected'"];
-    $params = [];
+        $whereClauses = ["a.status NOT IN ('rejected', 'draft')"];
+        $params = [];
 
-    if ($activityId !== null && $activityId > 0) {
-        $whereClauses[] = "ft.activity_id = ?";
-        $params[] = $activityId;
-    } elseif ($userId !== null && $userId > 0 && in_array($role, ['faculty', 'program_head'], true)) {
-        $whereClauses[] = "(a.faculty_id = ? OR ft.assigned_user_id = ?)";
-        $params[] = $userId;
-        $params[] = $userId;
-    }
+        if ($activityId !== null && $activityId > 0) {
+            $whereClauses[] = "ft.activity_id = ?";
+            $params[] = $activityId;
+        } elseif ($userId !== null && $userId > 0 && in_array($role, ['faculty', 'program_head'], true)) {
+            $whereClauses[] = "(a.faculty_id = ? OR ft.assigned_user_id = ?)";
+            $params[] = $userId;
+            $params[] = $userId;
+        }
 
-    $whereSql = implode(' AND ', $whereClauses);
+        $whereSql = implode(' AND ', $whereClauses);
 
-    $sql = "
-        SELECT ft.id, ft.activity_id, ft.assigned_user_id, ft.faculty_name,
-               ft.task_title, ft.assigned_task, ft.task_description, ft.contribution_desc,
-               ft.role_in_event, ft.due_date, ft.status, ft.completion_pct, ft.updated_at,
-               a.title as activity_title, a.faculty_id as leader_id, a.status as activity_status,
-               u_leader.name as leader_name, u_leader.email as leader_email,
-               u_assigned.name as assigned_name, u_assigned.email as assigned_email
-        FROM faculty_tasks ft
-        JOIN activities a ON ft.activity_id = a.id
-        JOIN users u_leader ON a.faculty_id = u_leader.id
-        LEFT JOIN users u_assigned ON ft.assigned_user_id = u_assigned.id
-        WHERE {$whereSql}
-        ORDER BY ft.id ASC
-    ";
+        $sql = "
+            SELECT ft.id, ft.activity_id, ft.assigned_user_id, ft.faculty_name,
+                   ft.task_title, ft.assigned_task, ft.task_description, ft.contribution_desc,
+                   ft.role_in_event, ft.due_date, ft.status, ft.completion_pct, ft.updated_at,
+                   a.title as activity_title, a.faculty_id as leader_id, a.status as activity_status,
+                   u_leader.name as leader_name, u_leader.email as leader_email,
+                   u_assigned.name as assigned_name, u_assigned.email as assigned_email
+            FROM faculty_tasks ft
+            JOIN activities a ON ft.activity_id = a.id
+            JOIN users u_leader ON a.faculty_id = u_leader.id
+            LEFT JOIN users u_assigned ON ft.assigned_user_id = u_assigned.id
+            WHERE {$whereSql}
+            ORDER BY ft.id ASC
+        ";
 
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
-    $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if (empty($tasks)) {
+        if (empty($tasks)) {
+            return ['checked' => 0, 'notified' => 0, 'reminders' => []];
+        }
+
+        $today = date('Y-m-d');
+        $emailService = class_exists('EmailService') ? new EmailService() : null;
+        $baseUrl = defined('BASE_URL') ? BASE_URL : '';
+        $notifiedCount = 0;
+        $generatedReminders = [];
+
+        $checkLogStmt = $db->prepare("
+            SELECT id, due_date, task_status, completion_pct, reminder_type 
+            FROM task_reminder_logs 
+            WHERE task_id = ? AND reminder_type = ? AND user_id = ?
+            ORDER BY id DESC LIMIT 1
+        ");
+
+        $insertLogStmt = $db->prepare("
+            INSERT INTO task_reminder_logs (task_id, activity_id, user_id, reminder_type, task_status, due_date, completion_pct)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ");
+
+        $insertNotifStmt = $db->prepare("
+            INSERT INTO notifications (user_id, activity_id, message)
+            VALUES (?, ?, ?)
+        ");
+
+        foreach ($tasks as $t) {
+            $taskId = (int)$t['id'];
+            $actId = (int)$t['activity_id'];
+            $taskTitle = trim($t['task_title'] ?: ($t['assigned_task'] ?: 'Untitled Task'));
+            $activityTitle = trim($t['activity_title'] ?: 'Activity');
+            $rawDueDate = !empty($t['due_date']) ? date('Y-m-d', strtotime($t['due_date'])) : null;
+            $status = trim($t['status'] ?: 'Not Started');
+            $completionPct = (int)($t['completion_pct'] ?? 0);
+            $leaderId = (int)$t['leader_id'];
+            $leaderName = trim($t['leader_name'] ?: 'Activity Leader');
+            $leaderEmail = trim($t['leader_email'] ?: '');
+            $assignedUserId = !empty($t['assigned_user_id']) ? (int)$t['assigned_user_id'] : null;
+            $assignedName = trim($t['assigned_name'] ?: ($t['faculty_name'] ?: 'Assigned Member'));
+            $assignedEmail = trim($t['assigned_email'] ?: '');
+
+            $isCompleted = ($status === 'Completed' || $completionPct >= 100);
+
+            $reminderType = null;
+            if ($isCompleted) {
+                $reminderType = 'completed';
+            } else {
+                $isOverdue = (!empty($rawDueDate) && $rawDueDate < $today);
+                $isExplicitDelayed = ($status === 'Delayed');
+
+                if ($isOverdue || $isExplicitDelayed) {
+                    $reminderType = 'delayed';
+                } elseif (!empty($rawDueDate)) {
+                    $diffDays = (int)ceil((strtotime($rawDueDate) - strtotime($today)) / 86400);
+                    if ($diffDays >= 0 && $diffDays <= 3) {
+                        $reminderType = 'due_soon';
+                    }
+                }
+            }
+
+            if (!$reminderType) {
+                continue;
+            }
+
+            $targets = [];
+            $viewLink = "{$baseUrl}/faculty/view-activity.php?id={$actId}";
+            $dueDateDisplay = $rawDueDate ? date('M j, Y', strtotime($rawDueDate)) : 'No due date';
+
+            if ($reminderType === 'completed') {
+                $msg = ($assignedUserId && $assignedUserId !== $leaderId)
+                    ? "Task Completed: Task '{$taskTitle}' assigned to {$assignedName} in '{$activityTitle}' has reached 100% / Completed."
+                    : "Task Completed: Task '{$taskTitle}' in '{$activityTitle}' has reached 100% / Completed.";
+
+                $targets[] = [
+                    'user_id'      => $leaderId,
+                    'name'         => $leaderName,
+                    'email'        => $leaderEmail,
+                    'is_leader'    => true,
+                    'message'      => $msg,
+                    'subject'      => "Task Completed: {$taskTitle} - {$activityTitle}",
+                    'status_label' => 'Completed',
+                    'link'         => $viewLink,
+                ];
+            } elseif ($reminderType === 'due_soon') {
+                if ($assignedUserId) {
+                    $targets[] = [
+                        'user_id'      => $assignedUserId,
+                        'name'         => $assignedName,
+                        'email'        => $assignedEmail,
+                        'is_leader'    => false,
+                        'message'      => "Task Reminder: Task '{$taskTitle}' in '{$activityTitle}' is approaching its deadline (Due: {$dueDateDisplay}). Current progress: {$completionPct}%.",
+                        'subject'      => "Task Due Soon: {$taskTitle} - {$activityTitle}",
+                        'status_label' => 'Due Soon',
+                        'link'         => $viewLink,
+                    ];
+                }
+
+                if ($leaderId && $leaderId !== $assignedUserId) {
+                    $targets[] = [
+                        'user_id'      => $leaderId,
+                        'name'         => $leaderName,
+                        'email'        => $leaderEmail,
+                        'is_leader'    => true,
+                        'message'      => "Task Monitoring: Task '{$taskTitle}' assigned to {$assignedName} in '{$activityTitle}' is approaching its deadline (Due: {$dueDateDisplay}). Current progress: {$completionPct}%.",
+                        'subject'      => "Task Approaching Deadline: {$taskTitle} - {$activityTitle}",
+                        'status_label' => 'Due Soon',
+                        'link'         => $viewLink,
+                    ];
+                }
+            } elseif ($reminderType === 'delayed') {
+                if ($assignedUserId) {
+                    $targets[] = [
+                        'user_id'      => $assignedUserId,
+                        'name'         => $assignedName,
+                        'email'        => $assignedEmail,
+                        'is_leader'    => false,
+                        'message'      => "Task Delayed: Task '{$taskTitle}' in '{$activityTitle}' is delayed (Due: {$dueDateDisplay}). Current progress: {$completionPct}%. Please update progress or submit deliverable.",
+                        'subject'      => "Task Delayed Alert: {$taskTitle} - {$activityTitle}",
+                        'status_label' => 'Delayed',
+                        'link'         => $viewLink,
+                    ];
+                }
+
+                if ($leaderId && $leaderId !== $assignedUserId) {
+                    $targets[] = [
+                        'user_id'      => $leaderId,
+                        'name'         => $leaderName,
+                        'email'        => $leaderEmail,
+                        'is_leader'    => true,
+                        'message'      => "Task Monitoring Alert: Task '{$taskTitle}' assigned to {$assignedName} in '{$activityTitle}' is delayed (Due: {$dueDateDisplay}). Current progress: {$completionPct}%.",
+                        'subject'      => "Task Monitoring: Task Delayed - {$taskTitle}",
+                        'status_label' => 'Delayed',
+                        'link'         => $viewLink,
+                    ];
+                }
+            }
+
+            foreach ($targets as $target) {
+                $tUserId = (int)$target['user_id'];
+                if (!$tUserId) continue;
+
+                $checkLogStmt->execute([$taskId, $reminderType, $tUserId]);
+                $lastLog = $checkLogStmt->fetch(PDO::FETCH_ASSOC);
+
+                $shouldSend = false;
+                if (!$lastLog) {
+                    $shouldSend = true;
+                } else {
+                    if ($reminderType === 'due_soon' || $reminderType === 'delayed') {
+                        if ($lastLog['due_date'] !== $rawDueDate) {
+                            $shouldSend = true;
+                        }
+                    }
+                }
+
+                if ($shouldSend) {
+                    $insertNotifStmt->execute([$tUserId, $actId, $target['message']]);
+
+                    $insertLogStmt->execute([
+                        $taskId,
+                        $actId,
+                        $tUserId,
+                        $reminderType,
+                        $status,
+                        $rawDueDate,
+                        $completionPct
+                    ]);
+
+                    if ($emailService && !empty($target['email'])) {
+                        try {
+                            $emailService->sendNotification(
+                                $target['email'],
+                                $target['name'],
+                                $target['subject'],
+                                $activityTitle,
+                                $target['status_label'],
+                                $target['message'],
+                                $target['link'],
+                                $actId,
+                                "task_{$reminderType}_{$taskId}"
+                            );
+                        } catch (\Throwable $e) {
+                            error_log("Failed sending task reminder email for task {$taskId} to {$target['email']}: " . $e->getMessage());
+                        }
+                    }
+
+                    $notifiedCount++;
+                    $generatedReminders[] = [
+                        'task_id'       => $taskId,
+                        'activity_id'   => $actId,
+                        'user_id'       => $tUserId,
+                        'reminder_type' => $reminderType,
+                        'recipient'     => $target['name'],
+                        'message'       => $target['message']
+                    ];
+                }
+            }
+        }
+
+        return [
+            'checked'   => count($tasks),
+            'notified'  => $notifiedCount,
+            'reminders' => $generatedReminders
+        ];
+    } catch (\Throwable $e) {
+        error_log("checkTaskProgressReminders error: " . $e->getMessage());
         return ['checked' => 0, 'notified' => 0, 'reminders' => []];
     }
-
-    $today = date('Y-m-d');
-    $emailService = new EmailService();
-    $baseUrl = defined('BASE_URL') ? BASE_URL : '';
-    $notifiedCount = 0;
-    $generatedReminders = [];
-
-    $checkLogStmt = $db->prepare("
-        SELECT id, due_date, task_status, completion_pct, reminder_type 
-        FROM task_reminder_logs 
-        WHERE task_id = ? AND reminder_type = ? AND user_id = ?
-        ORDER BY id DESC LIMIT 1
-    ");
-
-    $insertLogStmt = $db->prepare("
-        INSERT INTO task_reminder_logs (task_id, activity_id, user_id, reminder_type, task_status, due_date, completion_pct)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ");
-
-    $insertNotifStmt = $db->prepare("
-        INSERT INTO notifications (user_id, activity_id, message)
-        VALUES (?, ?, ?)
-    ");
-
-    foreach ($tasks as $t) {
-        $taskId = (int)$t['id'];
-        $actId = (int)$t['activity_id'];
-        $taskTitle = trim($t['task_title'] ?: ($t['assigned_task'] ?: 'Untitled Task'));
-        $activityTitle = trim($t['activity_title'] ?: 'Activity');
-        $rawDueDate = !empty($t['due_date']) ? date('Y-m-d', strtotime($t['due_date'])) : null;
-        $status = trim($t['status'] ?: 'Not Started');
-        $completionPct = (int)($t['completion_pct'] ?? 0);
-        $leaderId = (int)$t['leader_id'];
-        $leaderName = trim($t['leader_name'] ?: 'Activity Leader');
-        $leaderEmail = trim($t['leader_email'] ?: '');
-        $assignedUserId = !empty($t['assigned_user_id']) ? (int)$t['assigned_user_id'] : null;
-        $assignedName = trim($t['assigned_name'] ?: ($t['faculty_name'] ?: 'Assigned Member'));
-        $assignedEmail = trim($t['assigned_email'] ?: '');
-
-        $isCompleted = ($status === 'Completed' || $completionPct >= 100);
-
-        $reminderType = null;
-        if ($isCompleted) {
-            $reminderType = 'completed';
-        } else {
-            $isOverdue = (!empty($rawDueDate) && $rawDueDate < $today);
-            $isExplicitDelayed = ($status === 'Delayed');
-
-            if ($isOverdue || $isExplicitDelayed) {
-                $reminderType = 'delayed';
-            } elseif (!empty($rawDueDate)) {
-                $diffDays = (int)ceil((strtotime($rawDueDate) - strtotime($today)) / 86400);
-                if ($diffDays >= 0 && $diffDays <= 3) {
-                    $reminderType = 'due_soon';
-                }
-            }
-        }
-
-        if (!$reminderType) {
-            continue;
-        }
-
-        $targets = [];
-        $viewLink = "{$baseUrl}/faculty/view-activity.php?id={$actId}";
-        $dueDateDisplay = $rawDueDate ? date('M j, Y', strtotime($rawDueDate)) : 'No due date';
-
-        if ($reminderType === 'completed') {
-            $msg = ($assignedUserId && $assignedUserId !== $leaderId)
-                ? "Task Completed: Task '{$taskTitle}' assigned to {$assignedName} in '{$activityTitle}' has reached 100% / Completed."
-                : "Task Completed: Task '{$taskTitle}' in '{$activityTitle}' has reached 100% / Completed.";
-
-            $targets[] = [
-                'user_id'      => $leaderId,
-                'name'         => $leaderName,
-                'email'        => $leaderEmail,
-                'is_leader'    => true,
-                'message'      => $msg,
-                'subject'      => "Task Completed: {$taskTitle} - {$activityTitle}",
-                'status_label' => 'Completed',
-                'link'         => $viewLink,
-            ];
-        } elseif ($reminderType === 'due_soon') {
-            if ($assignedUserId) {
-                $targets[] = [
-                    'user_id'      => $assignedUserId,
-                    'name'         => $assignedName,
-                    'email'        => $assignedEmail,
-                    'is_leader'    => false,
-                    'message'      => "Task Reminder: Task '{$taskTitle}' in '{$activityTitle}' is approaching its deadline (Due: {$dueDateDisplay}). Current progress: {$completionPct}%.",
-                    'subject'      => "Task Due Soon: {$taskTitle} - {$activityTitle}",
-                    'status_label' => 'Due Soon',
-                    'link'         => $viewLink,
-                ];
-            }
-
-            if ($leaderId && $leaderId !== $assignedUserId) {
-                $targets[] = [
-                    'user_id'      => $leaderId,
-                    'name'         => $leaderName,
-                    'email'        => $leaderEmail,
-                    'is_leader'    => true,
-                    'message'      => "Task Monitoring: Task '{$taskTitle}' assigned to {$assignedName} in '{$activityTitle}' is approaching its deadline (Due: {$dueDateDisplay}). Current progress: {$completionPct}%.",
-                    'subject'      => "Task Approaching Deadline: {$taskTitle} - {$activityTitle}",
-                    'status_label' => 'Due Soon',
-                    'link'         => $viewLink,
-                ];
-            }
-        } elseif ($reminderType === 'delayed') {
-            if ($assignedUserId) {
-                $targets[] = [
-                    'user_id'      => $assignedUserId,
-                    'name'         => $assignedName,
-                    'email'        => $assignedEmail,
-                    'is_leader'    => false,
-                    'message'      => "Task Delayed: Task '{$taskTitle}' in '{$activityTitle}' is delayed (Due: {$dueDateDisplay}). Current progress: {$completionPct}%. Please update progress or submit deliverable.",
-                    'subject'      => "Task Delayed Alert: {$taskTitle} - {$activityTitle}",
-                    'status_label' => 'Delayed',
-                    'link'         => $viewLink,
-                ];
-            }
-
-            if ($leaderId && $leaderId !== $assignedUserId) {
-                $targets[] = [
-                    'user_id'      => $leaderId,
-                    'name'         => $leaderName,
-                    'email'        => $leaderEmail,
-                    'is_leader'    => true,
-                    'message'      => "Task Monitoring Alert: Task '{$taskTitle}' assigned to {$assignedName} in '{$activityTitle}' is delayed (Due: {$dueDateDisplay}). Current progress: {$completionPct}%.",
-                    'subject'      => "Task Monitoring: Task Delayed - {$taskTitle}",
-                    'status_label' => 'Delayed',
-                    'link'         => $viewLink,
-                ];
-            }
-        }
-
-        foreach ($targets as $target) {
-            $tUserId = (int)$target['user_id'];
-            if (!$tUserId) continue;
-
-            $checkLogStmt->execute([$taskId, $reminderType, $tUserId]);
-            $lastLog = $checkLogStmt->fetch(PDO::FETCH_ASSOC);
-
-            $shouldSend = false;
-            if (!$lastLog) {
-                $shouldSend = true;
-            } else {
-                if ($reminderType === 'due_soon' || $reminderType === 'delayed') {
-                    if ($lastLog['due_date'] !== $rawDueDate) {
-                        $shouldSend = true;
-                    }
-                }
-            }
-
-            if ($shouldSend) {
-                $insertNotifStmt->execute([$tUserId, $actId, $target['message']]);
-
-                $insertLogStmt->execute([
-                    $taskId,
-                    $actId,
-                    $tUserId,
-                    $reminderType,
-                    $status,
-                    $rawDueDate,
-                    $completionPct
-                ]);
-
-                if (!empty($target['email'])) {
-                    try {
-                        $emailService->sendNotification(
-                            $target['email'],
-                            $target['name'],
-                            $target['subject'],
-                            $activityTitle,
-                            $target['status_label'],
-                            $target['message'],
-                            $target['link'],
-                            $actId,
-                            "task_{$reminderType}_{$taskId}"
-                        );
-                    } catch (Throwable $e) {
-                        error_log("Failed sending task reminder email for task {$taskId} to {$target['email']}: " . $e->getMessage());
-                    }
-                }
-
-                $notifiedCount++;
-                $generatedReminders[] = [
-                    'task_id'       => $taskId,
-                    'activity_id'   => $actId,
-                    'user_id'       => $tUserId,
-                    'reminder_type' => $reminderType,
-                    'recipient'     => $target['name'],
-                    'message'       => $target['message']
-                ];
-            }
-        }
-    }
-
-    return [
-        'checked'   => count($tasks),
-        'notified'  => $notifiedCount,
-        'reminders' => $generatedReminders
-    ];
 }
 
 // Post-Activity Compliance calculation helper
@@ -1550,6 +1595,137 @@ function sendTaskAssignmentNotification(PDO $db, int $assignedUserId, int $activ
  * - 'THM Department', 'THM', 'Hospitality and Tourism' -> 'THM'
  * - 'G.E. Department', 'GE', 'General Education Department' -> 'GE'
  */
+/**
+ * Resolves the department string for the given user (or current session user),
+ * falling back to a database lookup if the session/array department is empty.
+ */
+function resolveUserDepartment(?PDO $db = null, ?array $user = null): string
+{
+    $dept = trim((string)($user['dept'] ?? $user['department'] ?? $_SESSION['user_dept'] ?? ''));
+    $userId = (int)($user['id'] ?? $_SESSION['user_id'] ?? 0);
+    if ($dept === '' && $userId > 0) {
+        $db = $db ?: (function_exists('getDB') ? getDB() : ($GLOBALS['testDb'] ?? null));
+        if ($db) {
+            try {
+                $stmt = $db->prepare("SELECT department FROM users WHERE id = ? LIMIT 1");
+                $stmt->execute([$userId]);
+                $dept = trim((string)$stmt->fetchColumn());
+                if ($dept !== '' && isset($_SESSION)) {
+                    $_SESSION['user_dept'] = $dept;
+                }
+            } catch (\Throwable $e) {
+                // Ignore DB lookup errors
+            }
+        }
+    }
+    return $dept;
+}
+
+/**
+ * Builds a safe, normalized SQL condition matching all naming variants of a department
+ * (IT Department, THM Department, G.E. Department) on the specified SQL column expression.
+ * Never matches across different departments.
+ */
+function buildDepartmentSqlCondition(string $columnExpr, ?string $dept): string
+{
+    $norm = normalizeDepartmentName($dept);
+    if ($norm === 'IT') {
+        return "({$columnExpr} IN ('IT Department', 'Information Technology Department', 'IT', 'Information Technology', 'I.T. Department') OR {$columnExpr} LIKE '%Information Technology%')";
+    }
+    if ($norm === 'THM') {
+        return "({$columnExpr} IN ('THM Department', 'Tourism and Hospitality Management', 'Hospitality and Tourism Management', 'THM', 'Tourism & Hospitality Management') OR {$columnExpr} LIKE '%THM%' OR {$columnExpr} LIKE '%Tourism%' OR {$columnExpr} LIKE '%Hospitality%')";
+    }
+    if ($norm === 'GE') {
+        return "({$columnExpr} IN ('G.E. Department', 'General Education Department', 'GE Department', 'GE', 'G.E.', 'General Education') OR {$columnExpr} LIKE '%G.E%' OR {$columnExpr} LIKE '%General Education%')";
+    }
+    if ($norm === '') {
+        return "(1=0)";
+    }
+    $db = function_exists('getDB') ? getDB() : ($GLOBALS['testDb'] ?? null);
+    $quoted = $db ? $db->quote(trim((string)$dept)) : "'" . addslashes(trim((string)$dept)) . "'";
+    return "({$columnExpr} = {$quoted})";
+}
+
+/**
+ * Returns department-specific metadata, labels, and official faculty roster
+ * for the IT, THM, and G.E. Program Head dashboards.
+ */
+function getDepartmentDashboardConfig(?string $dept): array
+{
+    $norm = normalizeDepartmentName($dept);
+    $rosters = [
+        'IT' => [
+            'code' => 'IT',
+            'short_label' => 'IT Department',
+            'full_label' => 'Information Technology Department',
+            'dashboard_title' => 'IT Program Head Dashboard',
+            'subtitle' => 'Information Technology Department — Proposals, Activities, Faculty, Tasks & Schedules',
+            'roster' => [
+                'Mr. Dave Lord M. Rubaya',
+                'Ms. Michelle Carlos, MAEd, LPT',
+                'Mr. Ar-Jay C. Agbayani',
+                'Ms. Emilou G. Magnaye, LPT',
+                'Mr. John Cedrick Agapito',
+                'Mr. Jedekiah Veloso',
+                'Mr. Shintaro Lagare',
+                'Mr. Geo V. De Leon',
+                'Ms. Johainna Kristel T. Montejo',
+                'Mr. Felmar Solbita',
+                'Mr. Michael André Sayson',
+            ],
+        ],
+        'THM' => [
+            'code' => 'THM',
+            'short_label' => 'THM Department',
+            'full_label' => 'Tourism & Hospitality Management Department',
+            'dashboard_title' => 'THM Program Head Dashboard',
+            'subtitle' => 'THM Department — Proposals, Activities, Faculty, Tasks & Schedules',
+            'roster' => [
+                'Mr. Aldwin D. Alminar, LPT',
+                'Ms. Andrea J. Gatbunton, LPT',
+                'Ms. Divine Grace E. Ibarrola, LPT',
+                'Ms. Mary Darlene A. Mariano, LPT',
+                'Ms. Julieta Caridad C. Cruz',
+                'Mr. Exequiel L. Magnipis',
+                'Mr. Frankie Chiu, RN, MBA',
+            ],
+        ],
+        'GE' => [
+            'code' => 'GE',
+            'short_label' => 'G.E. Department',
+            'full_label' => 'General Education Department',
+            'dashboard_title' => 'G.E. Program Head Dashboard',
+            'subtitle' => 'General Education Department — Proposals, Activities, Faculty, Tasks & Schedules',
+            'roster' => [
+                'Mr. Tristan S. Unabia',
+                'Mr. Ian Jade C. Barangan, LPT',
+                'Mr. Eulysses Neil Patrick B. Edquilag, LPT',
+                'Mr. Gregg Anthony J. Rana',
+                'Mr. Ricky E. Manliguis, LPT',
+                'Ms. Regina Kate D. Dominguez, LPT',
+                'Mr. Benedicto A. Arnoco, LPT',
+                'Ms. Jennylyn Q. Abarra, MAEd PE, LPT',
+                'Ms. Ruby Ann G. Dasalla, LPT',
+                'Ms. Perine O. Dela Cruz, LPT',
+            ],
+        ],
+    ];
+
+    if (isset($rosters[$norm])) {
+        return $rosters[$norm];
+    }
+
+    $cleanLabel = trim((string)$dept) ?: 'Department';
+    return [
+        'code' => $norm ?: 'DEPT',
+        'short_label' => $cleanLabel,
+        'full_label' => $cleanLabel,
+        'dashboard_title' => $cleanLabel . ' Program Head Dashboard',
+        'subtitle' => $cleanLabel . ' — Proposals, Activities, Faculty, Tasks & Schedules',
+        'roster' => [],
+    ];
+}
+
 function normalizeDepartmentName(?string $dept): string
 {
     if (!$dept) {
@@ -1614,19 +1790,14 @@ function canUserAccessActivity(int $activityId, string $action = 'view', ?int $u
         return false;
     }
 
-    // 1. Dean, Admin 1, and Admin 2 have full institutional access across departments
-    if (in_array($userRole, ['dean', 'admin1', 'admin2'], true)) {
-        return true;
-    }
-
     $db = function_exists('getDB') ? getDB() : ($GLOBALS['testDb'] ?? null);
     if (!$db) {
         return false;
     }
 
-    // Fetch activity and creator details
+    // Fetch activity and creator details (including status for draft privacy enforcement)
     $stmt = $db->prepare("
-        SELECT a.id, a.faculty_id, u.department AS creator_department
+        SELECT a.id, a.faculty_id, a.status, u.department AS creator_department
         FROM activities a
         LEFT JOIN users u ON a.faculty_id = u.id
         WHERE a.id = ?
@@ -1640,9 +1811,48 @@ function canUserAccessActivity(int $activityId, string $action = 'view', ?int $u
 
     $creatorId = (int)$act['faculty_id'];
     $creatorDept = (string)($act['creator_department'] ?? '');
+    $actStatus = strtolower(trim((string)($act['status'] ?? 'draft')));
     $isCreator = ($creatorId === (int)$userId);
 
-    // 2. Faculty access rules
+    // STRICT GLOBAL DRAFT PRIVACY RULE:
+    // Proposals saved as 'draft' are strictly private to the creator and explicitly invited active collaborators.
+    if ($actStatus === 'draft') {
+        if ($isCreator) {
+            return true;
+        }
+        try {
+            $collabStmt = $db->prepare("
+                SELECT COUNT(*) FROM proposal_collaborators 
+                WHERE activity_id = ? AND user_id = ? AND status = 'active'
+            ");
+            $collabStmt->execute([$activityId, $userId]);
+            if ((int)$collabStmt->fetchColumn() > 0) {
+                return true;
+            }
+        } catch (\PDOException $e) {
+            // Fallback gracefully if table not yet migrated
+        }
+        return false;
+    }
+
+        // 1. Admin 1 (Committee Review) and Admin 2 reviewers have access to non-draft proposals
+    if (in_array($userRole, ['admin1', 'admin2'], true)) {
+        return true;
+    }
+
+    // 2. Dean (Final Approver) access rules:
+    // The Dean only has access when the proposal has reached final approval stage ('pending_final_approval'),
+    // has already been institutionalized ('approved', 'completed'), or where Dean was recorded in approval logs.
+    if ($userRole === 'dean') {
+        if (in_array($actStatus, ['pending_final_approval', 'pending_dean_approval', 'approved', 'completed'], true)) {
+            return true;
+        }
+        $deanLogStmt = $db->prepare("SELECT COUNT(*) FROM approval_logs WHERE activity_id = ? AND reviewer_id = ?");
+        $deanLogStmt->execute([$activityId, $userId]);
+        return ((int)$deanLogStmt->fetchColumn() > 0);
+    }
+
+    // 3. Faculty access rules
     if ($userRole === 'faculty') {
         if ($isCreator) {
             return true;
@@ -1665,40 +1875,23 @@ function canUserAccessActivity(int $activityId, string $action = 'view', ?int $u
         if ($action === 'modify') {
             return false;
         }
-        // Action is 'view'
-        $taskStmt = $db->prepare("SELECT COUNT(*) FROM faculty_tasks WHERE activity_id = ? AND assigned_user_id = ?");
-        $taskStmt->execute([$activityId, $userId]);
-        return ((int)$taskStmt->fetchColumn() > 0);
+        // Action is 'view': Only allowed if the activity is ALREADY approved or completed and user is assigned a task
+        if (in_array($actStatus, ['approved', 'completed'], true)) {
+            $taskStmt = $db->prepare("SELECT COUNT(*) FROM faculty_tasks WHERE activity_id = ? AND assigned_user_id = ?");
+            $taskStmt->execute([$activityId, $userId]);
+            return ((int)$taskStmt->fetchColumn() > 0);
+        }
+
+        return false;
     }
 
-    // 3. Program Head access rules
+    // 4. Program Head access rules (Strictly isolated to their own department: IT, THM, or G.E.)
     if ($userRole === 'program_head') {
-        if (empty($userDept)) {
-            $uStmt = $db->prepare("SELECT department FROM users WHERE id = ? LIMIT 1");
-            $uStmt->execute([$userId]);
-            $userDept = (string)$uStmt->fetchColumn();
-        }
-
-        // Check if activity belongs to this Program Head's department
-        $deptMatches = false;
-        if (!empty($userDept) && !empty($creatorDept)) {
-            if (strcasecmp(trim($userDept), trim($creatorDept)) === 0) {
-                $deptMatches = true;
-            } else {
-                $normUser = normalizeDepartmentName($userDept);
-                $normCreator = normalizeDepartmentName($creatorDept);
-                if ($normUser !== '' && $normUser === $normCreator) {
-                    $deptMatches = true;
-                }
-            }
-        }
-
-        // Own activity or department activity
-        if ($isCreator || $deptMatches) {
+        if ($isCreator) {
             return true;
         }
 
-        // Active collaborator check
+        // Active collaborator check (Co-Author or Contributor)
         try {
             $collabStmt = $db->prepare("
                 SELECT COUNT(*) FROM proposal_collaborators 
@@ -1712,41 +1905,26 @@ function canUserAccessActivity(int $activityId, string $action = 'view', ?int $u
             // Fallback gracefully
         }
 
-        // If action is modify and not in their department, strictly deny
-        if ($action === 'modify') {
-            return false;
+        if (empty($userDept)) {
+            $uStmt = $db->prepare("SELECT department FROM users WHERE id = ? LIMIT 1");
+            $uStmt->execute([$userId]);
+            $userDept = (string)$uStmt->fetchColumn();
         }
 
-        // If action is view, check for shared / cross-department activity involvement
-        // Check if Program Head themselves is assigned to a task
-        $phTaskStmt = $db->prepare("SELECT COUNT(*) FROM faculty_tasks WHERE activity_id = ? AND assigned_user_id = ?");
-        $phTaskStmt->execute([$activityId, $userId]);
-        if ((int)$phTaskStmt->fetchColumn() > 0) {
-            return true;
-        }
-
-        // Check if any task in this activity is assigned to a faculty member in the Program Head's department
-        $sharedStmt = $db->prepare("
-            SELECT u.department
-            FROM faculty_tasks ft
-            JOIN users u ON ft.assigned_user_id = u.id
-            WHERE ft.activity_id = ?
-        ");
-        $sharedStmt->execute([$activityId]);
-        $tasks = $sharedStmt->fetchAll(PDO::FETCH_ASSOC);
-
-        $normUserDept = normalizeDepartmentName($userDept);
-        foreach ($tasks as $t) {
-            $tDept = (string)($t['department'] ?? '');
-            if (strcasecmp(trim($tDept), trim($userDept)) === 0) {
+        // Program Head has full department-level visibility and management over non-draft
+        // proposals and activities belonging to their own department (IT, THM, or G.E.),
+        // and NO access to other departments' proposals or activities.
+        if (!empty($userDept) && !empty($creatorDept)) {
+            if (strcasecmp(trim($userDept), trim($creatorDept)) === 0) {
                 return true;
             }
-            if ($normUserDept !== '' && normalizeDepartmentName($tDept) === $normUserDept) {
+            $normUser = normalizeDepartmentName($userDept);
+            $normCreator = normalizeDepartmentName($creatorDept);
+            if ($normUser !== '' && $normUser === $normCreator) {
                 return true;
             }
         }
 
-        // Belonging exclusively to another department with no shared tasks -> strictly deny
         return false;
     }
 
@@ -2015,6 +2193,94 @@ if (!function_exists('getOfficialFacultyRoster')) {
     }
 }
 
+if (!function_exists('ensureOfficialFacultyAccountsExist')) {
+    /**
+     * Globally ensures all 28 official faculty members from the STI organizational charts
+     * have active user accounts in the database so all names are clickable in contributor selection.
+     */
+    function ensureOfficialFacultyAccountsExist(?PDO $db = null): void {
+        $db = $db ?? (function_exists('getDB') ? getDB() : null);
+        if (!$db) return;
+
+        static $alreadyEnsured = false;
+        if ($alreadyEnsured) return;
+        $alreadyEnsured = true;
+
+        if (!function_exists('getOfficialFacultyRoster') || !function_exists('cleanFacultyNameKey')) {
+            return;
+        }
+
+        $roster = getOfficialFacultyRoster();
+        $defaultPasswordHash = password_hash('password', PASSWORD_BCRYPT);
+
+        try {
+            $stmt = $db->query("SELECT id, name, email, department, role FROM users");
+            $existingUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            return;
+        }
+
+        $insertStmt = $db->prepare("
+            INSERT INTO users (name, email, password, role, department, created_at)
+            VALUES (?, ?, ?, 'faculty', ?, NOW())
+        ");
+
+        foreach ($roster as $dept => $names) {
+            foreach ($names as $officialName) {
+                if (stripos($officialName, 'Frederic') !== false && stripos($officialName, 'Yulo') !== false) {
+                    continue;
+                }
+
+                $offKey = cleanFacultyNameKey($officialName);
+                $found = false;
+
+                foreach ($existingUsers as $u) {
+                    if (cleanFacultyNameKey($u['name']) === $offKey) {
+                        $found = true;
+                        break;
+                    }
+                    similar_text($offKey, cleanFacultyNameKey($u['name']), $pct);
+                    if ($pct >= 85) {
+                        $found = true;
+                        break;
+                    }
+                }
+
+                if (!$found) {
+                    $cleanParts = array_values(array_filter(explode(' ', preg_replace('/[^a-zA-Z\s]/', '', $officialName))));
+                    $firstName = strtolower($cleanParts[0] ?? 'faculty');
+                    $lastName = strtolower(end($cleanParts) ?? 'member');
+                    $baseEmail = $firstName . '.' . $lastName . '@marikina.sti.edu.ph';
+
+                    $email = $baseEmail;
+                    $counter = 1;
+                    $emailCheck = $db->prepare("SELECT COUNT(*) FROM users WHERE email = ?");
+                    while (true) {
+                        $emailCheck->execute([$email]);
+                        if ((int)$emailCheck->fetchColumn() === 0) break;
+                        $counter++;
+                        $email = $firstName . '.' . $lastName . $counter . '@marikina.sti.edu.ph';
+                    }
+
+                    try {
+                        $insertStmt->execute([$officialName, $email, $defaultPasswordHash, $dept]);
+                        $newId = (int)$db->lastInsertId();
+                        $existingUsers[] = [
+                            'id' => $newId,
+                            'name' => $officialName,
+                            'email' => $email,
+                            'department' => $dept,
+                            'role' => 'faculty'
+                        ];
+                    } catch (\Throwable $e) {
+                        error_log("Failed to insert faculty account {$officialName}: " . $e->getMessage());
+                    }
+                }
+            }
+        }
+    }
+}
+
 if (!function_exists('getEligibleFacultyForDropdown')) {
     /**
      * Retrieves all 28 faculty members from the official STI organizational charts for the collaborator dropdown.
@@ -2029,6 +2295,9 @@ if (!function_exists('getEligibleFacultyForDropdown')) {
     function getEligibleFacultyForDropdown(?PDO $db = null, array $excludeIds = [], string $search = ''): array {
         $db = $db ?? (function_exists('getDB') ? getDB() : null);
         if (!$db) return [];
+        if (function_exists('ensureOfficialFacultyAccountsExist')) {
+            ensureOfficialFacultyAccountsExist($db);
+        }
 
         $cleanExcludeIds = array_unique(array_filter(array_map('intval', $excludeIds)));
 
@@ -2137,7 +2406,7 @@ if (!function_exists('getEligibleFacultyForDropdown')) {
                         continue;
                     }
 
-                    $isEligibleRole = in_array($matchedUser['role'], ['faculty', 'program_head'], true);
+                    $isEligibleRole = in_array($matchedUser['role'], ['faculty', 'program_head', 'admin1', 'admin2'], true);
                     if (!$isEligibleRole) {
                         // Requirement 5: Accounts with ineligible roles disabled and labeled "Not Eligible"
                         $cleanList[] = [
@@ -2786,3 +3055,29 @@ if (!function_exists('calculateAttendanceRate')) {
 
 
 
+
+
+/**
+ * Universal Activity Archiving Schema Helper
+ * Ensures `is_archived`, `archived_at`, and `archived_by` exist on `activities` table.
+ */
+function ensureActivitiesArchiveSchema(PDO $db): void
+{
+    static $ensured = false;
+    if ($ensured) return;
+    try {
+        $cols = $db->query("SHOW COLUMNS FROM activities LIKE 'is_archived'")->fetchAll();
+        if (empty($cols)) {
+            $db->exec("
+                ALTER TABLE activities 
+                ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0,
+                ADD COLUMN archived_at DATETIME NULL DEFAULT NULL,
+                ADD COLUMN archived_by INT(11) NULL DEFAULT NULL,
+                ADD KEY idx_activities_archived (is_archived, status)
+            ");
+        }
+        $ensured = true;
+    } catch (\Throwable $e) {
+        // Safe fallback if column exists or restricted
+    }
+}

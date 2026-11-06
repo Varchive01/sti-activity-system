@@ -8,7 +8,7 @@ $user = currentUser();
 $db   = getDB();
 
 $search = sanitize($_GET['q'] ?? '');
-$where  = "a.source='student_org' AND a.status='under_review'";
+$where  = "a.source = 'student_org' AND a.status IN ('under_review', 'submitted', 'resubmitted')";
 $params = [];
 if ($search) {
   $where .= " AND (a.title LIKE ? OR u.name LIKE ?)";

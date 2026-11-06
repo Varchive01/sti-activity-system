@@ -9,31 +9,55 @@ $user = currentUser();
 $db   = getDB();
 
 // Stagnant proposals escalation check
-checkProposalEscalations($db, $user['id'], $user['role']);
+try {
+    checkProposalEscalations($db, $user['id'], $user['role']);
+} catch (\Throwable $e) {
+    error_log("Dean dashboard escalation check error: " . $e->getMessage());
+}
 
 // Task progress reminders check (monitored activities; Dean receives no individual task spam)
-checkTaskProgressReminders($db, $user['id'], $user['role']);
+try {
+    checkTaskProgressReminders($db, $user['id'], $user['role']);
+} catch (\Throwable $e) {
+    error_log("Dean dashboard task reminder check error: " . $e->getMessage());
+}
 
-// Period and Year Filter (Preserving existing semester conventions)
-$selectedYear = (int)($_GET['year'] ?? date('Y'));
+// Period and Year Filter (Dynamic with database years)
+$currentYear = (int)date('Y');
+$selectedYear = isset($_GET['year']) ? ($_GET['year'] === 'all' ? 'all' : (int)$_GET['year']) : 'all';
 $selectedPeriod = sanitize($_GET['period'] ?? 'all');
-$availableYears = range(date('Y'), date('Y') - 4);
+
+// Discover available years dynamically from activities table
+$availableYears = [$currentYear, $currentYear + 1];
+try {
+    $dbYears = $db->query("SELECT DISTINCT YEAR(event_date) as yr FROM activities WHERE event_date IS NOT NULL AND event_date != '0000-00-00' ORDER BY yr DESC")->fetchAll(PDO::FETCH_COLUMN);
+    if (!empty($dbYears)) {
+        $availableYears = array_values(array_unique(array_merge($availableYears, array_map('intval', $dbYears))));
+        rsort($availableYears);
+    }
+} catch (\Throwable $e) {}
 
 // Notifications
-$unreadStmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
-$unreadStmt->execute([$user['id']]);
-$unreadCount = (int)$unreadStmt->fetchColumn();
+$unreadCount = 0;
+$notifications = [];
+try {
+    $unreadStmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+    $unreadStmt->execute([$user['id']]);
+    $unreadCount = (int)$unreadStmt->fetchColumn();
 
-$notifStmt = $db->prepare("
-    SELECT n.*, a.title as activity_title
-    FROM notifications n
-    LEFT JOIN activities a ON n.activity_id = a.id
-    WHERE n.user_id = ?
-    ORDER BY n.created_at DESC
-    LIMIT 10
-");
-$notifStmt->execute([$user['id']]);
-$notifications = $notifStmt->fetchAll();
+    $notifStmt = $db->prepare("
+        SELECT n.*, a.title as activity_title
+        FROM notifications n
+        LEFT JOIN activities a ON n.activity_id = a.id
+        WHERE n.user_id = ?
+        ORDER BY n.created_at DESC
+        LIMIT 10
+    ");
+    $notifStmt->execute([$user['id']]);
+    $notifications = $notifStmt->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Dean dashboard notifications error: " . $e->getMessage());
+}
 
 $initial = strtoupper(substr($user['name'], 0, 1));
 
@@ -48,7 +72,20 @@ function timeAgo($datetime)
 }
 
 // 1. Centralized Institutional KPI Summary (Deterministic PHP logic)
-$summary = getInstitutionalKpiSummary($selectedYear, $selectedPeriod, $db);
+$summary = [
+    'statistics' => ['total' => 0, 'pending' => 0, 'approved' => 0, 'completed' => 0, 'returned' => 0, 'rejected' => 0, 'returned_rejected' => 0],
+    'kpi_performance' => [
+        'completed_with_kpi' => 0, 'meeting_targets' => 0, 'near_targets' => 0, 'below_targets' => 0,
+        'overall_performance' => null, 'overall_status' => 'Insufficient Data', 'avg_kpi_rating' => '—',
+        'avg_satisfaction' => '—', 'attendance_rate' => '—', 'raw_attendance_rate' => '—',
+        'attendance_status' => 'Insufficient Data', 'has_data' => false
+    ]
+];
+try {
+    $summary = getInstitutionalKpiSummary($selectedYear, $selectedPeriod, $db, (int)$user['id']);
+} catch (\Throwable $e) {
+    error_log("Dean dashboard KPI summary error: " . $e->getMessage());
+}
 $stats = $summary['statistics'];
 $kpiPerf = $summary['kpi_performance'];
 
@@ -60,41 +97,63 @@ $pDeanReturned = round(((int)($stats['returned'] ?? 0) / $dTot) * 100, 1);
 $pDeanRejected = round(((int)($stats['rejected'] ?? 0) / $dTot) * 100, 1);
 
 // 2. Approval Trends for Selected Period
-$approvalTrends = getApprovalTrends($selectedYear, $selectedPeriod, $db);
+$approvalTrends = ['months' => [], 'max_count' => 1, 'total_approved' => 0, 'total_returned' => 0];
+try {
+    $approvalTrends = getApprovalTrends($selectedYear, $selectedPeriod, $db, null, (int)$user['id']);
+} catch (\Throwable $e) {
+    error_log("Dean dashboard approval trends error: " . $e->getMessage());
+}
 
 // 3. Status and Source Breakdown for Selected Period
 $periodBounds = buildPeriodWhereClause($selectedYear, $selectedPeriod, 'a.event_date');
 $whereClause = $periodBounds['where'];
 $params = $periodBounds['params'];
 
-$statusStmt = $db->prepare("
-  SELECT status, COUNT(*) as cnt FROM activities a WHERE {$whereClause} GROUP BY status ORDER BY cnt DESC
-");
-$statusStmt->execute($params);
-$by_status = $statusStmt->fetchAll();
+$by_status = [];
+$by_source = [];
+$recent_all = [];
 
-$sourceStmt = $db->prepare("
-  SELECT source, COUNT(*) as cnt FROM activities a WHERE {$whereClause} GROUP BY source
-");
-$sourceStmt->execute($params);
-$by_source = $sourceStmt->fetchAll();
+try {
+    $statusStmt = $db->prepare("
+      SELECT status, COUNT(*) as cnt FROM activities a WHERE {$whereClause} AND a.status IN ('pending_final_approval', 'approved', 'completed') GROUP BY status ORDER BY cnt DESC
+    ");
+    $statusStmt->execute($params);
+    $by_status = $statusStmt->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Dean dashboard status breakdown error: " . $e->getMessage());
+}
 
-// 4. Recent Activities (System-wide View)
-$recentStmt = $db->prepare("
-  SELECT a.*, u.name as fname 
-  FROM activities a 
-  JOIN users u ON a.faculty_id=u.id 
-  WHERE {$whereClause}
-  ORDER BY a.updated_at DESC LIMIT 10
-");
-$recentStmt->execute($params);
-$recent_all = $recentStmt->fetchAll();
-if (empty($recent_all)) {
-    // If no activities in the filtered period, show latest 10 overall
-    $recent_all = $db->query("
-      SELECT a.*, u.name as fname FROM activities a JOIN users u ON a.faculty_id=u.id
+try {
+    $sourceStmt = $db->prepare("
+      SELECT source, COUNT(*) as cnt FROM activities a WHERE {$whereClause} AND a.status IN ('pending_final_approval', 'approved', 'completed') GROUP BY source
+    ");
+    $sourceStmt->execute($params);
+    $by_source = $sourceStmt->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Dean dashboard source breakdown error: " . $e->getMessage());
+}
+
+// 4. Recent Activities (System-wide View - Excludes Private Unsubmitted Drafts)
+try {
+    $recentStmt = $db->prepare("
+      SELECT a.*, u.name as fname 
+      FROM activities a 
+      JOIN users u ON a.faculty_id=u.id 
+      WHERE {$whereClause} AND a.status IN ('pending_final_approval', 'approved', 'completed')
       ORDER BY a.updated_at DESC LIMIT 10
-    ")->fetchAll();
+    ");
+    $recentStmt->execute($params);
+    $recent_all = $recentStmt->fetchAll();
+    if (empty($recent_all)) {
+        // If no activities in the filtered period, show latest 10 non-draft overall
+        $recent_all = $db->query("
+          SELECT a.*, u.name as fname FROM activities a JOIN users u ON a.faculty_id=u.id
+          WHERE a.status IN ('pending_final_approval', 'approved', 'completed')
+          ORDER BY a.updated_at DESC LIMIT 10
+        ")->fetchAll();
+    }
+} catch (\Throwable $e) {
+    error_log("Dean dashboard recent activities error: " . $e->getMessage());
 }
 ?>
 <!DOCTYPE html>
@@ -1097,9 +1156,7 @@ if (empty($recent_all)) {
         <!-- Year and Reporting Period Filter -->
         <form method="GET" class="topbar-filter-form" style="display:flex;gap:6px;align-items:center;">
           <select name="year" class="form-control" style="width:85px;padding:3px 8px;font-size:0.78rem;height:28px;">
-            <?php foreach ($availableYears as $y): ?>
-              <option value="<?= $y ?>" <?= $selectedYear === $y ? 'selected' : '' ?>><?= $y ?></option>
-            <?php endforeach; ?>
+            <option value="all" <?= $selectedYear === 'all' ? 'selected' : '' ?>>All Years</option><?php foreach ($availableYears as $yr): ?><option value="<?= $yr ?>" <?= (string)$selectedYear === (string)$yr ? 'selected' : '' ?>><?= $yr ?></option><?php endforeach; ?>
           </select>
           <select name="period" class="form-control" style="width:140px;padding:3px 8px;font-size:0.78rem;height:28px;">
             <option value="all" <?= $selectedPeriod === 'all' ? 'selected' : '' ?>>Whole Year</option>

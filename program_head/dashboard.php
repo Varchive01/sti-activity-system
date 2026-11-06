@@ -18,96 +18,211 @@ requireRole('program_head');
 $user = currentUser();
 $db   = getDB();
 
-// 1. Identify authenticated Program Head's assigned department
-$dept = trim($user['dept'] ?? '');
-if (empty($dept)) {
-    $uStmt = $db->prepare("SELECT department FROM users WHERE id = ? LIMIT 1");
-    $uStmt->execute([$user['id']]);
-    $dept = (string)$uStmt->fetchColumn();
-}
+// 1. Identify authenticated Program Head's assigned department (IT, THM, or G.E.)
+$dept = resolveUserDepartment($db, $user);
+$user['dept'] = $dept;
 $normDept = normalizeDepartmentName($dept);
+$deptConfig = getDepartmentDashboardConfig($dept);
+$deptLabel = $deptConfig['short_label'];
+$deptFullLabel = $deptConfig['full_label'];
+$dashboardTitle = $deptConfig['dashboard_title'];
+$deptSqlU = buildDepartmentSqlCondition('u.department', $dept);
+$deptSqlCreator = buildDepartmentSqlCondition('u_creator.department', $dept);
 
 // Task progress reminders check
 if (function_exists('checkTaskProgressReminders')) {
-    checkTaskProgressReminders($db, $user['id'], $user['role']);
+    try {
+        checkTaskProgressReminders($db, $user['id'], $user['role']);
+    } catch (\Throwable $e) {
+        error_log("Program Head dashboard task reminder check error: " . $e->getMessage());
+    }
 }
 
-// 2. Department Overview Statistics (Section A)
-$statsStmt = $db->prepare("
-    SELECT
-        COUNT(DISTINCT a.id) as total,
-        SUM(CASE WHEN a.status IN ('submitted', 'under_review', 'endorsed', 'pending_final_approval', 'resubmitted') THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN a.status = 'approved' THEN 1 ELSE 0 END) as approved,
-        SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN a.status = 'draft' THEN 1 ELSE 0 END) as drafts,
-        SUM(CASE WHEN a.status = 'returned_for_revision' THEN 1 ELSE 0 END) as revisions
-    FROM activities a
-    JOIN users u ON a.faculty_id = u.id
-    WHERE (u.department = ? OR a.faculty_id = ?)
-");
-$statsStmt->execute([$dept, $user['id']]);
-$stats = $statsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+// 2. Department Overview Statistics (Section A — Strictly Scoped to Program Head's Department)
+$stats = [];
+try {
+    $userId = (int)$user['id'];
+    $statsStmt = $db->prepare("
+        SELECT
+            COUNT(DISTINCT CASE WHEN a.status NOT IN ('draft', 'submitted', 'under_review', 'resubmitted') THEN a.id END) as total,
+            SUM(CASE WHEN a.status IN ('submitted', 'under_review', 'endorsed', 'pending_final_approval', 'resubmitted') AND (a.faculty_id = {$userId} OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$userId} AND pc.status = 'active')) THEN 1 ELSE 0 END) as pending,
+            SUM(CASE WHEN a.status = 'approved' THEN 1 ELSE 0 END) as approved,
+            SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END) as completed,
+            SUM(CASE WHEN a.status = 'draft' AND a.faculty_id = {$userId} THEN 1 ELSE 0 END) as drafts,
+            SUM(CASE WHEN a.status = 'returned_for_revision' AND (a.faculty_id = {$userId} OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$userId} AND pc.status = 'active')) THEN 1 ELSE 0 END) as revisions
+        FROM activities a
+        JOIN users u ON a.faculty_id = u.id
+        WHERE (
+            a.faculty_id = ?
+            OR ({$deptSqlU} AND a.status != 'draft')
+            OR EXISTS (
+                SELECT 1 FROM proposal_collaborators pc
+                WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active'
+            )
+        )
+    ");
+    $statsStmt->execute([$userId, $userId]);
+    $stats = $statsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+} catch (\Throwable $e) {
+    error_log("Program Head dashboard stats error: " . $e->getMessage());
+    $stats = [];
+}
 
 $totalActivities = (int)($stats['total'] ?? 0);
 $pendingProposals = (int)($stats['pending'] ?? 0);
 $approvedActivities = (int)($stats['approved'] ?? 0);
 $completedActivities = (int)($stats['completed'] ?? 0);
+$draftProposals = (int)($stats['drafts'] ?? 0);
+$returnedProposals = (int)($stats['revisions'] ?? 0);
 
-// 3. Department Activity Monitoring (Section B)
-$deptActsStmt = $db->prepare("
-    SELECT a.*, u.name as faculty_name, u.email as faculty_email,
-           COUNT(ft.id) as task_count,
-           ROUND(AVG(ft.completion_pct)) as avg_progress,
-           SUM(CASE WHEN ft.status = 'Delayed' OR (ft.due_date IS NOT NULL AND ft.due_date < CURDATE() AND ft.status != 'Completed') THEN 1 ELSE 0 END) as delayed_tasks
-    FROM activities a
-    JOIN users u ON a.faculty_id = u.id
-    LEFT JOIN faculty_tasks ft ON a.id = ft.activity_id
-    WHERE (u.department = ? OR a.faculty_id = ?)
-    GROUP BY a.id
-    ORDER BY a.updated_at DESC
-    LIMIT 20
-");
-$deptActsStmt->execute([$dept, $user['id']]);
-$departmentActivities = $deptActsStmt->fetchAll(PDO::FETCH_ASSOC);
+// 3. Department Proposals & Activities (Section B — Strictly Scoped to Program Head's Department)
+$departmentActivities = [];
+try {
+    $deptActsStmt = $db->prepare("
+        SELECT a.*, u.name as faculty_name, u.email as faculty_email, u.department as creator_department,
+               COUNT(ft.id) as task_count,
+               ROUND(AVG(ft.completion_pct)) as avg_progress,
+               SUM(CASE WHEN ft.status = 'Delayed' OR (ft.due_date IS NOT NULL AND ft.due_date < CURDATE() AND ft.status != 'Completed') THEN 1 ELSE 0 END) as delayed_tasks
+        FROM activities a
+        JOIN users u ON a.faculty_id = u.id
+        LEFT JOIN faculty_tasks ft ON a.id = ft.activity_id
+        WHERE (
+            a.faculty_id = ?
+            OR ({$deptSqlU} AND a.status != 'draft')
+            OR EXISTS (
+                SELECT 1 FROM proposal_collaborators pc
+                WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active'
+            )
+        )
+        GROUP BY a.id
+        ORDER BY a.updated_at DESC
+        LIMIT 20
+    ");
+    $deptActsStmt->execute([$user['id'], $user['id']]);
+    $departmentActivities = $deptActsStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (\Throwable $e) {
+    error_log("Program Head dashboard dept activities error: " . $e->getMessage());
+    $departmentActivities = [];
+}
 
-// 4. Department Faculty Task Monitoring (Section C)
-$tasksStmt = $db->prepare("
-    SELECT ft.*, a.id as activity_id, a.title as activity_title, a.status as activity_status,
-           u.name as assigned_name, u.department as assigned_dept
-    FROM faculty_tasks ft
-    JOIN users u ON ft.assigned_user_id = u.id
-    JOIN activities a ON ft.activity_id = a.id
-    WHERE (u.department = ? OR ft.assigned_user_id = ?)
-    ORDER BY 
-        CASE WHEN ft.status = 'Delayed' THEN 1
-             WHEN ft.status = 'In Progress' THEN 2
-             WHEN ft.status = 'Not Started' THEN 3
-             ELSE 4 END,
-        ft.due_date ASC, ft.id DESC
-    LIMIT 20
-");
-$tasksStmt->execute([$dept, $user['id']]);
-$departmentTasks = $tasksStmt->fetchAll(PDO::FETCH_ASSOC);
+// 4. Department Faculty Task Monitoring (Section C — Strictly Scoped to Department Activities & Faculty)
+$departmentTasks = [];
+try {
+    $tasksStmt = $db->prepare("
+        SELECT ft.*, a.id as activity_id, a.title as activity_title, a.status as activity_status,
+               u.name as assigned_name, u.department as assigned_dept
+        FROM faculty_tasks ft
+        JOIN users u ON ft.assigned_user_id = u.id
+        JOIN activities a ON ft.activity_id = a.id
+        JOIN users u_creator ON a.faculty_id = u_creator.id
+        WHERE ({$deptSqlU} OR ft.assigned_user_id = ?)
+          AND ({$deptSqlCreator} OR a.faculty_id = ?)
+          AND (a.status != 'draft' OR a.faculty_id = ?)
+        ORDER BY 
+            CASE WHEN ft.status = 'Delayed' THEN 1
+                 WHEN ft.status = 'In Progress' THEN 2
+                 WHEN ft.status = 'Not Started' THEN 3
+                 ELSE 4 END,
+            ft.due_date ASC, ft.id DESC
+        LIMIT 20
+    ");
+    $tasksStmt->execute([$user['id'], $user['id'], $user['id']]);
+    $departmentTasks = $tasksStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (\Throwable $e) {
+    error_log("Program Head dashboard dept tasks error: " . $e->getMessage());
+    $departmentTasks = [];
+}
 
-// 5. Shared / Cross-Department Activities (Section D)
-// Activities created by other departments, where faculty from this department are assigned tasks
-$sharedStmt = $db->prepare("
-    SELECT a.*, u_creator.name as faculty_name, u_creator.department as creator_dept,
-           COUNT(DISTINCT ft.id) as task_count,
-           ROUND(AVG(ft.completion_pct)) as avg_progress,
-           GROUP_CONCAT(DISTINCT u_dept.name ORDER BY u_dept.name SEPARATOR ', ') as involved_members
-    FROM activities a
-    JOIN users u_creator ON a.faculty_id = u_creator.id
-    JOIN faculty_tasks ft ON a.id = ft.activity_id
-    JOIN users u_dept ON ft.assigned_user_id = u_dept.id
-    WHERE (u_creator.department != ? AND a.faculty_id != ?)
-      AND (u_dept.department = ? OR ft.assigned_user_id = ?)
-    GROUP BY a.id
-    ORDER BY a.updated_at DESC
-    LIMIT 15
-");
-$sharedStmt->execute([$dept, $user['id'], $dept, $user['id']]);
-$sharedActivities = $sharedStmt->fetchAll(PDO::FETCH_ASSOC);
+// 5. Department Schedules & Upcoming Events (Section D — Strictly Scoped to Program Head's Department)
+$departmentSchedules = [];
+try {
+    $schedStmt = $db->prepare("
+        SELECT a.id, a.title, a.event_date, a.start_time, a.end_time, a.venue, a.status,
+               u.name as faculty_name, u.department as creator_dept,
+               COUNT(s.id) as program_item_count
+        FROM activities a
+        JOIN users u ON a.faculty_id = u.id
+        LEFT JOIN schedules s ON s.activity_id = a.id
+        WHERE (
+            a.faculty_id = ?
+            OR ({$deptSqlU} AND a.status != 'draft')
+            OR EXISTS (
+                SELECT 1 FROM proposal_collaborators pc
+                WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active'
+            )
+        )
+        AND a.status NOT IN ('rejected')
+        AND a.event_date IS NOT NULL
+        GROUP BY a.id
+        ORDER BY a.event_date ASC, a.start_time ASC
+        LIMIT 15
+    ");
+    $schedStmt->execute([$user['id'], $user['id']]);
+    $departmentSchedules = $schedStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (\Throwable $e) {
+    error_log("Program Head dashboard schedules error: " . $e->getMessage());
+    $departmentSchedules = [];
+}
+
+// 6. Department Faculty Roster & Workload (Section E — Strictly Scoped to Program Head's Department)
+$departmentFacultyList = [];
+try {
+    $facStmt = $db->prepare("
+        SELECT u.id, u.name, u.email, u.role, u.department, u.is_active,
+               (SELECT COUNT(*) FROM activities a WHERE a.faculty_id = u.id AND (a.status != 'draft' OR a.faculty_id = ?)) as proposal_count,
+               (SELECT COUNT(*) FROM faculty_tasks ft JOIN activities a2 ON ft.activity_id = a2.id JOIN users uc ON a2.faculty_id = uc.id WHERE ft.assigned_user_id = u.id AND ({$deptSqlU} OR a2.faculty_id = ?) AND a2.status != 'draft') as active_task_count
+        FROM users u
+        WHERE u.role IN ('faculty', 'program_head')
+          AND {$deptSqlU}
+        ORDER BY CASE WHEN u.role = 'program_head' THEN 0 ELSE 1 END, u.name ASC
+    ");
+    $facStmt->execute([$user['id'], $user['id']]);
+    $dbFaculty = $facStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $seenNames = [];
+    foreach ($dbFaculty as $fRow) {
+        $key = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', (string)$fRow['name']));
+        $seenNames[$key] = true;
+        $departmentFacultyList[] = [
+            'id' => (int)$fRow['id'],
+            'name' => $fRow['name'],
+            'email' => $fRow['email'],
+            'role' => $fRow['role'],
+            'department' => $deptLabel,
+            'proposal_count' => (int)$fRow['proposal_count'],
+            'task_count' => (int)$fRow['active_task_count'],
+            'registered' => true,
+        ];
+    }
+
+    // Merge official department faculty roster members so the department's full faculty list is always visible
+    foreach ($deptConfig['roster'] as $rosterName) {
+        $cleanRoster = preg_replace('/\b(Mr|Ms|Mrs|Dr|LPT|MAEd|PE|RN|MBA)\b\.?/i', '', $rosterName);
+        $rKey = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', (string)$cleanRoster));
+        $fullKey = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', (string)$rosterName));
+        $matched = false;
+        foreach ($seenNames as $existingKey => $_) {
+            if ($existingKey === $rKey || $existingKey === $fullKey || ($rKey !== '' && str_contains($existingKey, $rKey))) {
+                $matched = true;
+                break;
+            }
+        }
+        if (!$matched) {
+            $departmentFacultyList[] = [
+                'id' => 0,
+                'name' => $rosterName,
+                'email' => '—',
+                'role' => 'faculty',
+                'department' => $deptLabel,
+                'proposal_count' => 0,
+                'task_count' => 0,
+                'registered' => false,
+            ];
+        }
+    }
+} catch (\Throwable $e) {
+    error_log("Program Head dashboard faculty roster error: " . $e->getMessage());
+}
 
 /**
  * Helper to calculate timing and health badge for tasks without fabricating data.
@@ -153,7 +268,7 @@ function getTaskTimingBadge(string $status, ?string $dueDate): array {
 function renderActivityStatusBadge(string $status): string {
     $map = [
         'draft'                  => ['label' => 'Draft', 'bg' => '#64748B', 'color' => '#fff'],
-        'submitted'              => ['label' => 'Submitted', 'bg' => '#F59E0B', 'color' => '#fff'],
+        'submitted'              => ['label' => 'Under Review', 'bg' => '#F59E0B', 'color' => '#fff'],
         'under_review'           => ['label' => 'Under Review', 'bg' => '#F59E0B', 'color' => '#fff'],
         'endorsed'               => ['label' => 'Endorsed', 'bg' => '#3B82F6', 'color' => '#fff'],
         'pending_final_approval' => ['label' => 'Pending Dean', 'bg' => '#8B5CF6', 'color' => '#fff'],
@@ -174,7 +289,7 @@ function renderActivityStatusBadge(string $status): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="base-url" content="<?= BASE_URL ?>">
   <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
-  <title>Program Head Dashboard – STI Activity System</title>
+  <title><?= htmlspecialchars($dashboardTitle) ?> – STI Activity System</title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.4">
   <script>
     (function() {
@@ -345,7 +460,7 @@ function renderActivityStatusBadge(string $status): string {
     /* Stat Cards Grid (Replicating Faculty Original Summary Card Styling) */
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 12px;
       align-items: stretch;
       width: 100%;
@@ -409,6 +524,16 @@ function renderActivityStatusBadge(string $status): string {
     .stat-card.stat-card-completed::after {
       background: #8B5CF6 !important;
     }
+    .stat-card.stat-card-draft::after {
+      background: #94A3B8 !important;
+    }
+    .stat-card.stat-card-returned::after {
+      background: #EF4444 !important;
+    }
+    .stat-card-draft .stat-icon     { background: rgba(148, 163, 184, 0.15) !important; color: #64748B !important; }
+    .stat-card-returned .stat-icon  { background: rgba(239, 68, 68, 0.12) !important; color: #DC2626 !important; }
+    [data-theme="dark"] .stat-card-draft .stat-icon     { background: rgba(148, 163, 184, 0.20) !important; color: #94a3b8 !important; }
+    [data-theme="dark"] .stat-card-returned .stat-icon  { background: rgba(239, 68, 68, 0.18) !important; color: #f87171 !important; }
 
     /* Dark Mode Card Background & Borders */
     [data-theme="dark"] .stat-card {
@@ -705,7 +830,7 @@ function renderActivityStatusBadge(string $status): string {
 
     <!-- Topbar -->
     <header class="topbar">
-      <div class="page-title">Program Head Dashboard</div>
+      <div class="page-title"><?= htmlspecialchars($dashboardTitle) ?></div>
       <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
@@ -720,39 +845,39 @@ function renderActivityStatusBadge(string $status): string {
       <!-- Stat Cards: Department Overview -->
       <div class="stat-grid">
         <!-- 1. Total Department Activities -->
-        <div class="stat-card stat-card-total">
+        <a href="<?= BASE_URL ?>/faculty/activities.php" class="stat-card stat-card-total" style="cursor:pointer;">
           <div class="stat-icon">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
           </div>
           <div class="stat-card-info">
-            <div class="stat-card-meta">Total Activities</div>
+            <div class="stat-card-meta"><?= htmlspecialchars($deptLabel) ?> Activities</div>
             <div class="stat-card-row">
               <div class="stat-val"><?= number_format($totalActivities) ?></div>
             </div>
-            <div class="stat-sub"><?= htmlspecialchars($dept) ?> proposals</div>
+            <div class="stat-sub"><?= htmlspecialchars($deptLabel) ?> proposals &amp; activities</div>
           </div>
-        </div>
+        </a>
 
         <!-- 2. Pending Proposals -->
-        <div class="stat-card stat-card-pending">
+        <a href="<?= BASE_URL ?>/faculty/pending.php" class="stat-card stat-card-pending" style="cursor:pointer;">
           <div class="stat-icon">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
           <div class="stat-card-info">
-            <div class="stat-card-meta">Pending Review</div>
+            <div class="stat-card-meta">Pending Proposals</div>
             <div class="stat-card-row">
               <div class="stat-val"><?= number_format($pendingProposals) ?></div>
             </div>
-            <div class="stat-sub">Awaiting admin or dean action</div>
+            <div class="stat-sub">Proposals under review</div>
           </div>
-        </div>
+        </a>
 
         <!-- 3. Approved Activities -->
-        <div class="stat-card stat-card-approved">
+        <a href="<?= BASE_URL ?>/faculty/approved.php" class="stat-card stat-card-approved" style="cursor:pointer;">
           <div class="stat-icon">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -763,12 +888,12 @@ function renderActivityStatusBadge(string $status): string {
             <div class="stat-card-row">
               <div class="stat-val"><?= number_format($approvedActivities) ?></div>
             </div>
-            <div class="stat-sub">Ready or underway</div>
+            <div class="stat-sub"><?= htmlspecialchars($deptLabel) ?> approved events</div>
           </div>
-        </div>
+        </a>
 
         <!-- 4. Completed Activities -->
-        <div class="stat-card stat-card-completed">
+        <a href="<?= BASE_URL ?>/faculty/activities.php?status=completed" class="stat-card stat-card-completed" style="cursor:pointer;">
           <div class="stat-icon">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -779,15 +904,47 @@ function renderActivityStatusBadge(string $status): string {
             <div class="stat-card-row">
               <div class="stat-val"><?= number_format($completedActivities) ?></div>
             </div>
-            <div class="stat-sub">Concluded with post-event</div>
+            <div class="stat-sub"><?= htmlspecialchars($deptLabel) ?> concluded events</div>
           </div>
-        </div>
+        </a>
+
+        <!-- 5. Draft Proposals -->
+        <a href="<?= BASE_URL ?>/faculty/activities.php?status=draft" class="stat-card stat-card-draft" style="cursor:pointer;">
+          <div class="stat-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </div>
+          <div class="stat-card-info">
+            <div class="stat-card-meta">Draft Proposals</div>
+            <div class="stat-card-row">
+              <div class="stat-val"><?= number_format($draftProposals) ?></div>
+            </div>
+            <div class="stat-sub">Unsubmitted drafts</div>
+          </div>
+        </a>
+
+        <!-- 6. Returned Proposals -->
+        <a href="<?= BASE_URL ?>/faculty/returned.php" class="stat-card stat-card-returned" style="cursor:pointer;">
+          <div class="stat-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="stat-card-info">
+            <div class="stat-card-meta">Returned Proposals</div>
+            <div class="stat-card-row">
+              <div class="stat-val"><?= number_format($returnedProposals) ?></div>
+            </div>
+            <div class="stat-sub">Needs revision</div>
+          </div>
+        </a>
       </div>
 
       <!-- Local Offline Drafts Container -->
       <div id="localDraftsContainer" style="display:none;"></div>
 
-      <!-- Section B: Department Activity Monitoring -->
+      <!-- Section B: Department Proposals & Activities -->
       <div class="section-card">
         <div class="section-header">
           <div class="section-title-wrap">
@@ -797,8 +954,8 @@ function renderActivityStatusBadge(string $status): string {
               </svg>
             </div>
             <div>
-              <h2 class="section-title">Department Activity Monitoring</h2>
-              <p class="section-desc">Proposals and activities spearhead by <?= htmlspecialchars($dept) ?> faculty</p>
+              <h2 class="section-title"><?= htmlspecialchars($deptLabel) ?> Proposals &amp; Activities</h2>
+              <p class="section-desc">Proposals and activities spearheaded by <?= htmlspecialchars($deptFullLabel) ?> faculty</p>
             </div>
           </div>
           <div>
@@ -812,14 +969,14 @@ function renderActivityStatusBadge(string $status): string {
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="36" height="36">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <div>No department activities found yet. Create a proposal to get started.</div>
+              <div>No <?= htmlspecialchars($deptLabel) ?> proposals or activities found yet. Create a proposal to get started.</div>
             </div>
           <?php else: ?>
             <table class="data-table">
               <thead>
                 <tr>
-                  <th style="width:36%;">Activity Title & Proponent</th>
-                  <th style="width:22%;">Schedule & Venue</th>
+                  <th style="width:36%;">Activity Title &amp; Proponent</th>
+                  <th style="width:22%;">Schedule &amp; Venue</th>
                   <th style="width:14%;">Status</th>
                   <th style="width:16%;">Task Progress</th>
                   <th style="width:12%;text-align:right;">Actions</th>
@@ -838,9 +995,7 @@ function renderActivityStatusBadge(string $status): string {
                       </a>
                       <div class="item-meta">
                         <span>Lead: <strong><?= htmlspecialchars($act['faculty_name'] ?? 'Faculty') ?></strong></span>
-                        <?php if (!empty($act['source'])): ?>
-                          <span>• <?= ucfirst(str_replace('_', ' ', $act['source'])) ?></span>
-                        <?php endif; ?>
+                        <span>• <?= htmlspecialchars($deptLabel) ?></span>
                       </div>
                     </td>
                     <td>
@@ -879,6 +1034,10 @@ function renderActivityStatusBadge(string $status): string {
                       <div style="display:inline-flex;gap:6px;">
                         <a href="<?= BASE_URL ?>/faculty/view-activity.php?id=<?= (int)$act['id'] ?>" class="btn btn-sm btn-outline">View</a>
                         <?php if (in_array($act['status'], ['draft', 'returned_for_revision'], true)): ?>
+                        <?php if ($act['status'] === 'draft'): ?>
+                          <button type="button" class="btn btn-sm btn-danger" onclick="confirmDeleteDraft(<?= (int)$act['id'] ?>, '<?= htmlspecialchars(addslashes($act['title']), ENT_QUOTES) ?>')">Delete</button>
+                        <?php endif; ?>
+                        
                           <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= (int)$act['id'] ?>" class="btn btn-sm btn-primary">Edit</a>
                         <?php endif; ?>
                       </div>
@@ -891,7 +1050,7 @@ function renderActivityStatusBadge(string $status): string {
         </div>
       </div>
 
-      <!-- Section C: Task Monitoring for Department Faculty -->
+      <!-- Section C: Department Faculty Task Monitoring -->
       <div class="section-card">
         <div class="section-header">
           <div class="section-title-wrap">
@@ -901,12 +1060,12 @@ function renderActivityStatusBadge(string $status): string {
               </svg>
             </div>
             <div>
-              <h2 class="section-title">Department Faculty Task Monitoring</h2>
-              <p class="section-desc">Assignments allocated to <?= htmlspecialchars($dept) ?> instructors across all activities</p>
+              <h2 class="section-title"><?= htmlspecialchars($deptLabel) ?> Faculty Task Monitoring</h2>
+              <p class="section-desc">Task assignments allocated to <?= htmlspecialchars($deptFullLabel) ?> faculty and activities</p>
             </div>
           </div>
           <div>
-            <a href="<?= BASE_URL ?>/faculty/tasks.php" class="btn btn-sm btn-outline">My Assigned Tasks</a>
+            <a href="<?= BASE_URL ?>/faculty/tasks.php" class="btn btn-sm btn-outline">Department Tasks</a>
           </div>
         </div>
 
@@ -916,15 +1075,15 @@ function renderActivityStatusBadge(string $status): string {
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="36" height="36">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7" />
               </svg>
-              <div>No faculty task assignments found for this department.</div>
+              <div>No faculty task assignments found for <?= htmlspecialchars($deptLabel) ?>.</div>
             </div>
           <?php else: ?>
             <table class="data-table">
               <thead>
                 <tr>
-                  <th style="width:30%;">Task & Parent Activity</th>
-                  <th style="width:22%;">Assigned Faculty</th>
-                  <th style="width:16%;">Due Date & Timing</th>
+                  <th style="width:30%;">Task &amp; Parent Activity</th>
+                  <th style="width:22%;">Assigned <?= htmlspecialchars($deptLabel) ?> Faculty</th>
+                  <th style="width:16%;">Due Date &amp; Timing</th>
                   <th style="width:18%;">Progress</th>
                   <th style="width:14%;text-align:right;">Actions</th>
                 </tr>
@@ -974,75 +1133,142 @@ function renderActivityStatusBadge(string $status): string {
         </div>
       </div>
 
-      <!-- Section D: Cross-Department Shared Activities -->
+      <!-- Section D: Department Schedules & Upcoming Events -->
       <div class="section-card">
         <div class="section-header">
           <div class="section-title-wrap">
             <div class="section-icon section-icon-purple">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
             <div>
-              <h2 class="section-title">Shared Activities (Cross-Department)</h2>
-              <p class="section-desc">Activities organized by other departments where <?= htmlspecialchars($dept) ?> faculty are participating</p>
+              <h2 class="section-title"><?= htmlspecialchars($deptLabel) ?> Schedules &amp; Event Timeline</h2>
+              <p class="section-desc">Scheduled dates, times, and venues exclusively for <?= htmlspecialchars($deptFullLabel) ?> activities</p>
             </div>
           </div>
           <div>
-            <span class="badge" style="background:rgba(139, 92, 246, 0.15);color:#7C3AED;padding:4px 9px;border-radius:999px;font-size:0.72rem;font-weight:600;">
-              <?= count($sharedActivities) ?> Shared
-            </span>
+            <a href="<?= BASE_URL ?>/faculty/calendar.php" class="btn btn-sm btn-outline">Department Calendar (<?= count($departmentSchedules) ?>)</a>
           </div>
         </div>
 
         <div class="table-wrap">
-          <?php if (empty($sharedActivities)): ?>
+          <?php if (empty($departmentSchedules)): ?>
             <div class="empty-state">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="36" height="36">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              <div>No cross-department shared activities involving this department at this time.</div>
+              <div>No scheduled events found for <?= htmlspecialchars($deptLabel) ?>.</div>
             </div>
           <?php else: ?>
             <table class="data-table">
               <thead>
                 <tr>
-                  <th style="width:36%;">Activity Title & Organizing Dept</th>
-                  <th style="width:26%;">Participating <?= htmlspecialchars($dept) ?> Faculty</th>
+                  <th style="width:34%;">Activity &amp; Lead Faculty</th>
+                  <th style="width:22%;">Event Date &amp; Time</th>
+                  <th style="width:20%;">Venue</th>
                   <th style="width:14%;">Status</th>
-                  <th style="width:14%;">Schedule</th>
                   <th style="width:10%;text-align:right;">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                <?php foreach ($sharedActivities as $sAct): ?>
+                <?php foreach ($departmentSchedules as $sched): ?>
                   <tr>
                     <td>
-                      <a href="<?= BASE_URL ?>/faculty/view-activity.php?id=<?= (int)$sAct['id'] ?>" class="item-title">
-                        <?= htmlspecialchars($sAct['title']) ?>
+                      <a href="<?= BASE_URL ?>/faculty/view-activity.php?id=<?= (int)$sched['id'] ?>" class="item-title">
+                        <?= htmlspecialchars($sched['title']) ?>
                       </a>
                       <div class="item-meta">
-                        <span>Organized by: <strong><?= htmlspecialchars($sAct['creator_dept'] ?? 'Other Department') ?></strong> (<?= htmlspecialchars($sAct['faculty_name'] ?? 'Proponent') ?>)</span>
+                        <span>Lead: <strong><?= htmlspecialchars($sched['faculty_name'] ?? 'Faculty') ?></strong></span>
+                        <?php if ((int)$sched['program_item_count'] > 0): ?>
+                          <span>• <?= (int)$sched['program_item_count'] ?> program item<?= (int)$sched['program_item_count'] === 1 ? '' : 's' ?></span>
+                        <?php endif; ?>
                       </div>
                     </td>
                     <td>
-                      <div style="font-size:0.82rem;color:var(--text-main);">
-                        <?= htmlspecialchars($sAct['involved_members'] ?? 'Department Faculty') ?>
-                      </div>
+                      <div><strong><?= !empty($sched['event_date']) ? date('M j, Y', strtotime($sched['event_date'])) : 'TBD' ?></strong></div>
                       <div class="item-meta">
-                        <?= (int)$sAct['task_count'] ?> task<?= (int)$sAct['task_count'] === 1 ? '' : 's' ?> assigned
+                        <?php if (!empty($sched['start_time'])): ?>
+                          <?= date('g:i A', strtotime($sched['start_time'])) ?>
+                          <?= !empty($sched['end_time']) ? ' – ' . date('g:i A', strtotime($sched['end_time'])) : '' ?>
+                        <?php else: ?>
+                          Time TBD
+                        <?php endif; ?>
                       </div>
                     </td>
                     <td>
-                      <?= renderActivityStatusBadge((string)$sAct['status']) ?>
+                      <div><?= !empty($sched['venue']) ? htmlspecialchars($sched['venue']) : 'Venue TBD' ?></div>
                     </td>
                     <td>
-                      <div><?= !empty($sAct['event_date']) ? date('M j, Y', strtotime($sAct['event_date'])) : 'TBD' ?></div>
-                      <div class="item-meta"><?= !empty($sAct['venue']) ? htmlspecialchars($sAct['venue']) : 'Venue TBD' ?></div>
+                      <?= renderActivityStatusBadge((string)$sched['status']) ?>
                     </td>
                     <td style="text-align:right;">
-                      <a href="<?= BASE_URL ?>/faculty/view-activity.php?id=<?= (int)$sAct['id'] ?>" class="btn btn-sm btn-outline">View</a>
+                      <a href="<?= BASE_URL ?>/faculty/view-activity.php?id=<?= (int)$sched['id'] ?>" class="btn btn-sm btn-outline">View</a>
                     </td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          <?php endif; ?>
+        </div>
+      </div>
+
+      <!-- Section E: Department Faculty Roster -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title-wrap">
+            <div class="section-icon section-icon-blue">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <div>
+              <h2 class="section-title"><?= htmlspecialchars($deptLabel) ?> Faculty Roster</h2>
+              <p class="section-desc">Faculty members belonging exclusively to <?= htmlspecialchars($deptFullLabel) ?></p>
+            </div>
+          </div>
+          <div>
+            <span class="badge" style="background:rgba(2, 132, 199, 0.14);color:#0284C7;padding:4px 10px;border-radius:999px;font-size:0.72rem;font-weight:700;">
+              <?= count($departmentFacultyList) ?> <?= htmlspecialchars($deptLabel) ?> Members
+            </span>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <?php if (empty($departmentFacultyList)): ?>
+            <div class="empty-state">
+              <div>No faculty members found for <?= htmlspecialchars($deptLabel) ?>.</div>
+            </div>
+          <?php else: ?>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width:38%;">Faculty Name</th>
+                  <th style="width:24%;">Department</th>
+                  <th style="width:18%;">Role</th>
+                  <th style="width:10%;text-align:center;">Proposals</th>
+                  <th style="width:10%;text-align:center;">Tasks</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($departmentFacultyList as $fMember): ?>
+                  <tr>
+                    <td>
+                      <div class="item-title" style="cursor:default;"><?= htmlspecialchars($fMember['name']) ?></div>
+                      <?php if (!empty($fMember['email']) && $fMember['email'] !== '—'): ?>
+                        <div class="item-meta"><?= htmlspecialchars($fMember['email']) ?></div>
+                      <?php endif; ?>
+                    </td>
+                    <td>
+                      <span><?= htmlspecialchars($fMember['department']) ?></span>
+                    </td>
+                    <td>
+                      <span class="badge" style="background:<?= $fMember['role'] === 'program_head' ? '#0284C7' : '#64748B' ?>;color:#fff;padding:3px 8px;border-radius:999px;font-size:0.7rem;font-weight:600;">
+                        <?= $fMember['role'] === 'program_head' ? 'Program Head' : 'Faculty' ?>
+                      </span>
+                    </td>
+                    <td style="text-align:center;font-weight:700;"><?= (int)$fMember['proposal_count'] ?></td>
+                    <td style="text-align:center;font-weight:700;"><?= (int)$fMember['task_count'] ?></td>
                   </tr>
                 <?php endforeach; ?>
               </tbody>

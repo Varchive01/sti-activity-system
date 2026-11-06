@@ -7,17 +7,19 @@ requireRole('admin2');
 $db   = getDB();
 $user = currentUser();
 $acts = $db->prepare("
-    SELECT DISTINCT a.*, u.name as fn, al.notes as review_notes, al.acted_at
+    SELECT a.*, u.name as fn, MAX(al.notes) as review_notes, MAX(al.acted_at) as last_acted_at
     FROM activities a
-    JOIN users u ON a.faculty_id=u.id
-    JOIN approval_logs al ON a.id=al.activity_id
-    WHERE al.reviewer_id=? AND al.action IN ('returned','rejected')
-    ORDER BY al.acted_at DESC
+    JOIN users u ON a.faculty_id = u.id
+    JOIN approval_logs al ON a.id = al.activity_id
+    WHERE al.reviewer_id = ? AND al.action IN ('returned', 'rejected', 'returned_for_revision')
+    GROUP BY a.id, u.name
+    ORDER BY last_acted_at DESC
 ");
 $acts->execute([$user['id']]);
 $activities = $acts->fetchAll();
 ?>
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<!DOCTYPE html><html lang="en"><head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><meta charset="UTF-8">
 <title>Returned/Rejected – STI Activity System</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css"></head>
 <body class="theme-ian">

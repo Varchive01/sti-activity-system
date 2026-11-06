@@ -59,7 +59,7 @@ $history = $logs->fetchAll();
 $proposalPdfData = [
   'id' => (int)$activity['id'],
   'title' => $activity['title'] ?? 'Untitled Proposal',
-  'status' => ucfirst(str_replace('_', ' ', $activity['status'] ?? 'draft')),
+  'status' => ($activity['status'] === 'submitted') ? 'Under Review' : ucfirst(str_replace('_', ' ', $activity['status'] ?? 'draft')),
   'proponent' => $activity['faculty_name'] ?? 'Faculty Proponent',
   'source' => ucfirst(str_replace('_', ' ', $activity['source'] ?? '')),
   'event_date' => $activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—',
@@ -521,6 +521,37 @@ $proposalPdfData = [
         border: 1px solid #ccc !important;
       }
     }
+
+    /* Dedicated Evaluation QR Flyer Print Window Styles (used when printing flyer) */
+    @page qr-flyer-page {
+      size: A4 portrait;
+      margin: 15mm;
+    }
+    @media print {
+      body.print-qr-flyer-active * {
+        visibility: hidden !important;
+      }
+      body.print-qr-flyer-active #qr-flyer-print-container,
+      body.print-qr-flyer-active #qr-flyer-print-container * {
+        visibility: visible !important;
+      }
+      body.print-qr-flyer-active #qr-flyer-print-container {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 24px !important;
+        box-sizing: border-box !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: #ffffff !important;
+        page-break-inside: avoid !important;
+      }
+    }
   </style>
 </head>
 
@@ -537,6 +568,9 @@ $proposalPdfData = [
       </button>
       <?php if ($canEditProposal): ?>
       <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= $id ?>" class="btn btn-primary btn-sm">Edit Proposal</a>
+      <?php endif; ?>
+      <?php if ($activity['status'] === 'draft' && $canEditProposal): ?>
+      <button type="button" class="btn btn-danger btn-sm" onclick="confirmDeleteDraft(<?= (int)$id ?>, '<?= htmlspecialchars(addslashes($activity['title']), ENT_QUOTES) ?>')">Delete Draft</button>
       <?php endif; ?>
       <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
       <!-- User Profile Control -->
@@ -675,23 +709,28 @@ $proposalPdfData = [
       <?php endif; ?>
 
       <!-- Event Poster -->
-      <?php if (!empty($activity['poster_path'])): ?>
-        <?php
-        $posterUrl = str_starts_with($activity['poster_path'], 'http')
-          ? $activity['poster_path']
-          : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=poster';
-        ?>
-        <div class="card">
-          <div class="card-header">
-            <h2>Event Poster</h2>
-          </div>
-          <div class="card-body" style="text-align:center; padding: 24px; background: var(--bg-base);">
+      <div class="card">
+        <div class="card-header">
+          <h2>Event Poster</h2>
+        </div>
+        <div class="card-body" style="text-align:center; padding: 24px; background: var(--bg-base);">
+          <?php if (!empty($activity['poster_path'])): ?>
+            <?php
+            $posterUrl = str_starts_with($activity['poster_path'], 'http')
+              ? $activity['poster_path']
+              : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=poster';
+            ?>
             <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank" style="display:inline-block;">
               <img src="<?= htmlspecialchars($posterUrl) ?>" alt="Event Poster" style="max-width: 100%; max-height: 500px; border-radius: 10px; border: 1px solid var(--border); box-shadow: var(--shadow-sm);">
             </a>
-          </div>
+            <div style="margin-top: 14px;">
+              <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank" class="btn btn-outline btn-sm">🖼️ View Full Poster Image</a>
+            </div>
+          <?php else: ?>
+            <p class="text-muted" style="margin: 0;">No event poster uploaded for this proposal.</p>
+          <?php endif; ?>
         </div>
-      <?php endif; ?>
+      </div>
 
       <!-- Floor Plan -->
       <?php if ($floorplan): ?>
@@ -974,8 +1013,8 @@ $proposalPdfData = [
                   Scan this QR code with any mobile device to immediately open the Google Form evaluation questionnaire.
                 </p>
                 <div class="no-print">
-                  <button type="button" class="btn btn-outline btn-sm" onclick="window.print()" style="cursor: pointer;">
-                    🖨️ Print QR Code
+                  <button type="button" class="btn btn-outline btn-sm" onclick="printEvaluationFlyer()" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                    🖨️ Print QR Code Flyer
                   </button>
                 </div>
               </div>
@@ -1751,6 +1790,256 @@ $proposalPdfData = [
       const filename = safeTitle + '_Proposal.pdf';
 
       doc.save(filename);
+    }
+
+    /**
+     * Dedicated Single-Page Participant Evaluation QR Flyer Print
+     * Generates a clean, standalone printable handout for event participants
+     * without printing the 10-page proposal document.
+     */
+    function printEvaluationFlyer() {
+      const qrContainer = document.querySelector('.evaluation-qr-section .qr-container');
+      const qrSvg = qrContainer ? qrContainer.innerHTML.trim() : '';
+      const title = <?= json_encode($activity['title'] ?? 'Activity Evaluation') ?>;
+      const eventDate = <?= json_encode(!empty($activity['start_date']) ? date('F j, Y', strtotime($activity['start_date'])) : 'TBA') ?>;
+      const venue = <?= json_encode($activity['venue'] ?? 'STI College Marikina') ?>;
+      const evalUrl = <?= json_encode($activity['evaluation_method'] ?? '') ?>;
+      const dept = <?= json_encode($activity['department'] ?? 'STI College') ?>;
+
+      if (!qrSvg) {
+        alert('QR code is not available for printing.');
+        return;
+      }
+
+      // Open a clean, self-contained popup print window
+      const printWin = window.open('', '_blank', 'width=800,height=900,menubar=no,toolbar=no,location=no,status=no');
+      if (!printWin) {
+        // Fallback to in-page isolation print if popups are blocked
+        printEvaluationFlyerInPage(title, eventDate, venue, evalUrl, dept, qrSvg);
+        return;
+      }
+
+      const flyerHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Evaluation QR Flyer - ${escapeHtml(title)}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 15mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #ffffff;
+      color: #0f172a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .flyer-card {
+      width: 100%;
+      max-width: 620px;
+      border: 2px solid #0284c7;
+      border-radius: 16px;
+      padding: 36px 32px;
+      text-align: center;
+      background: #ffffff;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    }
+    .brand-header {
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 18px;
+      margin-bottom: 24px;
+    }
+    .brand-title {
+      font-size: 24px;
+      font-weight: 800;
+      color: #0284c7;
+      letter-spacing: -0.5px;
+    }
+    .brand-sub {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-top: 4px;
+    }
+    .flyer-badge {
+      display: inline-block;
+      background: #e0f2fe;
+      color: #0369a1;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .activity-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.3;
+      margin-bottom: 12px;
+    }
+    .meta-box {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      font-size: 13px;
+      color: #475569;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .qr-frame {
+      display: inline-block;
+      background: #ffffff;
+      padding: 16px;
+      border: 3px solid #0f172a;
+      border-radius: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+    }
+    .qr-frame svg {
+      display: block;
+      width: 230px !important;
+      height: 230px !important;
+    }
+    .instructions-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+    }
+    .instructions-text {
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.5;
+      max-width: 440px;
+      margin: 0 auto 16px auto;
+    }
+    .url-fallback {
+      font-size: 11px;
+      color: #94a3b8;
+      word-break: break-all;
+      border-top: 1px dashed #cbd5e1;
+      padding-top: 14px;
+    }
+    .url-fallback a {
+      color: #0284c7;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    @media print {
+      body {
+        padding: 0;
+        background: transparent;
+      }
+      .flyer-card {
+        border-color: #0284c7 !important;
+        box-shadow: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="flyer-card">
+    <div class="brand-header">
+      <div class="brand-title">STI COLLEGE MARIKINA</div>
+      <div class="brand-sub">Activity &amp; Resource Management System (STI-ARMES)</div>
+    </div>
+    <span class="flyer-badge">Participant Evaluation Questionnaire</span>
+    <h1 class="activity-title">${escapeHtml(title)}</h1>
+    <div class="meta-box">
+      <div class="meta-item">📅 <strong>Date:</strong> ${escapeHtml(eventDate)}</div>
+      <div class="meta-item">📍 <strong>Venue:</strong> ${escapeHtml(venue)}</div>
+      <div class="meta-item">🏛️ <strong>Dept:</strong> ${escapeHtml(dept)}</div>
+    </div>
+    <div class="qr-frame">
+      ${qrSvg}
+    </div>
+    <div class="instructions-title">Scan QR Code to Evaluate</div>
+    <p class="instructions-text">
+      Open your smartphone camera or any QR scanner app and point it at the QR code above to immediately access the online evaluation form.
+    </p>
+    <div class="url-fallback">
+      Direct Link: <a href="${escapeHtml(evalUrl)}">${escapeHtml(evalUrl)}</a>
+    </div>
+  </div>
+  <script>
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        window.focus();
+        window.print();
+      }, 250);
+    });
+  <\/script>
+</body>
+</html>
+      `;
+
+      printWin.document.open();
+      printWin.document.write(flyerHtml);
+      printWin.document.close();
+    }
+
+    function printEvaluationFlyerInPage(title, eventDate, venue, evalUrl, dept, qrSvg) {
+      let printContainer = document.getElementById('qr-flyer-print-container');
+      if (!printContainer) {
+        printContainer = document.createElement('div');
+        printContainer.id = 'qr-flyer-print-container';
+        document.body.appendChild(printContainer);
+      }
+
+      printContainer.innerHTML = `
+        <div style="border: 2px solid #0284c7; border-radius: 16px; padding: 36px 32px; text-align: center; max-width: 600px; width: 100%; margin: auto; background: #ffffff;">
+          <div style="font-size: 22px; font-weight: 800; color: #0284c7; margin-bottom: 4px;">STI COLLEGE MARIKINA</div>
+          <div style="font-size: 12px; font-weight: 600; color: #64748b; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 16px;">Activity &amp; Resource Management System</div>
+          <div style="display: inline-block; background: #e0f2fe; color: #0369a1; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-bottom: 14px;">PARTICIPANT EVALUATION</div>
+          <div style="font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 12px;">${escapeHtml(title)}</div>
+          <div style="font-size: 12px; color: #475569; margin-bottom: 20px;">📅 ${escapeHtml(eventDate)} &nbsp;|&nbsp; 📍 ${escapeHtml(venue)}</div>
+          <div style="display: inline-block; padding: 12px; border: 2px solid #000; border-radius: 12px; margin-bottom: 16px;">
+            ${qrSvg}
+          </div>
+          <div style="font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">Scan to Complete Evaluation</div>
+          <div style="font-size: 12px; color: #64748b; max-width: 440px; margin: 0 auto 12px auto;">Scan this code with your phone camera to open the Google Form questionnaire.</div>
+          <div style="font-size: 10px; color: #94a3b8; word-break: break-all;">Link: ${escapeHtml(evalUrl)}</div>
+        </div>
+      `;
+
+      document.body.classList.add('print-qr-flyer-active');
+      window.print();
+      setTimeout(function() {
+        document.body.classList.remove('print-qr-flyer-active');
+      }, 500);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
   </script>
 </body>

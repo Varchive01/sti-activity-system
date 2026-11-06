@@ -1016,10 +1016,90 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       }
     }
 
+        @media (max-width: 768px) {
+      .form-grid,
+      .form-grid.three {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+      }
+      .col-span-2,
+      .col-span-3 {
+        grid-column: span 1 !important;
+      }
+      .wizard-steps {
+        gap: 0 !important;
+      }
+      .wizard-step {
+        min-width: 68px !important;
+        padding: 8px 4px !important;
+        font-size: 0.65rem !important;
+      }
+      .wizard-step .step-num {
+        width: 22px !important;
+        height: 22px !important;
+        font-size: 0.65rem !important;
+      }
+      .proposal-layout-grid {
+        grid-template-columns: 1fr !important;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .nav-btns {
+        flex-direction: column-reverse !important;
+        gap: 10px !important;
+      }
+      .nav-btns > div,
+      .nav-btns > div:last-child {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+      }
+      .nav-btns button,
+      .nav-btns a.btn {
+        width: 100% !important;
+        text-align: center !important;
+        justify-content: center !important;
+        padding: 10px 16px !important;
+      }
+      #addCollaboratorForm {
+        grid-template-columns: 1fr !important;
+      }
+      #addCollaboratorForm button {
+        width: 100% !important;
+      }
+    }
+
     @media (max-width: 480px) {
       .topbar .page-title {
         font-size: 0.90rem;
       }
+      .topbar-right .btn-sm {
+        padding: 4px 8px;
+        font-size: 0.72rem;
+      }
+      .card-header {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 8px !important;
+      }
+      .card-header .btn {
+        width: 100% !important;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .wizard-step {
+        min-width: 58px !important;
+        padding: 6px 2px !important;
+        font-size: 0.6rem !important;
+      }
+      .wizard-step .step-num {
+        width: 20px !important;
+        height: 20px !important;
+      }
+    }
       .topbar-right .btn-sm {
         padding: 4px 8px;
         font-size: 0.72rem;
@@ -1307,6 +1387,23 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       background: var(--bg-card, #0F1B2E) !important;
       border-color: var(--border, #1E2D45) !important;
     }
+    [data-theme="dark"] #scheduleConflictModal #scuConfTitle {
+      color: #F8FAFC !important;
+    }
+    [data-theme="dark"] #scheduleConflictModal [style*="color: #4a5568"],
+    [data-theme="dark"] #scheduleConflictModal [style*="color:#4a5568"] {
+      color: #CBD5E1 !important;
+    }
+    [data-theme="dark"] #scheduleConflictModal .modal-body div[style*="background: #fff"],
+    [data-theme="dark"] #scheduleConflictModal .modal-body div[style*="background:#fff"] {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-color: var(--border, #1E2D45) !important;
+      color: var(--text-main, #F8FAFC) !important;
+    }
+    [data-theme="dark"] #scheduleConflictModal .modal-footer {
+      background: var(--bg-card, #0F1B2E) !important;
+      border-top: 1px solid var(--border, #1E2D45) !important;
+    }
   </style>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/floorplan.css?v=<?= filemtime(__DIR__ . '/../assets/css/floorplan.css') ?>">
 </head>
@@ -1319,15 +1416,13 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         <span>Edit Proposal</span>
       </div>
       <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
-        <button type="button" class="btn btn-outline btn-sm" id="btnTopAiGuidance" onclick="AIProposalGuidance.requestGuidance()" style="display:inline-flex;align-items:center;gap:6px;font-weight:600;border-color:var(--sti-blue,#0284C7);color:var(--sti-blue,#0284C7);background:var(--bg-card,#fff);" title="Request AI proposal guidance and recommendations based on current content">
-          <span style="font-size:1.1rem;line-height:1;">✨</span>
-          <span>AI Proposal Guidance</span>
-        </button>
-        <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+        <span id="offlineSyncBadge" class="badge" style="font-size:0.75rem;padding:5px 10px;border-radius:12px;background:#10B981;color:#fff;display:inline-flex;align-items:center;gap:5px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.1);"><span class="sync-icon">✓</span> <span class="sync-text">Synchronized</span></span>
+        <button type="button" id="btnManualSync" class="btn btn-outline btn-sm" style="display:none;font-size:0.75rem;padding:4px 8px;">Sync Now</button>
         <a href="<?= BASE_URL ?>/faculty/proposal-view.php?id=<?= $id ?>" class="btn btn-outline btn-sm">← Cancel</a>
-      <!-- User Profile Control -->
-      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
-    </div>
+        <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+        <!-- User Profile Control -->
+        <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+      </div>
     </header>
     <div class="content">
 
@@ -1390,9 +1485,26 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           <strong>🔒 Owner Submission Only:</strong> Only the Proposal Owner can submit this proposal for formal approval. Your draft edits have been saved successfully.
         </div>
       <?php elseif (isset($_GET['conflict'])): ?>
-        <div class="alert alert-warning" style="margin-bottom:20px; border-left:6px solid #ef4444; background:#fef2f2; color:#991b1b; border-radius:8px; padding:16px 20px; border:1px solid #fecaca;">
-          <strong>⚠️ Conflict Detected:</strong> This proposal was updated by another collaborator while you were editing. The latest server version has been loaded to prevent accidental overwrites. Please review the updated sections before saving your changes.
-        </div>
+        <?php
+        $hasOtherCollabs = false;
+        if (!empty($allCollaborators)) {
+            foreach ($allCollaborators as $c) {
+                if (!empty($c['user_id']) && (int)$c['user_id'] !== (int)$user['id']) {
+                    $hasOtherCollabs = true;
+                    break;
+                }
+            }
+        }
+        ?>
+        <?php if ($hasOtherCollabs): ?>
+          <div class="alert alert-warning" style="margin-bottom:20px; border-left:6px solid #ef4444; background:#fef2f2; color:#991b1b; border-radius:8px; padding:16px 20px; border:1px solid #fecaca;">
+            <strong>⚠️ Conflict Detected:</strong> This proposal was updated by another collaborator while you were editing. The latest server version has been loaded to prevent accidental overwrites. Please review the updated sections before saving your changes.
+          </div>
+        <?php else: ?>
+          <div class="alert alert-info" style="margin-bottom:20px; border-left:6px solid #0284c7; background:#f0f9ff; color:#0369a1; border-radius:8px; padding:16px 20px; border:1px solid #bae6fd;">
+            <strong>ℹ️ Version Synchronized:</strong> Your proposal has been synchronized with the latest server updates. You may continue editing and saving your changes.
+          </div>
+        <?php endif; ?>
       <?php elseif (isset($_GET['error'])): ?>
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Error:</strong> An error occurred while saving the proposal. Please try again.
@@ -1612,7 +1724,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                     <input type="file" name="poster_file" id="f1_poster_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" <?= $s1Attr ?>>
                     <small style="color: var(--text-muted);">Upload a new image poster to replace the current one (JPG, PNG, WEBP, GIF). Videos are not allowed.</small>
                   <?php else: ?>
-                    <input type="file" name="poster_file" id="f1_poster_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" required <?= $s1Attr ?>>
+                    <input type="file" name="poster_file" id="f1_poster_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" <?= (($activity['status'] ?? '') === 'draft' ? '' : 'required') ?> <?= $s1Attr ?>>
                     <small style="color: var(--text-muted);">Upload an image poster for this event (JPG, PNG, WEBP, GIF). Videos are not allowed.</small>
                   <?php endif; ?>
                   <span class="field-error" id="e_poster_file">Activity poster is required.</span>
@@ -1695,13 +1807,8 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             $s2Comment = $revisionSections['objectives'] ?? '';
           ?>
           <div class="card <?= $s2Flagged ? 'section-flagged' : '' ?>">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div class="card-header">
               <h2>🎯 Objectives & Academic Alignment</h2>
-              <?php if ($s2Editable): ?>
-                <button type="button" class="btn btn-outline btn-sm" id="btnGenObjectives" onclick="forceRegenerateObjectives()" style="font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
-                  <span>⚡ Generate Objectives with AI</span>
-                </button>
-              <?php endif; ?>
             </div>
             <div class="card-body">
               <div class="step-error-banner" id="err-banner-2" data-default-msg="⚠️ Please fill in all required fields before continuing.">⚠️ Please fill in all required fields before continuing.</div>
@@ -2427,6 +2534,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
             <div class="flex gap-2" style="align-items:center;">
               <button type="submit" name="action" value="draft" class="btn btn-outline" formnovalidate onclick="document.getElementById('proposalFormAction').value='draft'; serializeEvaluationQuestions();">💾 Save as Draft</button>
+              <?php if ($activity['status'] === 'draft' && $isOwner): ?>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteDraft(<?= (int)$id ?>, '<?= htmlspecialchars(addslashes($activity['title']), ENT_QUOTES) ?>')">🗑️ Delete Draft</button>
+              <?php endif; ?>
               <?php if ($isOwner): ?>
                 <button type="submit" name="action" value="submit" class="btn btn-primary" id="submitBtn" onclick="document.getElementById('proposalFormAction').value='submit'; serializeEvaluationQuestions();"><?= ($activity['status'] === 'returned_for_revision') ? '🚀 Resubmit for Approval' : '🚀 Submit for Approval' ?></button>
               <?php else: ?>
@@ -2459,6 +2569,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     const isS9Editable = <?= json_encode($s9Editable) ?>;
     const hasExistingPoster = <?= !empty($activity['poster_path']) ? 'true' : 'false' ?>;
     let questionsList = <?= json_encode(!empty($activity['evaluation_questions']) ? (json_decode($activity['evaluation_questions'], true) ?: []) : []) ?>;
+    window.questionsList = questionsList;
+    window.renderQuestions = renderQuestions;
+    window.serializeEvaluationQuestions = serializeEvaluationQuestions;
     let currentStep = 1;
     window.currentStep = 1;
     const totalSteps = 9;
@@ -2609,15 +2722,22 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       // Allow ordinal numbers (e.g. '1st', '2nd', '3rd', '4th')
       if (/^\d+(st|nd|rd|th)$/i.test(token)) return false;
 
+      // Allow standard measurement, paper, volume, duration and package units attached to numbers
+      // (e.g. '220gsm', '500ml', '10kg', '250g', '50pcs', '1080p', '100m', '30fps', '60hz', '32gb', '500mb', '100w')
+      if (/^\d+(\.\d+)?(gsm|kg|g|mg|lbs?|oz|ml|l|cm|mm|m|km|in|ft|yd|pcs?|pk|pks|box|boxes|sets?|rolls?|packs?|px|pt|dpi|kb|mb|gb|tb|hz|khz|mhz|ghz|fps|k|v|w|kw|a|ma|rpm|php|usd|eur|gbp)$/i.test(token)) {
+        return false;
+      }
+
       // Allow all-uppercase abbreviations up to 6 characters and common pluralized acronyms (e.g. 'JPCS', 'AWS', 'STI', 'PDRRMC', 'SSG', 'UNESCO', 'SDGs', 'KPIs')
       if (/^[A-Z]{2,6}s?$/.test(token)) return false;
 
-      // For hyphenated compounds (e.g. 'world-class', 'well-structured', 'peer-to-peer', 'hands-on'),
-      // evaluate each hyphen-separated component so letters are not concatenated across word boundaries.
-      if (token.includes('-')) {
-        const subTokens = token.split('-').filter(p => p.length > 0);
+      // For compound words separated by hyphens, slashes, or underscores (e.g. 'Pitch/Presentation', 'world-class', 'Input/Output', 'peer-to-peer', 'and/or'),
+      // evaluate each component individually so letters are not concatenated across word boundaries.
+      if (/[\-\/\\_]/.test(token)) {
+        const subTokens = token.split(/[\-\/\\_]+/).map(p => p.trim()).filter(p => p.length > 0);
         for (const sub of subTokens) {
-          if (sub.length >= 3 && isGibberishToken(sub)) {
+          const subClean = sub.replace(/^[\s,.:;!?"'()[\]{}/*\-+=@#$%^&<>~`|]+|[\s,.:;!?"'()[\]{}/*\-+=@#$%^&<>~`|]+$/g, '');
+          if (subClean.length >= 3 && isGibberishToken(subClean)) {
             return true;
           }
         }
@@ -2656,10 +2776,28 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         if (!whitelist.includes(letters)) return true;
       }
 
-      // 5. Pure home-row mash [asdfghjkl] (length >= 3)
+      // 5. Home-row letters [asdfghjkl] keyboard-mash heuristics
+      // Flag actual keyboard walks, mash patterns, or consonant clustering rather than all natural words/names made of home-row letters.
       if (letters.length >= 3 && /^[asdfghjkl]+$/.test(letters)) {
-        const homeWhitelist = ['add', 'adds', 'all', 'ask', 'asks', 'dash', 'fall', 'falls', 'flag', 'flags', 'flash', 'flask', 'flasks', 'gas', 'glad', 'glass', 'had', 'half', 'hall', 'halls', 'has', 'lass', 'salad', 'salads', 'shall'];
-        if (!homeWhitelist.includes(letters)) return true;
+        // Unambiguous keyboard mash runs and sequences
+        if (/^asd+$/i.test(letters) || /^dsa+$/i.test(letters) || /^asda/i.test(letters)) {
+          return true;
+        }
+        if (/asdf|fdsa|hjkl|lkjh|ghjk|kjhg|dfgh|fghj|sdfg|gfds/i.test(letters)) {
+          return true;
+        }
+        // 4+ consecutive home-row consonants without vowels (e.g. 'dfgh', 'hjkl', 'skld')
+        if (/[dfghjkl]{4,}/i.test(letters)) {
+          return true;
+        }
+        // Obvious repeated home-row n-grams (e.g. 'asdasd', 'fdasfda', 'hklhkl')
+        if (/^([asdfghjkl]{2,3})\1+$/i.test(letters)) {
+          return true;
+        }
+        // Words 5+ chars long without any vowel
+        if (letters.length >= 5 && !/[aeiouy]/i.test(letters)) {
+          return true;
+        }
       }
 
       // 6. Pure top-row mash [qwertyuiop] (length >= 3)
@@ -3502,7 +3640,13 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           window.fpSaveToHidden();
         }
 
-        const isDraft = (e.submitter && e.submitter.value === 'draft') || (document.getElementById('proposalFormAction') && document.getElementById('proposalFormAction').value === 'draft');
+        const actionInputEl = document.getElementById('proposalFormAction');
+        if (e.submitter && e.submitter.value) {
+          if (actionInputEl) actionInputEl.value = e.submitter.value;
+        }
+        const isDraft = e.submitter
+          ? (e.submitter.value === 'draft')
+          : (actionInputEl ? actionInputEl.value === 'draft' : false);
 
         if (isDraft) {
           if (isS1Editable) {
@@ -3601,7 +3745,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
               const finalThemeVal = finalThemeEl ? finalThemeEl.value.trim() : '';
 
               if (finalThemeVal === '' && isS1Editable && isEligibleEmptyTheme) {
-                const proceed = confirm("⚠️ AI Theme generation could not be completed at this time.\n\nDo you want to save this proposal as a draft with an empty theme for now?");
+                const msg = "⚠️ AI Theme generation could not be completed at this time.\n\nDo you want to save this proposal as a draft with an empty theme for now?";
+                const proceed = window.STIModal
+                  ? await window.STIModal.confirm(msg, { title: 'Save Draft Without AI Theme?', confirmText: 'Save Draft', cancelText: 'Cancel', variant: 'warning' })
+                  : confirm(msg);
                 if (!proceed) {
                   isDraftSavingPending = false;
                   draftBtns.forEach(btn => {
@@ -4327,6 +4474,105 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       setEvaluationState('READY');
     }
 
+    // Helper to synthesize objective-aligned academic evaluation questions client-side as a non-blocking fallback
+    function generateClientSideFallbackQuestions(title, theme, genObj, specObj) {
+      const generated = [];
+      let qNum = 1;
+
+      // Extract bullet points from objectives
+      const combined = (genObj || '') + '\n' + (specObj || '');
+      const rawLines = combined.split(/[\r\n]+/);
+      const parsedObjectives = [];
+      rawLines.forEach(line => {
+        const cleaned = line.replace(/^(\d+[\.\)\-]|[•\*\-])\s*/u, '').trim();
+        if (cleaned.length >= 8) {
+          parsedObjectives.push(cleaned.replace(/\.+$/, ''));
+        }
+      });
+
+      // 1. Objective-aligned questions (up to 4 specific objectives)
+      let objCount = 0;
+      parsedObjectives.forEach(objText => {
+        if (objCount < 4) {
+          generated.push({
+            id: 'q' + (qNum++),
+            question: `To what extent did the activity successfully achieve the objective to ${objText}?`,
+            type: 'rating',
+            required: true
+          });
+          objCount++;
+        }
+      });
+
+      if (objCount === 0) {
+        generated.push({
+          id: 'q' + (qNum++),
+          question: 'To what extent did the activity fulfill its stated academic and developmental objectives?',
+          type: 'rating',
+          required: true
+        });
+      }
+
+      // 2. Theme alignment question
+      const cleanTheme = (theme || 'the event theme').trim().replace(/\.+$/, '');
+      generated.push({
+        id: 'q' + (qNum++),
+        question: `The event activities and topics were closely aligned with the theme: '${cleanTheme}'.`,
+        type: 'rating',
+        required: true
+      });
+
+      // 3. Organization, logistics, schedule
+      generated.push({
+        id: 'q' + (qNum++),
+        question: 'The event schedule, venue arrangement, and program coordination were effective and well-organized.',
+        type: 'rating',
+        required: true
+      });
+
+      // 4. Speakers / Facilitators
+      generated.push({
+        id: 'q' + (qNum++),
+        question: 'The speakers and facilitators delivered the topics clearly and engaged participants effectively.',
+        type: 'rating',
+        required: true
+      });
+
+      // 5. Impact / Skill Enhancement
+      const cleanTitle = (title || 'this activity').trim().replace(/\.+$/, '');
+      generated.push({
+        id: 'q' + (qNum++),
+        question: `Participating in '${cleanTitle}' enhanced my practical knowledge and academic competence.`,
+        type: 'rating',
+        required: true
+      });
+
+      // 6. Overall satisfaction
+      generated.push({
+        id: 'q' + (qNum++),
+        question: 'Overall, I am highly satisfied with the conduct and experience of this activity.',
+        type: 'rating',
+        required: true
+      });
+
+      // 7 & 8. Open-ended questions (qualitative feedback)
+      generated.push({
+        id: 'q' + (qNum++),
+        question: `What specific aspect or session of '${cleanTitle}' did you find most beneficial or impactful?`,
+        type: 'open_ended',
+        required: true
+      });
+
+      generated.push({
+        id: 'q' + (qNum++),
+        question: 'What suggestions or recommendations do you have to improve future iterations of this event?',
+        type: 'open_ended',
+        required: true
+      });
+
+      return generated;
+    }
+
     async function autoGenerateEvaluation(forced = false) {
       // If Theme or Objectives are still generating, do not run yet unless forced
       if (!forced && typeof isObjGenerating !== 'undefined' && isObjGenerating) return;
@@ -4403,7 +4649,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       try {
         const res = await fetch('<?= BASE_URL ?>/api/generate-evaluation.php', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
           body: JSON.stringify(payload),
           signal: currentEvalAbortController.signal
         });
@@ -4413,23 +4662,33 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           return;
         }
 
-        const data = await res.json().catch(() => null);
-
-        if (!data) {
-          throw new Error(`Server returned HTTP ${res.status}.`);
+        const resText = await res.text();
+        let data = null;
+        try {
+          data = JSON.parse(resText);
+        } catch (parseErr) {
+          console.warn('Evaluation API returned non-JSON:', resText);
         }
 
-        if (data.quota_exhausted || (data.error && data.error === 'QUOTA_EXHAUSTED')) {
+        if (data && (data.quota_exhausted || (data.error && data.error === 'QUOTA_EXHAUSTED'))) {
+          if (!questionsList || questionsList.length === 0) {
+            questionsList = generateClientSideFallbackQuestions(curTitle, curTheme, curGen, curSpec);
+            renderQuestions();
+            serializeEvaluationQuestions();
+          }
           throw new Error("QUOTA_EXHAUSTED");
         } else if (res.status === 429 || (data && (data.rate_limited || (data.error && (data.error.includes('429') || data.error.includes('limit') || data.error === 'RATE_LIMIT'))))) {
           throw new Error("RATE_LIMIT");
-        } else if (data.auth_error || (data.error && data.error === 'AUTH_ERROR')) {
+        } else if (data && (data.auth_error || (data.error && data.error === 'AUTH_ERROR'))) {
+          if (!questionsList || questionsList.length === 0) {
+            questionsList = generateClientSideFallbackQuestions(curTitle, curTheme, curGen, curSpec);
+            renderQuestions();
+            serializeEvaluationQuestions();
+          }
           throw new Error("AUTH_ERROR: " + (data.message || 'Invalid or missing API key.'));
-        } else if (!res.ok || (data && (data.error || data.success === false))) {
-          throw new Error(data.message || data.error || `API Error: HTTP ${res.status}`);
         }
 
-        if (data.success && Array.isArray(data.questions)) {
+        if (data && data.success && Array.isArray(data.questions) && data.questions.length > 0) {
           // Double check that request is still current and no manual question change occurred
           if (requestId !== currentEvalRequestId || (currentEvalAbortController && currentEvalAbortController.signal.aborted) || manualEditVersion !== requestManualVersion || (!forced && isEvaluationEdited)) {
             return;
@@ -4450,7 +4709,16 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           serializeEvaluationQuestions();
           setEvaluationState('READY');
         } else {
-          throw new Error(data.message || data.error || 'Empty response from AI.');
+          // Fallback seamlessly to activity-tailored questions if API returned empty or unparseable response
+          questionsList = generateClientSideFallbackQuestions(curTitle, curTheme, curGen, curSpec);
+          isEvaluationEdited = false;
+          editingIndex = -1;
+          lastEvaluationHash = currentHash;
+          lastEvaluationState = getObjectivesAndKpisState();
+
+          renderQuestions();
+          serializeEvaluationQuestions();
+          setEvaluationState('READY');
         }
       } catch (err) {
         if (err.name === 'AbortError') return;
@@ -4467,6 +4735,18 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         } else if (errMsg.startsWith('AUTH_ERROR')) {
           errMsg = errMsg.replace(/^AUTH_ERROR:\s*/, '');
           isAuth = true;
+        } else {
+          // Non-quota, non-auth error: provide synthesized fallback questions smoothly
+          questionsList = generateClientSideFallbackQuestions(curTitle, curTheme, curGen, curSpec);
+          isEvaluationEdited = false;
+          editingIndex = -1;
+          lastEvaluationHash = currentHash;
+          lastEvaluationState = getObjectivesAndKpisState();
+
+          renderQuestions();
+          serializeEvaluationQuestions();
+          setEvaluationState('READY');
+          return;
         }
         setEvaluationState('ERROR', errMsg, isQuota, isAuth);
       } finally {
@@ -4677,8 +4957,12 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       setEvaluationState('READY');
     }
 
-    function confirmDeleteQuestion(index) {
-      if (confirm("Are you sure you want to delete this question?")) {
+    async function confirmDeleteQuestion(index) {
+      const msg = "Are you sure you want to delete this question?";
+      const confirmed = window.STIModal
+        ? await window.STIModal.confirm(msg, { title: 'Delete Evaluation Question?', confirmText: 'Delete Question', cancelText: 'Cancel', variant: 'danger' })
+        : confirm(msg);
+      if (confirmed) {
         cancelPendingEvaluationGeneration();
         manualEditVersion++;
         questionsList.splice(index, 1);
@@ -5712,6 +5996,43 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         }
       }
 
+      function showManualGoogleFormHelper(reasonText) {
+        if (!statusMsg) return;
+        let friendlyReason = reasonText;
+        if (reasonText.toLowerCase().includes('expired or revoked') || reasonText.toLowerCase().includes('oauth')) {
+          friendlyReason = 'The automated Google connection has expired. Please use the quick manual setup below:';
+        }
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = '#fffbeb';
+        statusMsg.style.color = '#92400e';
+        statusMsg.style.border = '1px solid #fde68a';
+        statusMsg.innerHTML = `
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div>
+              ⚠️ <strong>Google Forms Quick Setup:</strong> ${escapeHtml(friendlyReason)}
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyEvaluationQuestionsForGoogleForm()" style="display:inline-flex; align-items:center; gap:5px; font-size:0.75rem; padding:5px 12px; background:#fff; font-weight:600; cursor:pointer;">
+                📋 Copy All Evaluation Questions
+              </button>
+              <a href="https://forms.new" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary" style="display:inline-flex; align-items:center; gap:5px; font-size:0.75rem; padding:5px 12px; text-decoration:none; font-weight:600; cursor:pointer;">
+                🔗 Open Google Forms (forms.new) ↗
+              </a>
+              <a href="<?= BASE_URL ?>/api/google-oauth-callback.php?origin=<?= urlencode(BASE_URL) ?>&return_to=<?= urlencode('faculty/proposal-edit.php' . (!empty($activity['activity_id']) ? '?id=' . (int)$activity['activity_id'] : '')) ?>" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary" style="display:inline-flex; align-items:center; gap:5px; font-size:0.75rem; padding:5px 12px; background:#fff; text-decoration:none; font-weight:600; cursor:pointer;">
+                ⚡ Reauthorize Google Connection ↗
+              </a>
+              <span id="copyQuestionsFeedback" style="display:none; font-size:0.75rem; color:#16a34a; font-weight:600;">✓ Questions copied to clipboard!</span>
+            </div>
+            <div style="font-size:0.75rem; color:#64748b; line-height:1.3;">
+              Tip: Click <strong>"Copy All Evaluation Questions"</strong>, open Google Forms in a new tab, paste your questions, then copy the form link (e.g., <code>https://forms.gle/...</code>) into the box above.
+            </div>
+          </div>
+        `;
+        if (linkInput) {
+          linkInput.focus();
+        }
+      }
+
       // Read activity ID if available
       const actIdEl = document.getElementById('proposalActivityId') || document.querySelector('[name="activity_id"]');
       const activityId = actIdEl && actIdEl.value ? parseInt(actIdEl.value, 10) : 0;
@@ -5759,7 +6080,13 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           })
         });
 
-        const data = await response.json().catch(() => null);
+        const resText = await response.text();
+        let data = null;
+        try {
+          data = JSON.parse(resText);
+        } catch (e) {
+          console.warn('Google Form API returned non-JSON:', resText);
+        }
 
         if (response.ok && data && data.success && (data.form_url || data.responder_uri)) {
           const url = data.form_url || data.responder_uri;
@@ -5768,6 +6095,12 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             linkInput.classList.remove('is-invalid');
             const errSpan = document.getElementById('e_eval_form_link');
             if (errSpan) errSpan.style.display = 'none';
+          }
+          if (data.updated_at) {
+            const lastKnownEl = document.getElementById('proposalLastKnownUpdatedAt');
+            if (lastKnownEl) {
+              lastKnownEl.value = data.updated_at;
+            }
           }
           showStatus(data.message || 'Google Form created successfully! Link populated.', 'success');
         } else {
@@ -5778,19 +6111,93 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
               linkInput.value = data.form_url || data.responder_uri;
             }
             showStatus('A Google Form has already been created for this activity.', 'info');
-          } else if (errMsg) {
-            showStatus('⚠️ ' + escapeHtml(errMsg), 'warning');
           } else {
-            showStatus('⚠️ Unable to create Google Form. Please paste your Google Form link manually.', 'warning');
+            showManualGoogleFormHelper(errMsg || 'Google Forms automated API is in manual mode. You can easily copy your questions and open Google Forms below.');
           }
         }
       } catch (err) {
-        showStatus('⚠️ Unable to connect to Google Forms service. Please paste your Google Form link manually.', 'warning');
+        showManualGoogleFormHelper('Google Forms automated API service is currently unavailable. You can copy your questions and open Google Forms below.');
       } finally {
         isCreatingGoogleForm = false;
         if (btn) btn.disabled = false;
         if (spinner) spinner.style.display = 'none';
         if (btnText) btnText.textContent = 'Create Google Form';
+      }
+    }
+
+    // Helper to copy all evaluation questions in a clean, structured format for Google Forms
+    function copyEvaluationQuestionsForGoogleForm() {
+      let questions = (typeof questionsList !== 'undefined' && Array.isArray(questionsList) && questionsList.length > 0) ? questionsList : [];
+      if (questions.length === 0) {
+        const hiddenInput = document.getElementById('f10_evaluation_questions');
+        if (hiddenInput && hiddenInput.value) {
+          try { questions = JSON.parse(hiddenInput.value); } catch (e) {}
+        }
+      }
+      if (questions.length === 0) {
+        const titleEl = document.getElementById('f1_title') || document.querySelector('[name="title"]');
+        const themeEl = document.getElementById('f1_theme') || document.querySelector('[name="theme"]');
+        const genEl = document.getElementById('f2_general_objectives') || document.querySelector('[name="general_objectives"]');
+        const specEl = document.getElementById('f2_specific_objectives') || document.querySelector('[name="specific_objectives"]');
+        questions = generateClientSideFallbackQuestions(titleEl?.value || '', themeEl?.value || '', genEl?.value || '', specEl?.value || '');
+      }
+
+      const actTitle = (document.getElementById('f1_title')?.value || document.querySelector('[name="title"]')?.value || 'Activity Evaluation').trim();
+      const actTheme = (document.getElementById('f1_theme')?.value || document.querySelector('[name="theme"]')?.value || '').trim();
+
+      let text = `ACTIVITY EVALUATION FORM\n`;
+      text += `Title: ${actTitle}\n`;
+      if (actTheme) text += `Theme: ${actTheme}\n`;
+      text += `\nINSTRUCTIONS:\n`;
+      text += `Please evaluate this activity honestly. For rating questions, use the following scale:\n`;
+      text += `4 - Strongly Agree\n3 - Agree\n2 - Disagree\n1 - Strongly Disagree\n\n`;
+      text += `--- PARTICIPANT PROFILE ---\n`;
+      text += `1. Section: [Short Answer - Required]\n\n`;
+      text += `--- EVALUATION QUESTIONS ---\n`;
+
+      let ratingNum = 1;
+      let textNum = 1;
+      questions.forEach(q => {
+        const qText = (q.question || q.title || '').trim();
+        if (!qText || qText.toLowerCase() === 'section') return;
+        const qType = (q.type || 'rating').toLowerCase();
+        if (qType === 'rating') {
+          text += `${ratingNum++}. ${qText} (Scale: 1-4)\n`;
+        } else {
+          text += `Feedback ${textNum++}: ${qText} (Paragraph Text)\n`;
+        }
+      });
+
+      function showCopiedNotice() {
+        const fb = document.getElementById('copyQuestionsFeedback');
+        if (fb) {
+          fb.style.display = 'inline';
+          setTimeout(() => { fb.style.display = 'none'; }, 4000);
+        } else {
+          alert('Evaluation questions copied to clipboard!');
+        }
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showCopiedNotice).catch(() => fallbackCopyText(text));
+      } else {
+        fallbackCopyText(text);
+      }
+
+      function fallbackCopyText(str) {
+        const ta = document.createElement('textarea');
+        ta.value = str;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          showCopiedNotice();
+        } catch (e) {
+          alert('Please copy questions manually:\n\n' + str);
+        }
+        document.body.removeChild(ta);
       }
     }
   </script>
@@ -6283,7 +6690,11 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     }
 
     async function submitRemoveCollaborator(userId, userName) {
-      if (!confirm(`Are you sure you want to remove ${userName} from this collaborative proposal?`)) {
+      const msg = `Are you sure you want to remove ${userName} from this collaborative proposal?`;
+      const confirmed = window.STIModal
+        ? await window.STIModal.confirm(msg, { title: 'Remove Collaborator?', confirmText: 'Remove', cancelText: 'Cancel', variant: 'danger' })
+        : confirm(msg);
+      if (!confirmed) {
         return;
       }
 

@@ -42,7 +42,7 @@ if (!$activity) {
     exit;
 }
 
-// Conflict detection for offline draft synchronization:
+// Conflict detection for offline draft synchronization and collaborative editing:
 // Check if server version was modified after the client's last known server timestamp.
 $lastKnown = trim((string)($_POST['last_known_updated_at'] ?? ''));
 $forceOverwrite = !empty($_POST['force_overwrite']);
@@ -52,23 +52,62 @@ if ($lastKnown !== '' && !$forceOverwrite && !empty($activity['updated_at'])) {
     $clientTime = strtotime($lastKnown);
     // Tolerance margin of 2 seconds for server-client timestamp resolution
     if ($serverTime > ($clientTime + 2)) {
-        if ($isAjax) {
-            http_response_code(409); // Conflict
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode([
-                'success'           => false,
-                'conflict'          => true,
-                'error_code'        => 'conflict_requires_review',
-                'error'             => 'Conflict detected: The server version of this proposal was modified by another contributor after your view was loaded. Please reload to review the latest changes.',
-                'server_updated_at' => $activity['updated_at'],
-                'client_updated_at' => $lastKnown,
-                'server_title'      => $activity['title'],
-                'activity_id'       => $id
-            ]);
-            exit;
-        } else {
-            header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&conflict=1&server_time=" . urlencode($activity['updated_at']));
-            exit;
+        // Determine if other active collaborators exist on this proposal
+        $isOwner = ((int)$activity['faculty_id'] === (int)$user['id']);
+        $otherCollabStmt = $db->prepare("
+            SELECT COUNT(*) 
+            FROM proposal_collaborators 
+            WHERE activity_id = ? AND user_id != ? AND status = 'active'
+        ");
+        $otherCollabStmt->execute([$id, (int)$user['id']]);
+        $otherCollabCount = (int)$otherCollabStmt->fetchColumn();
+
+        // Other contributors exist if there are active collaborator rows or user is not the proposal owner
+        $hasOtherContributors = ($otherCollabCount > 0) || !$isOwner;
+
+        // Check if the most recent contribution was made by another user
+        $lastModifierIsOther = false;
+        if ($hasOtherContributors) {
+            $lastLogStmt = $db->prepare("
+                SELECT user_id 
+                FROM proposal_contribution_logs 
+                WHERE activity_id = ? 
+                ORDER BY created_at DESC, id DESC 
+                LIMIT 1
+            ");
+            $lastLogStmt->execute([$id]);
+            $lastLogUserId = $lastLogStmt->fetchColumn();
+            if ($lastLogUserId !== false && $lastLogUserId !== null) {
+                $lastModifierIsOther = ((int)$lastLogUserId !== (int)$user['id']);
+            } else {
+                $lastModifierIsOther = true;
+            }
+        }
+
+        // Trigger conflict only if:
+        // 1. It is an AJAX sync request (offline draft sync detecting server version changes), OR
+        // 2. Other contributors actually exist AND the last modification was made by someone else
+        $isConflict = $isAjax ? true : ($hasOtherContributors && $lastModifierIsOther);
+
+        if ($isConflict) {
+            if ($isAjax) {
+                http_response_code(409); // Conflict
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'success'           => false,
+                    'conflict'          => true,
+                    'error_code'        => 'conflict_requires_review',
+                    'error'             => 'Conflict detected: The server version of this proposal was modified by another contributor after your view was loaded. Please reload to review the latest changes.',
+                    'server_updated_at' => $activity['updated_at'],
+                    'client_updated_at' => $lastKnown,
+                    'server_title'      => $activity['title'],
+                    'activity_id'       => $id
+                ]);
+                exit;
+            } else {
+                header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&conflict=1&server_time=" . urlencode($activity['updated_at']));
+                exit;
+            }
         }
     }
 }
@@ -98,8 +137,25 @@ if ($action === 'submit') {
     $newStatus = 'submitted';
     $clearNotes = true;
 } else {
-    // If it was returned for revision, keep that status when saving as draft
-    $newStatus = ($currStatus === 'returned_for_revision') ? 'returned_for_revision' : 'draft';
+    // Never allow a draft save or background offline-draft sync to downgrade an already-submitted proposal back to 'draft'
+    if (in_array($currStatus, ['submitted', 'under_review', 'endorsed', 'pending_final_approval', 'resubmitted', 'approved', 'completed'], true)) {
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success'     => true,
+                'activity_id' => $id,
+                'status'      => $currStatus,
+                'message'     => 'Proposal is already submitted.',
+                'updated_at'  => $activity['updated_at'] ?? date('Y-m-d H:i:s'),
+                'title'       => $activity['title'] ?? ''
+            ]);
+            exit;
+        }
+        $newStatus = $currStatus;
+    } else {
+        // If it was returned for revision, keep that status when saving as draft
+        $newStatus = ($currStatus === 'returned_for_revision') ? 'returned_for_revision' : 'draft';
+    }
     $clearNotes = false;
 }
 
@@ -223,6 +279,12 @@ if (!empty($_POST['schedule_rows']) && is_array($_POST['schedule_rows'])) {
 
 if (!empty($_FILES['poster_file']['name'])) {
     if (!isValidPosterImage($_FILES['poster_file'])) {
+        if ($isAjax) {
+            http_response_code(400);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error_code' => 'invalid_poster_format', 'error' => 'Invalid poster format.']);
+            exit;
+        }
         header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_poster_format");
         exit;
     }
@@ -379,15 +441,22 @@ if ($action === 'submit') {
     $aiService = new GeminiProposalValidationService(getGeminiApiKeySecure());
     $canonicalPayload = $aiService->getCanonicalProposalPayload($_POST);
     $currentHash = $aiService->calculateProposalHash($canonicalPayload);
+    $submittedHash = trim((string)($_POST['ai_validation_hash'] ?? ''));
 
-    // Verify against server session cache (never trust client-supplied approval flags)
-    if (!isset($_SESSION['last_ai_validation'][$currentHash])) {
-        // Validation result does not correspond to current payload or was never performed
-        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=ai_validation_critical");
-        exit;
+    // Resolve cached validation or perform on-the-fly fallback validation if session cache expired
+    $cachedValidation = null;
+    if (isset($_SESSION['last_ai_validation'][$currentHash]['result'])) {
+        $cachedValidation = $_SESSION['last_ai_validation'][$currentHash]['result'];
+    } elseif ($submittedHash !== '' && isset($_SESSION['last_ai_validation'][$submittedHash]['result'])) {
+        $cachedValidation = $_SESSION['last_ai_validation'][$submittedHash]['result'];
+    } else {
+        $cachedValidation = $aiService->validateProposal($_POST);
+        $_SESSION['last_ai_validation'][$currentHash] = [
+            'result'    => $cachedValidation,
+            'timestamp' => time()
+        ];
     }
 
-    $cachedValidation = $_SESSION['last_ai_validation'][$currentHash]['result'] ?? null;
     $hasCriticalAiIssues = false;
     if (is_array($cachedValidation) && !empty($cachedValidation['sections']) && is_array($cachedValidation['sections'])) {
         foreach ($cachedValidation['sections'] as $sec) {
@@ -406,9 +475,13 @@ if ($action === 'submit') {
     }
 }
 
-$source = sanitize($_POST['source'] ?? ($activity['source'] ?? 'faculty'));
-if ($source === '' && !empty($activity['source'])) {
+$rawSource = trim($_POST['source'] ?? '');
+if (in_array($rawSource, ['student_org', 'faculty'], true)) {
+    $source = $rawSource;
+} elseif (!empty($activity['source']) && in_array($activity['source'], ['student_org', 'faculty'], true)) {
     $source = $activity['source'];
+} else {
+    $source = 'faculty';
 }
 $evalQuestions = isset($_POST['evaluation_questions']) ? $_POST['evaluation_questions'] : $activity['evaluation_questions'];
 
@@ -454,7 +527,7 @@ if ($action === 'submit' && $floorPlanRequired) {
         }
     }
 
-    $hasAnyFloorPlan = $hasFpFile || $hasFpImage || $hasFpCanvas;
+    $hasAnyFloorPlan = $hasFpFile || $hasFpImage || $hasFpCanvas || ($fpNotes !== '');
     if (!$hasAnyFloorPlan) {
         header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=missing_fields");
         exit;
@@ -499,6 +572,27 @@ if ($s9Editable) {
             }
         }
     }
+}
+
+// Ensure activity_participants table exists before starting transaction to avoid MySQL implicit DDL commit
+try {
+    $db->exec("CREATE TABLE IF NOT EXISTS activity_participants (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        activity_id INT NOT NULL,
+        row_no INT NOT NULL DEFAULT 1,
+        subject_section VARCHAR(255) NOT NULL DEFAULT '',
+        participants_count INT NOT NULL DEFAULT 0,
+        actual_attendees INT NULL DEFAULT NULL,
+        pre_test_score DECIMAL(5,2) NULL DEFAULT NULL,
+        post_test_score DECIMAL(5,2) NULL DEFAULT NULL,
+        learning_kpi_result VARCHAR(100) NULL DEFAULT NULL,
+        teacher_name VARCHAR(255) NOT NULL DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_activity_id (activity_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+} catch (\Throwable $tblEx) {
+    error_log("activity_participants table check notice: " . $tblEx->getMessage());
 }
 
 $newlyCreatedDiskPath = null;
@@ -557,22 +651,6 @@ try {
 
         if ($partSections !== null || $partCounts !== null) {
             try {
-                $db->exec("CREATE TABLE IF NOT EXISTS activity_participants (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    activity_id INT NOT NULL,
-                    row_no INT NOT NULL DEFAULT 1,
-                    subject_section VARCHAR(255) NOT NULL DEFAULT '',
-                    participants_count INT NOT NULL DEFAULT 0,
-                    actual_attendees INT NULL DEFAULT NULL,
-                    pre_test_score DECIMAL(5,2) NULL DEFAULT NULL,
-                    post_test_score DECIMAL(5,2) NULL DEFAULT NULL,
-                    learning_kpi_result VARCHAR(100) NULL DEFAULT NULL,
-                    teacher_name VARCHAR(255) NOT NULL DEFAULT '',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_activity_id (activity_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
                 $colCheck = $db->query("SHOW COLUMNS FROM activity_participants LIKE 'actual_attendees'")->fetch();
                 $hasKpiCols = (bool)$colCheck;
 
@@ -719,7 +797,9 @@ try {
             $mp = $db->prepare("INSERT INTO manpower(activity_id,role,assigned_person,type)VALUES(?,?,?,?)");
             foreach ($_POST['mp_role'] as $i=>$role) {
                 if (!trim($role)) continue;
-                $mp->execute([$id,sanitize($role),sanitize($_POST['mp_person'][$i]??''),$_POST['mp_type'][$i]??'faculty']);
+                $rawMpType = strtolower(trim((string)($_POST['mp_type'][$i] ?? 'faculty')));
+                $normMpType = in_array($rawMpType, ['faculty', 'staff', 'student'], true) ? $rawMpType : 'faculty';
+                $mp->execute([$id,sanitize($role),sanitize($_POST['mp_person'][$i]??''),$normMpType]);
             }
         }
     }
@@ -825,15 +905,15 @@ try {
                     ]);
                     $submittedKeepIds[] = $rawTaskId;
 
-                    // Notify new assignee if task was newly assigned or reassigned to a different person
-                    if ($assignedUserId && $assignedUserId !== $prevAssignee) {
+                    // Notify new assignee if task was newly assigned or reassigned to a different person (only on non-drafts)
+                    if ($assignedUserId && $assignedUserId !== $prevAssignee && $newStatus !== 'draft') {
                         sendTaskAssignmentNotification($db, $assignedUserId, $id, $tTitle, $dueDate);
                     }
                 } else {
                     $insertTaskStmt->execute([
                         $id, $assignedUserId, $facultyName, $tTitle, $tTitle, $tDesc, $tDesc, $tRole, $dueDate, $user['id'] ?? null
                     ]);
-                    if ($assignedUserId) {
+                    if ($assignedUserId && $newStatus !== 'draft') {
                         sendTaskAssignmentNotification($db, $assignedUserId, $id, $tTitle, $dueDate);
                     }
                 }
@@ -916,10 +996,12 @@ try {
     }
 
     // 8.5 Poster update
+    $savedPosterPath = null;
     if (!empty($_FILES['poster_file']['name'])) {
         $posterPath = uploadFile($_FILES['poster_file'], 'posters', $id);
         if ($posterPath) {
             $db->prepare("UPDATE activities SET poster_path=? WHERE id=?")->execute([$posterPath, $id]);
+            $savedPosterPath = $posterPath;
         }
     }
 
@@ -955,20 +1037,25 @@ try {
         $logStmt->execute([$id]);
         $lastReturn = $logStmt->fetch();
 
+        $currSource = $curr['source'] ?? 'faculty';
         if ($lastReturn) {
             if ($lastReturn['role'] === 'admin1') {
                 $nextStatus = 'under_review';
                 $notifyRole = 'admin1';
+            } elseif ($lastReturn['role'] === 'admin2') {
+                $nextStatus = ($currSource === 'student_org') ? 'endorsed' : 'submitted';
+                $notifyRole = 'admin2';
             } elseif ($lastReturn['role'] === 'dean') {
                 $nextStatus = 'pending_final_approval';
                 $notifyRole = 'dean';
             } else {
-                $nextStatus = 'submitted'; // Ian catches 'submitted'
-                $notifyRole = 'admin2';
+                $nextStatus = ($currSource === 'student_org') ? 'under_review' : 'submitted';
+                $notifyRole = ($currSource === 'student_org') ? 'admin1' : 'admin2';
             }
         } else {
-            $nextStatus = ($source === 'student_org') ? 'under_review' : 'submitted';
-            $notifyRole = ($source === 'student_org') ? 'admin1' : 'admin2';
+            // Default routing by source if no previous return log
+            $nextStatus = ($currSource === 'student_org') ? 'under_review' : 'submitted';
+            $notifyRole = ($currSource === 'student_org') ? 'admin1' : 'admin2';
         }
 
         $db->prepare("UPDATE activities SET status=?, revision_sections=NULL WHERE id=?")->execute([$nextStatus,$id]);
@@ -992,7 +1079,9 @@ try {
         }
     }
 
-    $db->commit();
+    if ($db->inTransaction()) {
+        $db->commit();
+    }
 
     // Safely remove superseded floor plan file after successful replacement
     if ($hasNewImage && !empty($previousFloorPlanPath)) {
@@ -1202,6 +1291,8 @@ try {
             'success'     => true,
             'activity_id' => $id,
             'status'      => $newStatus,
+            'source'      => $source,
+            'poster_path' => $savedPosterPath ?? ($activity['poster_path'] ?? null),
             'message'     => 'Proposal draft updated successfully.',
             'updated_at'  => date('Y-m-d H:i:s'),
             'title'       => $title

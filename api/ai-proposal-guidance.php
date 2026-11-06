@@ -84,6 +84,38 @@ if ($action === 'log_applied') {
     exit;
 }
 
+// 5.5 Action: generate_sections (Generates AI suggestions for requested sections)
+if ($action === 'generate_sections') {
+    $requestedSections = $input['sections'] ?? [];
+    if (!is_array($requestedSections) || empty($requestedSections)) {
+        $requestedSections = ['objectives', 'materials', 'floor_plan', 'people', 'schedule', 'guidelines', 'faculty_tasks', 'evaluation_kpi'];
+    }
+
+    $guidanceService = new GeminiProposalGuidanceService();
+    try {
+        $suggestions = $guidanceService->generateProposalSections($input, $requestedSections);
+        ob_clean();
+        echo json_encode([
+            'success'     => true,
+            'activity_id' => $activityId,
+            'title'       => $input['title'] ?? '',
+            'suggestions' => $suggestions
+        ]);
+        exit;
+    } catch (Exception $e) {
+        error_log("api/ai-proposal-guidance.php generate_sections Exception: " . $e->getMessage());
+        $fallback = $guidanceService->getFallbackSectionSuggestions($input, $requestedSections);
+        ob_clean();
+        echo json_encode([
+            'success'     => true,
+            'activity_id' => $activityId,
+            'title'       => $input['title'] ?? '',
+            'suggestions' => $fallback
+        ]);
+        exit;
+    }
+}
+
 // 6. Action: review (default)
 // If referencing an existing activity, verify user has view access
 if ($activityId > 0) {

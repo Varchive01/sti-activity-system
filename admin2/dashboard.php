@@ -9,10 +9,18 @@ $user = currentUser();
 $db   = getDB();
 
 // Stagnant proposals escalation check
-checkProposalEscalations($db, $user['id'], $user['role']);
+try {
+    checkProposalEscalations($db, $user['id'], $user['role']);
+} catch (\Throwable $e) {
+    error_log("Admin2 dashboard escalation check error: " . $e->getMessage());
+}
 
 // Task progress reminders check
-checkTaskProgressReminders($db, $user['id'], $user['role']);
+try {
+    checkTaskProgressReminders($db, $user['id'], $user['role']);
+} catch (\Throwable $e) {
+    error_log("Admin2 dashboard task reminder check error: " . $e->getMessage());
+}
 
 // Assigned tasks summary strictly for this authenticated admin
 $myTaskCounts = ['total' => 0, 'completed' => 0, 'in_progress' => 0, 'delayed' => 0];
@@ -36,37 +44,58 @@ try {
             'delayed'     => (int)($countsRow['delayed'] ?? 0),
         ];
     }
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     // Graceful fallback
 }
 
-// Period and Year Filter (Preserving existing semester conventions)
-$selectedYear = (int)($_GET['year'] ?? date('Y'));
+// Period and Year Filter (Dynamic with database years)
+$currentYear = (int)date('Y');
+$selectedYear = isset($_GET['year']) ? ($_GET['year'] === 'all' ? 'all' : (int)$_GET['year']) : 'all';
 $selectedPeriod = sanitize($_GET['period'] ?? 'all');
-$availableYears = range(date('Y'), date('Y') - 4);
+
+// Discover available years dynamically from activities table
+$availableYears = [$currentYear, $currentYear + 1];
+try {
+    $dbYears = $db->query("SELECT DISTINCT YEAR(event_date) as yr FROM activities WHERE event_date IS NOT NULL AND event_date != '0000-00-00' ORDER BY yr DESC")->fetchAll(PDO::FETCH_COLUMN);
+    if (!empty($dbYears)) {
+        $availableYears = array_values(array_unique(array_merge($availableYears, array_map('intval', $dbYears))));
+        rsort($availableYears);
+    }
+} catch (\Throwable $e) {}
 
 $periodBounds = buildPeriodWhereClause($selectedYear, $selectedPeriod, 'a.event_date');
 $whereClause = $periodBounds['where'];
 $params = $periodBounds['params'];
 
 // Approval Trends for Selected Period (monitored activities)
-$approvalTrends = getApprovalTrends($selectedYear, $selectedPeriod, $db);
+$approvalTrends = ['months' => [], 'max_count' => 1, 'total_approved' => 0, 'total_returned' => 0];
+try {
+    $approvalTrends = getApprovalTrends($selectedYear, $selectedPeriod, $db);
+} catch (\Throwable $e) {
+    error_log("Admin2 dashboard approval trends error: " . $e->getMessage());
+}
 
 // Notifications
-$unreadStmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
-$unreadStmt->execute([$user['id']]);
-$unreadCount = (int)$unreadStmt->fetchColumn();
+$unreadCount = 0;
+$notifications = [];
+try {
+    $unreadStmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+    $unreadStmt->execute([$user['id']]);
+    $unreadCount = (int)$unreadStmt->fetchColumn();
 
-$notifStmt = $db->prepare("
-    SELECT n.*, a.title as activity_title
-    FROM notifications n
-    LEFT JOIN activities a ON n.activity_id = a.id
-    WHERE n.user_id = ?
-    ORDER BY n.created_at DESC
-    LIMIT 10
-");
-$notifStmt->execute([$user['id']]);
-$notifications = $notifStmt->fetchAll();
+    $notifStmt = $db->prepare("
+        SELECT n.*, a.title as activity_title
+        FROM notifications n
+        LEFT JOIN activities a ON n.activity_id = a.id
+        WHERE n.user_id = ?
+        ORDER BY n.created_at DESC
+        LIMIT 10
+    ");
+    $notifStmt->execute([$user['id']]);
+    $notifications = $notifStmt->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Admin2 dashboard notifications error: " . $e->getMessage());
+}
 
 $initial = strtoupper(substr($user['name'], 0, 1));
 
@@ -80,53 +109,69 @@ function timeAgo($datetime)
   return date('M j', strtotime($datetime));
 }
 
-$statsStmt = $db->prepare("
-  SELECT
-    SUM(a.status IN ('submitted','endorsed','resubmitted')) as pending,
-    SUM(a.status='approved') as approved,
-    SUM(a.status='returned_for_revision') as returned,
-    SUM(a.status='rejected') as rejected,
-    SUM(a.status='completed') as completed,
-    COUNT(*) as total
-  FROM activities a
-  WHERE {$whereClause}
-");
-$statsStmt->execute($params);
-$stats = $statsStmt->fetch() ?: [];
+$stats = [];
+$pending = [];
+$kpi = [];
+$actions = [];
 
-$pendingStmt = $db->prepare("
-  SELECT a.*, u.name as faculty_name FROM activities a
-  JOIN users u ON a.faculty_id=u.id
-  WHERE a.status IN ('submitted','endorsed','resubmitted') AND {$whereClause}
-  ORDER BY a.submitted_at DESC LIMIT 10
-");
-$pendingStmt->execute($params);
-$pending = $pendingStmt->fetchAll();
+try {
+    $statsStmt = $db->prepare("
+      SELECT
+        SUM((a.source = 'faculty' AND a.status IN ('submitted','under_review','resubmitted')) OR a.status = 'endorsed') as pending,
+        SUM(a.status='approved') as approved,
+        SUM(a.status='returned_for_revision') as returned,
+        SUM(a.status='rejected') as rejected,
+        SUM(a.status='completed') as completed,
+        COUNT(*) as total
+      FROM activities a
+      WHERE {$whereClause} AND a.status != 'draft'
+    ");
+    $statsStmt->execute($params);
+    $stats = $statsStmt->fetch() ?: [];
+} catch (\Throwable $e) {
+    error_log("Admin2 dashboard stats error: " . $e->getMessage());
+}
 
-$upcoming = $db->query("
-  SELECT * FROM activities WHERE status='approved' AND event_date >= CURDATE()
-  ORDER BY event_date ASC LIMIT 5
-")->fetchAll();
+try {
+    $pendingStmt = $db->prepare("
+      SELECT a.*, u.name as faculty_name FROM activities a
+      JOIN users u ON a.faculty_id=u.id
+      WHERE ((a.source = 'faculty' AND a.status IN ('submitted','under_review','resubmitted')) OR a.status = 'endorsed') AND {$whereClause}
+      ORDER BY a.submitted_at DESC LIMIT 10
+    ");
+    $pendingStmt->execute($params);
+    $pending = $pendingStmt->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Admin2 dashboard pending error: " . $e->getMessage());
+}
 
 // KPI averages
-$kpiStmt = $db->prepare("
-  SELECT AVG(k.rating) as avg_rating, COUNT(DISTINCT k.activity_id) as events_evaluated
-  FROM kpi_evaluations k
-  JOIN activities a ON k.activity_id = a.id
-  WHERE {$whereClause}
-");
-$kpiStmt->execute($params);
-$kpi = $kpiStmt->fetch() ?: [];
+try {
+    $kpiStmt = $db->prepare("
+      SELECT AVG(k.rating) as avg_rating, COUNT(DISTINCT k.activity_id) as events_evaluated
+      FROM kpi_evaluations k
+      JOIN activities a ON k.activity_id = a.id
+      WHERE {$whereClause}
+    ");
+    $kpiStmt->execute($params);
+    $kpi = $kpiStmt->fetch() ?: [];
+} catch (\Throwable $e) {
+    error_log("Admin2 dashboard kpi error: " . $e->getMessage());
+}
 
-$recent_actions = $db->prepare("
-  SELECT al.*, a.title, a.status as current_status, a.id as activity_id, u.name as faculty_name FROM approval_logs al
-  JOIN activities a ON al.activity_id=a.id
-  JOIN users u ON a.faculty_id=u.id
-  WHERE al.reviewer_id=? AND {$whereClause}
-  ORDER BY al.acted_at DESC LIMIT 6
-");
-$recent_actions->execute(array_merge([$user['id']], $params));
-$actions = $recent_actions->fetchAll();
+try {
+    $recent_actions = $db->prepare("
+      SELECT al.*, a.title, a.status as current_status, a.id as activity_id, u.name as faculty_name FROM approval_logs al
+      JOIN activities a ON al.activity_id=a.id
+      JOIN users u ON a.faculty_id=u.id
+      WHERE al.reviewer_id=? AND {$whereClause}
+      ORDER BY al.acted_at DESC LIMIT 6
+    ");
+    $recent_actions->execute(array_merge([$user['id']], $params));
+    $actions = $recent_actions->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Admin2 dashboard recent_actions error: " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -322,7 +367,7 @@ $actions = $recent_actions->fetchAll();
     /* ── 1. Compact Horizontal KPI Stat Cards (Dean Standardized Parity) ── */
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 10px;
       align-items: stretch;
       width: 100%;
@@ -1163,9 +1208,7 @@ $actions = $recent_actions->fetchAll();
       <!-- Year and Reporting Period Filter -->
       <form method="GET" class="topbar-filter-form" style="display:flex;gap:6px;align-items:center;">
         <select name="year" class="form-control" style="width:90px;padding:5px 8px;font-size:0.82rem;">
-          <?php foreach ($availableYears as $y): ?>
-            <option value="<?= $y ?>" <?= $selectedYear === $y ? 'selected' : '' ?>><?= $y ?></option>
-          <?php endforeach; ?>
+          <option value="all" <?= $selectedYear === 'all' ? 'selected' : '' ?>>All Years</option><?php foreach ($availableYears as $yr): ?><option value="<?= $yr ?>" <?= (string)$selectedYear === (string)$yr ? 'selected' : '' ?>><?= $yr ?></option><?php endforeach; ?>
         </select>
         <select name="period" class="form-control" style="width:145px;padding:5px 8px;font-size:0.82rem;">
           <option value="all" <?= $selectedPeriod === 'all' ? 'selected' : '' ?>>Whole Year</option>
@@ -1193,6 +1236,14 @@ $actions = $recent_actions->fetchAll();
 
         <!-- Stats -->
         <div class="stat-grid" style="margin-bottom:0;">
+          <a href="<?= BASE_URL ?>/admin2/activities.php" class="stat-card stat-card-total">
+            <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></div>
+            <div>
+              <div class="stat-val"><?= (int)($stats['total'] ?? 0) ?></div>
+              <div class="stat-label">Total Proposals</div>
+            </div>
+            <div class="stat-strip stat-strip-total"></div>
+          </a>
           <a href="<?= BASE_URL ?>/admin2/pending.php" class="stat-card stat-card-pending">
             <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
             <div>
@@ -1208,6 +1259,14 @@ $actions = $recent_actions->fetchAll();
               <div class="stat-label">Approved Activities</div>
             </div>
             <div class="stat-strip stat-strip-approved"></div>
+          </a>
+          <a href="<?= BASE_URL ?>/admin2/returned.php" class="stat-card stat-card-returned">
+            <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></div>
+            <div>
+              <div class="stat-val"><?= (int)($stats['returned'] ?? 0) ?></div>
+              <div class="stat-label">Returned for Revision</div>
+            </div>
+            <div class="stat-strip stat-strip-returned"></div>
           </a>
           <a href="<?= BASE_URL ?>/admin2/activities.php?status=completed" class="stat-card stat-card-completed">
             <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg></div>
@@ -1319,27 +1378,6 @@ $actions = $recent_actions->fetchAll();
             <div class="text-sm text-muted" style="margin-top:6px;"><?= $kpi['events_evaluated'] ?> events evaluated</div>
           </div>
           <?php endif; ?>
-
-          <!-- Upcoming Approved Events -->
-          <div class="card">
-            <div class="card-header"><h2>📅 Upcoming Approved Events</h2></div>
-            <div class="card-body" style="padding:0;">
-              <?php if (empty($upcoming)): ?>
-                <div style="padding:24px;text-align:center;color:var(--text-muted);">No upcoming events.</div>
-              <?php else: foreach ($upcoming as $ev): ?>
-                <div class="upcoming-event">
-                  <div class="event-date-badge">
-                    <div class="day"><?= date('j', strtotime($ev['event_date'])) ?></div>
-                    <div class="mon"><?= date('M', strtotime($ev['event_date'])) ?></div>
-                  </div>
-                  <div style="min-width:0;flex:1;">
-                    <div style="font-weight:600;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?= htmlspecialchars($ev['title']) ?></div>
-                    <div class="text-sm text-muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?= htmlspecialchars($ev['venue'] ?? '—') ?></div>
-                  </div>
-                </div>
-              <?php endforeach; endif; ?>
-            </div>
-          </div>
 
           <!-- My Assigned Tasks Card -->
           <div class="card" style="margin-bottom: 20px;">

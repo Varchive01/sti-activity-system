@@ -48,9 +48,9 @@ $roleConfigs = [
         ],
     ],
     'program_head' => [
-        'label'       => 'PROGRAM HEAD PORTAL',
+        'label'       => (!empty($user['dept']) ? strtoupper(htmlspecialchars(trim($user['dept']))) . ' — ' : '') . 'PROGRAM HEAD PORTAL',
         'heading'     => 'Welcome back, ' . htmlspecialchars($userName) . '!',
-        'description' => 'Oversee your department\'s activities, monitor proposal progress, and manage departmental tasks.',
+        'description' => 'Oversee your department\'s activities, monitor proposal progress, and manage departmental tasks.' . (!empty($user['dept']) ? ' (' . htmlspecialchars(trim($user['dept'])) . ')' : ''),
         'buttons'     => [
             [
                 'type'               => 'secondary',

@@ -106,7 +106,11 @@ const ProposalAIValidator = (function () {
       showLoadingOverlay(false);
       
       // If Gemini is unavailable, do not block the faculty; ask if they want to proceed using local validation
-      if (confirm('⚠️ AI Proposal Validation is temporarily unavailable.\n\nWould you like to proceed with the submission anyway?')) {
+      const fallbackMsg = '⚠️ AI Proposal Validation is temporarily unavailable.\n\nWould you like to proceed with the submission anyway?';
+      const proceedAnyway = window.STIModal
+        ? await window.STIModal.confirm(fallbackMsg, { title: 'AI Validation Unavailable', confirmText: 'Proceed Anyway', cancelText: 'Cancel', variant: 'warning' })
+        : confirm(fallbackMsg);
+      if (proceedAnyway) {
         _aiValidationStatus = 'unavailable';
         
         let aiHashInput = _formEl.querySelector('input[name="ai_validation_hash"]');
@@ -162,8 +166,8 @@ const ProposalAIValidator = (function () {
       totalCount++;
     }
 
-    // 3. Dynamic Score (Weighted percentage based on sections)
-    const score = totalCount > 0 ? Math.round(((goodCount * 100) + (warningCount * 50)) / (totalCount * 100) * 100) : 100;
+    // 3. Dynamic Score (Weighted percentage based on sections; advisory warnings award 75 pts, passed award 100 pts)
+    const score = totalCount > 0 ? Math.round(((goodCount * 100) + (warningCount * 75)) / (totalCount * 100) * 100) : 100;
 
     let strokeColor = "#EF4444";
     if (score >= 80) strokeColor = "#10B981";
@@ -1051,21 +1055,37 @@ const ProposalAIValidator = (function () {
     }).join('');
   }
 
-  function proceedWithSubmission() {
+  async function proceedWithSubmission() {
     if (!_formEl) return;
 
-    let hiddenAction = _formEl.querySelector('input[name="action"][type="hidden"]');
-    if (!hiddenAction) {
-      hiddenAction = document.createElement('input');
-      hiddenAction.type = 'hidden';
-      hiddenAction.name = 'action';
-      hiddenAction.value = 'submit';
-      _formEl.appendChild(hiddenAction);
-    } else {
-      hiddenAction.value = 'submit';
+    if (typeof window.serializeEvaluationQuestions === 'function') {
+      try { window.serializeEvaluationQuestions(); } catch (e) {}
+    }
+    if (typeof window.fpSaveToHidden === 'function') {
+      try { window.fpSaveToHidden(); } catch (e) {}
     }
 
-    _formEl.submit();
+    // Ensure all action hidden inputs are explicitly set to 'submit'
+    const actionInputs = _formEl.querySelectorAll('input[name="action"]');
+    if (actionInputs.length > 0) {
+      actionInputs.forEach(inp => { inp.value = 'submit'; });
+    } else {
+      const hiddenAction = document.createElement('input');
+      hiddenAction.type = 'hidden';
+      hiddenAction.name = 'action';
+      hiddenAction.id = 'proposalFormAction';
+      hiddenAction.value = 'submit';
+      _formEl.appendChild(hiddenAction);
+    }
+
+    // Clear any local offline draft for this proposal so background sync never reverts status to draft
+    if (window.OfflineDraftManager && typeof window.OfflineDraftManager.clearDraftForForm === 'function') {
+      try {
+        await window.OfflineDraftManager.clearDraftForForm(_formEl);
+      } catch (e) {}
+    }
+
+    HTMLFormElement.prototype.submit.call(_formEl);
   }
 
   function closeModal() {

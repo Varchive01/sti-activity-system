@@ -58,14 +58,14 @@ $rca  = $db->prepare("SELECT * FROM root_cause_analysis WHERE activity_id=?"); $
 $logs = $db->prepare("SELECT al.*,u.name,u.role as reviewer_role FROM approval_logs al JOIN users u ON al.reviewer_id=u.id WHERE al.activity_id=? ORDER BY al.acted_at"); $logs->execute([$id]); $history=$logs->fetchAll();
 
 $currentApprover = 'None';
-if ($activity['source'] === 'student_org' && $activity['status'] === 'under_review') {
-    $currentApprover = 'Events Committee Head';
+if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted'])) {
+    $currentApprover = 'Admin 1 (Committee Review)';
 } elseif (in_array($activity['status'], ['endorsed', 'pending_final_approval'])) {
-    $currentApprover = 'Dean';
+    $currentApprover = 'Dean (Final Approval)';
 } elseif ($activity['status'] === 'returned_for_revision') {
-    $currentApprover = 'Student Organization (Faculty)';
-} elseif (in_array($activity['status'], ['draft', 'submitted'])) {
-    $currentApprover = 'Student Organization (Faculty)';
+    $currentApprover = 'Faculty / Proponent (Revision)';
+} elseif ($activity['status'] === 'draft') {
+    $currentApprover = 'Faculty / Proponent (Draft)';
 }
 ?>
 <!DOCTYPE html>
@@ -100,7 +100,7 @@ if ($activity['source'] === 'student_org' && $activity['status'] === 'under_revi
     <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
       <a href="<?= BASE_URL ?>/admin1/activities.php" class="btn btn-outline btn-sm">← Back</a>
-      <?php if ($activity['source'] === 'student_org' && $activity['status'] === 'under_review'): ?>
+      <?php if (in_array($activity['status'], ['under_review', 'submitted', 'resubmitted'], true)): ?>
         <a href="<?= BASE_URL ?>/admin1/review.php?id=<?= $activity['id'] ?>" class="btn btn-primary btn-sm">Review Proposal</a>
       <?php endif; ?>
       <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 Print</button>
@@ -180,7 +180,7 @@ if ($activity['source'] === 'student_org' && $activity['status'] === 'under_revi
     </div>
 
     <?php if (!empty($activity['poster_path'])): ?>
-    <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/' . $activity['poster_path']; ?>
+    <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=poster'; ?>
     <div class="section-title">🖼️ Event Poster</div>
     <div style="margin-bottom:24px; text-align:center;">
       <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank">

@@ -7,14 +7,14 @@ requireRole('admin1');
 $db = getDB();
 $user = currentUser();
 $acts = $db->prepare("
-  SELECT a.*, u.name as fn 
+  SELECT a.*, u.name as fn, MAX(al.acted_at) as last_acted_at
   FROM activities a 
   JOIN users u ON a.faculty_id = u.id 
   JOIN approval_logs al ON a.id = al.activity_id 
-  WHERE a.source = 'student_org' 
-    AND al.reviewer_id = ? 
-    AND al.action IN ('returned', 'rejected') 
-  ORDER BY al.acted_at DESC
+  WHERE al.reviewer_id = ? 
+    AND al.action IN ('returned', 'rejected', 'returned_for_revision') 
+  GROUP BY a.id, u.name
+  ORDER BY last_acted_at DESC
 ");
 $acts->execute([$user['id']]);
 $activities = $acts->fetchAll();

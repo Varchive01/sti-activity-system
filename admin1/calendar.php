@@ -34,7 +34,7 @@ if ($nextMonth > 12) {
 $events = $db->prepare("
     SELECT a.id, a.title, a.event_date, a.status, a.venue, a.source, u.name as faculty_name
     FROM activities a JOIN users u ON a.faculty_id=u.id
-    WHERE a.source='student_org' AND a.status != 'draft' AND MONTH(a.event_date)=? AND YEAR(a.event_date)=?
+    WHERE a.status != 'draft' AND MONTH(a.event_date)=? AND YEAR(a.event_date)=?
     ORDER BY a.event_date
 ");
 $events->execute([$month, $year]);
@@ -48,7 +48,7 @@ foreach ($events->fetchAll() as $e) {
 $upcoming = $db->prepare("
     SELECT a.id, a.title, a.event_date, a.status, a.venue, u.name as faculty_name 
     FROM activities a JOIN users u ON a.faculty_id=u.id
-    WHERE a.source='student_org' AND a.status = 'approved' AND a.event_date >= CURDATE()
+    WHERE a.status = 'approved' AND a.event_date >= CURDATE()
     ORDER BY a.event_date ASC LIMIT 8
 ");
 $upcoming->execute();
@@ -60,7 +60,7 @@ $monthName      = date('F Y', mktime(0, 0, 0, $month, 1, $year));
 
 $statusConfig = [
   'draft'                  => ['color' => '#6B7280', 'bg' => '#F3F4F6', 'label' => 'Draft'],
-  'submitted'              => ['color' => '#1D4ED8', 'bg' => '#DBEAFE', 'label' => 'Submitted'],
+  'submitted'              => ['color' => '#D97706', 'bg' => '#FEF3C7', 'label' => 'Under Review'],
   'under_review'           => ['color' => '#D97706', 'bg' => '#FEF3C7', 'label' => 'Under Review'],
   'endorsed'               => ['color' => '#0284C7', 'bg' => '#E0F2FE', 'label' => 'Endorsed'],
   'pending_final_approval' => ['color' => '#0284C7', 'bg' => '#E0F2FE', 'label' => 'Subject for Final Approval'],
@@ -72,7 +72,6 @@ $statusConfig = [
 ];
 
 $legend = [
-  'Submitted'                  => ['color' => '#1D4ED8', 'bg' => '#DBEAFE'],
   'Under Review'               => ['color' => '#D97706', 'bg' => '#FEF3C7'],
   'Subject for Final Approval' => ['color' => '#0284C7', 'bg' => '#E0F2FE'],
   'Approved'                   => ['color' => '#15803D', 'bg' => '#DCFCE7'],
@@ -135,7 +134,8 @@ $todayYear  = (int)date('Y');
           </div>
 
           <!-- Grid -->
-          <div class="cal-grid">
+          <div class="cal-grid-scroll">
+            <div class="cal-grid">
             <?php foreach (['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as $d): ?>
               <div class="cal-day-name"><?= $d ?></div>
             <?php endforeach; ?>
@@ -173,6 +173,7 @@ $todayYear  = (int)date('Y');
             $trailing = (7 - (($firstDayOfWeek + $daysInMonth) % 7)) % 7;
             for ($i = 0; $i < $trailing; $i++) echo '<div class="cal-cell other-month"></div>';
             ?>
+            </div>
           </div>
 
           <!-- Legend -->
@@ -275,15 +276,22 @@ $todayYear  = (int)date('Y');
       document.getElementById('popupVenue').textContent = venue || 'Venue TBD';
       venueRow.style.display = 'flex';
 
-      // Position near click
-      const x = e.clientX,
-        y = e.clientY;
-      const pw = 280,
-        ph = 200;
-      const vw = window.innerWidth,
-        vh = window.innerHeight;
-      popup.style.left = (x + pw + 10 > vw ? x - pw - 10 : x + 10) + 'px';
-      popup.style.top = (y + ph > vh ? vh - ph - 10 : y) + 'px';
+      // Position popup (responsive viewport protection)
+      if (window.innerWidth <= 600) {
+        popup.style.left = '50%';
+        popup.style.top = '50%';
+        popup.style.transform = 'translate(-50%, -50%)';
+      } else {
+        popup.style.transform = '';
+        const x = e.clientX,
+          y = e.clientY;
+        const pw = 280,
+          ph = 200;
+        const vw = window.innerWidth,
+          vh = window.innerHeight;
+        popup.style.left = (x + pw + 10 > vw ? Math.max(10, x - pw - 10) : x + 10) + 'px';
+        popup.style.top = (y + ph > vh ? Math.max(10, vh - ph - 10) : y) + 'px';
+      }
       popup.classList.add('open');
       activePopup = popup;
     }

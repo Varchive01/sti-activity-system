@@ -443,6 +443,21 @@ label, input, button, select, textarea {
   .review-section-body { padding: 16px; }
   .info-grid { grid-template-columns: 1fr; }
 }
+
+[data-theme="dark"] .review-action-bar button[onclick*="return"] {
+  border-color: rgba(245, 158, 11, 0.35) !important;
+  color: #FBBF24 !important;
+  background: rgba(245, 158, 11, 0.12) !important;
+}
+[data-theme="dark"] .review-action-bar button[onclick*="return"]:hover {
+  background: rgba(245, 158, 11, 0.22) !important;
+  color: #FDE68A !important;
+}
+[data-theme="dark"] .review-action-bar .btn-outline {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text-main) !important;
+}
 </style>
 </head>
 <body class="theme-dean">
@@ -493,6 +508,18 @@ label, input, button, select, textarea {
         <div class="info-block"><div class="lbl">Source</div><div class="val"><?= ucfirst(str_replace('_',' ',$activity['source'])) ?></div></div>
         <div class="info-block"><div class="lbl">Theme</div><div class="val"><?= htmlspecialchars($activity['theme'] ?? '—') ?></div></div>
       </div>
+          <?php if (!empty($activity['poster_path'])): ?>
+        <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/api/document-download.php?activity_id=' . (int)$id . '&type=poster'; ?>
+        <div class="sl" style="margin-top:14px; margin-bottom:8px;">Event Poster</div>
+        <div style="text-align:center; padding:16px; background:var(--bg-base); border-radius:10px; border:1px solid var(--border); margin-bottom:12px;">
+          <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank" style="display:inline-block;">
+            <img src="<?= htmlspecialchars($posterUrl) ?>" style="max-width:100%; max-height:480px; border-radius:8px; object-fit:contain; box-shadow:var(--shadow-sm);" alt="Event Poster">
+          </a>
+        </div>
+        <div style="margin-bottom:12px;">
+          <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank" class="btn btn-outline btn-sm">🖼️ View Full Poster Image</a>
+        </div>
+      <?php endif; ?>
     <?php renderSectionClose('event_details', $stagedComments, $id); ?>
 
     <?php renderSectionHeader('objectives', '🎯 Objectives & Academic Alignment', $stagedComments); ?>
@@ -810,9 +837,13 @@ document.querySelectorAll('.btn-save-comment').forEach(btn => {
 });
 
 document.querySelectorAll('.btn-remove-comment').forEach(btn => {
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
     const key = btn.dataset.section;
-    if (!confirm('Remove this section comment?')) return;
+    const msg = 'Remove this section comment?';
+    const confirmed = window.STIModal
+      ? await window.STIModal.confirm(msg, { title: 'Remove Section Comment?', confirmText: 'Remove Comment', cancelText: 'Cancel', variant: 'danger' })
+      : confirm(msg);
+    if (!confirmed) return;
     fetch(BASE_URL + '/api/section-comment.php', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ action:'delete', activity_id:ACTIVITY_ID, section_key:key })

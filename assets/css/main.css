@@ -24,6 +24,7 @@
   --text-muted:          #64748B;
   --text-inverse:        #FFFFFF;
   --text:                var(--text-main);
+  --text-body:           var(--text-secondary);
 
   /* Borders */
   --border:              #E2E8F0;
@@ -87,6 +88,7 @@
   --text-muted:          #8899B2;
   --text-inverse:        #0A1628;
   --text:                var(--text-main);
+  --text-body:           var(--text-secondary);
 
   /* Borders */
   --border:              #1E2D45;
@@ -1168,10 +1170,29 @@ body:not(.sidebar-collapsed) .sidebar-bottom .sidebar-tooltip {
   margin: 0;
   line-height: 1;
 }
+.topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  margin-right: 10px;
+}
 .topbar-right {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+.post-event-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 24px;
+  align-items: start;
+}
+.modal-grid-2col,
+.form-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 .topbar-right .text-sm.text-muted {
   font-size: 14px;
@@ -1317,12 +1338,12 @@ body:not(.sidebar-collapsed) .sidebar-bottom .sidebar-tooltip {
   text-transform: capitalize;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 768px) {
   .topbar-profile .topbar-user-info {
-    display: none;
+    display: none !important;
   }
   .topbar-profile {
-    padding: 0;
+    padding: 0 !important;
   }
 }
 
@@ -2373,7 +2394,7 @@ textarea:disabled {
     gap: 6px !important;
     max-width: 100vw !important;
     box-sizing: border-box !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
   .mobile-nav-toggle {
     width: 34px !important;
@@ -4194,6 +4215,11 @@ textarea:disabled {
   }
   .review-section-body {
     padding: 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .review-section-body > table {
+    min-width: 520px;
   }
   .review-section .info-grid {
     grid-template-columns: 1fr;
@@ -4676,6 +4702,7 @@ textarea:disabled {
   inset: 0;
   background: rgba(10, 22, 40, 0.65);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 9999;
   align-items: center;
   justify-content: center;
@@ -4848,3 +4875,630 @@ textarea:disabled {
 
 
 
+
+
+/* ==========================================================================
+   STI-ARMES SYSTEM-WIDE COMPREHENSIVE RESPONSIVE DESIGN (ALL ROLES & PAGES)
+   Breakpoints: 320px | 375px | 430px | 600px | 768px | 1024px | 1280px | 1440px | 1920px | 2560px
+   ========================================================================== */
+
+/* ── 1. GLOBAL ROOT GUARDRAILS (PREVENTS ACCIDENTAL HORIZONTAL OVERFLOW) ── */
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  position: relative;
+  min-height: 100vh;
+}
+
+.main-wrap {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+.content {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Ensure all images and embedded media are fluid */
+img, video, canvas, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── 2. CARDS & CONTAINERS ── */
+.card,
+.panel,
+.stat-card,
+.box {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+/* ── 3. UNIVERSAL TABLE RESPONSIVENESS ── */
+.table-wrap,
+.table-responsive {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  position: relative;
+  display: block;
+}
+
+/* When a table is directly inside a card body */
+.card-body > table:not(.table-wrap table) {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── 4. STATS & SUMMARY CARDS GRID (ALL 5 DASHBOARDS) ── */
+.stats-grid,
+.stat-cards,
+.summary-cards,
+.kpi-cards-grid,
+.summary-strip {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)) !important;
+  gap: 16px !important;
+  width: 100% !important;
+}
+
+/* ── 5. TOPBAR FILTER FORMS & CONTROLS ── */
+.topbar-filter-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── 6. FORMS & INPUTS ── */
+.form-row,
+.row-flex {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+}
+
+.form-control,
+.form-select {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── 7. CHARTS & DATA VISUALIZATIONS ── */
+.chart-container,
+.svg-chart-wrap,
+.chart-box {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* ── 8. WIZARD STEPS CAROUSEL (PROPOSAL CREATE / EDIT) ── */
+.wizard-steps {
+  display: flex !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  scroll-behavior: smooth !important;
+  gap: 8px !important;
+  padding-bottom: 6px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.wizard-step {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* ── 9. CALENDAR RESPONSIVENESS ── */
+.cal-layout > div:first-child {
+  min-width: 0;
+  max-width: 100%;
+}
+.cal-sidebar {
+  min-width: 0;
+  max-width: 100%;
+}
+.cal-grid-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius, 12px);
+  margin-bottom: 16px;
+}
+.cal-grid {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+@media (max-width: 768px) {
+  .cal-grid {
+    min-width: 580px;
+  }
+  .cal-cell {
+    min-height: 85px;
+    padding: 6px 4px;
+  }
+  .cal-event {
+    font-size: 0.64rem;
+    padding: 2px 4px;
+    margin-bottom: 2px;
+  }
+}
+
+@media (max-width: 480px) {
+  .cal-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .cal-nav {
+    justify-content: space-between;
+    width: 100%;
+  }
+  .cal-nav-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 1.1rem;
+  }
+  .cal-month-title {
+    font-size: 1.05rem;
+    min-width: auto;
+    flex: 1;
+    text-align: center;
+  }
+  .cal-today-btn {
+    justify-content: center;
+    width: 100%;
+    padding: 9px 0;
+    font-size: 0.85rem;
+  }
+  .cal-grid {
+    min-width: 520px;
+  }
+  .cal-day-name {
+    padding: 8px 2px;
+    font-size: 0.65rem;
+  }
+  .cal-cell {
+    min-height: 75px;
+    padding: 4px 3px;
+  }
+  .day-num {
+    width: 22px;
+    height: 22px;
+    font-size: 0.72rem;
+  }
+  .cal-legend {
+    gap: 6px 10px;
+    padding-top: 12px;
+    margin-top: 12px;
+  }
+  .legend-chip {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+  }
+  .upcoming-item {
+    gap: 10px;
+    padding: 8px 0;
+  }
+  .upcoming-date-box .day {
+    font-size: 1.05rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .event-popup {
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: min(calc(100vw - 32px), 340px) !important;
+    max-width: 340px !important;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35) !important;
+    z-index: 1050 !important;
+    padding: 16px !important;
+  }
+}
+
+/* ── 10. MODALS ── */
+.modal-dialog {
+  max-width: min(94vw, 1100px) !important;
+  margin: 1.5rem auto !important;
+}
+
+/* ── BREAKPOINT SPECIFIC OVERRIDES ── */
+
+/* Wide Desktops & Ultrawide (>= 1920px & 2560px) */
+@media (min-width: 1920px) {
+  .content {
+    max-width: 1800px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* Large Tablets & Small Laptops (768px - 1023px) */
+@media (max-width: 1023.98px) {
+  .stats-grid,
+  .stat-cards,
+  .summary-cards,
+  .kpi-cards-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)) !important;
+    gap: 12px !important;
+  }
+}
+
+/* Small Tablets & Large Phones (600px - 767px) */
+@media (max-width: 767.98px) {
+  .form-row > div,
+  .form-row > .col,
+  .form-grid > div {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .stats-grid,
+  .stat-cards,
+  .summary-cards,
+  .kpi-cards-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .topbar {
+    height: auto !important;
+    min-height: 54px !important;
+    padding: 8px 16px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px 12px !important;
+  }
+
+  .topbar .page-title {
+    font-size: 1rem !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    order: 1 !important;
+  }
+
+  .topbar-actions {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-left: auto !important;
+    margin-right: 8px !important;
+    order: 2 !important;
+  }
+
+  .topbar-right {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
+    order: 3 !important;
+  }
+
+  .post-event-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .topbar-filter-form {
+    width: 100% !important;
+    order: 10;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border, #e2e8f0);
+    justify-content: flex-start;
+  }
+
+  .topbar-filter-form select,
+  .topbar-filter-form .form-control {
+    flex: 1 1 auto !important;
+    min-width: 90px !important;
+  }
+
+  .modal-dialog {
+    max-width: 96vw !important;
+    margin: 10px auto !important;
+  }
+
+  .modal-content {
+    max-height: 92vh !important;
+    max-height: 92dvh !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-body {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex: 1 1 auto;
+  }
+
+  .cal-day-cell {
+    min-height: 54px !important;
+    padding: 3px !important;
+    font-size: 0.72rem !important;
+  }
+
+  .cal-event-pill {
+    font-size: 0.65rem !important;
+    padding: 1px 3px !important;
+  }
+}
+
+/* Standard Mobile Phones (375px - 599px) */
+@media (max-width: 599.98px) {
+  .topbar-actions {
+    order: 10 !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-top: 6px !important;
+    margin-top: 4px !important;
+    border-top: 1px solid var(--border, #E2E8F0) !important;
+  }
+
+  .topbar-actions .btn,
+  .topbar-actions a.btn,
+  .topbar-actions button.btn {
+    flex: 1 1 auto !important;
+    justify-content: center !important;
+    font-size: 0.8rem !important;
+    padding: 7px 12px !important;
+    height: 36px !important;
+  }
+
+  .topbar-right .notif-topbar-wrapper {
+    order: 1 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .topbar-right .topbar-profile-wrapper {
+    order: 2 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .modal-grid-2col,
+  .form-grid-2col,
+  div[style*="grid-template-columns: 1fr 1fr"],
+  div[style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  #addCollaboratorForm {
+    grid-template-columns: 1fr !important;
+  }
+
+  #addCollaboratorForm button,
+  #addCollaboratorForm .btn {
+    width: 100% !important;
+  }
+
+  .card-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  .card-header .btn,
+  .card-header .btn-group {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+  }
+
+  .filter-bar,
+  .filter-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .filter-bar .form-control,
+  .filter-bar select,
+  .filter-bar input,
+  .filter-bar .btn {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .btn-group {
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+
+  .btn-group .btn {
+    width: 100% !important;
+    border-radius: var(--radius-sm, 6px) !important;
+    margin-bottom: 4px;
+  }
+
+  .stats-grid,
+  .stat-cards,
+  .summary-cards,
+  .kpi-cards-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  /* ── Stage 6: Universal Filter, Search, and Action Bar Stacking ── */
+  form.filters,
+  .filter-bar,
+  .filter-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  form.filters input,
+  form.filters select,
+  form.filters .btn,
+  .filter-bar input,
+  .filter-bar select,
+  .filter-bar .btn {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  /* Review Action Bar Mobile Stacking */
+  .review-action-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 12px 14px !important;
+    position: relative !important;
+    top: auto !important;
+  }
+
+  .review-action-bar .proposal-meta {
+    width: 100% !important;
+  }
+
+  .review-action-bar .flex.gap-2,
+  .review-action-bar > div:last-child {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .review-action-bar .btn {
+    flex: 1 1 calc(50% - 4px) !important;
+    justify-content: center !important;
+    font-size: 0.78rem !important;
+    padding: 8px 10px !important;
+  }
+
+  /* User Management Mobile Header & Modals */
+  .um-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .um-header .btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .um-modal {
+    max-width: 95vw !important;
+    max-height: 92dvh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    margin: 10px auto !important;
+  }
+
+  .um-modal-body {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex: 1 1 auto !important;
+    padding: 16px !important;
+  }
+
+  .um-modal-header {
+    padding: 14px 18px !important;
+  }
+
+  .um-modal-footer {
+    padding: 12px 18px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .um-modal-footer .btn {
+    flex: 1 1 calc(50% - 4px) !important;
+    justify-content: center !important;
+  }
+
+  /* Review Action Modals */
+  .modal-overlay .modal {
+    max-width: 94vw !important;
+    max-height: 92dvh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 18px !important;
+  }
+
+  /* Task Metric Cards */
+  .task-metric-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+}
+
+/* Compact Mobile (320px - 374px, e.g. iPhone SE / Galaxy Fold) */
+@media (max-width: 374.98px) {
+  .stats-grid,
+  .stat-cards,
+  .summary-cards,
+  .kpi-cards-grid,
+  .task-metric-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .content {
+    padding: 10px 6px !important;
+  }
+
+  .card-body {
+    padding: 12px 10px !important;
+  }
+
+  .topbar {
+    padding: 6px 8px !important;
+  }
+
+  .topbar .page-title {
+    font-size: 0.82rem !important;
+  }
+
+  .stat-card-val,
+  .stat-card-value {
+    font-size: 1.35rem !important;
+  }
+
+  /* Authentication Card */
+  .auth-card {
+    padding: 22px 16px !important;
+    margin: 10px auto !important;
+    width: calc(100% - 16px) !important;
+  }
+
+  .auth-brand {
+    font-size: 1.8rem !important;
+  }
+
+  .review-action-bar .btn,
+  .um-modal-footer .btn,
+  .topbar-actions .btn {
+    flex: 1 1 100% !important;
+  }
+}

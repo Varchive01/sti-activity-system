@@ -441,7 +441,9 @@ try {
         ]);
     }
 
-    $db->commit();
+    if ($db->inTransaction()) {
+        $db->commit();
+    }
 
     sendImportJsonResponse(200, [
         'success'         => true,

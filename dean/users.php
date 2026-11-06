@@ -6,8 +6,6 @@ require_once __DIR__ . '/../includes/functions.php';
 
 requireRole('dean');
 
-$themeClass  = 'theme-dean';
-$currentRole = 'dean';
-$pageTitle   = 'User Management – Dean';
-
-require_once __DIR__ . '/../includes/user-management-view.php';
+// User Management is exclusively assigned to Admin 2 (System Administrator).
+header('Location: ' . BASE_URL . '/dean/dashboard.php?error=' . urlencode('User Management and role assignments are restricted exclusively to the System Administrator (Admin 2).'));
+exit;

@@ -9,9 +9,11 @@ $db = getDB();
 $acts = $db->prepare("
     SELECT DISTINCT a.*, u.name as fn 
     FROM activities a 
-    JOIN users u ON a.faculty_id=u.id 
+    JOIN users u ON a.faculty_id = u.id 
     JOIN approval_logs al ON a.id = al.activity_id 
-    WHERE a.source='student_org' AND al.reviewer_id = ? 
+    WHERE al.reviewer_id = ? 
+      AND al.action IN ('forwarded', 'approved')
+      AND a.status NOT IN ('rejected', 'returned_for_revision', 'draft')
     ORDER BY a.updated_at DESC
 ");
 $acts->execute([$user['id']]);

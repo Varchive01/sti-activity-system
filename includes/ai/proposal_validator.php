@@ -310,9 +310,13 @@ function validateProposal(int $proposalId): array
     }
 
     // Fetch KPI entries for alignment validation
-    $kpiStmt = $db->prepare("SELECT indicator, target_metric, evaluation_method FROM kpi_evaluations WHERE activity_id = ?");
-    $kpiStmt->execute([$proposalId]);
-    $proposal['kpis'] = $kpiStmt->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $kpiStmt = $db->prepare("SELECT COALESCE(NULLIF(indicator, ''), criteria) AS indicator, target_metric, evaluation_method FROM kpi_evaluations WHERE activity_id = ?");
+        $kpiStmt->execute([$proposalId]);
+        $proposal['kpis'] = $kpiStmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        $proposal['kpis'] = [];
+    }
 
     $apiKey = getGeminiApiKeySecure();
     require_once __DIR__ . '/../../services/GeminiProposalValidationService.php';

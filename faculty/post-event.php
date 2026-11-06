@@ -8,14 +8,16 @@ $user = currentUser();
 $db   = getDB();
 
 if ($user['role'] === 'program_head') {
+    $userDept = resolveUserDepartment($db, $user);
+    $deptCond = buildDepartmentSqlCondition('u.department', $userDept);
     $approved = $db->prepare("
         SELECT a.* FROM activities a
         JOIN users u ON a.faculty_id = u.id
         LEFT JOIN post_event pe ON a.id = pe.activity_id
-        WHERE (u.department = ? OR a.faculty_id = ?) AND a.status='approved' AND pe.id IS NULL
+        WHERE ({$deptCond} OR a.faculty_id = ?) AND a.status='approved' AND pe.id IS NULL
         ORDER BY a.event_date DESC
     ");
-    $approved->execute([$user['dept'], $user['id']]);
+    $approved->execute([$user['id']]);
     $eligibleActivities = $approved->fetchAll();
 
     $submitted = $db->prepare("
@@ -23,10 +25,10 @@ if ($user['role'] === 'program_head') {
         FROM post_event pe
         JOIN activities a ON pe.activity_id=a.id
         JOIN users u ON a.faculty_id = u.id
-        WHERE (u.department = ? OR a.faculty_id = ?)
+        WHERE ({$deptCond} OR a.faculty_id = ?)
         ORDER BY pe.submitted_at DESC
     ");
-    $submitted->execute([$user['dept'], $user['id']]);
+    $submitted->execute([$user['id']]);
     $reports = $submitted->fetchAll();
 } else {
     // Approved activities without a post-event report
@@ -133,7 +135,7 @@ if ($selectedId) {
         <div class="alert alert-success">✓ Post-event report uploaded successfully!</div>
       <?php endif; ?>
 
-      <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:24px;align-items:start;">
+      <div class="post-event-grid">
 
         <!-- Left: Select activity -->
         <div>
@@ -167,27 +169,29 @@ if ($selectedId) {
                 <h2>Submitted Reports</h2>
               </div>
               <div class="card-body" style="padding:0;">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Activity</th>
-                      <th>Attendance</th>
-                      <th>Score</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <?php foreach ($reports as $r): ?>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
                       <tr>
-                        <td>
-                          <strong><?= htmlspecialchars($r['title']) ?></strong><br>
-                          <span class="text-sm text-muted"><?= $r['event_date'] ? date('M j, Y', strtotime($r['event_date'])) : '—' ?></span>
-                        </td>
-                        <td><?= isset($r['actual_attendance']) ? htmlspecialchars($r['actual_attendance']) : '0' ?>/<?= isset($r['target_attendance']) ? htmlspecialchars($r['target_attendance']) : '0' ?></td>
-                        <td><span class="badge badge-success"><?= isset($r['satisfaction_score']) ? number_format($r['satisfaction_score'], 1) : '0.0' ?>/5</span></td>
+                        <th>Activity</th>
+                        <th>Attendance</th>
+                        <th>Score</th>
                       </tr>
-                    <?php endforeach; ?>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      <?php foreach ($reports as $r): ?>
+                        <tr>
+                          <td>
+                            <strong><?= htmlspecialchars($r['title']) ?></strong><br>
+                            <span class="text-sm text-muted"><?= $r['event_date'] ? date('M j, Y', strtotime($r['event_date'])) : '—' ?></span>
+                          </td>
+                          <td><?= isset($r['actual_attendance']) ? htmlspecialchars($r['actual_attendance']) : '0' ?>/<?= isset($r['target_attendance']) ? htmlspecialchars($r['target_attendance']) : '0' ?></td>
+                          <td><span class="badge badge-success"><?= isset($r['satisfaction_score']) ? number_format($r['satisfaction_score'], 1) : '0.0' ?>/5</span></td>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           <?php endif; ?>
@@ -232,7 +236,7 @@ if ($selectedId) {
                     <div id="postEventCsvStatusBanner" style="display: none; padding: 8px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: 600;"></div>
 
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                      <input type="file" id="postEventCsvInput" name="csv_file" class="form-control" accept=".csv,text/csv" style="flex:1; min-width:200px; font-size:0.82rem;" required>
+                      <input type="file" id="postEventCsvInput" name="csv_file" class="form-control" accept=".csv,text/csv" style="flex:1 1 200px; min-width:0; font-size:0.82rem;" required>
                       <button type="submit" class="btn btn-outline btn-sm" id="postEventCsvSubmitBtn" style="white-space:nowrap; padding:7px 14px;">
                         📥 Import CSV
                       </button>

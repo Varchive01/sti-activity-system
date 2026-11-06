@@ -74,7 +74,7 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
 /* ── Sticky Action Bar ── */
 .review-action-bar {
   position: sticky; top: 64px; z-index: 45;
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--bg-card);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
@@ -381,6 +381,130 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
   .review-section-body { padding: 16px; }
   .info-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Dark Mode Token Overrides & Contrast Protection ── */
+[data-theme="dark"] .review-action-bar {
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+[data-theme="dark"] .review-action-bar .btn-outline {
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-main);
+}
+[data-theme="dark"] .review-action-bar .btn-outline:hover {
+  background: rgba(2, 132, 199, 0.15);
+  border-color: var(--accent, var(--sti-blue));
+  color: #38BDF8;
+}
+[data-theme="dark"] .review-action-bar button[onclick*="return"] {
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #FBBF24;
+  background: rgba(245, 158, 11, 0.12);
+}
+[data-theme="dark"] .review-action-bar button[onclick*="return"]:hover {
+  background: rgba(245, 158, 11, 0.22);
+  color: #FDE68A;
+}
+[data-theme="dark"] .review-action-bar .btn-danger {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #FCA5A5;
+}
+[data-theme="dark"] .review-action-bar .btn-danger:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #FFF;
+}
+[data-theme="dark"] .review-action-bar .btn-success {
+  background: rgba(22, 163, 74, 0.25);
+  border-color: rgba(34, 197, 94, 0.45);
+  color: #86EFAC;
+}
+[data-theme="dark"] .review-action-bar .btn-success:hover {
+  background: rgba(22, 163, 74, 0.35);
+  color: #FFF;
+}
+[data-theme="dark"] .review-section {
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+[data-theme="dark"] .review-section-header {
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+[data-theme="dark"] .review-section.flagged {
+  border-color: var(--sti-gold, #F59E0B);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35);
+}
+[data-theme="dark"] .btn-request-revision {
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+[data-theme="dark"] .btn-request-revision:hover {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #FBBF24;
+}
+[data-theme="dark"] .btn-request-revision.has-comment {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #FBBF24;
+}
+[data-theme="dark"] .section-flagged-banner {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #FBBF24;
+}
+[data-theme="dark"] .btn-remove-comment {
+  color: #FBBF24 !important;
+}
+[data-theme="dark"] .btn-remove-comment:hover {
+  background: rgba(245, 158, 11, 0.25);
+  color: #FDE68A !important;
+}
+[data-theme="dark"] .flagged-badge {
+  background: rgba(245, 158, 11, 0.2);
+  color: #FBBF24;
+}
+[data-theme="dark"] .info-block {
+  background: var(--bg-base);
+  border-color: var(--border);
+}
+[data-theme="dark"] .review-table th {
+  background: var(--bg-base);
+  border-color: var(--border);
+}
+[data-theme="dark"] .review-table td {
+  border-color: var(--border);
+}
+[data-theme="dark"] .review-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+[data-theme="dark"] .budget-total {
+  background: var(--bg-base);
+  border-color: var(--border);
+}
+[data-theme="dark"] .floor-badge {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38BDF8;
+}
+[data-theme="dark"] .section-comment-box {
+  background: var(--bg-base);
+  border-color: var(--border);
+}
+[data-theme="dark"] .section-comment-box textarea {
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+[data-theme="dark"] .modal {
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+[data-theme="dark"] .modal .form-control {
+  background: var(--bg-base);
+  border-color: var(--border);
+}
 </style>
 </head>
 <body class="theme-ian">
@@ -430,6 +554,18 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
         <div class="info-block"><div class="lbl">Source</div><div class="val"><?= ucfirst(str_replace('_',' ',$activity['source'])) ?></div></div>
         <div class="info-block"><div class="lbl">Theme</div><div class="val"><?= htmlspecialchars($activity['theme'] ?? '—') ?></div></div>
       </div>
+          <?php if (!empty($activity['poster_path'])): ?>
+        <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/api/document-download.php?activity_id=' . (int)$id . '&type=poster'; ?>
+        <div class="sl" style="margin-top:14px; margin-bottom:8px;">Event Poster</div>
+        <div style="text-align:center; padding:16px; background:var(--bg-base); border-radius:10px; border:1px solid var(--border); margin-bottom:12px;">
+          <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank" style="display:inline-block;">
+            <img src="<?= htmlspecialchars($posterUrl) ?>" style="max-width:100%; max-height:480px; border-radius:8px; object-fit:contain; box-shadow:var(--shadow-sm);" alt="Event Poster">
+          </a>
+        </div>
+        <div style="margin-bottom:12px;">
+          <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank" class="btn btn-outline btn-sm">🖼️ View Full Poster Image</a>
+        </div>
+      <?php endif; ?>
     <?php renderSectionClose('event_details', $stagedComments, $id); ?>
 
     <?php renderSectionHeader('objectives', '🎯 Objectives & Academic Alignment', $stagedComments); ?>
@@ -667,9 +803,13 @@ document.querySelectorAll('.btn-save-comment').forEach(btn => {
 });
 
 document.querySelectorAll('.btn-remove-comment').forEach(btn => {
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
     const key = btn.dataset.section;
-    if (!confirm('Remove this section comment?')) return;
+    const msg = 'Remove this section comment?';
+    const confirmed = window.STIModal
+      ? await window.STIModal.confirm(msg, { title: 'Remove Section Comment?', confirmText: 'Remove Comment', cancelText: 'Cancel', variant: 'danger' })
+      : confirm(msg);
+    if (!confirmed) return;
     fetch(BASE_URL + '/api/section-comment.php', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ action:'delete', activity_id:ACTIVITY_ID, section_key:key })

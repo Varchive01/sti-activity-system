@@ -32,39 +32,54 @@ if ($nextMonth > 12) {
 }
 
 if ($user['role'] === 'program_head') {
+    $userDept = resolveUserDepartment($db, $user);
+    $deptCond = buildDepartmentSqlCondition('u.department', $userDept);
     $events = $db->prepare("
         SELECT a.id, a.title, a.event_date, a.status, a.venue FROM activities a
         JOIN users u ON a.faculty_id = u.id
-        WHERE (u.department = ? OR a.faculty_id = ?
-               OR EXISTS (SELECT 1 FROM faculty_tasks ft JOIN users ut ON ft.assigned_user_id = ut.id WHERE ft.activity_id = a.id AND (ut.department = ? OR ft.assigned_user_id = ?)))
+        WHERE (
+            a.faculty_id = ?
+            OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active')
+            OR (a.status != 'draft' AND {$deptCond})
+        )
           AND MONTH(a.event_date) = ? AND YEAR(a.event_date) = ?
         ORDER BY a.event_date
     ");
-    $events->execute([$user['dept'], $user['id'], $user['dept'], $user['id'], $month, $year]);
+    $events->execute([$user['id'], $user['id'], $month, $year]);
 
     $upcoming = $db->prepare("
         SELECT a.id, a.title, a.event_date, a.status, a.venue FROM activities a
         JOIN users u ON a.faculty_id = u.id
-        WHERE (u.department = ? OR a.faculty_id = ?
-               OR EXISTS (SELECT 1 FROM faculty_tasks ft JOIN users ut ON ft.assigned_user_id = ut.id WHERE ft.activity_id = a.id AND (ut.department = ? OR ft.assigned_user_id = ?)))
+        WHERE ({$deptCond} OR a.faculty_id = ?
+               OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active'))
           AND a.status = 'approved' AND a.event_date >= CURDATE()
         ORDER BY a.event_date ASC LIMIT 8
     ");
-    $upcoming->execute([$user['dept'], $user['id'], $user['dept'], $user['id']]);
+    $upcoming->execute([$user['id'], $user['id']]);
 } else {
     $events = $db->prepare("
-        SELECT id, title, event_date, status, venue FROM activities
-        WHERE faculty_id=? AND MONTH(event_date)=? AND YEAR(event_date)=?
-        ORDER BY event_date
+        SELECT a.id, a.title, a.event_date, a.status, a.venue FROM activities a
+        WHERE (
+            a.faculty_id = ?
+            OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active')
+            OR (a.status IN ('approved', 'completed') AND EXISTS (SELECT 1 FROM faculty_tasks ft WHERE ft.activity_id = a.id AND ft.assigned_user_id = ?))
+        )
+          AND MONTH(a.event_date) = ? AND YEAR(a.event_date) = ?
+        ORDER BY a.event_date
     ");
-    $events->execute([$user['id'], $month, $year]);
+    $events->execute([$user['id'], $user['id'], $user['id'], $month, $year]);
 
     $upcoming = $db->prepare("
-        SELECT id, title, event_date, status, venue FROM activities
-        WHERE faculty_id=? AND status='approved' AND event_date >= CURDATE()
-        ORDER BY event_date ASC LIMIT 8
+        SELECT a.id, a.title, a.event_date, a.status, a.venue FROM activities a
+        WHERE (
+            a.faculty_id = ?
+            OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active')
+            OR EXISTS (SELECT 1 FROM faculty_tasks ft WHERE ft.activity_id = a.id AND ft.assigned_user_id = ?)
+        )
+          AND a.status = 'approved' AND a.event_date >= CURDATE()
+        ORDER BY a.event_date ASC LIMIT 8
     ");
-    $upcoming->execute([$user['id']]);
+    $upcoming->execute([$user['id'], $user['id'], $user['id']]);
 }
 $monthEvents = [];
 foreach ($events->fetchAll() as $e) {
@@ -79,7 +94,7 @@ $monthName      = date('F Y', mktime(0, 0, 0, $month, 1, $year));
 
 $statusConfig = [
   'draft'                  => ['color' => '#6B7280', 'bg' => '#F3F4F6', 'label' => 'Draft'],
-  'submitted'              => ['color' => '#1D4ED8', 'bg' => '#DBEAFE', 'label' => 'Submitted'],
+  'submitted'              => ['color' => '#D97706', 'bg' => '#FEF3C7', 'label' => 'Under Review'],
   'under_review'           => ['color' => '#D97706', 'bg' => '#FEF3C7', 'label' => 'Under Review'],
   'endorsed'               => ['color' => '#7C3AED', 'bg' => '#EDE9FE', 'label' => 'Endorsed'],
   'pending_final_approval' => ['color' => '#7C3AED', 'bg' => '#EDE9FE', 'label' => 'Subject for Final Approval'],
@@ -93,7 +108,6 @@ $statusConfig = [
 // Legend entries in your specified order
 $legend = [
   'Draft'                    => ['color' => '#6B7280', 'bg' => '#F3F4F6'],
-  'Submitted'                => ['color' => '#1D4ED8', 'bg' => '#DBEAFE'],
   'Under Review'             => ['color' => '#D97706', 'bg' => '#FEF3C7'],
   'Subject for Final Approval' => ['color' => '#7C3AED', 'bg' => '#EDE9FE'],
   'Approved'                 => ['color' => '#15803D', 'bg' => '#DCFCE7'],
@@ -339,11 +353,11 @@ $todayYear  = (int)date('Y');
     <header class="topbar">
       <div class="page-title">Activity Calendar</div>
       <div class="topbar-right">
-        <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <a href="<?= BASE_URL ?>/faculty/proposal-create.php" class="btn btn-primary btn-sm">+ New Proposal</a>
-      <!-- User Profile Control -->
-      <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
-    </div>
+        <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+        <!-- User Profile Control -->
+        <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
+      </div>
     </header>
     <div class="content">
 
@@ -362,7 +376,8 @@ $todayYear  = (int)date('Y');
           </div>
 
           <!-- Grid -->
-          <div class="cal-grid">
+          <div class="cal-grid-scroll">
+            <div class="cal-grid">
             <?php foreach (['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as $d): ?>
               <div class="cal-day-name"><?= $d ?></div>
             <?php endforeach; ?>
@@ -399,6 +414,7 @@ $todayYear  = (int)date('Y');
             $trailing = (7 - (($firstDayOfWeek + $daysInMonth) % 7)) % 7;
             for ($i = 0; $i < $trailing; $i++) echo '<div class="cal-cell other-month"></div>';
             ?>
+            </div>
           </div>
 
           <!-- Legend -->
@@ -501,15 +517,22 @@ $todayYear  = (int)date('Y');
       document.getElementById('popupVenue').textContent = venue || 'Venue TBD';
       venueRow.style.display = 'flex';
 
-      // Position near click
-      const x = e.clientX,
-        y = e.clientY;
-      const pw = 280,
-        ph = 200;
-      const vw = window.innerWidth,
-        vh = window.innerHeight;
-      popup.style.left = (x + pw + 10 > vw ? x - pw - 10 : x + 10) + 'px';
-      popup.style.top = (y + ph > vh ? vh - ph - 10 : y) + 'px';
+      // Position popup (responsive viewport protection)
+      if (window.innerWidth <= 600) {
+        popup.style.left = '50%';
+        popup.style.top = '50%';
+        popup.style.transform = 'translate(-50%, -50%)';
+      } else {
+        popup.style.transform = '';
+        const x = e.clientX,
+          y = e.clientY;
+        const pw = 280,
+          ph = 200;
+        const vw = window.innerWidth,
+          vh = window.innerHeight;
+        popup.style.left = (x + pw + 10 > vw ? Math.max(10, x - pw - 10) : x + 10) + 'px';
+        popup.style.top = (y + ph > vh ? Math.max(10, vh - ph - 10) : y) + 'px';
+      }
       popup.classList.add('open');
       activePopup = popup;
     }

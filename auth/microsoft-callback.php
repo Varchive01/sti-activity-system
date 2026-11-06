@@ -48,16 +48,103 @@ if (!$profileResult['success'] || empty($profileResult['email'])) {
 }
 
 $msEmail = trim($profileResult['email']);
+$msEmails = !empty($profileResult['emails']) && is_array($profileResult['emails'])
+    ? $profileResult['emails']
+    : [$msEmail];
+
+// Normalize all candidate emails returned by Microsoft
+$normalizedCandidates = [];
+foreach ($msEmails as $cand) {
+    $clean = strtolower(trim((string)$cand));
+    if ($clean !== '' && !in_array($clean, $normalizedCandidates, true)) {
+        $normalizedCandidates[] = $clean;
+    }
+}
 
 // Map Microsoft email to an existing local user account ONLY
 $db = getDB();
-$stmt = $db->prepare("SELECT * FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1");
-$stmt->execute([$msEmail]);
-$localUser = $stmt->fetch(PDO::FETCH_ASSOC);
+$localUser = false;
+
+// Step 1: Exact case-insensitive match against any of the user's Microsoft email addresses / aliases
+if (!empty($normalizedCandidates)) {
+    $placeholders = implode(',', array_fill(0, count($normalizedCandidates), '?'));
+    $stmt = $db->prepare("SELECT * FROM users WHERE LOWER(TRIM(email)) IN ($placeholders) LIMIT 1");
+    $stmt->execute($normalizedCandidates);
+    $localUser = $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+// Step 2: Institutional STI domain alias equivalence & unique display name fallback
+// Handles cases where an admin registered `user@sti.edu` or `user@sti.edu.ph` while Microsoft returns `user@marikina.sti.edu.ph` (or vice versa)
+if (!$localUser && !empty($normalizedCandidates)) {
+    $stiLocalParts = [];
+    foreach ($normalizedCandidates as $cand) {
+        if (str_contains($cand, '@')) {
+            [$localPart, $domainPart] = explode('@', $cand, 2);
+            if ($domainPart === 'sti.edu' || $domainPart === 'sti.edu.ph' || str_ends_with($domainPart, '.sti.edu') || str_ends_with($domainPart, '.sti.edu.ph')) {
+                $stiLocalParts[] = $localPart;
+            }
+        }
+    }
+
+    if (!empty($stiLocalParts)) {
+        $stiLocalParts = array_values(array_unique($stiLocalParts));
+        $allUsersStmt = $db->query("SELECT * FROM users");
+        $allUsers = $allUsersStmt ? $allUsersStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+
+        $domainMatchedUsers = [];
+        foreach ($allUsers as $uRow) {
+            $uEmail = strtolower(trim((string)($uRow['email'] ?? '')));
+            if (!str_contains($uEmail, '@')) {
+                continue;
+            }
+            [$uLocal, $uDomain] = explode('@', $uEmail, 2);
+            $isStiDomain = ($uDomain === 'sti.edu' || $uDomain === 'sti.edu.ph' || str_ends_with($uDomain, '.sti.edu') || str_ends_with($uDomain, '.sti.edu.ph'));
+            if ($isStiDomain && in_array($uLocal, $stiLocalParts, true)) {
+                $domainMatchedUsers[] = $uRow;
+            }
+        }
+
+        if (count($domainMatchedUsers) === 1) {
+            $localUser = $domainMatchedUsers[0];
+        } elseif (count($domainMatchedUsers) > 1 && !empty($profileResult['name'])) {
+            $msNameNorm = strtolower(preg_replace('/\s+/', ' ', trim((string)$profileResult['name'])));
+            foreach ($domainMatchedUsers as $dmUser) {
+                $dbNameNorm = strtolower(preg_replace('/\s+/', ' ', trim((string)($dmUser['name'] ?? ''))));
+                if ($dbNameNorm !== '' && $dbNameNorm === $msNameNorm) {
+                    $localUser = $dmUser;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// Step 3: If Microsoft returned an institutional STI account (or verified Microsoft account) whose displayName
+// uniquely matches a single registered user in the system (e.g., admin typed `tan@sti.edu` for `Tristan Unabia`
+// while Microsoft UPN is `tristan.unabia@marikina.sti.edu.ph`), match only if unambiguous (exactly 1 user with that full name)
+if (!$localUser && !empty($profileResult['name'])) {
+    $msNameNorm = strtolower(preg_replace('/\s+/', ' ', trim((string)$profileResult['name'])));
+    if ($msNameNorm !== '') {
+        $nameMatches = [];
+        $allUsersStmt = isset($allUsers) ? null : $db->query("SELECT * FROM users");
+        $userRows = $allUsers ?? ($allUsersStmt ? $allUsersStmt->fetchAll(PDO::FETCH_ASSOC) : []);
+        foreach ($userRows as $uRow) {
+            $dbNameNorm = strtolower(preg_replace('/\s+/', ' ', trim((string)($uRow['name'] ?? ''))));
+            if ($dbNameNorm === $msNameNorm) {
+                $nameMatches[] = $uRow;
+            }
+        }
+        if (count($nameMatches) === 1) {
+            $localUser = $nameMatches[0];
+        }
+    }
+}
 
 if (!$localUser) {
     // Policy requirement: Unknown Microsoft account MUST be rejected.
     // NEVER automatically create an account or assign a default role.
+    error_log("Microsoft Login Unmatched Account: MS email='" . $msEmail . "', candidates=" . json_encode($normalizedCandidates) . ", MS name='" . ($profileResult['name'] ?? '') . "'");
+    $_SESSION['unmatched_ms_email'] = $msEmail;
     header("Location: " . BASE_URL . "/auth/login.php?error=microsoft_account_not_found");
     exit;
 }

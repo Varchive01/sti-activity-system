@@ -69,8 +69,12 @@ CREATE TABLE `activities` (
   `clearance_required` tinyint(1) NOT NULL DEFAULT 0,
   `clearance_obtained` tinyint(1) DEFAULT NULL,
   `clearance_notes` varchar(255) DEFAULT NULL,
+  `is_archived` tinyint(1) NOT NULL DEFAULT 0,
+  `archived_at` datetime DEFAULT NULL,
+  `archived_by` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `faculty_id` (`faculty_id`),
+  KEY `idx_activities_archived` (`is_archived`, `status`),
   CONSTRAINT `activities_ibfk_1` FOREIGN KEY (`faculty_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -530,6 +534,42 @@ CREATE TABLE `task_reminder_logs` (
   `sent_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_task_reminder` (`task_id`,`reminder_type`,`user_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------
+-- Table structure for table `proposal_collaborators`
+-- ---------------------------------------------------------------------
+DROP TABLE IF EXISTS `proposal_collaborators`;
+CREATE TABLE `proposal_collaborators` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `activity_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `role` enum('owner','co_author','contributor') NOT NULL DEFAULT 'contributor',
+  `added_by` int(11) NOT NULL,
+  `added_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `status` enum('active','removed') NOT NULL DEFAULT 'active',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_activity_user` (`activity_id`,`user_id`),
+  KEY `idx_collab_user` (`user_id`,`status`),
+  KEY `idx_collab_activity` (`activity_id`,`status`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------
+-- Table structure for table `proposal_contribution_logs`
+-- ---------------------------------------------------------------------
+DROP TABLE IF EXISTS `proposal_contribution_logs`;
+CREATE TABLE `proposal_contribution_logs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `activity_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `user_role` varchar(30) NOT NULL DEFAULT 'contributor',
+  `action` varchar(100) NOT NULL,
+  `section` varchar(100) DEFAULT NULL,
+  `details` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_contrib_activity` (`activity_id`),
+  KEY `idx_contrib_user` (`user_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

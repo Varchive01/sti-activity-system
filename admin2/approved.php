@@ -8,15 +8,18 @@ $user = currentUser();
 $db = getDB();
 $acts = $db->prepare("
     SELECT DISTINCT a.*, u.name as fn FROM activities a
-    JOIN users u ON a.faculty_id=u.id
+    JOIN users u ON a.faculty_id = u.id
     JOIN approval_logs al ON a.id = al.activity_id
     WHERE al.reviewer_id = ?
+      AND al.action IN ('forwarded', 'approved')
+      AND a.status NOT IN ('rejected', 'returned_for_revision', 'draft')
     ORDER BY a.updated_at DESC
 ");
 $acts->execute([$user['id']]);
 $acts = $acts->fetchAll();
 ?>
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<!DOCTYPE html><html lang="en"><head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><meta charset="UTF-8">
 <title>Approved – STI Activity System</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css"></head>
 <body class="theme-ian">

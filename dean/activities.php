@@ -4,7 +4,10 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('dean');
+$user = currentUser();
 $db = getDB();
+$deanId = (int)$user['id'];
+
 $search     = sanitize($_GET['q'] ?? '');
 $filterStat = sanitize($_GET['status'] ?? '');
 $filterSrc  = sanitize($_GET['source'] ?? '');
@@ -12,22 +15,39 @@ $page       = max(1, (int)($_GET['page'] ?? 1));
 $perPage    = 15;
 $offset     = ($page - 1) * $perPage;
 
-$where  = "a.status != 'draft'";
-$params = [];
+// Dean scoping: Only activities that have reached the Dean for final approval ('pending_final_approval'),
+// have been approved or completed, or were returned/rejected by the Dean directly.
+// Preliminary review stages (submitted, under_review, endorsed) and pre-Dean rejections are excluded.
+$where  = "(a.status IN ('pending_final_approval', 'approved', 'completed') OR (a.status IN ('returned_for_revision', 'rejected') AND EXISTS (SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?)))";
+$params = [$deanId];
+
 if ($search) {
   $where .= " AND a.title LIKE ?";
   $params[] = "%$search%";
 }
+if ($filterStat === 'archived') {
+  $where .= " AND a.is_archived = 1";
+} else {
+  $where .= " AND (a.is_archived IS NULL OR a.is_archived = 0)";
 if ($filterStat) {
-  if (strtolower($filterStat) === 'draft') {
+  $filterStatLower = strtolower($filterStat);
+  if (in_array($filterStatLower, ['draft', 'submitted', 'under_review', 'endorsed', 'resubmitted'], true)) {
     $where .= " AND 1=0";
+  } elseif (in_array($filterStatLower, ['pending_final_approval', 'approved', 'completed'], true)) {
+    $where .= " AND a.status = ?";
+    $params[] = $filterStat;
+  } elseif (in_array($filterStatLower, ['returned_for_revision', 'rejected'], true)) {
+    $where .= " AND a.status = ? AND EXISTS (SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?)";
+    $params[] = $filterStat;
+    $params[] = $deanId;
   } else {
-    $where .= " AND a.status=?";
+    $where .= " AND a.status = ?";
     $params[] = $filterStat;
   }
 }
+}
 if ($filterSrc) {
-  $where .= " AND a.source=?";
+  $where .= " AND a.source = ?";
   $params[] = $filterSrc;
 }
 
@@ -92,6 +112,7 @@ $activities = $acts->fetchAll();
     <header class="topbar">
       <div class="page-title">All Activities — System View</div>
       <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+        <button type="button" class="btn btn-outline btn-sm" onclick="openUniversalArchiveModal()" style="display:inline-flex;align-items:center;gap:6px;" title="Archive completed activities by month or overall"><span>📦</span> Universal Archive</button>
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <a href="<?= BASE_URL ?>/dean/generate-report.php" class="btn btn-primary btn-sm">Generate Report</a>
         <!-- User Profile Control -->
@@ -103,11 +124,14 @@ $activities = $acts->fetchAll();
       <!-- Search & Filters -->
       <form method="GET" class="filters">
         <input type="text" name="q" class="form-control" placeholder="Search title…" value="<?= htmlspecialchars($search) ?>" style="max-width:260px;">
-        <select name="status" class="form-control" style="max-width:180px;">
+        <select name="status" class="form-control" style="max-width:190px;">
           <option value="">All Statuses</option>
-          <?php foreach (['submitted', 'under_review', 'endorsed', 'pending_final_approval', 'returned_for_revision', 'approved', 'completed', 'rejected'] as $s): ?>
-            <option value="<?= $s ?>" <?= $filterStat === $s ? 'selected' : '' ?>><?= ucfirst(str_replace('_', ' ', $s)) ?></option>
-          <?php endforeach; ?>
+          <option value="archived" <?= ($filterStat==='archived')?'selected':'' ?>>📦 Archived</option>
+          <option value="pending_final_approval" <?= $filterStat === 'pending_final_approval' ? 'selected' : '' ?>>Pending Final Approval</option>
+          <option value="approved" <?= $filterStat === 'approved' ? 'selected' : '' ?>>Approved</option>
+          <option value="completed" <?= $filterStat === 'completed' ? 'selected' : '' ?>>Completed</option>
+          <option value="returned_for_revision" <?= $filterStat === 'returned_for_revision' ? 'selected' : '' ?>>Returned for Revision</option>
+          <option value="rejected" <?= $filterStat === 'rejected' ? 'selected' : '' ?>>Rejected</option>
         </select>
         <select name="source" class="form-control" style="max-width:170px;">
           <option value="">All Sources</option>
@@ -166,6 +190,11 @@ $activities = $acts->fetchAll();
                           <a href="<?= BASE_URL ?>/dean/review.php?id=<?= $a['id'] ?>" class="btn btn-primary btn-sm">Review</a>
                         <?php else: ?>
                           <a href="<?= BASE_URL ?>/dean/view-activity.php?id=<?= $a['id'] ?>" class="btn btn-outline btn-sm">View</a>
+                          <?php if (!empty($a['is_archived'])): ?>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="confirmUnarchiveActivity(<?= (int)$a['id'] ?>, '<?= htmlspecialchars(addslashes($a['title']), ENT_QUOTES) ?>')">Unarchive</button>
+                          <?php elseif ($a['status'] === 'completed'): ?>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="confirmArchiveSingleActivity(<?= (int)$a['id'] ?>, '<?= htmlspecialchars(addslashes($a['title']), ENT_QUOTES) ?>')">Archive</button>
+                          <?php endif; ?>
                         <?php endif; ?>
                       </div>
                     </td>

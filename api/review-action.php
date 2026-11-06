@@ -22,7 +22,8 @@ $roleMap  = [
 $role = $roleMap[$userRole] ?? '';
 if (!$role) {
     http_response_code(403);
-    die('Access denied.');
+    header('Content-Type: application/json; charset=utf-8');
+    die(json_encode(['success' => false, 'error' => 'Access denied: Unauthorized role.']));
 }
 
 if (!$actId || !$action) { header('Location: ' . BASE_URL . '/'); exit; }
@@ -59,10 +60,10 @@ if ($action === 'record_clearance') {
 // Enforce current proposal stage before allowing review action
 $isValidStage = false;
 if ($userRole === 'admin1') {
-    $isValidStage = ($act['source'] === 'student_org' && $act['status'] === 'under_review');
+    $isValidStage = ($act['source'] === 'student_org' && in_array($act['status'], ['under_review', 'submitted', 'resubmitted'], true));
 } elseif ($userRole === 'admin2') {
     $isValidStage = (
-        ($act['source'] === 'faculty' && in_array($act['status'], ['submitted', 'resubmitted'], true)) ||
+        ($act['source'] === 'faculty' && in_array($act['status'], ['submitted', 'under_review', 'resubmitted'], true)) ||
         ($act['source'] === 'student_org' && $act['status'] === 'endorsed')
     );
 } elseif ($userRole === 'dean') {
@@ -242,7 +243,8 @@ try {
         $deans->execute();
         $ns = $db->prepare("INSERT INTO notifications (user_id,activity_id,message) VALUES (?,?,?)");
         foreach ($deans->fetchAll() as $d) {
-            $ns->execute([$d['id'], $actId, "New proposal requires final approval: " . sanitize($act['title'])]);
+            $forwarderNote = ($role === 'arjay') ? 'Admin 1 (Committee Review)' : (($role === 'ian') ? 'Sir Ian' : 'Committee');
+            $ns->execute([$d['id'], $actId, "New proposal forwarded by {$forwarderNote} for final approval: " . sanitize($act['title'])]);
             
             $emailService->sendNotification(
                 $d['email'],
@@ -258,7 +260,9 @@ try {
         }
     }
 
-    $db->commit();
+    if ($db->inTransaction()) {
+        $db->commit();
+    }
 
     // Automatically generate and archive final approved proposal PDF snapshot to OneDrive
     if ($newStatus === 'approved') {

@@ -129,17 +129,76 @@ class MicrosoftOAuthService
             $resourceOwner = $this->provider->getResourceOwner($accessToken);
             $ownerData = $resourceOwner->toArray();
 
-            // Extract email with fallback: Graph API provides 'mail' or 'userPrincipalName'
-            $rawEmail = $ownerData['mail'] ?? ($ownerData['userPrincipalName'] ?? '');
-            $email = is_string($rawEmail) ? trim($rawEmail) : '';
+            // Gather all candidate email identifiers from Microsoft Graph /me and ID token claims
+            $candidateEmails = [];
 
-            // Handle cases where userPrincipalName contains '#EXT#' (guest accounts) or trailing suffixes
-            if (str_contains($email, '#EXT#')) {
-                // If mail is available, prioritize it
-                if (!empty($ownerData['mail']) && is_string($ownerData['mail'])) {
-                    $email = trim($ownerData['mail']);
+            $addCandidate = function ($val) use (&$candidateEmails) {
+                if (!is_string($val)) {
+                    return;
+                }
+                $clean = strtolower(trim($val));
+                if ($clean === '') {
+                    return;
+                }
+                // Decode Microsoft Entra B2B guest UPNs: e.g. user_domain.com#ext#@tenant.onmicrosoft.com -> user@domain.com
+                if (str_contains($clean, '#ext#')) {
+                    $extParts = explode('#ext#', $clean, 2);
+                    $prefix = $extParts[0] ?? '';
+                    $lastUnderscore = strrpos($prefix, '_');
+                    if ($lastUnderscore !== false) {
+                        $decodedGuest = substr($prefix, 0, $lastUnderscore) . '@' . substr($prefix, $lastUnderscore + 1);
+                        if (filter_var($decodedGuest, FILTER_VALIDATE_EMAIL)) {
+                            $candidateEmails[] = $decodedGuest;
+                        }
+                    }
+                }
+                if (filter_var($clean, FILTER_VALIDATE_EMAIL)) {
+                    $candidateEmails[] = $clean;
+                }
+            };
+
+            // 1. Primary Graph /me fields
+            $addCandidate($ownerData['mail'] ?? null);
+            $addCandidate($ownerData['userPrincipalName'] ?? null);
+            $addCandidate($ownerData['preferred_username'] ?? null);
+            $addCandidate($ownerData['email'] ?? null);
+            $addCandidate($ownerData['upn'] ?? null);
+
+            // 2. Graph otherMails array
+            if (!empty($ownerData['otherMails']) && is_array($ownerData['otherMails'])) {
+                foreach ($ownerData['otherMails'] as $otherMail) {
+                    $addCandidate($otherMail);
                 }
             }
+
+            // 3. Graph proxyAddresses array (e.g., "SMTP:alias@marikina.sti.edu.ph", "smtp:user@sti.edu.ph")
+            if (!empty($ownerData['proxyAddresses']) && is_array($ownerData['proxyAddresses'])) {
+                foreach ($ownerData['proxyAddresses'] as $proxy) {
+                    if (is_string($proxy) && stripos($proxy, 'smtp:') === 0) {
+                        $addCandidate(substr($proxy, 5));
+                    }
+                }
+            }
+
+            // 4. OIDC id_token JWT payload claims (email, preferred_username, upn, unique_name)
+            $tokenValues = method_exists($accessToken, 'getValues') ? $accessToken->getValues() : [];
+            $idToken = $tokenValues['id_token'] ?? null;
+            if (is_string($idToken) && substr_count($idToken, '.') === 2) {
+                $jwtParts = explode('.', $idToken);
+                $payloadJson = base64_decode(strtr($jwtParts[1], '-_', '+/'), true);
+                if (is_string($payloadJson)) {
+                    $claims = json_decode($payloadJson, true);
+                    if (is_array($claims)) {
+                        $addCandidate($claims['email'] ?? null);
+                        $addCandidate($claims['preferred_username'] ?? null);
+                        $addCandidate($claims['upn'] ?? null);
+                        $addCandidate($claims['unique_name'] ?? null);
+                    }
+                }
+            }
+
+            $candidateEmails = array_values(array_unique($candidateEmails));
+            $email = $candidateEmails[0] ?? '';
 
             if ($email === '') {
                 return [
@@ -155,6 +214,7 @@ class MicrosoftOAuthService
             return [
                 'success' => true,
                 'email'   => $email,
+                'emails'  => $candidateEmails,
                 'name'    => $displayName,
                 'id'      => (string)($resourceOwner->getId() ?? ''),
             ];

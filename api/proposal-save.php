@@ -51,10 +51,10 @@ if ($isSendToCollaborators) {
     }
 }
 
-// Duplicate prevention for offline synchronization retries:
+// Duplicate prevention for offline synchronization retries and inline draft-to-submit transitions:
 // If an activity_id is already present and exists in the database, delegate to proposal-update.php
 $existingActivityId = (int)($_POST['activity_id'] ?? 0);
-if ($existingActivityId > 0 && $action === 'draft') {
+if ($existingActivityId > 0) {
     $chkExisting = $db->prepare("SELECT id FROM activities WHERE id = ?");
     $chkExisting->execute([$existingActivityId]);
     if ($chkExisting->fetch()) {
@@ -148,6 +148,12 @@ if (!empty($_POST['schedule_rows']) && is_array($_POST['schedule_rows'])) {
 
 if (!empty($_FILES['poster_file']['name'])) {
     if (!isValidPosterImage($_FILES['poster_file'])) {
+        if ($isAjax) {
+            http_response_code(400);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error_code' => 'invalid_poster_format', 'error' => 'Invalid poster format.']);
+            exit;
+        }
         header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_poster_format");
         exit;
     }
@@ -243,15 +249,22 @@ if ($action === 'submit') {
     $aiService = new GeminiProposalValidationService(getGeminiApiKeySecure());
     $canonicalPayload = $aiService->getCanonicalProposalPayload($_POST);
     $currentHash = $aiService->calculateProposalHash($canonicalPayload);
+    $submittedHash = trim((string)($_POST['ai_validation_hash'] ?? ''));
 
-    // Verify against server session cache (never trust client-supplied approval flags)
-    if (!isset($_SESSION['last_ai_validation'][$currentHash])) {
-        // Validation result does not correspond to current payload or was never performed
-        header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=ai_validation_critical");
-        exit;
+    // Resolve cached validation or perform on-the-fly fallback validation if session cache expired
+    $cachedValidation = null;
+    if (isset($_SESSION['last_ai_validation'][$currentHash]['result'])) {
+        $cachedValidation = $_SESSION['last_ai_validation'][$currentHash]['result'];
+    } elseif ($submittedHash !== '' && isset($_SESSION['last_ai_validation'][$submittedHash]['result'])) {
+        $cachedValidation = $_SESSION['last_ai_validation'][$submittedHash]['result'];
+    } else {
+        $cachedValidation = $aiService->validateProposal($_POST);
+        $_SESSION['last_ai_validation'][$currentHash] = [
+            'result'    => $cachedValidation,
+            'timestamp' => time()
+        ];
     }
 
-    $cachedValidation = $_SESSION['last_ai_validation'][$currentHash]['result'] ?? null;
     $hasCriticalAiIssues = false;
     if (is_array($cachedValidation) && !empty($cachedValidation['sections']) && is_array($cachedValidation['sections'])) {
         foreach ($cachedValidation['sections'] as $sec) {
@@ -309,7 +322,7 @@ if ($action === 'submit' && $floorPlanRequired) {
         }
     }
 
-    $hasAnyFloorPlan = $hasFpFile || $hasFpImage || $hasFpCanvas;
+    $hasAnyFloorPlan = $hasFpFile || $hasFpImage || $hasFpCanvas || ($fpNotes !== '');
     if (!$hasAnyFloorPlan) {
         header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=missing_fields");
         exit;
@@ -354,6 +367,27 @@ if (!empty($_POST['part_actual_attendees']) && is_array($_POST['part_actual_atte
     }
 }
 
+// Ensure activity_participants table exists before starting transaction to avoid MySQL implicit DDL commit
+try {
+    $db->exec("CREATE TABLE IF NOT EXISTS activity_participants (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        activity_id INT NOT NULL,
+        row_no INT NOT NULL DEFAULT 1,
+        subject_section VARCHAR(255) NOT NULL DEFAULT '',
+        participants_count INT NOT NULL DEFAULT 0,
+        actual_attendees INT NULL DEFAULT NULL,
+        pre_test_score DECIMAL(5,2) NULL DEFAULT NULL,
+        post_test_score DECIMAL(5,2) NULL DEFAULT NULL,
+        learning_kpi_result VARCHAR(100) NULL DEFAULT NULL,
+        teacher_name VARCHAR(255) NOT NULL DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_activity_id (activity_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+} catch (\Throwable $tblEx) {
+    error_log("activity_participants table check notice: " . $tblEx->getMessage());
+}
+
 $newlyCreatedDiskPath = null;
 
 try {
@@ -378,6 +412,9 @@ try {
             }
         }
 
+        $rawSource = trim($_POST['source'] ?? '');
+        $saveSource = in_array($rawSource, ['student_org', 'faculty'], true) ? $rawSource : 'faculty';
+
         $stmt->execute([
             $user['id'],
             sanitize($_POST['title'] ?? ''),
@@ -394,7 +431,7 @@ try {
             sanitize($_POST['involved_subjects'] ?? ''),
             sanitize($_POST['rationale'] ?? ''),
             sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? '')),
-            $_POST['source'] ?? 'faculty',
+            $saveSource,
             $status,
             ($status === 'submitted') ? date('Y-m-d H:i:s') : null,
             $_POST['evaluation_questions'] ?? null,
@@ -411,22 +448,6 @@ try {
 
         if (!empty($sections) || !empty($counts)) {
             try {
-                $db->exec("CREATE TABLE IF NOT EXISTS activity_participants (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    activity_id INT NOT NULL,
-                    row_no INT NOT NULL DEFAULT 1,
-                    subject_section VARCHAR(255) NOT NULL DEFAULT '',
-                    participants_count INT NOT NULL DEFAULT 0,
-                    actual_attendees INT NULL DEFAULT NULL,
-                    pre_test_score DECIMAL(5,2) NULL DEFAULT NULL,
-                    post_test_score DECIMAL(5,2) NULL DEFAULT NULL,
-                    learning_kpi_result VARCHAR(100) NULL DEFAULT NULL,
-                    teacher_name VARCHAR(255) NOT NULL DEFAULT '',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_activity_id (activity_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
                 $colCheck = $db->query("SHOW COLUMNS FROM activity_participants LIKE 'actual_attendees'")->fetch();
                 $hasKpiCols = (bool)$colCheck;
 
@@ -499,7 +520,9 @@ try {
         $mp = $db->prepare("INSERT INTO manpower (activity_id,role,assigned_person,type) VALUES (?,?,?,?)");
         foreach ($_POST['mp_role'] as $i => $role) {
             if (!trim($role)) continue;
-            $mp->execute([$actId, sanitize($role), sanitize($_POST['mp_person'][$i]??''), $_POST['mp_type'][$i]??'faculty']);
+            $rawMpType = strtolower(trim((string)($_POST['mp_type'][$i] ?? 'faculty')));
+            $normMpType = in_array($rawMpType, ['faculty', 'staff', 'student'], true) ? $rawMpType : 'faculty';
+            $mp->execute([$actId, sanitize($role), sanitize($_POST['mp_person'][$i]??''), $normMpType]);
         }
     }
 
@@ -586,7 +609,7 @@ try {
                 $user['id'] ?? null
             ]);
 
-            if ($assignedUserId) {
+            if ($assignedUserId && $status !== 'draft') {
                 sendTaskAssignmentNotification($db, $assignedUserId, $actId, $tTitle, $dueDate);
             }
         }
@@ -643,10 +666,12 @@ try {
     }
 
     // 8.5 Poster upload
+    $savedPosterPath = null;
     if (!empty($_FILES['poster_file']['name'])) {
         $posterPath = uploadFile($_FILES['poster_file'], 'posters', $actId);
         if ($posterPath) {
             $db->prepare("UPDATE activities SET poster_path=? WHERE id=?")->execute([$posterPath, $actId]);
+            $savedPosterPath = $posterPath;
         }
     }
 
@@ -683,7 +708,7 @@ try {
         $nextStatus = ($source === 'student_org') ? 'under_review' : 'submitted';
         $db->prepare("UPDATE activities SET status=? WHERE id=?")->execute([$nextStatus, $actId]);
 
-        // Notify appropriate admin
+        // Notify appropriate admin: student_org goes to admin1, faculty goes straight to admin2
         $notifyRole = ($source === 'student_org') ? 'admin1' : 'admin2';
         $admins = $db->prepare("SELECT id, email, name FROM users WHERE role=?");
         $admins->execute([$notifyRole]);
@@ -697,7 +722,7 @@ try {
                     'email'  => $admin['email'],
                     'name'   => $admin['name'] ?? 'Administrator',
                     'role'   => $notifyRole,
-                    'status' => ($nextStatus === 'under_review') ? 'Under Review' : 'Submitted',
+                    'status' => 'Under Review',
                 ];
             }
         }
@@ -801,6 +826,8 @@ try {
         echo json_encode([
             'success'     => true,
             'activity_id' => $actId,
+            'source'      => $saveSource,
+            'poster_path' => $savedPosterPath,
             'status'      => $status,
             'shared'      => $isSendToCollaborators,
             'message'     => $isSendToCollaborators

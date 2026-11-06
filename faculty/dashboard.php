@@ -14,32 +14,73 @@ requireRole('faculty');
 $user = currentUser();
 $db   = getDB();
 
-$stats = $db->prepare("
-    SELECT
-        COUNT(*) as total,
-        SUM(status='draft') as drafts,
-        SUM(status='submitted' OR status='under_review' OR status='endorsed' OR status='pending_final_approval' OR status='resubmitted') as pending,
-        SUM(status='approved') as approved,
-        SUM(status='returned_for_revision') as revisions,
-        SUM(status='completed') as completed
-    FROM activities 
-    WHERE (faculty_id = ? OR id IN (SELECT activity_id FROM proposal_collaborators WHERE user_id = ? AND status = 'active'))
-");
-$stats->execute([$user['id'], $user['id']]);
-$s = $stats->fetch();
+$stats = null;
+$s = [];
+try {
+    $stats = $db->prepare("
+        SELECT
+            COUNT(*) as total,
+            SUM(status='draft') as drafts,
+            SUM(status='submitted' OR status='under_review' OR status='endorsed' OR status='pending_final_approval' OR status='resubmitted') as pending,
+            SUM(status='approved') as approved,
+            SUM(status='returned_for_revision') as revisions,
+            SUM(status='completed') as completed
+        FROM activities 
+        WHERE (faculty_id = ? OR id IN (SELECT activity_id FROM proposal_collaborators WHERE user_id = ? AND status = 'active'))
+    ");
+    $stats->execute([$user['id'], $user['id']]);
+    $s = $stats->fetch() ?: [];
+} catch (\Throwable $e) {
+    // Graceful fallback if proposal_collaborators table does not exist
+    try {
+        $stats = $db->prepare("
+            SELECT
+                COUNT(*) as total,
+                SUM(status='draft') as drafts,
+                SUM(status='submitted' OR status='under_review' OR status='endorsed' OR status='pending_final_approval' OR status='resubmitted') as pending,
+                SUM(status='approved') as approved,
+                SUM(status='returned_for_revision') as revisions,
+                SUM(status='completed') as completed
+            FROM activities 
+            WHERE faculty_id = ?
+        ");
+        $stats->execute([$user['id']]);
+        $s = $stats->fetch() ?: [];
+    } catch (\Throwable $e2) {
+        $s = [];
+    }
+}
+
 $tot = max(1, (int)($s['total'] ?? 0));
 $pPending = round(((int)($s['pending'] ?? 0) / $tot) * 100, 1);
 $pApproved = round(((int)($s['approved'] ?? 0) / $tot) * 100, 1);
 $pCompleted = round(((int)($s['completed'] ?? 0) / $tot) * 100, 1);
 
-$recent = $db->prepare("
-    SELECT a.*, u.name as faculty_name FROM activities a
-    JOIN users u ON a.faculty_id = u.id
-    WHERE (a.faculty_id = ? OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active'))
-    ORDER BY a.updated_at DESC LIMIT 8
-");
-$recent->execute([$user['id'], $user['id']]);
-$activities = $recent->fetchAll();
+$activities = [];
+try {
+    $recent = $db->prepare("
+        SELECT a.*, u.name as faculty_name FROM activities a
+        JOIN users u ON a.faculty_id = u.id
+        WHERE (a.faculty_id = ? OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active'))
+        ORDER BY a.updated_at DESC LIMIT 8
+    ");
+    $recent->execute([$user['id'], $user['id']]);
+    $activities = $recent->fetchAll();
+} catch (\Throwable $e) {
+    // Graceful fallback if proposal_collaborators table does not exist
+    try {
+        $recent = $db->prepare("
+            SELECT a.*, u.name as faculty_name FROM activities a
+            JOIN users u ON a.faculty_id = u.id
+            WHERE a.faculty_id = ?
+            ORDER BY a.updated_at DESC LIMIT 8
+        ");
+        $recent->execute([$user['id']]);
+        $activities = $recent->fetchAll();
+    } catch (\Throwable $e2) {
+        $activities = [];
+    }
+}
 
 // Upcoming activities derived from existing activities
 $upcomingActivities = [];
@@ -59,26 +100,40 @@ if (empty($upcomingList) && !empty($activities)) {
 }
 
 // Stagnant proposals check (3 days without update in pending review status)
-checkProposalEscalations($db, $user['id'], $user['role']);
+try {
+    checkProposalEscalations($db, $user['id'], $user['role']);
+} catch (\Throwable $e) {
+    error_log("Faculty dashboard escalation check error: " . $e->getMessage());
+}
 
 // Task progress reminders check (completed, about to be delayed, delayed)
-checkTaskProgressReminders($db, $user['id'], $user['role']);
+try {
+    checkTaskProgressReminders($db, $user['id'], $user['role']);
+} catch (\Throwable $e) {
+    error_log("Faculty dashboard task reminder check error: " . $e->getMessage());
+}
 
 // Notifications
-$unreadStmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
-$unreadStmt->execute([$user['id']]);
-$unreadCount = (int)$unreadStmt->fetchColumn();
+$unreadCount = 0;
+$notifications = [];
+try {
+    $unreadStmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+    $unreadStmt->execute([$user['id']]);
+    $unreadCount = (int)$unreadStmt->fetchColumn();
 
-$notifStmt = $db->prepare("
-    SELECT n.*, a.title as activity_title
-    FROM notifications n
-    LEFT JOIN activities a ON n.activity_id = a.id
-    WHERE n.user_id = ?
-    ORDER BY n.created_at DESC
-    LIMIT 10
-");
-$notifStmt->execute([$user['id']]);
-$notifications = $notifStmt->fetchAll();
+    $notifStmt = $db->prepare("
+        SELECT n.*, a.title as activity_title
+        FROM notifications n
+        LEFT JOIN activities a ON n.activity_id = a.id
+        WHERE n.user_id = ?
+        ORDER BY n.created_at DESC
+        LIMIT 10
+    ");
+    $notifStmt->execute([$user['id']]);
+    $notifications = $notifStmt->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Faculty dashboard notifications error: " . $e->getMessage());
+}
 
 $initial = strtoupper(substr($user['name'], 0, 1));
 
@@ -300,7 +355,7 @@ function timeAgo($datetime)
     /* ── 2. Five Summary Metric Cards (White Cards with Thin Bottom Accent) ── */
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 12px;
       align-items: stretch;
       width: 100%;
@@ -382,6 +437,12 @@ function timeAgo($datetime)
       background: #0284C7 !important;
     }
 
+    /* 6. Drafts: slate accent */
+    .stat-card.stat-card-draft::after,
+    .stat-grid a.stat-card.stat-card-draft::after {
+      background: #94A3B8 !important;
+    }
+
     /* Dark Mode Card Background & Borders */
     [data-theme="dark"] .stat-card,
     [data-theme="dark"] a.stat-card,
@@ -420,12 +481,14 @@ function timeAgo($datetime)
     .stat-card-approved .stat-icon  { background: rgba(16, 185, 129, 0.14) !important; color: #059669 !important; }
     .stat-card-revision .stat-icon  { background: rgba(100, 116, 139, 0.12) !important; color: #475569 !important; }
     .stat-card-completed .stat-icon { background: rgba(2, 132, 199, 0.12) !important; color: #0284C7 !important; }
+    .stat-card-draft .stat-icon     { background: rgba(148, 163, 184, 0.15) !important; color: #64748B !important; }
 
     [data-theme="dark"] .stat-card-total .stat-icon     { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; }
     [data-theme="dark"] .stat-card-pending .stat-icon   { background: rgba(251, 191, 36, 0.18) !important; color: #fbbf24 !important; }
     [data-theme="dark"] .stat-card-approved .stat-icon  { background: rgba(52, 211, 153, 0.15) !important; color: #34d399 !important; }
     [data-theme="dark"] .stat-card-revision .stat-icon  { background: rgba(148, 163, 184, 0.15) !important; color: #94a3b8 !important; }
     [data-theme="dark"] .stat-card-completed .stat-icon { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; }
+    [data-theme="dark"] .stat-card-draft .stat-icon     { background: rgba(148, 163, 184, 0.20) !important; color: #94a3b8 !important; }
 
     .stat-card-info {
       display: flex !important;
@@ -911,13 +974,13 @@ function timeAgo($datetime)
 
     @media (max-width: 480px) {
       .stat-grid {
-        grid-template-columns: 1fr !important;
-        gap: 10px;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px;
       }
       .stat-card,
       a.stat-card,
       .stat-grid a.stat-card {
-        padding: 14px 16px !important;
+        padding: 12px 14px !important;
       }
       .upcoming-card {
         padding: 12px 14px;
@@ -928,7 +991,7 @@ function timeAgo($datetime)
       }
     }
 
-    @media (max-width: 360px) {
+    @media (max-width: 359.98px) {
       .stat-grid {
         grid-template-columns: 1fr !important;
       }
@@ -993,7 +1056,23 @@ function timeAgo($datetime)
                 <div class="stat-card-row">
                   <div class="stat-val"><?= $s['total'] ?></div>
                 </div>
-                <div class="stat-label label-default">Total Proposals</div>
+                <div class="stat-label label-default">My Submitted Proposals</div>
+              </div>
+            </a>
+
+            <!-- Draft Proposals -->
+            <a href="<?= BASE_URL ?>/faculty/activities.php?status=draft" class="stat-card stat-card-draft">
+              <div class="stat-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <div class="stat-card-info">
+                <div class="stat-card-meta">UNSUBMITTED</div>
+                <div class="stat-card-row">
+                  <div class="stat-val"><?= (int)($s['drafts'] ?? 0) ?></div>
+                </div>
+                <div class="stat-label label-default">Draft Proposals</div>
               </div>
             </a>
 
@@ -1180,6 +1259,9 @@ function timeAgo($datetime)
                               <a href="<?= BASE_URL ?>/faculty/proposal-view.php?id=<?= $act['id'] ?>" class="btn btn-outline btn-sm">View</a>
                               <?php if (in_array($act['status'], ['draft', 'returned_for_revision'])): ?>
                                 <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= $act['id'] ?>" class="btn btn-primary btn-sm">Edit</a>
+                              <?php endif; ?>
+                              <?php if ($act['status'] === 'draft'): ?>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="confirmDeleteDraft(<?= (int)$act['id'] ?>, '<?= htmlspecialchars(addslashes($act['title']), ENT_QUOTES) ?>')">Delete</button>
                               <?php endif; ?>
                               <?php if ($act['status'] === 'approved'): ?>
                                 <a href="<?= BASE_URL ?>/faculty/post-event.php?activity_id=<?= $act['id'] ?>" class="btn btn-success btn-sm">Post-Event</a>

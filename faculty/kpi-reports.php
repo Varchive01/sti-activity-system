@@ -10,7 +10,7 @@ $db   = getDB();
 // Fetch all activities relevant to this role
 $where = '';
 if ($user['role'] === 'faculty') $where = "WHERE a.faculty_id = {$user['id']}";
-elseif ($user['role'] === 'program_head') { $deptEsc = $db->quote($user['dept'] ?? ''); $where = "WHERE (u.department = $deptEsc OR a.faculty_id = {$user['id']})"; }
+elseif ($user['role'] === 'program_head') { $userDept = resolveUserDepartment($db, $user); $deptCond = buildDepartmentSqlCondition('u.department', $userDept); $where = "WHERE (({$deptCond} AND a.status != 'draft') OR a.faculty_id = {$user['id']})"; }
 elseif ($user['role'] === 'admin1') $where = "WHERE a.source = 'student_org'";
 
 $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JOIN users u ON a.faculty_id=u.id $where ORDER BY a.updated_at DESC")->fetchAll();
@@ -18,6 +18,7 @@ $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JO
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta charset="UTF-8">
 <title>Kpi Reports – STI Activity System</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">

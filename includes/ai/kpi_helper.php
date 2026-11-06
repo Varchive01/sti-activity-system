@@ -68,29 +68,34 @@ if (!function_exists('calculateActivityKpis')) {
      */
     function calculateActivityKpis(int $activityId, PDO $db): array
     {
-        // 1. Fetch Activity details
-        $actStmt = $db->prepare("SELECT title, target_participants FROM activities WHERE id = ?");
-        $actStmt->execute([$activityId]);
-        $activity = $actStmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            // 1. Fetch Activity details
+            $actStmt = $db->prepare("SELECT title, target_participants FROM activities WHERE id = ?");
+            $actStmt->execute([$activityId]);
+            $activity = $actStmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$activity) {
+            if (!$activity) {
+                return [];
+            }
+
+            // 2. Fetch Post-Event details
+            $peStmt = $db->prepare("SELECT target_attendance, actual_attendance, satisfaction_score, recommendations FROM post_event WHERE activity_id = ?");
+            $peStmt->execute([$activityId]);
+            $postEvent = $peStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+            // 3. Fetch KPI evaluations rating breakdown
+            $kpiStmt = $db->prepare("
+                SELECT criteria, AVG(rating) as avg_rating, COUNT(id) as response_count 
+                FROM kpi_evaluations 
+                WHERE activity_id = ? AND rating IS NOT NULL AND criteria IS NOT NULL AND TRIM(criteria) != ''
+                GROUP BY criteria
+            ");
+            $kpiStmt->execute([$activityId]);
+            $criteriaRatings = $kpiStmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            error_log("calculateActivityKpis error: " . $e->getMessage());
             return [];
         }
-
-        // 2. Fetch Post-Event details
-        $peStmt = $db->prepare("SELECT target_attendance, actual_attendance, satisfaction_score, recommendations FROM post_event WHERE activity_id = ?");
-        $peStmt->execute([$activityId]);
-        $postEvent = $peStmt->fetch(PDO::FETCH_ASSOC) ?: [];
-
-        // 3. Fetch KPI evaluations rating breakdown
-        $kpiStmt = $db->prepare("
-            SELECT criteria, AVG(rating) as avg_rating, COUNT(id) as response_count 
-            FROM kpi_evaluations 
-            WHERE activity_id = ? AND rating IS NOT NULL AND criteria IS NOT NULL AND TRIM(criteria) != ''
-            GROUP BY criteria
-        ");
-        $kpiStmt->execute([$activityId]);
-        $criteriaRatings = $kpiStmt->fetchAll(PDO::FETCH_ASSOC);
 
         $kpis = [];
         $achievementScores = [];
@@ -217,10 +222,15 @@ if (!function_exists('buildPeriodWhereClause')) {
     /**
      * Builds SQL where clause and parameter array adhering strictly to existing semester conventions.
      */
-    function buildPeriodWhereClause(int $year, string $period, string $dateColumn = 'a.event_date'): array
+    function buildPeriodWhereClause($year, string $period, string $dateColumn = 'a.event_date'): array
     {
-        $where = "YEAR({$dateColumn}) = ?";
-        $params = [$year];
+        if ($year === 'all' || $year === null || $year === 0 || $year === '') {
+            $where = "1=1";
+            $params = [];
+        } else {
+            $where = "YEAR({$dateColumn}) = ?";
+            $params = [(int)$year];
+        }
 
         if ($period === '1st_sem') {
             // 1st Sem typically June to October
@@ -239,26 +249,57 @@ if (!function_exists('getInstitutionalKpiSummary')) {
      * Strictly separates overall activity statistics from KPI performance calculations
      * (only activities with completed post-event/KPI data are evaluated for KPI performance).
      */
-    function getInstitutionalKpiSummary(int $year, string $period, PDO $db): array
+    function getInstitutionalKpiSummary($year, string $period, PDO $db, ?int $deanId = null): array
     {
         $periodBounds = buildPeriodWhereClause($year, $period, 'a.event_date');
         $where = $periodBounds['where'];
         $params = $periodBounds['params'];
 
-        // 1. Activity Statistics (All activities in the period across all statuses)
-        $statsStmt = $db->prepare("
-            SELECT
-                COUNT(*) as total,
-                SUM(status = 'pending_final_approval') as pending,
-                SUM(status = 'approved') as approved,
-                SUM(status = 'completed') as completed,
-                SUM(status = 'returned_for_revision') as returned,
-                SUM(status = 'rejected') as rejected
-            FROM activities a
-            WHERE {$where}
-        ");
-        $statsStmt->execute($params);
-        $rawStats = $statsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $rawStats = [];
+        try {
+            // 1. Activity Statistics (Scoped to activities that reached the Dean, were approved/completed, or directly acted upon by the Dean)
+            if ($deanId !== null) {
+                $statsStmt = $db->prepare("
+                    SELECT
+                        COUNT(DISTINCT CASE 
+                            WHEN a.status IN ('pending_final_approval', 'approved', 'completed') 
+                                 OR (a.status IN ('returned_for_revision', 'rejected') AND EXISTS (
+                                     SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?
+                                 ))
+                            THEN a.id 
+                        END) as total,
+                        SUM(CASE WHEN a.status = 'pending_final_approval' THEN 1 ELSE 0 END) as pending,
+                        SUM(CASE WHEN a.status = 'approved' THEN 1 ELSE 0 END) as approved,
+                        SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END) as completed,
+                        SUM(CASE WHEN a.status = 'returned_for_revision' AND EXISTS (
+                            SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?
+                        ) THEN 1 ELSE 0 END) as returned,
+                        SUM(CASE WHEN a.status = 'rejected' AND EXISTS (
+                            SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?
+                        ) THEN 1 ELSE 0 END) as rejected
+                    FROM activities a
+                    WHERE {$where} AND a.status != 'draft'
+                ");
+                $statsStmt->execute(array_merge([$deanId, $deanId, $deanId], $params));
+            } else {
+                $statsStmt = $db->prepare("
+                    SELECT
+                        COUNT(*) as total,
+                        SUM(status = 'pending_final_approval') as pending,
+                        SUM(status = 'approved') as approved,
+                        SUM(status = 'completed') as completed,
+                        SUM(status = 'returned_for_revision') as returned,
+                        SUM(status = 'rejected') as rejected
+                    FROM activities a
+                    WHERE {$where} AND a.status != 'draft'
+                ");
+                $statsStmt->execute($params);
+            }
+            $rawStats = $statsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable $e) {
+            error_log("getInstitutionalKpiSummary stats error: " . $e->getMessage());
+            $rawStats = [];
+        }
 
         $totalActivities = (int)($rawStats['total'] ?? 0);
         $pendingProposals = (int)($rawStats['pending'] ?? 0);
@@ -268,21 +309,27 @@ if (!function_exists('getInstitutionalKpiSummary')) {
         $rejectedActivities = (int)($rawStats['rejected'] ?? 0);
         $returnedRejectedTotal = $returnedActivities + $rejectedActivities;
 
-        // 2. Fetch completed/approved activities for KPI performance computation
-        $actQuery = "
-            SELECT a.id, a.title, a.event_date, a.status,
-                   pe.actual_attendance, COALESCE(NULLIF(pe.target_attendance, 0), a.target_participants, 0) AS target_attendance, pe.satisfaction_score,
-                   AVG(k.rating) as avg_kpi
-            FROM activities a
-            LEFT JOIN post_event pe ON a.id = pe.activity_id
-            LEFT JOIN kpi_evaluations k ON a.id = k.activity_id
-            WHERE {$where} AND a.status IN ('approved', 'completed')
-            GROUP BY a.id
-            ORDER BY a.event_date DESC
-        ";
-        $actStmt = $db->prepare($actQuery);
-        $actStmt->execute($params);
-        $eligibleActivities = $actStmt->fetchAll(PDO::FETCH_ASSOC);
+        $eligibleActivities = [];
+        try {
+            // 2. Fetch completed/approved activities for KPI performance computation
+            $actQuery = "
+                SELECT a.id, a.title, a.event_date, a.status,
+                       pe.actual_attendance, COALESCE(NULLIF(pe.target_attendance, 0), a.target_participants, 0) AS target_attendance, pe.satisfaction_score,
+                       AVG(k.rating) as avg_kpi
+                FROM activities a
+                LEFT JOIN post_event pe ON a.id = pe.activity_id
+                LEFT JOIN kpi_evaluations k ON a.id = k.activity_id
+                WHERE {$where} AND a.status IN ('approved', 'completed')
+                GROUP BY a.id
+                ORDER BY a.event_date DESC
+            ";
+            $actStmt = $db->prepare($actQuery);
+            $actStmt->execute($params);
+            $eligibleActivities = $actStmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            error_log("getInstitutionalKpiSummary eligibleActivities error: " . $e->getMessage());
+            $eligibleActivities = [];
+        }
 
         $kpiRatingsSum = 0;
         $kpiRatingsCount = 0;
@@ -406,7 +453,7 @@ if (!function_exists('getApprovalTrends')) {
     /**
      * Retrieves monthly approval vs returned/rejected proposal trends for the selected period.
      */
-    function getApprovalTrends(int $year, string $period, PDO $db, ?string $source = null): array
+    function getApprovalTrends($year, string $period, PDO $db, ?string $source = null, ?int $reviewerId = null): array
     {
         $periodBounds = buildPeriodWhereClause($year, $period, 'a.event_date');
         $where = $periodBounds['where'];
@@ -427,19 +474,48 @@ if (!function_exists('getApprovalTrends')) {
 
         // Query approval and return/rejection counts grouped by month
         // Strictly counts only activities with 'approved' status (completed activities remain classified as completed)
-        $trendStmt = $db->prepare("
-            SELECT
-                MONTH(a.event_date) as m,
-                SUM(a.status = 'approved') as approved_count,
-                SUM(a.status IN ('returned_for_revision', 'rejected')) as returned_count,
-                COUNT(*) as total_count
-            FROM activities a
-            WHERE {$where}
-            GROUP BY MONTH(a.event_date)
-            ORDER BY m ASC
-        ");
-        $trendStmt->execute($params);
-        $rows = $trendStmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = [];
+        try {
+            if ($reviewerId !== null) {
+                $trendStmt = $db->prepare("
+                    SELECT
+                        MONTH(a.event_date) as m,
+                        SUM(a.status = 'approved') as approved_count,
+                        SUM(CASE WHEN a.status IN ('returned_for_revision', 'rejected') AND EXISTS (
+                            SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?
+                        ) THEN 1 ELSE 0 END) as returned_count,
+                        COUNT(DISTINCT CASE 
+                            WHEN a.status IN ('pending_final_approval', 'approved', 'completed') 
+                                 OR (a.status IN ('returned_for_revision', 'rejected') AND EXISTS (
+                                     SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?
+                                 ))
+                            THEN a.id 
+                        END) as total_count
+                    FROM activities a
+                    WHERE {$where} AND a.status != 'draft'
+                    GROUP BY MONTH(a.event_date)
+                    ORDER BY m ASC
+                ");
+                $trendStmt->execute(array_merge([$reviewerId, $reviewerId], $params));
+            } else {
+                $trendStmt = $db->prepare("
+                    SELECT
+                        MONTH(a.event_date) as m,
+                        SUM(a.status = 'approved') as approved_count,
+                        SUM(a.status IN ('returned_for_revision', 'rejected')) as returned_count,
+                        COUNT(*) as total_count
+                    FROM activities a
+                    WHERE {$where} AND a.status != 'draft'
+                    GROUP BY MONTH(a.event_date)
+                    ORDER BY m ASC
+                ");
+                $trendStmt->execute($params);
+            }
+            $rows = $trendStmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            error_log("getApprovalTrends error: " . $e->getMessage());
+            $rows = [];
+        }
 
         $monthMap = [];
         foreach ($rows as $r) {

@@ -26,10 +26,11 @@ $navs = [
       ['icon' => 'activity', 'label' => 'Department Activities', 'href' => BASE_URL . '/faculty/activities.php'],
       ['icon' => 'inbox', 'label' => 'Pending Proposals', 'href' => BASE_URL . '/faculty/pending.php'],
       ['icon' => 'check-circle', 'label' => 'Approved Activities', 'href' => BASE_URL . '/faculty/approved.php'],
-      ['icon' => 'x-circle', 'label' => 'Returned Proposals', 'href' => BASE_URL . '/faculty/returned.php'],
+      ['icon' => 'x-circle', 'label' => 'Returned / Rejected', 'href' => BASE_URL . '/faculty/returned.php'],
     ]],
     ['group' => 'Monitoring', 'links' => [
       ['icon' => 'list', 'label' => 'Task Monitoring', 'href' => BASE_URL . '/faculty/tasks.php'],
+      ['icon' => 'users', 'label' => 'Faculty Contributors', 'href' => BASE_URL . '/program_head/contributors.php'],
       ['icon' => 'calendar', 'label' => 'Calendar', 'href' => BASE_URL . '/faculty/calendar.php'],
     ]],
     ['group' => 'Post-Event', 'links' => [
@@ -43,6 +44,9 @@ $navs = [
       ['icon' => 'home', 'label' => 'Dashboard', 'href' => BASE_URL . '/faculty/dashboard.php'],
       ['icon' => 'plus-circle', 'label' => 'New Proposal', 'href' => BASE_URL . '/faculty/proposal-create.php'],
       ['icon' => 'list', 'label' => 'My Activities', 'href' => BASE_URL . '/faculty/activities.php'],
+      ['icon' => 'inbox', 'label' => 'Pending Proposals', 'href' => BASE_URL . '/faculty/pending.php'],
+      ['icon' => 'check-circle', 'label' => 'Approved Activities', 'href' => BASE_URL . '/faculty/approved.php'],
+      ['icon' => 'x-circle', 'label' => 'Returned / Rejected', 'href' => BASE_URL . '/faculty/returned.php'],
       ['icon' => 'check-circle', 'label' => 'My Tasks', 'href' => BASE_URL . '/faculty/tasks.php'],
       ['icon' => 'calendar', 'label' => 'Calendar', 'href' => BASE_URL . '/faculty/calendar.php'],
     ]],
@@ -85,6 +89,7 @@ $navs = [
     ]],
     ['group' => 'Administration', 'links' => [
       ['icon' => 'users', 'label' => 'User Management', 'href' => BASE_URL . '/admin2/users.php'],
+      ['icon' => 'settings', 'label' => 'System Settings', 'href' => BASE_URL . '/admin2/settings.php'],
     ]],
   ],
   'dean' => [
@@ -102,9 +107,6 @@ $navs = [
     ['group' => 'Reports', 'links' => [
       ['icon' => 'bar-chart', 'label' => 'KPI Reports', 'href' => BASE_URL . '/dean/kpi-reports.php'],
       ['icon' => 'file-text', 'label' => 'Generate Report', 'href' => BASE_URL . '/dean/generate-report.php'],
-    ]],
-    ['group' => 'Administration', 'links' => [
-      ['icon' => 'users', 'label' => 'User Management', 'href' => BASE_URL . '/dean/users.php'],
     ]],
   ],
 ];
@@ -127,6 +129,7 @@ if (!function_exists('sidebarIcon')) {
       'activity'     => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>',
       'file-text'    => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>',
       'users'        => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>',
+      'settings'     => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>',
       'help'         => '<circle cx="12" cy="12" r="10" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>',
       'logout'       => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>',
     ];

@@ -694,6 +694,257 @@ PROMPT;
     }
 
     /**
+     * Generates structured AI suggestions for the 8 proposal sections.
+     *
+     * @param array $proposal Proposal context (title, theme, venue, date, etc.).
+     * @param array $sections Array of section keys to generate.
+     * @return array Associative array of section suggestions.
+     */
+    public function generateProposalSections(array $proposal, array $sections): array
+    {
+        if (empty($this->apiKey)) {
+            return $this->getFallbackSectionSuggestions($proposal, $sections);
+        }
+
+        $title = trim((string)($proposal['title'] ?? 'Academic Activity'));
+        $theme = trim((string)($proposal['theme'] ?? ''));
+        $venue = trim((string)($proposal['venue'] ?? 'Campus Premises'));
+        $date = trim((string)($proposal['event_date'] ?? date('Y-m-d', strtotime('+7 days'))));
+        $participants = max((int)($proposal['target_participants'] ?? 50), 30);
+
+        $sectionsListStr = implode(', ', $sections);
+        $prompt = <<<PROMPT
+You are an expert Academic Advisor for STI College in the Philippines.
+Generate realistic, detailed, high-quality proposal content for an event titled "{$title}" (Theme: "{$theme}", Venue: "{$venue}", Date: "{$date}", Expected Participants: {$participants}).
+DO NOT generate, modify, or overwrite the Activity Title.
+Generate content ONLY for the following requested sections: {$sectionsListStr}.
+
+Return STRICTLY a valid JSON object without markdown fences matching this schema for the requested sections:
+{
+  "objectives": {
+    "general_objectives": "Clear broad goal statement...",
+    "specific_objectives": "1. Measurable goal...\\n2. Measurable goal...\\n3. Measurable goal...",
+    "rationale": "Educational and industry justification paragraph...",
+    "involved_subjects": "Relevant courses/subjects"
+  },
+  "materials": [
+    { "item": "Item name", "desc": "Description/spec", "qty": 2, "provider": "Supplier", "cost": 0.00 }
+  ],
+  "floor_plan": {
+    "notes": "Comprehensive layout description detailing stage, seating rows, aisle widths, exits, and registration."
+  },
+  "people": [
+    { "role": "Emcee", "person": "Faculty Host", "type": "Faculty" }
+  ],
+  "schedule": [
+    { "time": "09:00", "segment": "Segment name", "desc": "Segment description", "pic": "In-charge person" }
+  ],
+  "guidelines": {
+    "mechanics": "Detailed event rules and attendance guidelines...",
+    "criteria": "Judging or performance evaluation criteria...",
+    "scoring": "Scoring system breakdown...",
+    "awards": "Recognitions and certificates..."
+  },
+  "faculty_tasks": [
+    { "task": "Specific task", "contribution": "Deliverable", "role": "Faculty Role", "due_date": "{$date}" }
+  ],
+  "evaluation_kpi": [
+    { "indicator": "Evaluation indicator", "target": "Measurable target", "method": "Evaluation method" }
+  ]
+}
+PROMPT;
+
+        $modelsToTry = [
+            'gemini-2.5-flash',
+            'gemini-flash-latest',
+            'gemini-3.5-flash',
+            'gemini-3.7-flash',
+            'gemini-flash-lite-latest'
+        ];
+
+        $payloadData = [
+            'contents' => [
+                [
+                    'parts' => [
+                        ['text' => $prompt]
+                    ]
+                ]
+            ],
+            'generationConfig' => [
+                'temperature'     => 0.35,
+                'topP'            => 0.85,
+                'maxOutputTokens' => 4000,
+                'responseMimeType'=> 'application/json'
+            ]
+        ];
+
+        $success = false;
+        $response = '';
+        foreach ($modelsToTry as $modelName) {
+            $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $modelName . ':generateContent?key=' . urlencode($this->apiKey);
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payloadData));
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+
+            if (file_exists('C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem')) {
+                curl_setopt($ch, CURLOPT_CAINFO, 'C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem');
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+            } else {
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+            }
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            @curl_close($ch);
+
+            if (!$curlError && $httpCode === 200) {
+                $success = true;
+                break;
+            }
+        }
+
+        if (!$success) {
+            return $this->getFallbackSectionSuggestions($proposal, $sections);
+        }
+
+        $jsonResponse = json_decode($response, true);
+        $rawText = '';
+        if (isset($jsonResponse['candidates'][0]['content']['parts'])) {
+            foreach ($jsonResponse['candidates'][0]['content']['parts'] as $part) {
+                if (!empty($part['text'])) {
+                    $rawText .= $part['text'];
+                }
+            }
+        }
+
+        if (empty(trim($rawText))) {
+            return $this->getFallbackSectionSuggestions($proposal, $sections);
+        }
+
+        $cleanedJson = $this->stripMarkdownCodeBlocks($rawText);
+        $parsed = json_decode($cleanedJson, true);
+        if (!is_array($parsed)) {
+            return $this->getFallbackSectionSuggestions($proposal, $sections);
+        }
+
+        $fallback = $this->getFallbackSectionSuggestions($proposal, $sections);
+        foreach ($sections as $sec) {
+            if (!isset($parsed[$sec]) || empty($parsed[$sec])) {
+                $parsed[$sec] = $fallback[$sec] ?? [];
+            }
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * Fallback section suggestions based on activity title and context.
+     */
+    public function getFallbackSectionSuggestions(array $proposal, array $sections): array
+    {
+        $title = trim((string)($proposal['title'] ?? 'Student Academic Activity'));
+        $theme = trim((string)($proposal['theme'] ?? 'Excellence in Action'));
+        $venue = trim((string)($proposal['venue'] ?? 'STI College Campus'));
+        $participants = max((int)($proposal['target_participants'] ?? 50), 30);
+        $date = trim((string)($proposal['event_date'] ?? date('Y-m-d', strtotime('+14 days'))));
+
+        $allSuggestions = [
+            'objectives' => [
+                'general_objectives' => "To provide students with a structured, interactive academic experience focusing on {$title}, reinforcing institutional competencies, career preparedness, and practical problem-solving skills.",
+                'specific_objectives' => "1. Understand the core principles, methodologies, and best practices associated with {$title}.\n2. Apply learned competencies through collaborative group exercises and hands-on demonstrations.\n3. Evaluate real-world scenarios and demonstrate critical thinking aligned with STI course standards.",
+                'rationale' => "In alignment with STI's outcome-based education model, this activity addresses essential skill gaps by bridging theoretical course discussions with experiential industry applications. Providing focused immersion in {$title} promotes student engagement and professional readiness.",
+                'involved_subjects' => !empty($proposal['involved_subjects']) ? $proposal['involved_subjects'] : 'Major Academic Courses & General Education'
+            ],
+            'materials' => [
+                [
+                    'item'     => 'Wireless Microphones & PA Audio System',
+                    'desc'     => 'Dual wireless microphones with PA amplifier and receiver',
+                    'qty'      => 2,
+                    'provider' => 'Campus AV Logistics',
+                    'cost'     => 0.00
+                ],
+                [
+                    'item'     => 'High-Definition Projector & Projection Screen',
+                    'desc'     => 'HDMI 1080p presentation display for keynote speakers',
+                    'qty'      => 1,
+                    'provider' => 'IT Laboratory',
+                    'cost'     => 0.00
+                ],
+                [
+                    'item'     => 'Certificate of Participation & Recognition',
+                    'desc'     => 'Premium parchment certificate board with embossed STI seal',
+                    'qty'      => $participants,
+                    'provider' => 'Admin Office',
+                    'cost'     => 500.00
+                ],
+                [
+                    'item'     => 'Event Stage Backdrop / Tarpaulin',
+                    'desc'     => '8x5 ft official event banner featuring event theme and branding',
+                    'qty'      => 1,
+                    'provider' => 'Accredited Print Vendor',
+                    'cost'     => 750.00
+                ],
+                [
+                    'item'     => 'Tokens of Appreciation for Guest Speakers',
+                    'desc'     => 'Plaque or customized institutional token for resource speakers',
+                    'qty'      => 2,
+                    'provider' => 'Campus Bookstore / Admin',
+                    'cost'     => 600.00
+                ]
+            ],
+            'floor_plan' => [
+                'notes' => "Front stage positioned centrally with presentation podium, screen, and audio monitor speakers. Participant seating configured in neat theater rows facing the stage with a clear 1.5-meter central aisle ensuring unblocked emergency egress to main exit doors. Attendance registration and kit verification desk positioned outside main entrance doors. Technical control table situated at rear right."
+            ],
+            'people' => [
+                ['role' => 'Emcee', 'person' => 'Assigned Faculty Moderator', 'type' => 'Faculty'],
+                ['role' => 'Floor Director', 'person' => 'Lead Event Coordinator', 'type' => 'Faculty'],
+                ['role' => 'Usher', 'person' => 'Student Volunteers (3)', 'type' => 'Student'],
+                ['role' => 'Technical Specialist', 'person' => 'Campus IT Specialist', 'type' => 'Staff'],
+                ['role' => 'Medic', 'person' => 'Campus Health Clinic Personnel', 'type' => 'Staff']
+            ],
+            'schedule' => [
+                ['time' => '08:30', 'segment' => 'Participant Ingress & Registration', 'desc' => 'Participant QR check-in and activity kit distribution', 'pic' => 'Registration Committee'],
+                ['time' => '09:00', 'segment' => 'Opening Ceremonies', 'desc' => 'National Anthem, STI Hymn, and Invocation', 'pic' => 'Emcee'],
+                ['time' => '09:15', 'segment' => 'Welcome Address & Orientation', 'desc' => 'Opening remarks and briefing on event objectives', 'pic' => 'Program Head / Dean'],
+                ['time' => '09:30', 'segment' => 'Keynote Presentation & Core Workshop', 'desc' => 'Interactive session covering principal topics and case studies', 'pic' => 'Resource Speaker'],
+                ['time' => '11:15', 'segment' => 'Open Forum & Synthesis', 'desc' => 'Q&A session and reflection on key takeaways', 'pic' => 'Moderator'],
+                ['time' => '11:45', 'segment' => 'Awarding & Evaluation', 'desc' => 'Presentation of certificates and digital QR evaluation survey', 'pic' => 'Documentation Lead']
+            ],
+            'guidelines' => [
+                'mechanics' => "1. All registered students must wear their valid STI ID and prescribed campus uniform/attire.\n2. Participants are required to attend all program segments and participate actively in discussion exercises.\n3. Mobile phones must be set to silent mode during all speaker sessions.\n4. Accomplishing the digital evaluation survey is a prerequisite for certificate issuance.",
+                'criteria'  => "1. Active Participation & Punctuality: 25%\n2. Quality of Workshop Output / Demonstration: 40%\n3. Collaborative Engagement & Decorum: 20%\n4. Post-Activity Reflection & Assessment: 15%",
+                'scoring'   => "100-Point Performance Rubric evaluated by designated faculty moderators.",
+                'awards'    => "Certificate of Active Participation for all qualified attendees; Certificate of Recognition for outstanding speakers and student group presentations."
+            ],
+            'faculty_tasks' => [
+                ['task' => 'Program & Resource Speaker Management', 'contribution' => 'Coordinate with speaker and oversee timeline flow', 'role' => 'Program Coordinator', 'due_date' => date('Y-m-d', strtotime('+7 days'))],
+                ['task' => 'Logistics & Venue Setup', 'contribution' => 'Verify audio-visual equipment, floorplan seating, and signage', 'role' => 'Logistics Lead', 'due_date' => date('Y-m-d', strtotime('+6 days'))],
+                ['task' => 'Evaluation Analytics & Documentation', 'contribution' => 'Administer QR evaluation survey and compile post-event KPI metrics', 'role' => 'Evaluation Officer', 'due_date' => date('Y-m-d', strtotime('+8 days'))]
+            ],
+            'evaluation_kpi' => [
+                ['indicator' => 'Participant Turnout Rate', 'target' => 'Minimum 85% of targeted student headcount', 'method' => 'Digital Attendance Log'],
+                ['indicator' => 'Student Satisfaction Score', 'target' => 'At least 4.20 out of 5.00 overall rating', 'method' => 'Post-Activity Evaluation Survey'],
+                ['indicator' => 'Core Competency Mastery', 'target' => '80% of participants pass the reflection assessment', 'method' => 'Output Rubric Assessment']
+            ]
+        ];
+
+        $result = [];
+        foreach ($sections as $sec) {
+            if (isset($allSuggestions[$sec])) {
+                $result[$sec] = $allSuggestions[$sec];
+            }
+        }
+        return $result;
+    }
+
+    /**
      * Strips ```json ... ``` code fences from Gemini responses.
      */
     private function stripMarkdownCodeBlocks(string $text): string

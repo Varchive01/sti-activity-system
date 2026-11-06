@@ -1,16 +1,125 @@
 <?php
+ob_start();
+ini_set('display_errors', '0');
+error_reporting(0);
+
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('faculty', 'program_head');
 
-header('Content-Type: application/json');
+// Helper to send clean JSON response without stray buffers or notice pollution
+function sendEvalJsonResponse(int $statusCode, array $payload): void {
+    if (ob_get_length()) {
+        ob_clean();
+    }
+    http_response_code($statusCode);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+// Helper to synthesize objective-aligned academic evaluation questions as a foolproof fallback
+function generateFallbackEvaluationQuestions(string $title, string $theme, string $generalObj, string $specificObj): array {
+    $questions = [];
+    $qNum = 1;
+
+    // Parse objectives into clean individual statements
+    $combined = $generalObj . "\n" . $specificObj;
+    $lines = preg_split('/[\r\n]+/', $combined);
+    $parsedObjectives = [];
+    foreach ($lines as $line) {
+        $cleaned = trim(preg_replace('/^(\d+[\.\)\-]|[•\*\-])\s*/u', '', trim($line)));
+        if (!empty($cleaned) && strlen($cleaned) >= 8) {
+            $parsedObjectives[] = rtrim($cleaned, '.');
+        }
+    }
+
+    // 1. Objective-aligned questions (up to 4 specific objectives)
+    $objCount = 0;
+    foreach ($parsedObjectives as $objText) {
+        if ($objCount >= 4) break;
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "To what extent did the activity successfully achieve the objective to {$objText}?",
+            'type' => 'rating',
+            'required' => true
+        ];
+        $objCount++;
+    }
+
+    if ($objCount === 0) {
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "To what extent did the activity fulfill its stated academic and developmental objectives?",
+            'type' => 'rating',
+            'required' => true
+        ];
+    }
+
+    // 2. Theme alignment question
+    $themeClean = rtrim(trim($theme), '.');
+    $questions[] = [
+        'id' => 'q' . $qNum++,
+        'question' => "The event activities and topics were closely aligned with the theme: '{$themeClean}'.",
+        'type' => 'rating',
+        'required' => true
+    ];
+
+    // 3. Organization, scheduling, and logistical flow
+    $questions[] = [
+        'id' => 'q' . $qNum++,
+        'question' => "The event schedule, venue arrangement, and program coordination were effective and well-organized.",
+        'type' => 'rating',
+        'required' => true
+    ];
+
+    // 4. Resource speakers / facilitators performance
+    $questions[] = [
+        'id' => 'q' . $qNum++,
+        'question' => "The speakers and facilitators delivered the topics clearly and engaged participants effectively.",
+        'type' => 'rating',
+        'required' => true
+    ];
+
+    // 5. Impact / Skill Enhancement
+    $titleClean = rtrim(trim($title), '.');
+    $questions[] = [
+        'id' => 'q' . $qNum++,
+        'question' => "Participating in '{$titleClean}' enhanced my practical knowledge and academic competence.",
+        'type' => 'rating',
+        'required' => true
+    ];
+
+    // 6. Overall satisfaction
+    $questions[] = [
+        'id' => 'q' . $qNum++,
+        'question' => "Overall, I am highly satisfied with the conduct and experience of this activity.",
+        'type' => 'rating',
+        'required' => true
+    ];
+
+    // Open-ended qualitative questions (2 questions)
+    $questions[] = [
+        'id' => 'q' . $qNum++,
+        'question' => "What specific aspect or session of '{$titleClean}' did you find most beneficial or impactful?",
+        'type' => 'open_ended',
+        'required' => true
+    ];
+
+    $questions[] = [
+        'id' => 'q' . $qNum++,
+        'question' => "What suggestions or recommendations do you have to improve future iterations of this event?",
+        'type' => 'open_ended',
+        'required' => true
+    ];
+
+    return $questions;
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed.']);
-    exit;
+    sendEvalJsonResponse(405, ['error' => 'Method not allowed.']);
 }
 
 // Read raw JSON input
@@ -27,12 +136,10 @@ if (!is_array($input) && php_sapi_name() === 'cli') {
 }
 
 if (!is_array($input)) {
-    http_response_code(400);
-    echo json_encode([
+    sendEvalJsonResponse(400, [
         'success' => false,
         'error' => 'Invalid JSON input.'
     ]);
-    exit;
 }
 
 $title = trim($input['title'] ?? '');
@@ -42,12 +149,10 @@ $specific_objectives = trim($input['specific_objectives'] ?? '');
 
 // Strict validation: non-empty title (>=4 chars), theme, and at least one objective
 if (empty($title) || strlen($title) < 4 || empty($theme) || (empty($general_objectives) && empty($specific_objectives))) {
-    http_response_code(400);
-    echo json_encode([
+    sendEvalJsonResponse(400, [
         'error' => 'Activity title (at least 4 characters), theme, and at least one objective (general or specific) are required to generate evaluation questions.',
         'success' => false
     ]);
-    exit;
 }
 
 // Build the prompt focused solely on Title, Theme, and Objectives
@@ -111,14 +216,12 @@ if (!function_exists('getGeminiApiKeySecure')) {
 
 $apiKey = getGeminiApiKeySecure();
 if (empty($apiKey) || $apiKey === 'YOUR_API_KEY_HERE') {
-    http_response_code(500);
-    echo json_encode([
+    sendEvalJsonResponse(500, [
         'success'    => false,
         'error'      => 'AUTH_ERROR',
         'auth_error' => true,
         'message'    => 'Configuration Error: Gemini API key is missing. Please configure GEMINI_API_KEY in the environment or .env file.'
     ]);
-    exit;
 }
 
 $data = [
@@ -212,13 +315,11 @@ foreach ($modelsToTry as $modelName) {
 
 if ($curlError && !$success) {
     error_log("Gemini API cURL Error (generate-evaluation): " . $curlError);
-    http_response_code(503);
-    echo json_encode([
+    sendEvalJsonResponse(503, [
         'success' => false,
         'error'   => 'NETWORK_ERROR',
         'message' => 'Network error: Unable to connect to AI service. Please check your internet connection and try again.'
     ]);
-    exit;
 }
 
 if ($httpCode !== 200) {
@@ -248,8 +349,7 @@ if ($httpCode !== 200) {
         $httpStatusOut = 503;
     }
 
-    http_response_code($httpStatusOut);
-    echo json_encode([
+    sendEvalJsonResponse($httpStatusOut, [
         'success'         => false,
         'error'           => $errorCode,
         'quota_exhausted' => $isQuotaExhausted,
@@ -257,7 +357,6 @@ if ($httpCode !== 200) {
         'auth_error'      => $isAuthError,
         'message'         => $userMessage
     ]);
-    exit;
 }
 
 $result = json_decode($response, true);
@@ -310,17 +409,19 @@ if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
         }
 
         if (is_array($questions) && !empty($questions)) {
-            echo json_encode([
+            sendEvalJsonResponse(200, [
                 'success' => true,
                 'questions' => $questions
             ]);
-            exit;
         }
     }
 }
 
-error_log("Failed to parse evaluation questions. Raw response: " . $generatedText);
-echo json_encode([
-    'error' => 'Failed to parse the generated evaluation questions from Gemini API.',
-    'raw_response' => $generatedText
+error_log("Failed to parse evaluation questions. Using fallback academic questionnaire. Raw response: " . $generatedText);
+$fallbackQuestions = generateFallbackEvaluationQuestions($title, $theme, $general_objectives, $specific_objectives);
+sendEvalJsonResponse(200, [
+    'success'   => true,
+    'fallback'  => true,
+    'questions' => $fallbackQuestions,
+    'message'   => 'Evaluation questions generated from activity details.'
 ]);

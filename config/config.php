@@ -2,7 +2,7 @@
 date_default_timezone_set('Asia/Manila');
 
 // 1. Load .env file safely if it exists
-$envFile = __DIR__ . '/../.env';
+$envFile = dirname(__DIR__) . '/.env';
 $envVars = [];
 if (file_exists($envFile)) {
     $lines = @file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -21,15 +21,25 @@ if (file_exists($envFile)) {
     }
 }
 
-// 2. Protocol & Host Detection (Supports reverse proxies such as Railway, Render, Cloudflare)
+// 2. Protocol & Host Detection (Supports reverse proxies such as Railway, Render, Cloudflare, InfinityFree)
 $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-    || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
-    || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on');
+    || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && str_contains(strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']), 'https'))
+    || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on')
+    || (!empty($_SERVER['HTTP_X_FORWARDED_PORT']) && (int)$_SERVER['HTTP_X_FORWARDED_PORT'] === 443)
+    || (!empty($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
+    || (!empty($_SERVER['HTTP_CF_VISITOR']) && str_contains($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"'))
+    || (!empty($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower($_SERVER['HTTP_FRONT_END_HTTPS']) === 'on');
 $protocol = $isHttps ? 'https://' : 'http://';
 
 $host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? ($_SERVER['HTTP_HOST'] ?? 'localhost');
 if (str_contains($host, ',')) {
     $host = trim(explode(',', $host)[0]);
+}
+
+// For live production hosts behind SSL reverse proxies, default protocol to https:// to prevent redirect loops
+$isLocalHost = empty($host) || in_array(strtolower(explode(':', $host)[0]), ['localhost', '127.0.0.1', '::1'], true);
+if (!$isLocalHost && !$isHttps) {
+    $protocol = 'https://';
 }
 
 // 3. BASE_URL Resolution

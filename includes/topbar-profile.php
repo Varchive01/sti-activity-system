@@ -27,19 +27,34 @@ if (!isset($topbarUser)) {
 if (!empty($topbarUser['id'])) {
     $dbProf = (isset($db) && ($db instanceof PDO)) ? $db : (function_exists('getDB') ? getDB() : null);
     if ($dbProf) {
-        $pStmt = $dbProf->prepare('SELECT id, name, email, role, department, profile_picture FROM users WHERE id = ? LIMIT 1');
-        $pStmt->execute([(int)$topbarUser['id']]);
-        $fetchedProf = $pStmt->fetch(PDO::FETCH_ASSOC);
+        $fetchedProf = null;
+        try {
+            $pStmt = $dbProf->prepare('SELECT id, name, email, role, department, profile_picture FROM users WHERE id = ? LIMIT 1');
+            $pStmt->execute([(int)$topbarUser['id']]);
+            $fetchedProf = $pStmt->fetch(PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            // Fallback if profile_picture column has not been migrated yet
+            try {
+                $pStmt = $dbProf->prepare('SELECT id, name, email, role, department FROM users WHERE id = ? LIMIT 1');
+                $pStmt->execute([(int)$topbarUser['id']]);
+                $fetchedProf = $pStmt->fetch(PDO::FETCH_ASSOC);
+                if ($fetchedProf) {
+                    $fetchedProf['profile_picture'] = null;
+                }
+            } catch (\Throwable $e2) {
+                $fetchedProf = null;
+            }
+        }
         if ($fetchedProf) {
             $topbarUser['name']            = $fetchedProf['name'];
             $topbarUser['email']           = $fetchedProf['email'];
             $topbarUser['role']            = $fetchedProf['role'];
             $topbarUser['dept']            = $fetchedProf['department'] ?? '';
-            $topbarUser['profile_picture'] = $fetchedProf['profile_picture'];
+            $topbarUser['profile_picture'] = $fetchedProf['profile_picture'] ?? null;
 
             if (session_status() === PHP_SESSION_ACTIVE) {
                 $_SESSION['user_name']            = $fetchedProf['name'];
-                $_SESSION['user_profile_picture'] = $fetchedProf['profile_picture'];
+                $_SESSION['user_profile_picture'] = $fetchedProf['profile_picture'] ?? null;
                 $_SESSION['user_dept']            = $fetchedProf['department'] ?? '';
             }
         }
@@ -203,12 +218,21 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
   text-transform: capitalize;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 768px) {
   .topbar-profile .topbar-user-info {
-    display: none;
+    display: none !important;
   }
   .topbar-profile {
-    padding: 0;
+    padding: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar-profile-popover {
+    width: min(280px, calc(100vw - 20px)) !important;
+    max-width: calc(100vw - 20px) !important;
+    right: 0 !important;
+    left: auto !important;
   }
 }
 
@@ -371,6 +395,7 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
   border: 1px solid var(--border, #E2E8F4);
   width: 100%;
   max-width: 480px;
+  max-height: 92dvh;
   box-shadow: 0 20px 48px rgba(10, 22, 40, 0.25);
   overflow: hidden;
   animation: profileModalAnim 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -428,8 +453,45 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
   display: flex;
   flex-direction: column;
   gap: 18px;
-  max-height: calc(85vh - 130px);
+  flex: 1 1 auto;
+  max-height: calc(92dvh - 130px);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 480px) {
+  .profile-modal {
+    max-width: calc(100vw - 20px) !important;
+    margin: 10px auto !important;
+  }
+  .profile-modal-header {
+    padding: 14px 16px !important;
+  }
+  .profile-modal-body {
+    padding: 16px !important;
+    gap: 14px !important;
+  }
+  .profile-avatar-section {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .profile-avatar-btn-row {
+    width: 100% !important;
+  }
+  .profile-avatar-btn-row .btn-profile-action {
+    flex: 1 1 auto !important;
+    justify-content: center !important;
+  }
+  .profile-modal-footer {
+    padding: 12px 16px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .profile-modal-footer .btn-profile-footer {
+    flex: 1 1 calc(50% - 4px) !important;
+    justify-content: center !important;
+  }
 }
 
 /* ── Avatar Edit Card ── */
@@ -1243,3 +1305,538 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
   }
 })();
 </script>
+
+<?php if (!defined('STI_SYSTEM_MODAL_LOADED')): define('STI_SYSTEM_MODAL_LOADED', true); ?>
+<style>
+/* ── STI-ARMES Global System Dialog (Alert / Confirm / Prompt) ── */
+.sti-sys-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.sti-sys-modal-backdrop.is-open {
+  opacity: 1;
+}
+.sti-sys-modal-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--bg-card, #ffffff);
+  color: var(--text-main, #0f172a);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 14px;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25), 0 4px 12px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+  transform: translateY(10px) scale(0.98);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.sti-sys-modal-backdrop.is-open .sti-sys-modal-card {
+  transform: translateY(0) scale(1);
+}
+.sti-sys-modal-topstrip {
+  height: 5px;
+  width: 100%;
+  background: var(--sti-blue, #0284c7);
+}
+.sti-sys-modal-card[data-variant="warning"] .sti-sys-modal-topstrip {
+  background: #f59e0b;
+}
+.sti-sys-modal-card[data-variant="danger"] .sti-sys-modal-topstrip {
+  background: #dc2626;
+}
+.sti-sys-modal-card[data-variant="success"] .sti-sys-modal-topstrip {
+  background: #16a34a;
+}
+.sti-sys-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 22px 12px;
+}
+.sti-sys-modal-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+  background: rgba(2, 132, 199, 0.12);
+  color: var(--sti-blue, #0284c7);
+}
+.sti-sys-modal-card[data-variant="warning"] .sti-sys-modal-icon {
+  background: rgba(245, 158, 11, 0.14);
+  color: #d97706;
+}
+.sti-sys-modal-card[data-variant="danger"] .sti-sys-modal-icon {
+  background: rgba(220, 38, 38, 0.14);
+  color: #dc2626;
+}
+.sti-sys-modal-card[data-variant="success"] .sti-sys-modal-icon {
+  background: rgba(22, 163, 74, 0.14);
+  color: #16a34a;
+}
+.sti-sys-modal-title {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+  line-height: 1.3;
+  flex: 1;
+}
+.sti-sys-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #64748b);
+  font-size: 1.35rem;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.sti-sys-modal-close:hover {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-main, #0f172a);
+}
+.sti-sys-modal-body {
+  padding: 4px 22px 18px 22px;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text-muted, #475569);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.sti-sys-modal-body p {
+  margin: 0 0 10px 0;
+}
+.sti-sys-modal-body p:last-child {
+  margin-bottom: 0;
+}
+.sti-sys-modal-list {
+  margin: 8px 0 10px 0;
+  padding: 10px 14px 10px 28px;
+  background: var(--bg-base, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  color: var(--text-main, #1e293b);
+  font-size: 0.85rem;
+}
+.sti-sys-modal-list li {
+  margin-bottom: 4px;
+}
+.sti-sys-modal-list li:last-child {
+  margin-bottom: 0;
+}
+.sti-sys-modal-input {
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, #cbd5e1);
+  background: var(--bg-base, #ffffff);
+  color: var(--text-main, #0f172a);
+  outline: none;
+  box-sizing: border-box;
+}
+.sti-sys-modal-input:focus {
+  border-color: var(--sti-blue, #0284c7);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.18);
+}
+.sti-sys-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px;
+  background: var(--bg-base, #f8fafc);
+  border-top: 1px solid var(--border, #e2e8f0);
+}
+.sti-sys-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 18px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  font-family: inherit;
+}
+.sti-sys-btn-cancel {
+  background: var(--bg-card, #ffffff);
+  color: var(--text-main, #334155);
+  border-color: var(--border, #cbd5e1);
+}
+.sti-sys-btn-cancel:hover {
+  background: rgba(148, 163, 184, 0.12);
+}
+.sti-sys-btn-primary {
+  background: var(--sti-blue, #0284c7);
+  color: #ffffff;
+}
+.sti-sys-btn-primary:hover {
+  background: #0369a1;
+}
+.sti-sys-btn-warning {
+  background: #d97706;
+  color: #ffffff;
+}
+.sti-sys-btn-warning:hover {
+  background: #b45309;
+}
+.sti-sys-btn-danger {
+  background: #dc2626;
+  color: #ffffff;
+}
+.sti-sys-btn-danger:hover {
+  background: #b91c1c;
+}
+@media (max-width: 480px) {
+  .sti-sys-modal-footer {
+    flex-direction: column-reverse;
+  }
+  .sti-sys-btn {
+    width: 100%;
+    padding: 10px 16px;
+  }
+}
+</style>
+<script>
+(function() {
+  if (window.STIModal) return;
+
+  function escapeHtml(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function detectMeta(rawMsg, mode, opts) {
+    opts = opts || {};
+    var text = String(rawMsg == null ? '' : rawMsg).trim();
+    var cleanText = text.replace(/^[⚠️✓✨💡❌🛑]+\s*/u, '').trim();
+    var lower = cleanText.toLowerCase();
+
+    var variant = opts.variant || 'info';
+    if (!opts.variant) {
+      if (text.indexOf('⚠️') !== -1 || lower.indexOf('warning') !== -1 || lower.indexOf('blank') !== -1 || lower.indexOf('replace') !== -1 || lower.indexOf('offline') !== -1 || lower.indexOf('incomplete') !== -1 || lower.indexOf('unavailable') !== -1) {
+        variant = 'warning';
+      } else if (lower.indexOf('delete') !== -1 || lower.indexOf('remove') !== -1 || lower.indexOf('discard') !== -1 || lower.indexOf('clear ') !== -1 || lower.indexOf('blocked') !== -1 || lower.indexOf('failed') !== -1 || lower.indexOf('error') !== -1 || lower.indexOf('cannot') !== -1) {
+        variant = (mode === 'confirm') ? 'danger' : 'danger';
+      } else if (text.indexOf('✓') !== -1 || lower.indexOf('success') !== -1) {
+        variant = 'success';
+      }
+    }
+
+    var title = opts.title || '';
+    if (!title) {
+      var lines = cleanText.split(/\n+/);
+      if (lines.length > 1 && lines[0].length <= 55 && !/[.?]$/.test(lines[0])) {
+        title = lines[0].trim();
+        cleanText = lines.slice(1).join('\n\n').trim();
+      } else if (mode === 'confirm') {
+        if (lower.indexOf('activity title') !== -1 && lower.indexOf('blank') !== -1) title = 'Activity Title is Blank';
+        else if (lower.indexOf('replace') !== -1) title = 'Replace Existing Content?';
+        else if (lower.indexOf('delete') !== -1 || lower.indexOf('remove') !== -1) title = 'Confirm Removal';
+        else if (lower.indexOf('discard') !== -1 || lower.indexOf('clear') !== -1) title = 'Discard Changes?';
+        else if (lower.indexOf('finalize') !== -1) title = 'Finalize Evaluation Analysis?';
+        else if (lower.indexOf('collaborator') !== -1) title = 'Send to Collaborators?';
+        else title = 'Please Confirm';
+      } else if (mode === 'prompt') {
+        title = cleanText.replace(/:$/, '') || 'Enter Value';
+      } else {
+        if (variant === 'danger') title = 'Action Required';
+        else if (variant === 'warning') title = 'Attention Needed';
+        else if (variant === 'success') title = 'Success';
+        else title = 'System Notice';
+      }
+    }
+
+    var iconMap = {
+      info: 'ℹ️',
+      warning: '⚠️',
+      danger: '⚠️',
+      success: '✓'
+    };
+    var icon = opts.icon || (mode === 'prompt' ? '✏️' : (iconMap[variant] || 'ℹ️'));
+
+    var confirmText = opts.confirmText || 'OK';
+    if (!opts.confirmText && mode === 'confirm') {
+      if (lower.indexOf('proceed anyway') !== -1 || lower.indexOf('proceed with') !== -1) confirmText = 'Proceed Anyway';
+      else if (lower.indexOf('replace') !== -1) confirmText = 'Yes, Replace';
+      else if (lower.indexOf('remove') !== -1) confirmText = 'Remove';
+      else if (lower.indexOf('delete') !== -1) confirmText = 'Delete';
+      else if (lower.indexOf('discard') !== -1) confirmText = 'Discard Draft';
+      else if (lower.indexOf('clear') !== -1) confirmText = 'Clear Layout';
+      else if (lower.indexOf('finalize') !== -1) confirmText = 'Finalize Analysis';
+      else if (lower.indexOf('send ') !== -1) confirmText = 'Send Now';
+      else if (lower.indexOf('save ') !== -1) confirmText = 'Save Draft';
+      else confirmText = 'Confirm';
+    } else if (!opts.confirmText && mode === 'prompt') {
+      confirmText = 'Save';
+    }
+
+    var cancelText = opts.cancelText || 'Cancel';
+    return {
+      title: title,
+      bodyText: cleanText,
+      variant: variant,
+      icon: icon,
+      confirmText: confirmText,
+      cancelText: cancelText
+    };
+  }
+
+  function formatBodyHtml(text) {
+    var blocks = String(text || '').split(/\n\s*\n/);
+    var html = '';
+    blocks.forEach(function(block) {
+      var lines = block.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+      if (!lines.length) return;
+      var bulletLines = lines.filter(function(l) { return /^[•\-*]\s+/.test(l); });
+      if (bulletLines.length > 0 && bulletLines.length === lines.length) {
+        html += '<ul class="sti-sys-modal-list">';
+        bulletLines.forEach(function(b) {
+          html += '<li>' + escapeHtml(b.replace(/^[•\-*]\s+/, '')) + '</li>';
+        });
+        html += '</ul>';
+      } else {
+        html += '<p>' + lines.map(escapeHtml).join('<br>') + '</p>';
+      }
+    });
+    return html || '<p>' + escapeHtml(text) + '</p>';
+  }
+
+  function openDialog(mode, message, opts) {
+    return new Promise(function(resolve) {
+      var meta = detectMeta(message, mode, opts);
+      var backdrop = document.createElement('div');
+      backdrop.className = 'sti-sys-modal-backdrop';
+      backdrop.setAttribute('role', 'dialog');
+      backdrop.setAttribute('aria-modal', 'true');
+
+      var btnClass = (opts && opts.confirmBtnClass) || 'sti-sys-btn-primary';
+      if (!opts || !opts.confirmBtnClass) {
+        if (mode === 'confirm' && meta.variant === 'danger') btnClass = 'sti-sys-btn-danger';
+        else if (mode === 'confirm' && meta.variant === 'warning') btnClass = 'sti-sys-btn-warning';
+      }
+
+      var bodyHtml = (mode === 'prompt')
+        ? '<p>' + escapeHtml(meta.bodyText) + '</p><input type="text" class="sti-sys-modal-input" id="stiSysPromptInput" value="' + escapeHtml((opts && opts.defaultValue) || '') + '">'
+        : formatBodyHtml(meta.bodyText);
+
+      backdrop.innerHTML =
+        '<div class="sti-sys-modal-card" data-variant="' + escapeHtml(meta.variant) + '">' +
+          '<div class="sti-sys-modal-topstrip"></div>' +
+          '<div class="sti-sys-modal-header">' +
+            '<div class="sti-sys-modal-icon" aria-hidden="true">' + meta.icon + '</div>' +
+            '<h3 class="sti-sys-modal-title">' + escapeHtml(meta.title) + '</h3>' +
+            '<button type="button" class="sti-sys-modal-close" data-action="cancel" aria-label="Close">&times;</button>' +
+          '</div>' +
+          '<div class="sti-sys-modal-body">' + bodyHtml + '</div>' +
+          '<div class="sti-sys-modal-footer">' +
+            (mode !== 'alert'
+              ? '<button type="button" class="sti-sys-btn sti-sys-btn-cancel" data-action="cancel">' + escapeHtml(meta.cancelText) + '</button>'
+              : '') +
+            '<button type="button" class="sti-sys-btn ' + btnClass + '" data-action="confirm">' + escapeHtml(meta.confirmText) + '</button>' +
+          '</div>' +
+        '</div>';
+
+      document.body.appendChild(backdrop);
+      requestAnimationFrame(function() {
+        backdrop.classList.add('is-open');
+      });
+
+      var inputEl = backdrop.querySelector('#stiSysPromptInput');
+      var confirmBtn = backdrop.querySelector('[data-action="confirm"]');
+      var cancelBtn = backdrop.querySelector('[data-action="cancel"]');
+      if (inputEl) {
+        setTimeout(function() { inputEl.focus(); inputEl.select(); }, 30);
+      } else if (opts && opts.focusCancel && cancelBtn) {
+        setTimeout(function() { cancelBtn.focus(); }, 30);
+      } else if (confirmBtn) {
+        setTimeout(function() { confirmBtn.focus(); }, 30);
+      }
+
+      var closed = false;
+      function close(result) {
+        if (closed) return;
+        closed = true;
+        document.removeEventListener('keydown', onKey);
+        backdrop.classList.remove('is-open');
+        setTimeout(function() {
+          if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+        }, 180);
+        resolve(result);
+      }
+
+      function onConfirm() {
+        if (mode === 'prompt') {
+          close(inputEl ? inputEl.value : '');
+        } else if (mode === 'confirm') {
+          close(true);
+        } else {
+          close();
+        }
+      }
+
+      function onCancel() {
+        if (mode === 'prompt') {
+          close(null);
+        } else if (mode === 'confirm') {
+          close(false);
+        } else {
+          close();
+        }
+      }
+
+      function onKey(e) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          onCancel();
+        } else if (e.key === 'Enter' && mode === 'prompt') {
+          e.preventDefault();
+          onConfirm();
+        }
+      }
+
+      document.addEventListener('keydown', onKey);
+      backdrop.addEventListener('click', function(e) {
+        if (e.target === backdrop) {
+          onCancel();
+          return;
+        }
+        var actBtn = e.target.closest('[data-action]');
+        if (!actBtn) return;
+        var act = actBtn.getAttribute('data-action');
+        if (act === 'confirm') onConfirm();
+        else if (act === 'cancel') onCancel();
+      });
+    });
+  }
+
+  window.STIModal = {
+    alert: function(message, opts) {
+      return openDialog('alert', message, opts);
+    },
+    confirm: function(message, opts) {
+      return openDialog('confirm', message, opts);
+    },
+    prompt: function(message, defaultValue, opts) {
+      var merged = Object.assign({}, opts || {}, { defaultValue: defaultValue != null ? defaultValue : '' });
+      return openDialog('prompt', message, merged);
+    },
+    confirmUnsavedChanges: function(opts) {
+      opts = opts || {};
+      var defaultMsg = 'You have unsaved changes in your proposal.\n\nYour progress has been auto-saved locally as a draft, so you can safely resume it later.\n\nAre you sure you want to leave this page?';
+      var merged = Object.assign({
+        title: 'Unsaved Changes',
+        icon: '💾',
+        variant: 'warning',
+        confirmText: 'Leave Page',
+        cancelText: 'Stay & Continue Editing',
+        confirmBtnClass: 'sti-sys-btn-warning',
+        focusCancel: true
+      }, opts);
+      return openDialog('confirm', opts.message || defaultMsg, merged);
+    }
+  };
+
+  // Override native window.alert globally so all alert() calls use the STI system dialog
+  window._nativeAlert = window.alert ? window.alert.bind(window) : null;
+  window.alert = function(message) {
+    return window.STIModal.alert(message);
+  };
+
+  // Global Delete Draft Proposal Handler (for Faculty and Program Head)
+  window.confirmDeleteDraft = async function(proposalId, proposalTitle, redirectUrl) {
+    if (!proposalId) return;
+    var displayTitle = proposalTitle ? '"' + proposalTitle + '"' : 'this draft proposal';
+    var msg = 'Are you sure you want to delete ' + displayTitle + '?\n\nThis will permanently delete the draft and all its attachments. This action cannot be undone.';
+
+    var confirmed = false;
+    if (window.STIModal && typeof window.STIModal.confirm === 'function') {
+      confirmed = await window.STIModal.confirm(msg, {
+        title: 'Delete Draft Proposal?',
+        icon: '🗑️',
+        confirmText: 'Yes, Delete Draft',
+        cancelText: 'Cancel',
+        variant: 'danger'
+      });
+    } else {
+      confirmed = window.confirm(msg);
+    }
+
+    if (!confirmed) return;
+
+    try {
+      var baseUrl = '<?= defined("BASE_URL") ? BASE_URL : "" ?>';
+      var res = await fetch(baseUrl + '/api/proposal-delete.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ id: proposalId })
+      });
+      var data = await res.json();
+      if (data && data.success) {
+        try {
+          localStorage.removeItem('sti_active_draft_full_srv_' + proposalId);
+          localStorage.removeItem('sti_draft_meta_srv_' + proposalId);
+          localStorage.removeItem('sti_emergency_srv_' + proposalId);
+          if (window.OfflineDrafts && typeof window.OfflineDrafts.deleteDraft === 'function') {
+            window.OfflineDrafts.deleteDraft('draft_srv_' + proposalId);
+          }
+        } catch (e) {}
+
+        if (window.STIModal && typeof window.STIModal.alert === 'function') {
+          await window.STIModal.alert('Draft proposal deleted successfully.', { title: 'Deleted', icon: '✅', variant: 'success' });
+        } else {
+          alert('Draft proposal deleted successfully.');
+        }
+
+        if (redirectUrl) {
+          window.location.href = redirectUrl;
+        } else if (window.location.pathname.indexOf('proposal-view.php') !== -1 || window.location.pathname.indexOf('proposal-edit.php') !== -1) {
+          window.location.href = baseUrl + '/faculty/activities.php';
+        } else {
+          window.location.reload();
+        }
+      } else {
+        var err = (data && data.error) ? data.error : 'Failed to delete draft proposal.';
+        if (window.STIModal && typeof window.STIModal.alert === 'function') {
+          await window.STIModal.alert(err, { title: 'Delete Failed', icon: '⚠️', variant: 'danger' });
+        } else {
+          alert(err);
+        }
+      }
+    } catch (err) {
+      console.error('Delete draft error:', err);
+      if (window.STIModal && typeof window.STIModal.alert === 'function') {
+        await window.STIModal.alert('An unexpected error occurred while deleting the draft.', { title: 'Error', variant: 'danger' });
+      } else {
+        alert('An unexpected error occurred while deleting the draft.');
+      }
+    }
+  };
+})();
+</script>
+<?php include_once __DIR__ . '/universal-archive-modal.php'; ?>
+<?php endif; ?>

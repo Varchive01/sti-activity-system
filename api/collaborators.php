@@ -178,7 +178,7 @@ if ($action === 'add') {
             exit;
         }
 
-        if (!in_array($targetUser['role'], ['faculty', 'program_head'], true)) {
+        if (!in_array($targetUser['role'], ['faculty', 'program_head', 'admin1', 'admin2'], true)) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Only faculty members and program heads can be added as proposal collaborators.']);
             exit;
@@ -272,6 +272,9 @@ if ($action === 'remove') {
 // ── Action: search_faculty ───────────────────────────────────────────────────
 if ($action === 'search_faculty') {
     $search = trim($_GET['q'] ?? '');
+    if (function_exists('ensureOfficialFacultyAccountsExist')) {
+        ensureOfficialFacultyAccountsExist($db);
+    }
 
     // Temporary workspace handling for new proposals
     if ($activityId <= 0 && $sessionToken !== '') {

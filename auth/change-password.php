@@ -206,11 +206,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
       <div style="font-size:0.75rem; color:#64748b;"><?= htmlspecialchars($_SESSION['user_email'] ?? '') ?> &bull; Role: <?= htmlspecialchars(ucfirst($_SESSION['user_role'] ?? 'faculty')) ?></div>
     </div>
 
-    <?php if ($error): ?>
-      <div class="alert alert-danger" style="font-size:0.85rem; padding:10px 14px; border-radius:var(--radius-sm, 6px); margin-bottom:18px;">
-        <i class="fa-solid fa-circle-exclamation me-1"></i> <?= htmlspecialchars($error) ?>
-      </div>
-    <?php endif; ?>
+    <div id="clientErrorAlert" class="alert alert-danger" style="<?= $error ? '' : 'display:none;' ?> font-size:0.85rem; padding:10px 14px; border-radius:var(--radius-sm, 6px); margin-bottom:18px;">
+      <i class="fa-solid fa-circle-exclamation me-1"></i> <span id="clientErrorText"><?= htmlspecialchars($error ?? '') ?></span>
+    </div>
 
     <form method="POST" action="<?= BASE_URL ?>/auth/change-password.php" id="changePasswordForm">
       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generateCsrfToken()) ?>">
@@ -254,13 +252,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     document.getElementById('changePasswordForm')?.addEventListener('submit', function(e) {
       const p1 = document.getElementById('new_password')?.value || '';
       const p2 = document.getElementById('confirm_password')?.value || '';
+      const errBox = document.getElementById('clientErrorAlert');
+      const errTxt = document.getElementById('clientErrorText');
       if (p1.length < 6) {
-        alert('Password must be at least 6 characters long.');
+        if (errTxt) errTxt.textContent = 'Password must be at least 6 characters long.';
+        if (errBox) errBox.style.display = 'block';
         e.preventDefault();
         return;
       }
       if (p1 !== p2) {
-        alert('Passwords do not match. Please re-enter your password.');
+        if (errTxt) errTxt.textContent = 'Passwords do not match. Please re-enter your password.';
+        if (errBox) errBox.style.display = 'block';
         e.preventDefault();
       }
     });

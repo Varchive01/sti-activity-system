@@ -12,6 +12,12 @@ $act  = $db->prepare("SELECT a.*,u.name as fn,u.email as fe FROM activities a JO
 $act->execute([$id]); $activity=$act->fetch();
 if (!$activity) die('Not found.');
 
+$user = currentUser();
+if (!canUserAccessActivity($id, 'view', $user['id'], $user['role'], $user['dept'] ?? '')) {
+    header('Location: ' . BASE_URL . '/dean/dashboard.php?error=' . urlencode('This proposal is currently in committee review and has not yet reached the Dean approval stage.'));
+    exit;
+}
+
 $mats = $db->prepare("SELECT * FROM materials WHERE activity_id=?"); $mats->execute([$id]); $materials=$mats->fetchAll();
 
 // Fetch raw evaluation responses
@@ -110,6 +116,9 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
     <div class="topbar-right">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
       <a href="<?= BASE_URL ?>/dean/activities.php" class="btn btn-outline btn-sm">← Back</a>
+      <?php if ($activity['status'] === 'pending_final_approval'): ?>
+        <a href="<?= BASE_URL ?>/dean/review.php?id=<?= $activity['id'] ?>" class="btn btn-primary btn-sm">Review Proposal</a>
+      <?php endif; ?>
       <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 Print</button>
       <!-- User Profile Control -->
       <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
@@ -204,7 +213,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
     <?php endif; ?>
 
     <?php if (!empty($activity['poster_path'])): ?>
-    <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/' . $activity['poster_path']; ?>
+    <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=poster'; ?>
     <div class="section-title">🖼️ Event Poster</div>
     <div style="margin-bottom:24px; text-align:center;">
       <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank">
@@ -1262,8 +1271,12 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
             }
           }
 
-          function confirmFinalizeAnalysis() {
-            if (confirm('Are you sure you want to finalize this analysis? This records your approval and marks the evaluation analysis as finalized.')) {
+          async function confirmFinalizeAnalysis() {
+            const msg = 'Are you sure you want to finalize this analysis? This records your approval and marks the evaluation analysis as finalized.';
+            const confirmed = window.STIModal
+              ? await window.STIModal.confirm(msg, { title: 'Finalize Evaluation Analysis?', confirmText: 'Finalize Analysis', cancelText: 'Cancel', variant: 'info' })
+              : confirm(msg);
+            if (confirmed) {
               submitAnalysisReview('finalize', true);
             }
           }

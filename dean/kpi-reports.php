@@ -5,7 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('dean');
 $db = getDB();
-$year = (int)($_GET['year'] ?? date('Y'));
+$year = 2026;
 $deptFilter = sanitize($_GET['department'] ?? 'all');
 
 // Build department filter clause
@@ -238,12 +238,10 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
             <option value="THM Department" <?= ($deptFilter === 'THM Department' || $deptFilter === 'THM') ? 'selected' : '' ?>>THM Department</option>
           </select>
           <select name="year" class="form-control" style="width:100px;">
-            <?php foreach (range(date('Y'), date('Y') - 4) as $y): ?>
-              <option value="<?= $y ?>" <?= $year === $y ? 'selected' : '' ?>><?= $y ?></option>
-            <?php endforeach; ?>
+            <option value="2026" selected>2026</option>
           </select>
           <button type="submit" class="btn btn-primary btn-sm">Apply</button>
-          <?php if ($deptFilter !== 'all' || $year !== (int)date('Y')): ?>
+          <?php if ($deptFilter !== 'all'): ?>
             <a href="kpi-reports.php" class="btn btn-outline btn-sm">Reset</a>
           <?php endif; ?>
         </form>

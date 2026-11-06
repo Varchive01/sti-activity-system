@@ -144,6 +144,7 @@
 
     // Group multi-value entries as arrays
     for (const [key, value] of formData.entries()) {
+      if (value instanceof File) continue;
       if (key.endsWith('[]')) {
         const cleanKey = key.slice(0, -2);
         if (!data[cleanKey]) {
@@ -164,24 +165,78 @@
 
     // Always ensure action is draft
     data['action'] = 'draft';
+
+    // Capture evaluation questions array if present in window or hidden field
+    if (window.questionsList && Array.isArray(window.questionsList) && window.questionsList.length > 0) {
+      data['eval_questions_json'] = JSON.stringify(window.questionsList);
+    }
+
     return data;
   }
 
   function restoreForm(formEl, draftData) {
     if (!formEl || !draftData) return;
 
+    // 1. Pre-expand dynamic rows before setting values
+    try {
+      const dynamicRowSpecs = [
+        { key: 'mat_item', table: 'materials', count: Array.isArray(draftData['mat_item']) ? draftData['mat_item'].length : 0 },
+        { key: 'prog_time', table: 'program', count: Array.isArray(draftData['prog_time']) ? draftData['prog_time'].length : 0 },
+        { key: 'mp_person', table: 'manpower', count: Array.isArray(draftData['mp_person']) ? draftData['mp_person'].length : 0 },
+        { key: 'sched_date', table: 'schedule', count: Array.isArray(draftData['sched_date']) ? draftData['sched_date'].length : 0 },
+        { key: 'ft_task', table: 'faculty-tasks', count: Array.isArray(draftData['ft_task']) ? draftData['ft_task'].length : 0 },
+        { key: 'kpi_indicator', type: 'kpi', count: Array.isArray(draftData['kpi_indicator']) ? draftData['kpi_indicator'].length : 0 },
+        { key: 'part_section', type: 'part_section', count: Array.isArray(draftData['part_section']) ? draftData['part_section'].length : 0 }
+      ];
+
+      dynamicRowSpecs.forEach(spec => {
+        if (spec.count <= 0) return;
+        if (spec.table && typeof window.addRow === 'function') {
+          const tbody = document.getElementById(spec.table + '-body');
+          if (tbody) {
+            const currentRows = tbody.querySelectorAll('tr').length;
+            for (let i = currentRows; i < spec.count; i++) {
+              window.addRow(spec.table);
+            }
+          }
+        } else if (spec.type === 'kpi' && typeof window.addKpiRow === 'function') {
+          const tbody = document.getElementById('kpi-body');
+          if (tbody) {
+            const currentRows = tbody.querySelectorAll('tr').length;
+            for (let i = currentRows; i < spec.count; i++) {
+              window.addKpiRow();
+            }
+          }
+        } else if (spec.type === 'part_section' && typeof window.addParticipantSectionRow === 'function') {
+          const tbody = document.getElementById('participant-sections-body');
+          if (tbody) {
+            const currentRows = tbody.querySelectorAll('tr.participant-row').length;
+            for (let i = currentRows; i < spec.count; i++) {
+              window.addParticipantSectionRow();
+            }
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('[OfflineDrafts] Dynamic row pre-expansion notice:', e);
+    }
+
+    // 2. Populate input values
     for (const key in draftData) {
       if (!Object.prototype.hasOwnProperty.call(draftData, key)) continue;
+      // Never overwrite the form submission action or wipe an existing server activity_id
+      if (key === 'action' || key === 'proposal_session_token' || key === 'eval_questions_json') continue;
       const val = draftData[key];
+      if (key === 'activity_id' && (!val || val === '0')) continue;
 
-      // Handle arrays (e.g. kpi_indicator, ft_title, etc.)
+      // Handle arrays (e.g. kpi_indicator, ft_task, mat_item, etc.)
       if (Array.isArray(val)) {
         const arrayInputs = formEl.querySelectorAll(`[name="${key}[]"]`);
-        if (arrayInputs.length >= val.length) {
-          val.forEach((itemVal, idx) => {
-            if (arrayInputs[idx]) arrayInputs[idx].value = itemVal;
-          });
-        }
+        val.forEach((itemVal, idx) => {
+          if (arrayInputs[idx]) {
+            arrayInputs[idx].value = itemVal;
+          }
+        });
         continue;
       }
 
@@ -193,9 +248,43 @@
         input.value = val;
       } else if (input.type === 'checkbox') {
         input.checked = Boolean(val && val !== '0');
+      } else if (input.type === 'file') {
+        continue;
       } else {
         input.value = val;
       }
+    }
+
+    // 3. Restore evaluation questionnaire if available
+    let evalJson = draftData['eval_questions_json'] || draftData['f10_evaluation_questions'] || draftData['evaluation_questions'];
+    if (evalJson) {
+      try {
+        const parsedQuestions = typeof evalJson === 'string' ? JSON.parse(evalJson) : evalJson;
+        if (Array.isArray(parsedQuestions) && parsedQuestions.length > 0) {
+          window.questionsList = parsedQuestions;
+          if (typeof window.renderQuestions === 'function') {
+            window.renderQuestions();
+          }
+          if (typeof window.serializeEvaluationQuestions === 'function') {
+            window.serializeEvaluationQuestions();
+          }
+          if (typeof window.setEvaluationState === 'function') {
+            window.setEvaluationState('READY');
+          }
+        }
+      } catch (e) {
+        console.warn('[OfflineDrafts] Evaluation questions restoration notice:', e);
+      }
+    }
+
+    // 4. Trigger calculations & recalculate summaries
+    try {
+      if (typeof window.updateTotal === 'function') window.updateTotal();
+      if (typeof window.updateManpowerSummary === 'function') window.updateManpowerSummary();
+      if (typeof window.updateTotalTargetParticipants === 'function') window.updateTotalTargetParticipants();
+      if (typeof window.syncKpiSectionTables === 'function') window.syncKpiSectionTables();
+    } catch (e) {
+      console.warn('[OfflineDrafts] Summary recalculation notice:', e);
     }
   }
 
@@ -335,10 +424,17 @@
     }
   }
 
+  let autoSaveDebounceTimer = null;
+  let autoSaveIntervalTimer = null;
+  let isFormDirty = false;
+  let isSubmitting = false;
+  let isNavigatingAway = false;
+  let isPromptingUnsaved = false;
+
   /**
-   * 6. Save Draft Locally (IndexedDB)
+   * 6. Save Draft Synchronously & Locally (Synchronous LocalStorage + IndexedDB)
    */
-  async function saveDraftLocally(formEl, options = {}) {
+  function saveDraftSynchronously(formEl, options = {}) {
     if (!formEl) return null;
 
     const formData = serializeForm(formEl);
@@ -350,29 +446,70 @@
       if (serverId) {
         localId = 'draft_srv_' + serverId;
       } else {
-        localId = 'draft_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+        localId = 'draft_new_active';
       }
       activeLocalDraftId = localId;
     }
 
-    const existingDraft = await getDraft(localId);
-
     const draftRecord = {
       local_id: localId,
       server_id: serverId,
-      faculty_id: currentUserId || (existingDraft ? existingDraft.faculty_id : 0),
+      faculty_id: currentUserId || 0,
       user_role: currentUserRole,
-      title: formData['title'] || 'Untitled Proposal Draft',
+      title: formData['title'] || (formData['activity_title'] || 'Untitled Proposal Draft'),
       form_data: formData,
       sync_status: options.sync_status || 'saved_locally',
       sync_error: null,
-      created_at: existingDraft ? existingDraft.created_at : new Date().toISOString(),
+      created_at: new Date().toISOString(),
       last_saved_at: new Date().toISOString(),
-      server_updated_at: existingDraft ? existingDraft.server_updated_at : (formEl.dataset.serverUpdatedAt || null),
+      server_updated_at: formEl.dataset.serverUpdatedAt || null,
       last_sync_attempt: null
     };
 
-    await putDraft(draftRecord);
+    // 1. Synchronously commit full draft payload to localStorage (0ms delay, immune to sudden exit/tab close)
+    try {
+      const fullDataKey = serverId ? `sti_active_draft_full_srv_${serverId}` : 'sti_active_draft_full_new';
+      const metaKey = serverId ? `sti_draft_meta_srv_${serverId}` : 'sti_draft_meta_new_active';
+      const emergencyKey = serverId ? `sti_emergency_srv_${serverId}` : 'sti_emergency_new_active';
+
+      const jsonStr = JSON.stringify(draftRecord);
+      localStorage.setItem(fullDataKey, jsonStr);
+      localStorage.setItem(emergencyKey, jsonStr);
+      localStorage.setItem(metaKey, JSON.stringify({
+        local_id: localId,
+        server_id: serverId,
+        title: draftRecord.title,
+        last_saved_at: draftRecord.last_saved_at,
+        faculty_id: draftRecord.faculty_id
+      }));
+    } catch (lsErr) {
+      console.warn('[OfflineDrafts] Synchronous localStorage backup notice:', lsErr);
+    }
+
+    // 2. Non-blocking asynchronous IndexedDB put
+    try {
+      putDraft(draftRecord).catch(() => {});
+    } catch (idbErr) {}
+
+    return draftRecord;
+  }
+
+  async function saveDraftLocally(formEl, options = {}) {
+    if (!formEl) return null;
+
+    const draftRecord = saveDraftSynchronously(formEl, options);
+    if (!draftRecord) return null;
+
+    try {
+      const existingDraft = await getDraft(draftRecord.local_id);
+      if (existingDraft && existingDraft.created_at) {
+        draftRecord.created_at = existingDraft.created_at;
+      }
+      await putDraft(draftRecord);
+    } catch (idbErr) {
+      console.warn('[OfflineDrafts] IndexedDB save warning:', idbErr);
+    }
+
     updateStatusUI(draftRecord.sync_status);
     return draftRecord;
   }
@@ -397,44 +534,66 @@
 
     updateStatusUI('syncing');
 
-    // Build form payload
-    const payload = new URLSearchParams();
-    for (const k in draft.form_data) {
-      if (!Object.prototype.hasOwnProperty.call(draft.form_data, k)) continue;
-      const v = draft.form_data[k];
-      if (Array.isArray(v)) {
-        v.forEach(item => payload.append(k + '[]', item));
-      } else {
-        payload.append(k, v);
-      }
-    }
-
-    // Force action = draft (STRICT RESTRICTION: Never auto-submit offline drafts)
-    payload.set('action', 'draft');
-    payload.set('is_ajax_sync', '1');
-
     let endpoint = baseUrl + '/api/proposal-save.php';
     if (draft.server_id && draft.server_id > 0) {
       endpoint = baseUrl + '/api/proposal-update.php';
-      payload.set('activity_id', draft.server_id.toString());
-      if (draft.server_updated_at) {
-        payload.set('last_known_updated_at', draft.server_updated_at);
-      }
     }
 
-    if (draft.force_overwrite) {
-      payload.set('force_overwrite', '1');
+    const formEl = document.getElementById('proposalForm');
+    let requestBody;
+    let requestHeaders = {
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    };
+
+    if (formEl) {
+      const fd = new FormData(formEl);
+      fd.set('action', 'draft');
+      fd.set('is_ajax_sync', '1');
+      if (draft.server_id && draft.server_id > 0) {
+        fd.set('activity_id', draft.server_id.toString());
+        if (draft.server_updated_at) {
+          fd.set('last_known_updated_at', draft.server_updated_at);
+        }
+      }
+      if (draft.force_overwrite) {
+        fd.set('force_overwrite', '1');
+      }
+      if (window.questionsList && Array.isArray(window.questionsList) && window.questionsList.length > 0) {
+        fd.set('evaluation_questions', JSON.stringify(window.questionsList));
+      }
+      requestBody = fd;
+    } else {
+      const payload = new URLSearchParams();
+      for (const k in draft.form_data) {
+        if (!Object.prototype.hasOwnProperty.call(draft.form_data, k)) continue;
+        const v = draft.form_data[k];
+        if (Array.isArray(v)) {
+          v.forEach(item => payload.append(k + '[]', item));
+        } else {
+          payload.append(k, v);
+        }
+      }
+      payload.set('action', 'draft');
+      payload.set('is_ajax_sync', '1');
+      if (draft.server_id && draft.server_id > 0) {
+        payload.set('activity_id', draft.server_id.toString());
+        if (draft.server_updated_at) {
+          payload.set('last_known_updated_at', draft.server_updated_at);
+        }
+      }
+      if (draft.force_overwrite) {
+        payload.set('force_overwrite', '1');
+      }
+      requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+      requestBody = payload.toString();
     }
 
     try {
       const resp = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-        },
-        body: payload.toString()
+        headers: requestHeaders,
+        body: requestBody
       });
 
       // 409 Conflict: Server has newer modifications
@@ -455,6 +614,9 @@
         if (result.success) {
           const newServerId = parseInt(result.activity_id, 10);
           draft.server_id = newServerId;
+          if (draft.form_data) {
+            draft.form_data['activity_id'] = String(newServerId);
+          }
           draft.sync_status = 'synchronized';
           draft.sync_error = null;
           draft.server_updated_at = result.updated_at || new Date().toISOString();
@@ -474,6 +636,21 @@
               formEl.action = baseUrl + '/api/proposal-update.php';
               if (window.history && window.history.replaceState) {
                 window.history.replaceState(null, '', baseUrl + '/faculty/proposal-edit.php?id=' + newServerId + '&synced=1');
+              }
+            }
+            if (result.source && formEl.elements['source']) {
+              formEl.elements['source'].value = result.source;
+            }
+            if (result.poster_path) {
+              const posterErr = document.getElementById('e_poster_file');
+              if (posterErr) posterErr.style.display = 'none';
+              const posterInput = document.getElementById('f1_poster_file');
+              if (posterInput) {
+                posterInput.removeAttribute('required');
+                posterInput.classList.remove('is-invalid');
+              }
+              if (typeof window.hasExistingPoster !== 'undefined') {
+                window.hasExistingPoster = true;
               }
             }
           }
@@ -703,7 +880,11 @@
     container.querySelectorAll('.btn-delete-draft').forEach(btn => {
       btn.onclick = async () => {
         const dId = btn.getAttribute('data-id');
-        if (confirm('Are you sure you want to discard this local draft?')) {
+        const msg = 'Are you sure you want to discard this local draft?';
+        const confirmed = window.STIModal
+          ? await window.STIModal.confirm(msg, { title: 'Discard Local Draft?', confirmText: 'Discard Draft', cancelText: 'Cancel', variant: 'danger' })
+          : confirm(msg);
+        if (confirmed) {
           await deleteDraft(dId);
           await renderLocalDraftsWidget(containerId);
         }
@@ -741,27 +922,69 @@
       matchingDraft = await getDraft(paramLocalId);
     } else if (serverId) {
       matchingDraft = await getDraftByServerId(serverId);
+      // Fallback to localStorage if IndexedDB has nothing
+      if (!matchingDraft) {
+        try {
+          const fullDataKey = `sti_active_draft_full_srv_${serverId}`;
+          const raw = localStorage.getItem(fullDataKey) || localStorage.getItem(`sti_emergency_srv_${serverId}`);
+          if (raw) matchingDraft = JSON.parse(raw);
+        } catch (e) {}
+      }
+    } else {
+      // On new proposal creation without parameters, look for active local draft in IndexedDB
+      matchingDraft = await getDraft('draft_new_active');
+
+      // Check localStorage for the newest active draft
+      try {
+        const raw = localStorage.getItem('sti_active_draft_full_new') || localStorage.getItem('sti_emergency_new_active');
+        if (raw) {
+          const lsDraft = JSON.parse(raw);
+          if (lsDraft && lsDraft.form_data) {
+            const lsTime = new Date(lsDraft.last_saved_at || 0).getTime();
+            const idbTime = matchingDraft ? new Date(matchingDraft.last_saved_at || 0).getTime() : 0;
+            if (!matchingDraft || lsTime >= idbTime) {
+              matchingDraft = lsDraft;
+              // Sync back into IndexedDB so it's consistent
+              await putDraft(lsDraft);
+            }
+          }
+        }
+      } catch (e) {}
+
+      if (matchingDraft && matchingDraft.faculty_id && currentUserId > 0 && matchingDraft.faculty_id !== currentUserId) {
+        // Belong to another user session
+        matchingDraft = null;
+      }
     }
 
-    if (matchingDraft) {
+    if (matchingDraft && matchingDraft.form_data) {
       activeLocalDraftId = matchingDraft.local_id;
       updateStatusUI(matchingDraft.sync_status);
 
-      // Offer to resume if local draft is newer or uncommitted
-      if (paramLocalId || matchingDraft.sync_status !== 'synchronized') {
+      // Verify draft has non-empty contents
+      const hasMeaningfulContent = Object.keys(matchingDraft.form_data).some(k => {
+        if (['action', 'faculty_id', 'activity_id', 'proposal_session_token'].includes(k)) return false;
+        const v = matchingDraft.form_data[k];
+        if (Array.isArray(v)) return v.some(item => item && String(item).trim().length > 0);
+        return v && String(v).trim().length > 0;
+      });
+
+      if (hasMeaningfulContent && (paramLocalId || matchingDraft.sync_status !== 'synchronized' || !serverId)) {
         const resumeNotice = document.createElement('div');
         resumeNotice.className = 'alert alert-info';
-        resumeNotice.style.display = 'flex';
-        resumeNotice.style.justifyContent = 'space-between';
-        resumeNotice.style.alignItems = 'center';
-        resumeNotice.style.marginBottom = '16px';
+        resumeNotice.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;background:rgba(2,132,199,0.08);border:1px solid #bae6fd;border-left:4px solid #0284c7;border-radius:10px;padding:12px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.05);';
+        const formattedDate = new Date(matchingDraft.last_saved_at).toLocaleString();
         resumeNotice.innerHTML = `
-          <div>
-            <strong>💾 Local Draft Found:</strong> Saved locally on ${new Date(matchingDraft.last_saved_at).toLocaleString()}.
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.35rem;">💾</span>
+            <div>
+              <strong style="color:#0369a1;font-size:0.92rem;">Auto-Saved Draft Found:</strong>
+              <div style="font-size:0.82rem;color:#475569;">You have uncommitted edits from <strong>${formattedDate}</strong> (${escapeHtml(matchingDraft.title || 'Untitled Proposal')}).</div>
+            </div>
           </div>
-          <div style="display:flex;gap:8px;">
-            <button type="button" id="btnApplyLocalDraft" class="btn btn-sm btn-primary" style="padding:4px 10px;">Load Local Edits</button>
-            <button type="button" id="btnDismissLocalDraft" class="btn btn-sm btn-outline" style="padding:4px 8px;">Dismiss</button>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button type="button" id="btnApplyLocalDraft" class="btn btn-sm btn-primary" style="padding:6px 14px;font-weight:600;font-size:0.82rem;">Resume Draft</button>
+            <button type="button" id="btnDismissLocalDraft" class="btn btn-sm btn-outline" style="padding:6px 12px;font-size:0.82rem;color:#64748b;background:#fff;" title="Discard uncommitted draft and start fresh">Discard Draft</button>
           </div>
         `;
         formEl.parentNode.insertBefore(resumeNotice, formEl);
@@ -769,15 +992,174 @@
         document.getElementById('btnApplyLocalDraft').onclick = () => {
           restoreForm(formEl, matchingDraft.form_data);
           resumeNotice.remove();
-          showToast('Local draft loaded successfully.', 'success');
+          isFormDirty = true;
+          showToast('✓ Proposal progress resumed from auto-saved draft.', 'success');
         };
-        document.getElementById('btnDismissLocalDraft').onclick = () => {
-          resumeNotice.remove();
+
+        document.getElementById('btnDismissLocalDraft').onclick = async () => {
+          const msg = 'Are you sure you want to discard this auto-saved draft? You will start with a fresh blank proposal.';
+          const confirmed = window.STIModal
+            ? await window.STIModal.confirm(msg, {
+                title: 'Discard Auto-Saved Draft?',
+                icon: '🗑️',
+                variant: 'danger',
+                confirmText: 'Discard Draft',
+                cancelText: 'Cancel'
+              })
+            : confirm(msg);
+          if (confirmed) {
+            await deleteDraft(matchingDraft.local_id);
+            await deleteDraft('draft_new_active');
+            try {
+              localStorage.removeItem(serverId ? `sti_draft_meta_srv_${serverId}` : 'sti_draft_meta_new_active');
+              localStorage.removeItem(serverId ? `sti_active_draft_full_srv_${serverId}` : 'sti_active_draft_full_new');
+              localStorage.removeItem(serverId ? `sti_emergency_srv_${serverId}` : 'sti_emergency_new_active');
+            } catch (e) {}
+            activeLocalDraftId = null;
+            isFormDirty = false;
+            resumeNotice.remove();
+            showToast('Auto-saved draft discarded.', 'info');
+          }
         };
       }
     } else {
       updateStatusUI(navigator.onLine ? 'synchronized' : 'saved_locally');
     }
+
+    // Debounced automatic draft saver
+    function triggerAutoSave() {
+      if (isSubmitting) return;
+      isFormDirty = true;
+
+      // 1. Immediately snapshot to localStorage synchronously (0ms delay, rock-solid persistence)
+      saveDraftSynchronously(formEl, { sync_status: 'saved_locally' });
+      updateStatusUI('saved_locally', 'Draft saved locally');
+
+      // 2. Debounce heavier IndexedDB commit
+      if (autoSaveDebounceTimer) clearTimeout(autoSaveDebounceTimer);
+      autoSaveDebounceTimer = setTimeout(async () => {
+        try {
+          const rec = await saveDraftLocally(formEl, { sync_status: 'saved_locally' });
+          if (rec) {
+            updateStatusUI('saved_locally', `Draft auto-saved at ${new Date().toLocaleTimeString()}`);
+          }
+        } catch (err) {
+          console.warn('[OfflineDrafts] Auto-save error:', err);
+        }
+      }, 1000);
+    }
+
+    // Attach input and change listeners for continuous auto-save
+    formEl.addEventListener('input', triggerAutoSave);
+    formEl.addEventListener('change', triggerAutoSave);
+
+    // Periodic 30-second recurring background backup when form is modified
+    if (autoSaveIntervalTimer) clearInterval(autoSaveIntervalTimer);
+    autoSaveIntervalTimer = setInterval(async () => {
+      if (isFormDirty && !isSubmitting) {
+        try {
+          await saveDraftLocally(formEl, { sync_status: 'saved_locally' });
+        } catch (e) {}
+      }
+    }, 30000);
+
+    // Accidental Navigation Guard (beforeunload)
+    // Retains native browser protection for refresh (F5 / Ctrl+R / reload button) and tab/window closing
+    window.addEventListener('beforeunload', function (e) {
+      if (isFormDirty && !isSubmitting && !isNavigatingAway) {
+        saveDraftSynchronously(formEl, { sync_status: 'saved_locally' });
+        const msg = 'You have unsaved changes in your proposal. Your draft has been auto-saved locally.';
+        e.preventDefault();
+        e.returnValue = msg;
+        return msg;
+      }
+    });
+
+    // Visibility change (fires when user minimizes browser, switches tabs, or switches apps on mobile)
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden' && isFormDirty && !isSubmitting) {
+        saveDraftSynchronously(formEl, { sync_status: 'saved_locally' });
+      }
+    });
+
+    // Pagehide (standard HTML5 lifecycle event on navigation away or closure)
+    window.addEventListener('pagehide', function () {
+      if (isFormDirty && !isSubmitting) {
+        saveDraftSynchronously(formEl, { sync_status: 'saved_locally' });
+      }
+    });
+
+    // Intercept internal navigation links (sidebar links, topbar links, breadcrumbs, logo) using capture phase
+    // Replaces Chrome's native dialog with custom responsive STI-ARMES confirmation modal
+    document.addEventListener('click', async function (e) {
+      if (!isFormDirty || isSubmitting || isNavigatingAway) return;
+
+      const link = e.target.closest('a[href]');
+      if (!link) return;
+
+      const href = link.getAttribute('href');
+      // Ignore anchors, javascript links, target="_blank", downloads, modals, and protocols
+      if (!href || href.startsWith('#') || href.startsWith('javascript:') || link.target === '_blank' || link.hasAttribute('download') || href.startsWith('mailto:') || href.startsWith('tel:') || link.closest('#conflictModal') || link.closest('.sti-sys-modal-card')) return;
+
+      // Intercept navigation to prevent Chrome's native beforeunload dialog
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (isPromptingUnsaved) return;
+      isPromptingUnsaved = true;
+
+      // Synchronously backup latest changes to localStorage
+      saveDraftSynchronously(formEl, { sync_status: 'saved_locally' });
+
+      const targetUrl = link.href;
+
+      let confirmed = false;
+      const modalMsg = 'You have unsaved changes in your proposal.\n\nYour progress has been auto-saved locally as a draft, so you can safely resume it later.\n\nAre you sure you want to leave this page?';
+      const modalOpts = {
+        title: 'Unsaved Changes',
+        icon: '💾',
+        variant: 'warning',
+        confirmText: 'Leave Page',
+        cancelText: 'Stay & Continue Editing',
+        confirmBtnClass: 'sti-sys-btn-warning',
+        focusCancel: true
+      };
+
+      try {
+        if (window.STIModal && typeof window.STIModal.confirmUnsavedChanges === 'function') {
+          confirmed = await window.STIModal.confirmUnsavedChanges({
+            message: modalMsg,
+            confirmText: modalOpts.confirmText,
+            cancelText: modalOpts.cancelText
+          });
+        } else if (window.STIModal && typeof window.STIModal.confirm === 'function') {
+          confirmed = await window.STIModal.confirm(modalMsg, modalOpts);
+        } else {
+          confirmed = window.confirm('You have unsaved changes in your proposal.\n\nYour progress has been auto-saved locally as a draft.\n\nClick OK to leave this page, or Cancel to stay and continue editing.');
+        }
+      } catch (promptErr) {
+        console.warn('[OfflineDrafts] Custom unsaved changes modal warning:', promptErr);
+        confirmed = false;
+      } finally {
+        isPromptingUnsaved = false;
+      }
+
+      if (confirmed) {
+        // User confirmed navigation: mark navigating away so beforeunload does NOT trigger Chrome's native prompt
+        isNavigatingAway = true;
+        saveDraftSynchronously(formEl, { sync_status: 'saved_locally' });
+        window.location.href = targetUrl;
+      } else {
+        // User chose to stay: all form contents, unsaved edits, and isFormDirty remain 100% untouched!
+        showToast('✓ You stayed on the page. All unsaved changes are preserved.', 'info');
+      }
+    }, true);
+
+    // Mark submitting when form submits intentionally
+    formEl.addEventListener('submit', function () {
+      isSubmitting = true;
+      isFormDirty = false;
+    });
 
     // Attach Save as Draft offline interception
     const draftBtns = formEl.querySelectorAll('button[name="action"][value="draft"], button[type="submit"][value="draft"]');
@@ -830,7 +1212,12 @@
         if (!navigator.onLine) {
           e.preventDefault();
           e.stopPropagation();
-          alert("⚠️ Offline Mode: Proposals cannot be submitted for formal review while offline.\n\nPlease connect to the internet to submit. You may continue editing and click 'Save as Draft' to store your work locally.");
+          const offlineAlertMsg = "Offline Mode: Proposals cannot be submitted for formal review while offline.\n\nPlease connect to the internet to submit. You may continue editing and click 'Save as Draft' to store your work locally.";
+          if (window.STIModal) {
+            window.STIModal.alert(offlineAlertMsg, { title: 'Offline Mode', variant: 'warning', icon: '📡' });
+          } else {
+            alert("⚠️ " + offlineAlertMsg);
+          }
           return false;
         }
       });
@@ -841,7 +1228,12 @@
     if (manualSyncBtn) {
       manualSyncBtn.onclick = async () => {
         if (!navigator.onLine) {
-          alert('Cannot synchronize while offline. Please verify your internet connection.');
+          const syncAlertMsg = 'Cannot synchronize while offline. Please verify your internet connection.';
+        if (window.STIModal) {
+          window.STIModal.alert(syncAlertMsg, { title: 'Offline Synchronization', variant: 'warning', icon: '📡' });
+        } else {
+          alert(syncAlertMsg);
+        }
           return;
         }
         manualSyncBtn.disabled = true;
@@ -901,13 +1293,45 @@
     }
   });
 
+  async function clearDraftForForm(formEl) {
+    try {
+      if (activeLocalDraftId) {
+        await deleteDraft(activeLocalDraftId);
+      }
+      await deleteDraft('draft_new_active');
+      try {
+        localStorage.removeItem('sti_active_draft_full_new');
+        localStorage.removeItem('sti_draft_meta_new_active');
+        localStorage.removeItem('sti_emergency_new_active');
+      } catch (e) {}
+
+      if (formEl && formEl.elements['activity_id']) {
+        const srvId = parseInt(formEl.elements['activity_id'].value, 10);
+        if (srvId > 0) {
+          await deleteDraft('draft_srv_' + srvId);
+          try {
+            localStorage.removeItem(`sti_active_draft_full_srv_${srvId}`);
+            localStorage.removeItem(`sti_draft_meta_srv_${srvId}`);
+            localStorage.removeItem(`sti_emergency_srv_${srvId}`);
+          } catch (e) {}
+        }
+      }
+      activeLocalDraftId = null;
+      isFormDirty = false;
+    } catch (e) {
+      console.warn('[OfflineDrafts] clearDraftForForm warning:', e);
+    }
+  }
+
   // Expose module methods to window
   window.OfflineDraftManager = {
     openDB,
     saveDraftLocally,
+    saveDraftSynchronously,
     getDraft,
     getAllDrafts,
     deleteDraft,
+    clearDraftForForm,
     syncDraft,
     syncAllPendingDrafts,
     renderLocalDraftsWidget,

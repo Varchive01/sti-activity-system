@@ -191,7 +191,7 @@
       }
 
       // ── Drawing interactions ──────────────────────────────
-      stage.on('mousedown touchstart', e => {
+      stage.on('mousedown touchstart', async e => {
         if (activeTool === 'select') return;
         if (e.target !== stage && e.target.getLayer() !== ghostLayer) return;
 
@@ -202,9 +202,11 @@
         isDrawing = true;
 
         if (activeTool === 'text') {
-          const label = prompt('Enter label text:', 'Label');
+          isDrawing = false;
+          const label = window.STIModal
+            ? await window.STIModal.prompt('Enter label text:', 'Label', { title: 'Add Floor Plan Label', confirmText: 'Add Label' })
+            : prompt('Enter label text:', 'Label');
           if (!label) {
-            isDrawing = false;
             return;
           }
           const txt = new Konva.Text({
@@ -483,9 +485,11 @@
           saveHistory();
           saveToHidden();
         });
-        node.on('dblclick dbltap', () => {
+        node.on('dblclick dbltap', async () => {
           if (node.getClassName() === 'Text') {
-            const nv = prompt('Edit label:', node.text());
+            const nv = window.STIModal
+              ? await window.STIModal.prompt('Edit label:', node.text(), { title: 'Edit Floor Plan Label', confirmText: 'Save Label' })
+              : prompt('Edit label:', node.text());
             if (nv !== null) {
               node.text(nv);
               mainLayer.batchDraw();
@@ -618,9 +622,13 @@
       // ── Toolbar buttons ───────────────────────────────────
       const btnClear = document.getElementById('fpClear');
       if (btnClear) {
-        btnClear.addEventListener('click', () => {
+        btnClear.addEventListener('click', async () => {
           const curName = floorData[activeFloor]?.name || 'current floor';
-          if (!confirm(`Clear the entire layout on ${curName}?`)) return;
+          const msg = `Clear the entire layout on ${curName}?`;
+          const confirmed = window.STIModal
+            ? await window.STIModal.confirm(msg, { title: 'Clear Floor Layout?', confirmText: 'Clear Layout', cancelText: 'Cancel', variant: 'danger' })
+            : confirm(msg);
+          if (!confirmed) return;
           mainLayer.destroyChildren();
           mainLayer.batchDraw();
           deselect();
@@ -863,7 +871,7 @@
         setStatus(`Added ${nextFloorDef.label}. You can now draw its independent layout.`);
       }
 
-      function removeFloor(floorKey) {
+      async function removeFloor(floorKey) {
         if (floorKey === 'ground') {
           alert('Ground Floor is the primary floor and cannot be removed.');
           return;
@@ -876,7 +884,11 @@
           : (floorObj.shapes ? floorObj.shapes.length : 0);
 
         if (shapesCount > 0) {
-          if (!confirm(`Are you sure you want to remove ${floorObj.name}? Any layout drawn on this floor will be deleted.`)) {
+          const msg = `Are you sure you want to remove ${floorObj.name}? Any layout drawn on this floor will be deleted.`;
+          const confirmed = window.STIModal
+            ? await window.STIModal.confirm(msg, { title: 'Remove Floor?', confirmText: 'Remove Floor', cancelText: 'Cancel', variant: 'danger' })
+            : confirm(msg);
+          if (!confirmed) {
             return;
           }
         }

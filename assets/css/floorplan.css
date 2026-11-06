@@ -333,6 +333,7 @@
     #fpStage {
       display: block;
       cursor: crosshair;
+      touch-action: none;
     }
 
     /* Right props panel */
@@ -557,3 +558,76 @@
       color: var(--text-muted) !important;
     }
 
+
+
+/* ── Mobile and Tablet Responsiveness for Floor Plan Drawing Tool ── */
+@media (max-width: 900px) {
+  .fp-wrap {
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+  .fp-palette {
+    width: 100% !important;
+    height: auto !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 8px 10px !important;
+    gap: 6px !important;
+    justify-content: flex-start !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .fp-palette-sep {
+    width: 1px !important;
+    height: 32px !important;
+    margin: 0 4px !important;
+    flex-shrink: 0 !important;
+  }
+  .fp-tool-btn {
+    width: 44px !important;
+    height: 44px !important;
+    flex-shrink: 0 !important;
+    font-size: 16px !important;
+  }
+  .fp-props {
+    width: 100% !important;
+    border-left: none !important;
+    border-top: 1px solid var(--border, #dee2e6) !important;
+    padding: 14px 12px !important;
+  }
+  .fp-toolbar {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    padding: 8px !important;
+  }
+  .fp-toolbar-sep {
+    display: none !important;
+  }
+  .fp-action-btn,
+  .fp-stroke-btn,
+  .fp-stroke-select {
+    padding: 4px 8px !important;
+    font-size: 0.72rem !important;
+  }
+  #fpStageContainer {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .fp-legend {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    padding: 6px 10px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .fp-props-content {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .fp-prop-divider {
+    grid-column: span 2 !important;
+  }
+}

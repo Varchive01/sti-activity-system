@@ -9,6 +9,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/ai/proposal_validator.php';
 require_once __DIR__ . '/../services/GeminiProposalValidationService.php';
 
 requireRole('faculty', 'program_head');
@@ -26,6 +27,18 @@ $inputJSON = file_get_contents('php://input');
 $input = json_decode($inputJSON, true);
 if (!is_array($input)) {
     $input = $_POST;
+}
+
+// Synchronize target_participants with part_count sum if provided (matching proposal-save.php / proposal-update.php)
+$partCounts = $input['part_count'] ?? $input['participant_count'] ?? [];
+if (is_array($partCounts) && !empty($partCounts)) {
+    $sumParticipants = 0;
+    foreach ($partCounts as $pc) {
+        $sumParticipants += max(0, (int)$pc);
+    }
+    if ($sumParticipants > 0) {
+        $input['target_participants'] = $sumParticipants;
+    }
 }
 
 // Required fields to validate before sending to Gemini API
@@ -66,7 +79,9 @@ try {
         session_start();
     }
 
-    $apiKey = defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '';
+    $apiKey = function_exists('getGeminiApiKeySecure')
+        ? getGeminiApiKeySecure()
+        : (defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '');
     $service = new GeminiProposalValidationService($apiKey);
 
     // Compute canonical payload and hash
@@ -92,7 +107,7 @@ try {
     ]);
     exit;
 
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     error_log("AI Proposal Validation Exception: " . $e->getMessage());
     http_response_code(500);
     echo json_encode([

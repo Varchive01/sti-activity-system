@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // 3. Extract Inputs
 $name            = trim($_POST['name'] ?? '');
-$email           = trim($_POST['email'] ?? '');
+$email           = strtolower(trim($_POST['email'] ?? ''));
 $department      = trim($_POST['department'] ?? '');
 $requestedRole   = trim($_POST['role'] ?? 'faculty');
 $defaultPassword = $_POST['password'] ?? '';
@@ -143,13 +143,18 @@ if ($assignedRole === 'program_head') {
     }
 }
 
-// 6. Validate Creator-Provided Default Password
-if ($defaultPassword === '') {
-    respondError('missing_password', 'Default password is required.', $isJsonRequest, $redirectUrl);
-}
-
-if (strlen($defaultPassword) < 6) {
-    respondError('invalid_password', 'Password must be at least 6 characters long.', $isJsonRequest, $redirectUrl);
+// 6. Handle Password (Optional Default Password or Auto-Generated Secure Hash)
+$mustChangePassword = 0;
+if ($defaultPassword !== '') {
+    if (strlen($defaultPassword) < 6) {
+        respondError('invalid_password', 'Password must be at least 6 characters long.', $isJsonRequest, $redirectUrl);
+    }
+    $passwordToHash = $defaultPassword;
+    $mustChangePassword = 1;
+} else {
+    // Generate secure random initial password to satisfy NOT NULL database constraint
+    $passwordToHash = bin2hex(random_bytes(16));
+    $mustChangePassword = 0;
 }
 
 // 7. Duplicate Email Validation
@@ -160,19 +165,20 @@ if ($checkStmt->fetch()) {
 }
 
 // 8. Secure Password Hashing
-$hashedPassword = password_hash($defaultPassword, PASSWORD_DEFAULT);
+$hashedPassword = password_hash($passwordToHash, PASSWORD_DEFAULT);
 
-// 9. Insert User Account with must_change_password = 1
+// 9. Insert User Account
 try {
     $insertStmt = $db->prepare('
         INSERT INTO users (name, email, password, role, must_change_password, department)
-        VALUES (?, ?, ?, ?, 1, ?)
+        VALUES (?, ?, ?, ?, ?, ?)
     ');
     $insertStmt->execute([
         $name,
         $email,
         $hashedPassword,
         $assignedRole,
+        $mustChangePassword,
         $department !== '' ? $department : null,
     ]);
     $newUserId = (int)$db->lastInsertId();
@@ -186,7 +192,7 @@ try {
             'name'                 => $name,
             'email'                => $email,
             'role'                 => $assignedRole,
-            'must_change_password' => 1,
+            'must_change_password' => $mustChangePassword,
             'message'              => 'User account created successfully.'
         ]);
         exit;

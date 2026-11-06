@@ -77,7 +77,7 @@ if (!$targetUser) {
 
 // 4. Extract Form Inputs
 $name          = trim($_POST['name'] ?? '');
-$email         = trim($_POST['email'] ?? '');
+$email         = strtolower(trim($_POST['email'] ?? ''));
 $department    = trim($_POST['department'] ?? '');
 $requestedRole = trim($_POST['role'] ?? $targetUser['role']);
 

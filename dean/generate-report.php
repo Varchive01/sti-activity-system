@@ -31,8 +31,7 @@ if ($activityId > 0) {
     // Faculty can ONLY access if they own the activity AND the activity is completed
     if ($user['role'] === 'faculty') {
         if ((int)$activity['faculty_id'] !== (int)$user['id'] || $activity['status'] !== 'completed') {
-            http_response_code(403);
-            die("Access denied.");
+            renderAccessDenied("Faculty can only view individual KPI reports for their own completed activities.");
         }
     }
 
@@ -40,8 +39,7 @@ if ($activityId > 0) {
     // Must have permission to view this activity in their department (or shared task)
     if ($user['role'] === 'program_head') {
         if (!canUserAccessActivity($activityId, 'view', (int)$user['id'], $user['role'], $user['dept'] ?? '')) {
-            http_response_code(403);
-            die("Access denied.");
+            renderAccessDenied("Program Heads can only view reports for activities within their department or assigned tasks.");
         }
     }
 
@@ -1473,8 +1471,7 @@ if ($activityId > 0) {
 
 // Mode B: Aggregate Performance Report (Dean, Admin1, Admin2, and Program Head)
 if ($user['role'] === 'faculty') {
-    http_response_code(403);
-    die("Access denied.");
+    renderAccessDenied("Faculty cannot view the institutional aggregate report. Please visit the Faculty Report Generator.");
 }
 
 // Filters: Restrict Year filter strictly to 2026 for all roles
@@ -1497,7 +1494,7 @@ if ($user['role'] === 'program_head') {
     }
 }
 
-$where = "1=1";
+$where = "a.status IN ('pending_final_approval', 'approved', 'completed')";
 $params = [];
 $where .= " AND YEAR(a.event_date)=?";
 $params[] = $filterYear;

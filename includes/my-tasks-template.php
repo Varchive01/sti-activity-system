@@ -74,7 +74,9 @@ $activityFilter = (int)($_GET['activity_id'] ?? 0);
 
 $isPH = (($user['role'] ?? '') === 'program_head');
 if ($isPH) {
-    $userDept = $user['dept'] ?? ($user['department'] ?? '');
+    $userDept = resolveUserDepartment($db, $user);
+    $deptCondLeader = buildDepartmentSqlCondition('u.department', $userDept);
+    $deptCondAssigned = buildDepartmentSqlCondition('au.department', $userDept);
     $sql = "
         SELECT ft.*,
                a.id as activity_id,
@@ -89,9 +91,11 @@ if ($isPH) {
         JOIN activities a ON ft.activity_id = a.id
         JOIN users u ON a.faculty_id = u.id
         LEFT JOIN users au ON ft.assigned_user_id = au.id
-        WHERE (u.department = ? OR au.department = ? OR ft.assigned_user_id = ? OR a.faculty_id = ?)
+        WHERE ({$deptCondLeader} OR a.faculty_id = ?)
+          AND ({$deptCondAssigned} OR ft.assigned_user_id = ? OR {$deptCondLeader})
+          AND (a.status != 'draft' OR a.faculty_id = ?)
     ";
-    $params = [$userDept, $userDept, (int)$user['id'], (int)$user['id']];
+    $params = [(int)$user['id'], (int)$user['id'], (int)$user['id']];
 } else {
     $sql = "
         SELECT ft.*,
@@ -108,8 +112,9 @@ if ($isPH) {
         JOIN users u ON a.faculty_id = u.id
         LEFT JOIN users au ON ft.assigned_user_id = au.id
         WHERE ft.assigned_user_id = ?
+          AND (a.status != 'draft' OR a.faculty_id = ?)
     ";
-    $params = [(int)$user['id']];
+    $params = [(int)$user['id'], (int)$user['id']];
 }
 
 if ($activityFilter > 0) {
@@ -650,11 +655,11 @@ $allActivitiesBase = $allActivitiesBase ?? (BASE_URL . '/' . $role . '/activitie
         // Success feedback
         window.location.reload();
       } else {
-        alert(data.error || 'Failed to update task status.');
+        await alert(data.error || 'Failed to update task status.');
         window.location.reload();
       }
     } catch (err) {
-      alert('Network error while updating task status.');
+      await alert('Network error while updating task status.');
       window.location.reload();
     }
   }

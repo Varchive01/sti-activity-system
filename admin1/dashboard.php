@@ -9,10 +9,18 @@ $user = currentUser();
 $db   = getDB();
 
 // Stagnant proposals escalation check
-checkProposalEscalations($db, $user['id'], $user['role']);
+try {
+    checkProposalEscalations($db, $user['id'], $user['role']);
+} catch (\Throwable $e) {
+    error_log("Admin1 dashboard escalation check error: " . $e->getMessage());
+}
 
 // Task progress reminders check
-checkTaskProgressReminders($db, $user['id'], $user['role']);
+try {
+    checkTaskProgressReminders($db, $user['id'], $user['role']);
+} catch (\Throwable $e) {
+    error_log("Admin1 dashboard task reminder check error: " . $e->getMessage());
+}
 
 // Assigned tasks summary strictly for this authenticated admin
 $myTaskCounts = ['total' => 0, 'completed' => 0, 'in_progress' => 0, 'delayed' => 0];
@@ -36,37 +44,58 @@ try {
             'delayed'     => (int)($countsRow['delayed'] ?? 0),
         ];
     }
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     // Graceful fallback
 }
 
-// Period and Year Filter (Preserving existing semester conventions)
-$selectedYear = (int)($_GET['year'] ?? date('Y'));
+// Period and Year Filter (Dynamic with database years)
+$currentYear = (int)date('Y');
+$selectedYear = isset($_GET['year']) ? ($_GET['year'] === 'all' ? 'all' : (int)$_GET['year']) : 'all';
 $selectedPeriod = sanitize($_GET['period'] ?? 'all');
-$availableYears = range(date('Y'), date('Y') - 4);
+
+// Discover available years dynamically from activities table
+$availableYears = [$currentYear, $currentYear + 1];
+try {
+    $dbYears = $db->query("SELECT DISTINCT YEAR(event_date) as yr FROM activities WHERE event_date IS NOT NULL AND event_date != '0000-00-00' ORDER BY yr DESC")->fetchAll(PDO::FETCH_COLUMN);
+    if (!empty($dbYears)) {
+        $availableYears = array_values(array_unique(array_merge($availableYears, array_map('intval', $dbYears))));
+        rsort($availableYears);
+    }
+} catch (\Throwable $e) {}
 
 $periodBounds = buildPeriodWhereClause($selectedYear, $selectedPeriod, 'a.event_date');
 $whereClause = $periodBounds['where'];
 $params = $periodBounds['params'];
 
 // Approval Trends for Selected Period (scoped to student_org)
-$approvalTrends = getApprovalTrends($selectedYear, $selectedPeriod, $db, 'student_org');
+$approvalTrends = ['months' => [], 'max_count' => 1, 'total_approved' => 0, 'total_returned' => 0];
+try {
+    $approvalTrends = getApprovalTrends($selectedYear, $selectedPeriod, $db, 'student_org');
+} catch (\Throwable $e) {
+    error_log("Admin1 dashboard approval trends error: " . $e->getMessage());
+}
 
 // Notifications
-$unreadStmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
-$unreadStmt->execute([$user['id']]);
-$unreadCount = (int)$unreadStmt->fetchColumn();
+$unreadCount = 0;
+$notifications = [];
+try {
+    $unreadStmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+    $unreadStmt->execute([$user['id']]);
+    $unreadCount = (int)$unreadStmt->fetchColumn();
 
-$notifStmt = $db->prepare("
-    SELECT n.*, a.title as activity_title
-    FROM notifications n
-    LEFT JOIN activities a ON n.activity_id = a.id
-    WHERE n.user_id = ?
-    ORDER BY n.created_at DESC
-    LIMIT 10
-");
-$notifStmt->execute([$user['id']]);
-$notifications = $notifStmt->fetchAll();
+    $notifStmt = $db->prepare("
+        SELECT n.*, a.title as activity_title
+        FROM notifications n
+        LEFT JOIN activities a ON n.activity_id = a.id
+        WHERE n.user_id = ?
+        ORDER BY n.created_at DESC
+        LIMIT 10
+    ");
+    $notifStmt->execute([$user['id']]);
+    $notifications = $notifStmt->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Admin1 dashboard notifications error: " . $e->getMessage());
+}
 
 $initial = strtoupper(substr($user['name'], 0, 1));
 
@@ -80,56 +109,78 @@ function timeAgo($datetime)
   return date('M j', strtotime($datetime));
 }
 
-$statsStmt = $db->prepare("
-  SELECT
-    SUM(a.status IN ('under_review','resubmitted')) as pending,
-    SUM(a.status='approved') as approved,
-    SUM(a.status='returned_for_revision') as returned,
-    SUM(a.status='rejected') as rejected
-  FROM activities a
-  WHERE a.source='student_org' AND {$whereClause}
-");
-$statsStmt->execute($params);
-$stats = $statsStmt->fetch() ?: [];
+$stats = [];
+$pending = [];
+$actions = [];
+$kpi = [];
 
-$pendingStmt = $db->prepare("
-  SELECT a.*, u.name as faculty_name FROM activities a
-  JOIN users u ON a.faculty_id=u.id
-  WHERE a.source='student_org' AND a.status IN ('under_review','resubmitted') AND {$whereClause}
-  ORDER BY a.submitted_at DESC LIMIT 10
-");
-$pendingStmt->execute($params);
-$pending = $pendingStmt->fetchAll();
+try {
+    $statsStmt = $db->prepare("
+      SELECT
+        COUNT(*) as total,
+        SUM(a.status IN ('under_review','resubmitted')) as pending,
+        SUM(a.status='approved') as approved,
+        SUM(a.status='returned_for_revision') as returned,
+        SUM(a.status='rejected') as rejected
+      FROM activities a
+      WHERE a.source='student_org' AND {$whereClause}
+    ");
+    $statsStmt->execute($params);
+    $stats = $statsStmt->fetch() ?: [];
+} catch (\Throwable $e) {
+    error_log("Admin1 dashboard stats error: " . $e->getMessage());
+}
 
-$recent_actions = $db->prepare("
-  SELECT al.*, a.title, a.status as current_status, a.id as activity_id, u.name as faculty_name FROM approval_logs al
-  JOIN activities a ON al.activity_id=a.id
-  JOIN users u ON a.faculty_id=u.id
-  WHERE al.reviewer_id=? AND a.source='student_org' AND {$whereClause}
-  ORDER BY al.acted_at DESC LIMIT 6
-");
-$recent_actions->execute(array_merge([$user['id']], $params));
-$actions = $recent_actions->fetchAll();
+try {
+    $pendingStmt = $db->prepare("
+      SELECT a.*, u.name as faculty_name FROM activities a
+      JOIN users u ON a.faculty_id=u.id
+      WHERE a.source='student_org' AND a.status IN ('under_review','resubmitted') AND {$whereClause}
+      ORDER BY a.submitted_at DESC LIMIT 10
+    ");
+    $pendingStmt->execute($params);
+    $pending = $pendingStmt->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Admin1 dashboard pending error: " . $e->getMessage());
+}
+
+try {
+    $recent_actions = $db->prepare("
+      SELECT al.*, a.title, a.status as current_status, a.id as activity_id, u.name as faculty_name FROM approval_logs al
+      JOIN activities a ON al.activity_id=a.id
+      JOIN users u ON a.faculty_id=u.id
+      WHERE al.reviewer_id=? AND a.source='student_org' AND {$whereClause}
+      ORDER BY al.acted_at DESC LIMIT 6
+    ");
+    $recent_actions->execute(array_merge([$user['id']], $params));
+    $actions = $recent_actions->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Admin1 dashboard recent_actions error: " . $e->getMessage());
+}
 
 // KPI Performance query for completed student-org activities
-$kpiStmt = $db->prepare("
-  SELECT 
-    AVG(sub.avg_rating) as avg_rating,
-    COUNT(sub.activity_id) as events_evaluated,
-    COUNT(a.id) as completed_activities,
-    SUM(pe.actual_attendance) as actual_att,
-    SUM(pe.target_attendance) as target_att
-  FROM activities a
-  LEFT JOIN (
-    SELECT activity_id, AVG(rating) as avg_rating 
-    FROM kpi_evaluations 
-    GROUP BY activity_id
-  ) sub ON a.id = sub.activity_id
-  LEFT JOIN post_event pe ON a.id = pe.activity_id
-  WHERE a.source = 'student_org' AND a.status = 'completed' AND {$whereClause}
-");
-$kpiStmt->execute($params);
-$kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+try {
+    $kpiStmt = $db->prepare("
+      SELECT 
+        AVG(sub.avg_rating) as avg_rating,
+        COUNT(sub.activity_id) as events_evaluated,
+        COUNT(a.id) as completed_activities,
+        SUM(pe.actual_attendance) as actual_att,
+        SUM(pe.target_attendance) as target_att
+      FROM activities a
+      LEFT JOIN (
+        SELECT activity_id, AVG(rating) as avg_rating 
+        FROM kpi_evaluations 
+        GROUP BY activity_id
+      ) sub ON a.id = sub.activity_id
+      LEFT JOIN post_event pe ON a.id = pe.activity_id
+      WHERE a.status = 'completed' AND {$whereClause}
+    ");
+    $kpiStmt->execute($params);
+    $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+} catch (\Throwable $e) {
+    error_log("Admin1 dashboard kpi error: " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -338,7 +389,7 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     /* ── 1. Compact Horizontal KPI Stat Cards (Dean Standardized Parity) ── */
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 10px;
       align-items: stretch;
       width: 100%;
@@ -397,6 +448,13 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     }
 
     /* Light mode icon badges */
+    .stat-card-total .stat-icon { background: rgba(2, 132, 199, 0.1); }
+    .stat-card-total .stat-icon svg { color: var(--accent, #0284c7); }
+    .stat-strip-total { background: #0284c7; }
+    [data-theme="dark"] .stat-card-total .stat-icon { background: rgba(56, 189, 248, 0.15); }
+    [data-theme="dark"] .stat-card-total .stat-icon svg { color: #38bdf8; }
+    [data-theme="dark"] .stat-strip-total { background: #38bdf8; }
+
     .stat-card-pending .stat-icon { background: rgba(245, 158, 11, 0.12); }
     .stat-card-pending .stat-icon svg { color: #d97706; }
     .stat-card-approved .stat-icon { background: rgba(16, 185, 129, 0.12); }
@@ -1245,9 +1303,7 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
         <!-- Year and Reporting Period Filter -->
         <form method="GET" class="topbar-filter-form" style="display:flex;gap:6px;align-items:center;">
           <select name="year" class="form-control" style="width:90px;padding:5px 8px;font-size:0.82rem;">
-            <?php foreach ($availableYears as $y): ?>
-              <option value="<?= $y ?>" <?= $selectedYear === $y ? 'selected' : '' ?>><?= $y ?></option>
-            <?php endforeach; ?>
+            <option value="all" <?= $selectedYear === 'all' ? 'selected' : '' ?>>All Years</option><?php foreach ($availableYears as $yr): ?><option value="<?= $yr ?>" <?= (string)$selectedYear === (string)$yr ? 'selected' : '' ?>><?= $yr ?></option><?php endforeach; ?>
           </select>
           <select name="period" class="form-control" style="width:145px;padding:5px 8px;font-size:0.82rem;">
             <option value="all" <?= $selectedPeriod === 'all' ? 'selected' : '' ?>>Whole Year</option>
@@ -1274,6 +1330,14 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
         <!-- Stat Cards -->
         <div class="stat-grid" style="margin-bottom:0;">
+          <a href="<?= BASE_URL ?>/admin1/activities.php" class="stat-card stat-card-total">
+            <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></div>
+            <div>
+              <div class="stat-val"><?= (int)($stats['total'] ?? 0) ?></div>
+              <div class="stat-label">Total Proposals</div>
+            </div>
+            <div class="stat-strip stat-strip-total"></div>
+          </a>
           <a href="<?= BASE_URL ?>/admin1/pending.php" class="stat-card stat-card-pending">
             <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
             <div>
@@ -1298,7 +1362,7 @@ $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
             </div>
             <div class="stat-strip stat-strip-returned"></div>
           </a>
-          <a href="<?= BASE_URL ?>/admin1/activities.php?status=rejected" class="stat-card stat-card-rejected">
+          <a href="<?= BASE_URL ?>/admin1/returned.php" class="stat-card stat-card-rejected">
             <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
             <div>
               <div class="stat-val"><?= $stats['rejected'] ?? 0 ?></div>

@@ -125,8 +125,14 @@ if (isset($_GET['timeout'])) {
 
 // Flash message handler for OAuth errors
 if (empty($error)) {
+  $unmatchedMsEmail = $_SESSION['unmatched_ms_email'] ?? '';
+  unset($_SESSION['unmatched_ms_email']);
+  $notFoundMsg = $unmatchedMsEmail !== ''
+    ? 'Your Microsoft account (' . htmlspecialchars($unmatchedMsEmail) . ') is not registered in the system. Please contact your administrator.'
+    : 'Your Microsoft account is not registered in the system. Please contact your administrator.';
+
   $errorMap = [
-    'microsoft_account_not_found' => 'Your Microsoft account is not registered in the system. Please contact your administrator.',
+    'microsoft_account_not_found' => $notFoundMsg,
     'microsoft_oauth_failed'      => 'Microsoft authentication was cancelled or encountered an error. Please try again.',
     'invalid_state'               => 'Security verification failed (invalid OAuth state). Please try again.',
     'missing_email'               => 'Unable to retrieve an email address from your Microsoft profile.',

@@ -11,7 +11,7 @@ $db   = getDB();
 $id = (int)($_GET['id'] ?? 0);
 if (!$id) { header('Location: '.BASE_URL.'/admin1/dashboard.php'); exit; }
 
-$act = $db->prepare("SELECT a.*,u.name as faculty_name,u.email as faculty_email FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.id=? AND source='student_org'");
+$act = $db->prepare("SELECT a.*,u.name as faculty_name,u.email as faculty_email FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.id=? AND a.source='student_org'");
 $act->execute([$id]);
 $activity = $act->fetch();
 if (!$activity) { die('Activity not found or not accessible.'); }
@@ -918,7 +918,7 @@ label, input, button, select, textarea {
       <a href="<?= BASE_URL ?>/admin1/dashboard.php" class="btn btn-outline btn-sm">← Back</a>
       <button class="btn btn-outline" onclick="openModal('return')">↩ Return for Revision</button>
       <button class="btn btn-danger"  onclick="openModal('reject')">✕ Reject</button>
-      <button class="btn btn-success" onclick="openModal('forward')">✓ Approve &amp; Forward to Sir Ian</button>
+      <button class="btn btn-success" onclick="openModal('forward')">✓ Approve &amp; Forward to Dean</button>
     </div>
   </div>
 
@@ -936,6 +936,18 @@ label, input, button, select, textarea {
         <div class="info-block"><div class="lbl">Source</div><div class="val"><?= ucfirst(str_replace('_',' ',$activity['source'])) ?></div></div>
         <div class="info-block"><div class="lbl">Theme</div><div class="val"><?= htmlspecialchars($activity['theme'] ?? '—') ?></div></div>
       </div>
+      <?php if (!empty($activity['poster_path'])): ?>
+        <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/api/document-download.php?activity_id=' . (int)$id . '&type=poster'; ?>
+        <div class="sl" style="margin-top:14px; margin-bottom:8px;">Event Poster</div>
+        <div style="text-align:center; padding:16px; background:var(--bg-base); border-radius:10px; border:1px solid var(--border); margin-bottom:12px;">
+          <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank" style="display:inline-block;">
+            <img src="<?= htmlspecialchars($posterUrl) ?>" style="max-width:100%; max-height:480px; border-radius:8px; object-fit:contain; box-shadow:var(--shadow-sm);" alt="Event Poster">
+          </a>
+        </div>
+        <div style="margin-bottom:12px;">
+          <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank" class="btn btn-outline btn-sm">🖼️ View Full Poster Image</a>
+        </div>
+      <?php endif; ?>
     <?php renderSectionClose('event_details', $stagedComments, $id); ?>
 
     <!-- ── SECTION 2: Objectives ── -->
@@ -1198,7 +1210,7 @@ label, input, button, select, textarea {
 
 <!-- Action Modals -->
 <?php foreach ([
-  'forward' => ['Approve & Forward to Sir Ian', 'success', 'approved', false],
+  'forward' => ['Approve & Forward to Dean',   'success', 'approved', false],
   'return'  => ['Return for Revision',          'warning', 'returned', false],
   'reject'  => ['Reject Proposal',              'danger',  'rejected', true],
 ] as $key => [$label, $cls, $action, $required]): ?>
@@ -1291,9 +1303,13 @@ document.querySelectorAll('.btn-save-comment').forEach(btn => {
 
 // ── Remove comment ──
 document.querySelectorAll('.btn-remove-comment').forEach(btn => {
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
     const key = btn.dataset.section;
-    if (!confirm('Remove this section comment?')) return;
+    const msg = 'Remove this section comment?';
+    const confirmed = window.STIModal
+      ? await window.STIModal.confirm(msg, { title: 'Remove Section Comment?', confirmText: 'Remove Comment', cancelText: 'Cancel', variant: 'danger' })
+      : confirm(msg);
+    if (!confirmed) return;
     fetch(BASE_URL + '/api/section-comment.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

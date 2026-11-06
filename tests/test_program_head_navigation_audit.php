@@ -79,7 +79,7 @@ assertTest(isset($phLinks['New Proposal']), "PH sidebar contains New Proposal");
 assertTest(isset($phLinks['Department Activities']), "PH sidebar contains Department Activities");
 assertTest(isset($phLinks['Pending Proposals']), "PH sidebar contains Pending Proposals");
 assertTest(isset($phLinks['Approved Activities']), "PH sidebar contains Approved Activities");
-assertTest(isset($phLinks['Returned Proposals']), "PH sidebar contains Returned Proposals");
+assertTest(isset($phLinks['Returned / Rejected']), "PH sidebar contains Returned / Rejected");
 assertTest(isset($phLinks['Task Monitoring']), "PH sidebar contains Task Monitoring");
 assertTest(isset($phLinks['Calendar']), "PH sidebar contains Calendar");
 assertTest(isset($phLinks['Post-Event']), "PH sidebar contains Post-Event");
@@ -115,7 +115,7 @@ ob_start();
 include dirname(__DIR__) . '/includes/sidebar.php';
 $deanSidebarHtml = ob_get_clean();
 assertTest(strpos($deanSidebarHtml, 'Final Approval') !== false, "Dean sidebar has Final Approval");
-assertTest(strpos($deanSidebarHtml, 'User Management') !== false, "Dean sidebar has User Management");
+assertTest(strpos($deanSidebarHtml, 'User Management') === false, "Dean sidebar does NOT have User Management (exclusive to Admin 2)");
 
 // 4. Check Walkthrough Inclusion & Dept Badge for Program Head
 echo "\n--- 4. Walkthrough & Department Badge Check ---\n";

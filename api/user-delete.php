@@ -263,7 +263,9 @@ try {
     $stmtDel = $db->prepare('DELETE FROM users WHERE id = ?');
     $stmtDel->execute([$userId]);
 
-    $db->commit();
+    if ($db->inTransaction()) {
+        $db->commit();
+    }
 
     if ($isJsonRequest) {
         http_response_code(200);

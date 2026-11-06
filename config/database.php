@@ -10,7 +10,7 @@ function getDatabaseConfigValue(string ...$keys): ?string {
     static $envVars = null;
     if ($envVars === null) {
         $envVars = [];
-        $envFile = __DIR__ . '/../.env';
+        $envFile = dirname(__DIR__) . '/.env';
         if (file_exists($envFile)) {
             $lines = @file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
             if (is_array($lines)) {
@@ -49,7 +49,11 @@ function getDatabaseConfigValue(string ...$keys): ?string {
 
 // 1. DATABASE CONFIGURATION (Constants with local XAMPP defaults)
 if (!defined('DB_HOST')) {
-    define('DB_HOST', getDatabaseConfigValue('DB_HOST', 'MYSQLHOST', 'MYSQL_HOST') ?: 'localhost');
+    $resolvedHost = getDatabaseConfigValue('DB_HOST', 'MYSQLHOST', 'MYSQL_HOST');
+    if ($resolvedHost === null && !empty($_SERVER['HTTP_HOST']) && !in_array(strtolower(explode(':', $_SERVER['HTTP_HOST'])[0]), ['localhost', '127.0.0.1', '::1'], true)) {
+        error_log('Notice: DB_HOST not defined in environment or .env for host ' . ($_SERVER['HTTP_HOST'] ?? '') . '; falling back to localhost.');
+    }
+    define('DB_HOST', $resolvedHost ?: 'localhost');
 }
 if (!defined('DB_PORT')) {
     $portVal = getDatabaseConfigValue('DB_PORT', 'MYSQLPORT', 'MYSQL_PORT');
@@ -94,7 +98,7 @@ function getDB(): PDO
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
         } catch (PDOException $e) {
             http_response_code(500);
-            error_log('Database connection failed in getDB()');
+            error_log('Database connection failed in getDB(): ' . $e->getMessage());
             die(json_encode(['error' => 'Database connection failed.']));
         }
     }

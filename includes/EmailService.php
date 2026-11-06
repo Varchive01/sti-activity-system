@@ -1,6 +1,9 @@
 <?php
 // includes/EmailService.php
-require_once __DIR__ . '/../vendor/autoload.php';
+$autoloadPath = __DIR__ . '/../vendor/autoload.php';
+if (file_exists($autoloadPath)) {
+    require_once $autoloadPath;
+}
 require_once __DIR__ . '/../config/mail_config.php';
 require_once __DIR__ . '/../config/database.php';
 
@@ -8,7 +11,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 class EmailService {
-    private $mail;
+    private $mail = null;
     private $config;
     private $db;
 
@@ -16,14 +19,23 @@ class EmailService {
         $this->config = getMailConfig();
         $this->db = getDB();
         
-        $this->mail = new PHPMailer(true);
-        $this->setupMailer();
+        if (class_exists('PHPMailer\PHPMailer\PHPMailer')) {
+            $this->mail = new PHPMailer(true);
+            $this->setupMailer();
+        }
     }
 
     private function setupMailer() {
+        if (!$this->mail) {
+            return;
+        }
         // If we are using OAuth, we use the Microsoft Graph API, so we skip PHPMailer setup
         if (!empty($this->config['OAUTH_REFRESH_TOKEN'])) {
             return; 
+        }
+        // Skip SMTP setup if credentials are not configured
+        if (empty($this->config['SMTP_USERNAME']) || empty($this->config['FROM_EMAIL'])) {
+            return;
         }
         
         try {
@@ -35,6 +47,7 @@ class EmailService {
             $this->mail->Password   = $this->config['SMTP_PASSWORD'];
             $this->mail->SMTPSecure = $this->config['SMTP_ENCRYPTION'];
             $this->mail->Port       = $this->config['SMTP_PORT'];
+            $this->mail->Timeout    = 3;
 
             // Recipients
             $this->mail->setFrom($this->config['FROM_EMAIL'], $this->config['FROM_NAME']);
@@ -42,8 +55,8 @@ class EmailService {
             // Content setup
             $this->mail->isHTML(true);
             $this->mail->CharSet = 'UTF-8';
-        } catch (Exception $e) {
-            error_log("Mailer Setup Error: " . $this->mail->ErrorInfo);
+        } catch (\Throwable $e) {
+            error_log("Mailer Setup Error: " . $e->getMessage());
         }
     }
 
@@ -52,12 +65,16 @@ class EmailService {
      */
     public function sendNotification($recipientEmail, $recipientName, $subject, $proposalTitle, $status, $message, $actionLink, $activityId = null, $notificationType = 'general') {
         
-        // Basic deduplication check
+        // Basic deduplication check (fault-tolerant if email_logs table is absent)
         if ($activityId && $notificationType !== 'general') {
-            $stmt = $this->db->prepare("SELECT id FROM email_logs WHERE activity_id = ? AND recipient_email = ? AND notification_type = ? AND status = 'success' LIMIT 1");
-            $stmt->execute([$activityId, $recipientEmail, $notificationType]);
-            if ($stmt->fetch()) {
-                return true;
+            try {
+                $stmt = $this->db->prepare("SELECT id FROM email_logs WHERE activity_id = ? AND recipient_email = ? AND notification_type = ? AND status = 'success' LIMIT 1");
+                $stmt->execute([$activityId, $recipientEmail, $notificationType]);
+                if ($stmt->fetch()) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                error_log("Email deduplication check skipped: " . $e->getMessage());
             }
         }
 
@@ -150,7 +167,7 @@ class EmailService {
                 throw new Exception("Graph API returned status code " . $response->getStatusCode());
             }
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Graph API Sending Failed to $recipientEmail: " . $e->getMessage());
             $this->logEmail($activityId, $recipientEmail, $notificationType, 'failed', $e->getMessage());
             return false;
@@ -158,6 +175,9 @@ class EmailService {
     }
 
     private function sendViaPHPMailer($recipientEmail, $recipientName, $subject, $body, $altBody, $activityId, $notificationType) {
+        if (!$this->mail || empty($this->config['SMTP_USERNAME']) || empty($this->config['FROM_EMAIL'])) {
+            return false;
+        }
         try {
             $this->mail->clearAddresses();
             $this->mail->addAddress($recipientEmail, $recipientName);
@@ -172,9 +192,9 @@ class EmailService {
             $this->logEmail($activityId, $recipientEmail, $notificationType, 'success', null);
             return true;
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Log failure
-            $errorMsg = $this->mail->ErrorInfo;
+            $errorMsg = $this->mail ? $this->mail->ErrorInfo : $e->getMessage();
             error_log("Mail Sending Failed to $recipientEmail: $errorMsg");
             $this->logEmail($activityId, $recipientEmail, $notificationType, 'failed', $errorMsg);
             
@@ -192,7 +212,7 @@ class EmailService {
                 $status,
                 $errorMessage
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to insert email log: " . $e->getMessage());
         }
     }

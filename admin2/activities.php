@@ -12,12 +12,19 @@ if(isset($_GET['page']))   $page      =max(1,(int)$_GET['page']);
 $offset=($page-1)*$perPage;
 $where="a.status != 'draft'"; $params=[];
 if($search)     {$where.=" AND a.title LIKE ?"; $params[]="%$search%";}
-if($filterStat) {
-  if (strtolower($filterStat) === 'draft') {
-    $where .= " AND 1=0";
-  } else {
-    $where .= " AND a.status=?";
-    $params[] = $filterStat;
+if ($filterStat === 'archived') {
+  $where .= " AND a.is_archived = 1";
+} else {
+  $where .= " AND (a.is_archived IS NULL OR a.is_archived = 0)";
+  if($filterStat) {
+    if (strtolower($filterStat) === 'draft') {
+      $where .= " AND 1=0";
+    } elseif (in_array(strtolower($filterStat), ['under_review', 'submitted'], true)) {
+      $where .= " AND a.status IN ('submitted', 'under_review')";
+    } else {
+      $where .= " AND a.status=?";
+      $params[] = $filterStat;
+    }
   }
 }
 $total=$db->prepare("SELECT COUNT(*) FROM activities a WHERE $where"); $total->execute($params); $totalCount=$total->fetchColumn(); $totalPages=ceil($totalCount/$perPage);
@@ -66,6 +73,7 @@ $acts=$db->prepare("SELECT a.*,u.name as fn FROM activities a JOIN users u ON a.
     <header class="topbar">
       <div class="page-title">All Activities</div>
       <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+        <button type="button" class="btn btn-outline btn-sm" onclick="openUniversalArchiveModal()" style="display:inline-flex;align-items:center;gap:6px;" title="Archive completed activities by month or overall"><span>📦</span> Universal Archive</button>
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <!-- User Profile Control -->
         <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
@@ -78,8 +86,9 @@ $acts=$db->prepare("SELECT a.*,u.name as fn FROM activities a JOIN users u ON a.
         <input type="text" name="q" class="form-control" placeholder="Search activities…" value="<?= htmlspecialchars($search) ?>" style="max-width:280px;">
         <select name="status" class="form-control" style="max-width:180px;">
           <option value="">All Statuses</option>
-          <?php foreach (['submitted', 'under_review', 'endorsed', 'pending_final_approval', 'returned_for_revision', 'resubmitted', 'approved', 'completed', 'rejected'] as $s): ?>
-            <option value="<?= $s ?>" <?= $filterStat === $s ? 'selected' : '' ?>><?= ucfirst(str_replace('_', ' ', $s)) ?></option>
+          <option value="archived" <?= ($filterStat==='archived')?'selected':'' ?>>📦 Archived</option>
+          <?php foreach (['under_review', 'endorsed', 'pending_final_approval', 'returned_for_revision', 'resubmitted', 'approved', 'completed', 'rejected'] as $s): ?>
+            <option value="<?= $s ?>" <?= ($filterStat === $s || ($s === 'under_review' && $filterStat === 'submitted')) ? 'selected' : '' ?>><?= ucfirst(str_replace('_', ' ', $s)) ?></option>
           <?php endforeach; ?>
         </select>
         <button type="submit" class="btn btn-primary">Filter</button>
@@ -120,9 +129,14 @@ $acts=$db->prepare("SELECT a.*,u.name as fn FROM activities a JOIN users u ON a.
                     <td style="text-align:right;">
                       <div style="display:inline-flex;gap:6px;align-items:center;justify-content:flex-end;">
                         <a href="<?= BASE_URL ?>/admin2/view-activity.php?id=<?= $a['id'] ?>" class="btn btn-outline btn-sm">View</a>
+                        <?php if (!empty($a['is_archived'])): ?>
+                          <button type="button" class="btn btn-outline btn-sm" onclick="confirmUnarchiveActivity(<?= (int)$a['id'] ?>, '<?= htmlspecialchars(addslashes($a['title']), ENT_QUOTES) ?>')">Unarchive</button>
+                        <?php elseif ($a['status'] === 'completed'): ?>
+                          <button type="button" class="btn btn-outline btn-sm" onclick="confirmArchiveSingleActivity(<?= (int)$a['id'] ?>, '<?= htmlspecialchars(addslashes($a['title']), ENT_QUOTES) ?>')">Archive</button>
+                        <?php endif; ?>
                         <?php
                         $canAdmin2Review =
-                            ($a['source'] === 'faculty' && in_array($a['status'], ['submitted', 'resubmitted'], true))
+                            ($a['source'] === 'faculty' && in_array($a['status'], ['submitted', 'under_review', 'resubmitted'], true))
                             || ($a['source'] === 'student_org' && $a['status'] === 'endorsed');
                         if ($canAdmin2Review): ?>
                           <a href="<?= BASE_URL ?>/admin2/review.php?id=<?= $a['id'] ?>" class="btn btn-primary btn-sm">Review</a>

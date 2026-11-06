@@ -1,6 +1,7 @@
 <?php
 // api/create-google-form.php
 
+ob_start();
 ini_set('display_errors', '0');
 error_reporting(0);
 
@@ -10,12 +11,14 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/GoogleFormsService.php';
 
-header('Content-Type: application/json');
-
-// Helper to send sanitized JSON responses
+// Helper to send sanitized JSON responses without buffer leaks
 function sendJsonResponse(int $statusCode, array $payload): void
 {
+    if (ob_get_length()) {
+        ob_clean();
+    }
     http_response_code($statusCode);
+    header('Content-Type: application/json; charset=utf-8');
 
     // Security check: ensure no access tokens or client secrets are exposed in output
     $json = json_encode($payload);
@@ -372,6 +375,16 @@ if ($activityId > 0) {
         $updateStmt = $db->prepare("UPDATE activities SET evaluation_method = ?, google_form_link = ?, updated_at = NOW() WHERE id = ?");
         $updateStmt->execute([$responderUri, $formId, $activityId]);
     }
+
+    // Retrieve fresh updated_at timestamp to maintain client concurrency synchronization
+    $tsStmt = $db->prepare("SELECT updated_at FROM activities WHERE id = ?");
+    $tsStmt->execute([$activityId]);
+    $newUpdatedAt = $tsStmt->fetchColumn() ?: date('Y-m-d H:i:s');
+
+    // Record contribution log for the current user so conflict detector recognizes the author
+    if (function_exists('logProposalContribution') && !empty($user['id'])) {
+        logProposalContribution((int)$activityId, (int)$user['id'], 'Updated Evaluation Method', 'Evaluation & KPI', 'Configured automated Google Form evaluation tool.', $db);
+    }
 }
 
 // Respond with success and non-sensitive information
@@ -380,6 +393,7 @@ sendJsonResponse(200, [
     'form_id'         => $formId,
     'responder_uri'   => $responderUri,
     'form_url'        => $responderUri,
+    'updated_at'      => $newUpdatedAt ?? null,
     'questions_count' => count($requests),
     'message'         => 'Google Form created successfully! Link populated.'
 ]);

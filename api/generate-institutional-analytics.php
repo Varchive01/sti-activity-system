@@ -38,7 +38,7 @@ $filterYear = (int)($_POST['year'] ?? $_GET['year'] ?? date('Y'));
 $filterPeriod = sanitize($_POST['period'] ?? $_GET['period'] ?? 'all'); // 'all', '1st_sem', '2nd_sem'
 
 // 2. Fetch deterministic institutional KPI summary
-$summary = getInstitutionalKpiSummary($filterYear, $filterPeriod, $db);
+$summary = getInstitutionalKpiSummary($filterYear, $filterPeriod, $db, (int)$user['id']);
 
 // Handle empty state: no completed KPI data available
 if (!$summary['kpi_performance']['has_data']) {

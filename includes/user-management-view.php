@@ -192,7 +192,7 @@ $csrfToken = generateCsrfToken();
       <?php if (isset($_GET['created']) && $_GET['created'] === '1'): ?>
         <div class="alert alert-success" style="margin-bottom:20px;">
           <i class="fa-solid fa-circle-check"></i>
-          <div><strong>Success:</strong> User account created successfully with default password! The user must change their password on first login.</div>
+          <div><strong>Success:</strong> User account created successfully!</div>
         </div>
       <?php endif; ?>
 
@@ -268,26 +268,18 @@ $csrfToken = generateCsrfToken();
                       // Self-deletion and deletion of last Dean are prohibited.
                       $isSelf = ((int)$u['id'] === (int)$user['id']);
                       $canEdit = false;
-                      $canResetPassword = false;
                       $canDelete = false;
 
                       if ($user['role'] === 'dean') {
                           $canEdit = true;
-                          $canResetPassword = ($u['role'] !== 'dean' || $isSelf);
                           if (!$isSelf) {
                               $canDelete = ($u['role'] !== 'dean' || $deanCount > 1);
                           }
                       } elseif ($user['role'] === 'admin2') {
                           $canEdit = in_array($u['role'], ['faculty', 'program_head'], true);
-                          $canResetPassword = in_array($u['role'], ['faculty', 'program_head'], true);
                           if (!$isSelf) {
                               $canDelete = in_array($u['role'], ['faculty', 'program_head'], true);
                           }
-                      }
-
-                      // Hide Set Default Password button specifically for ar-jay.agbayani@marikina.sti.edu.ph
-                      if (strtolower(trim($u['email'] ?? '')) === 'ar-jay.agbayani@marikina.sti.edu.ph') {
-                          $canResetPassword = false;
                       }
                     ?>
                     <tr>
@@ -315,13 +307,6 @@ $csrfToken = generateCsrfToken();
                             </button>
                           <?php endif; ?>
 
-                          <?php if ($canResetPassword): ?>
-                            <button type="button" class="btn-action" id="btnResetPass_<?= (int)$u['id'] ?>"
-                              onclick="openResetModal(<?= (int)$u['id'] ?>, '<?= htmlspecialchars(addslashes($u['name']), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($u['email']), ENT_QUOTES, 'UTF-8') ?>')">
-                              <i class="fa-solid fa-key" style="color:var(--sti-gold, #D97706);"></i> Set Default Password
-                            </button>
-                          <?php endif; ?>
-
                           <?php if ($canDelete): ?>
                             <button type="button" class="btn-action btn-action-danger" id="btnDeleteUser_<?= (int)$u['id'] ?>"
                               onclick="openDeleteModal(<?= (int)$u['id'] ?>, '<?= htmlspecialchars(addslashes($u['name']), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($u['email']), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($roleLabel, ENT_QUOTES, 'UTF-8') ?>')">
@@ -329,7 +314,7 @@ $csrfToken = generateCsrfToken();
                             </button>
                           <?php endif; ?>
 
-                          <?php if (!$canEdit && !$canResetPassword && !$canDelete): ?>
+                          <?php if (!$canEdit && !$canDelete): ?>
                             <span class="badge-restricted" id="restrictedBadge_<?= (int)$u['id'] ?>"><i class="fa-solid fa-lock me-1"></i> Restricted</span>
                           <?php endif; ?>
                         </div>
@@ -364,7 +349,7 @@ $csrfToken = generateCsrfToken();
 
           <div class="form-group">
             <label for="add_email">Email Address <span style="color:var(--danger, #DC2626);">*</span></label>
-            <input type="email" name="email" id="add_email" class="form-control" placeholder="e.g. msantos@sti.edu" required autocomplete="off">
+            <input type="email" name="email" id="add_email" class="form-control" placeholder="e.g. firstname.lastname@marikina.sti.edu.ph" required autocomplete="off">
           </div>
 
           <div class="form-group">
@@ -397,15 +382,6 @@ $csrfToken = generateCsrfToken();
               <?php else: ?>
                 Admin 2 is authorized to create Faculty and Program Head accounts.
               <?php endif; ?>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="add_password">Default Password <span style="color:var(--danger, #DC2626);">*</span></label>
-            <input type="password" name="password" id="add_password" class="form-control" placeholder="Minimum 6 characters" minlength="6" required autocomplete="new-password">
-            <div class="um-modal-info-banner" style="margin-top:8px;">
-              <i class="fa-solid fa-circle-info me-1"></i>
-              <span>The user will be required to change this password upon first login.</span>
             </div>
           </div>
         </div>
@@ -726,12 +702,6 @@ $csrfToken = generateCsrfToken();
 
     // Client-side quick validation
     document.getElementById('addUserForm')?.addEventListener('submit', function(e) {
-      const p = document.getElementById('add_password')?.value || '';
-      if (p.length < 6) {
-        alert('Default password must be at least 6 characters long.');
-        e.preventDefault();
-        return;
-      }
       const role = document.getElementById('add_role')?.value || '';
       const dept = document.getElementById('add_department')?.value || '';
       if (role === 'program_head') {

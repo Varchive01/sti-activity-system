@@ -20,15 +20,22 @@ if (!function_exists('isGibberishToken')) {
         // Allow ordinal numbers (e.g. '1st', '2nd', '3rd', '4th')
         if (preg_match('/^\d+(st|nd|rd|th)$/i', $token)) return false;
 
+        // Allow standard measurement, paper, volume, duration and package units attached to numbers
+        // (e.g. '220gsm', '500ml', '10kg', '250g', '50pcs', '1080p', '100m', '30fps', '60hz', '32gb', '500mb', '100w')
+        if (preg_match('/^\d+(\.\d+)?(gsm|kg|g|mg|lbs?|oz|ml|l|cm|mm|m|km|in|ft|yd|pcs?|pk|pks|box|boxes|sets?|rolls?|packs?|px|pt|dpi|kb|mb|gb|tb|hz|khz|mhz|ghz|fps|k|v|w|kw|a|ma|rpm|php|usd|eur|gbp)$/i', $token)) {
+            return false;
+        }
+
         // Allow all-uppercase abbreviations up to 6 characters and common pluralized acronyms (e.g. 'JPCS', 'AWS', 'STI', 'PDRRMC', 'SSG', 'UNESCO', 'SDGs', 'KPIs')
         if (preg_match('/^[A-Z]{2,6}s?$/', $token)) return false;
 
-        // For hyphenated compounds (e.g. 'world-class', 'well-structured', 'peer-to-peer', 'hands-on'),
-        // evaluate each hyphen-separated component so letters are not concatenated across word boundaries.
-        if (strpos($token, '-') !== false) {
-            $subTokens = array_filter(explode('-', $token), fn($p) => strlen($p) > 0);
+        // For compound words separated by hyphens, slashes, or underscores (e.g. 'Pitch/Presentation', 'world-class', 'Input/Output', 'peer-to-peer', 'and/or'),
+        // evaluate each component individually so letters are not concatenated across word boundaries.
+        if (preg_match('/[\-\/\\\_]/', $token)) {
+            $subTokens = preg_split('/[\-\/\\\_]+/', $token);
             foreach ($subTokens as $sub) {
-                if (strlen($sub) >= 3 && isGibberishToken($sub)) {
+                $subClean = trim($sub, " \t\n\r\0\x0B,.:;!?\"'()[]{}/*-+_=@#$%^&<>~`|");
+                if (strlen($subClean) >= 3 && isGibberishToken($subClean)) {
                     return true;
                 }
             }
@@ -67,10 +74,28 @@ if (!function_exists('isGibberishToken')) {
             if (!in_array($letters, $whitelist, true)) return true;
         }
 
-        // 5. Pure home-row letters [asdfghjkl] (length >= 3)
+        // 5. Home-row letters [asdfghjkl] keyboard-mash heuristics
+        // Flag actual keyboard walks, mash patterns, or consonant clustering rather than all natural words/names made of home-row letters.
         if (strlen($letters) >= 3 && preg_match('/^[asdfghjkl]+$/', $letters)) {
-            $homeWhitelist = ['add', 'adds', 'all', 'ask', 'asks', 'dash', 'fall', 'falls', 'flag', 'flags', 'flash', 'flask', 'flasks', 'gas', 'glad', 'glass', 'had', 'half', 'hall', 'halls', 'has', 'lass', 'salad', 'salads', 'shall'];
-            if (!in_array($letters, $homeWhitelist, true)) return true;
+            // Unambiguous keyboard mash runs and sequences
+            if (preg_match('/^asd+$/i', $letters) || preg_match('/^dsa+$/i', $letters) || preg_match('/^asda/i', $letters)) {
+                return true;
+            }
+            if (preg_match('/asdf|fdsa|hjkl|lkjh|ghjk|kjhg|dfgh|fghj|sdfg|gfds/i', $letters)) {
+                return true;
+            }
+            // 4+ consecutive home-row consonants without vowels (e.g. 'dfgh', 'hjkl', 'skld')
+            if (preg_match('/[dfghjkl]{4,}/i', $letters)) {
+                return true;
+            }
+            // Obvious repeated home-row n-grams (e.g. 'asdasd', 'fdasfda', 'hklhkl')
+            if (preg_match('/^([asdfghjkl]{2,3})\1+$/i', $letters)) {
+                return true;
+            }
+            // Words 5+ chars long without any vowel
+            if (strlen($letters) >= 5 && !preg_match('/[aeiouy]/i', $letters)) {
+                return true;
+            }
         }
 
         // 6. Pure top-row letters [qwertyuiop] (length >= 3)

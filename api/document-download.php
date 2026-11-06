@@ -83,19 +83,10 @@ if ($deliverableId > 0) {
         die('Poster not found.');
     }
 
-    if (in_array($role, ['admin1', 'admin2', 'dean'], true)) {
+    $isAuthorized = canUserAccessActivity($activityId, 'view', $user['id'], $role, $user['dept']);
+
+    if (!$isAuthorized && in_array($role, ['admin1', 'admin2', 'dean'], true)) {
         $isAuthorized = true;
-    } elseif ($role === 'faculty') {
-        // Faculty can view posters of activities they own or non-draft proposals
-        if ((int)$act['faculty_id'] === (int)$user['id']) {
-            $isAuthorized = true;
-        } elseif (!in_array($act['status'] ?? '', ['draft', 'returned_for_revision'], true)) {
-            $isAuthorized = true;
-        }
-    } elseif ($role === 'program_head') {
-        if (canUserAccessActivity($activityId, 'view', $user['id'], $role, $user['dept'])) {
-            $isAuthorized = true;
-        }
     }
 
     if (!$isAuthorized) {
@@ -122,18 +113,10 @@ if ($deliverableId > 0) {
         die('Floor plan not found.');
     }
 
-    if (in_array($role, ['admin1', 'admin2', 'dean'], true)) {
-        // Institutional administrators/evaluators and Dean have read-only access
+    $isAuthorized = canUserAccessActivity($activityId, 'view', $user['id'], $role, $user['dept']);
+
+    if (!$isAuthorized && in_array($role, ['admin1', 'admin2', 'dean'], true)) {
         $isAuthorized = true;
-    } elseif ($role === 'faculty') {
-        // Faculty can only access floor plans for activities they own
-        if ((int)$fp['faculty_id'] === (int)$user['id']) {
-            $isAuthorized = true;
-        }
-    } elseif ($role === 'program_head') {
-        if (canUserAccessActivity($activityId, 'view', $user['id'], $role, $user['dept'])) {
-            $isAuthorized = true;
-        }
     }
 
     if (!$isAuthorized) {

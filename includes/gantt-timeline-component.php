@@ -126,8 +126,10 @@ if ($lastMarker && ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs)
   }
   .gantt-scroll-area {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
     max-height: 520px;
+    position: relative;
   }
   .gantt-chart-table {
     width: 100%;
@@ -141,6 +143,9 @@ if ($lastMarker && ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs)
     border-right: 1px solid var(--border);
     background: var(--bg-card);
     vertical-align: middle;
+    position: sticky;
+    left: 0;
+    z-index: 4;
   }
   .gantt-col-timeline {
     padding: 10px 16px;
@@ -156,7 +161,14 @@ if ($lastMarker && ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs)
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
+  .gantt-timeline-scale th.gantt-col-meta {
+    z-index: 5;
+    background: var(--border-light, #f8fafd);
+  }
   [data-theme="dark"] .gantt-timeline-scale {
+    background: #0d1726;
+  }
+  [data-theme="dark"] .gantt-timeline-scale th.gantt-col-meta {
     background: #0d1726;
   }
   .gantt-timeline-scale-wrap {
@@ -276,6 +288,7 @@ if ($lastMarker && ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs)
     inset: 0;
     background: rgba(15, 23, 42, 0.65);
     backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
     z-index: 9999;
     align-items: center;
     justify-content: center;
@@ -333,11 +346,34 @@ if ($lastMarker && ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs)
 
   @media (max-width: 640px) {
     .gantt-col-meta {
-      width: 190px;
+      width: 170px;
       padding: 8px 10px;
     }
     .task-inspect-modal-body {
       grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 480px) {
+    .gantt-col-meta {
+      width: 135px;
+      padding: 6px 8px;
+      font-size: 0.72rem;
+    }
+    .gantt-task-name {
+      font-size: 0.76rem !important;
+    }
+    .gantt-chart-table {
+      min-width: 580px;
+    }
+    .task-inspect-modal-dialog {
+      max-height: 92dvh;
+    }
+    .task-inspect-modal-header {
+      padding: 12px 14px;
+    }
+    .task-inspect-modal-body {
+      padding: 12px;
+      gap: 10px;
     }
   }
 </style>

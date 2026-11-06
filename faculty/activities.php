@@ -13,20 +13,70 @@ $page       = max(1,(int)($_GET['page'] ?? 1));
 $perPage    = 10;
 $offset     = ($page-1)*$perPage;
 
+$hasCollabTable = true;
+try {
+    $db->query("SELECT 1 FROM proposal_collaborators LIMIT 1");
+} catch (\PDOException $e) {
+    $hasCollabTable = false;
+}
+
 if ($user['role'] === 'program_head') {
-    $userDept = $user['dept'] ?? '';
-    $where  = "(
-        EXISTS (SELECT 1 FROM users u_creator WHERE u_creator.id = a.faculty_id AND (u_creator.department = ? OR u_creator.id = ?))
-        OR EXISTS (SELECT 1 FROM faculty_tasks ft JOIN users u_task ON ft.assigned_user_id = u_task.id WHERE ft.activity_id = a.id AND (u_task.department = ? OR ft.assigned_user_id = ?))
-        OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active')
-    )";
-    $params = [$userDept, $user['id'], $userDept, $user['id'], $user['id']];
+    $userDept = resolveUserDepartment($db, $user);
+    $deptCond = buildDepartmentSqlCondition('u_creator.department', $userDept);
+    // Proposals that are Under Review, Submitted, Resubmitted, or Save as Draft belong in Pending or Drafts, not Department Activities
+    $deptStatusCond = "a.status NOT IN ('draft', 'submitted', 'under_review', 'resubmitted')";
+    if ($hasCollabTable) {
+        $where  = "(
+            (
+                a.faculty_id = ?
+                OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active')
+                OR EXISTS (SELECT 1 FROM users u_creator WHERE u_creator.id = a.faculty_id AND {$deptCond})
+            )
+            AND {$deptStatusCond}
+        )";
+        $params = [$user['id'], $user['id']];
+    } else {
+        $where  = "(
+            (
+                a.faculty_id = ?
+                OR EXISTS (SELECT 1 FROM users u_creator WHERE u_creator.id = a.faculty_id AND {$deptCond})
+            )
+            AND {$deptStatusCond}
+        )";
+        $params = [$user['id']];
+    }
 } else {
-    $where  = "(a.faculty_id = ? OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active'))";
-    $params = [$user['id'], $user['id']];
+    if ($hasCollabTable) {
+        $where  = "(
+            a.faculty_id = ? 
+            OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active')
+            OR (
+                a.status IN ('approved', 'completed')
+                AND EXISTS (SELECT 1 FROM faculty_tasks ft WHERE ft.activity_id = a.id AND ft.assigned_user_id = ?)
+            )
+        )";
+        $params = [$user['id'], $user['id'], $user['id']];
+    } else {
+        $where  = "(a.faculty_id = ? OR (a.status IN ('approved', 'completed') AND EXISTS (SELECT 1 FROM faculty_tasks ft WHERE ft.activity_id = a.id AND ft.assigned_user_id = ?)))";
+        $params = [$user['id'], $user['id']];
+    }
 }
 if ($search)     { $where .= " AND a.title LIKE ?"; $params[] = "%$search%"; }
-if ($filterStat) { $where .= " AND a.status=?";     $params[] = $filterStat; }
+if ($filterStat === 'archived') {
+    $where .= " AND a.is_archived = 1";
+} else {
+    $where .= " AND (a.is_archived IS NULL OR a.is_archived = 0)";
+    if ($filterStat) {
+        if ($user['role'] === 'program_head' && in_array(strtolower($filterStat), ['draft', 'under_review', 'submitted', 'resubmitted'], true)) {
+            $where .= " AND 1=0";
+        } elseif (in_array(strtolower($filterStat), ['under_review', 'submitted'], true)) {
+            $where .= " AND a.status IN ('submitted', 'under_review')";
+        } else {
+            $where .= " AND a.status=?";
+            $params[] = $filterStat;
+        }
+    }
+}
 
 $total = $db->prepare("SELECT COUNT(*) FROM activities a WHERE $where");
 $total->execute($params); $totalCount = $total->fetchColumn();
@@ -43,7 +93,7 @@ $activities = $acts->fetchAll();
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="base-url" content="<?= BASE_URL ?>">
 <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
-<title>My Activities – STI Activity System</title>
+<title><?= ($user['role'] === 'program_head') ? 'Department Activities' : 'My Activities' ?> – STI Activity System</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
 <style>
   @media (max-width: 640px) {
@@ -239,7 +289,7 @@ $activities = $acts->fetchAll();
   .col-source  { width: 95px; }
   .col-status  { width: 115px; }
   .col-updated { width: 105px; }
-  .col-actions { width: 160px; min-width: 155px; text-align: right; }
+  .col-actions { width: 215px; min-width: 205px; text-align: right; }
 
   .activity-table th.col-actions,
   .activity-table td.col-actions {
@@ -251,7 +301,7 @@ $activities = $acts->fetchAll();
 
   /* When sidebar is collapsed, distribute additional width gracefully */
   body.sidebar-collapsed .col-venue { width: 145px; }
-  body.sidebar-collapsed .col-actions { width: 165px; }
+  body.sidebar-collapsed .col-actions { width: 220px; }
 
   /* Content typography inside cells */
   .act-title {
@@ -449,10 +499,11 @@ $activities = $acts->fetchAll();
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 <div class="main-wrap">
   <header class="topbar">
-    <div class="page-title">My Activities</div>
-    <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
-      <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
+    <div class="page-title"><?= ($user['role'] === 'program_head') ? 'Department Activities' : 'My Activities' ?></div>
+    <div class="topbar-right">
+      <button type="button" class="btn btn-outline btn-sm" onclick="openUniversalArchiveModal()" style="display:inline-flex;align-items:center;gap:6px;" title="Archive completed activities by month or overall"><span>📦</span> Universal Archive</button>
       <a href="<?= BASE_URL ?>/faculty/proposal-create.php" class="btn btn-primary btn-sm">+ New Proposal</a>
+      <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
       <!-- User Profile Control -->
       <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
     </div>
@@ -463,8 +514,14 @@ $activities = $acts->fetchAll();
       <input type="text" name="q" class="form-control" placeholder="Search activities…" value="<?= htmlspecialchars($search) ?>" style="max-width:280px;">
       <select name="status" class="form-control" style="max-width:180px;">
         <option value="">All Statuses</option>
-        <?php foreach(['draft','submitted','under_review','endorsed','pending_final_approval','returned_for_revision','approved','completed','rejected'] as $s): ?>
-        <option value="<?= $s ?>" <?= $filterStat===$s?'selected':'' ?>><?= ucfirst(str_replace('_',' ',$s)) ?></option>
+        <option value="archived" <?= ($filterStat==='archived')?'selected':'' ?>>📦 Archived</option>
+        <?php 
+        $statOptions = ($user['role'] === 'program_head')
+            ? ['endorsed', 'pending_final_approval', 'approved', 'completed', 'returned_for_revision', 'rejected']
+            : ['draft', 'under_review', 'endorsed', 'pending_final_approval', 'returned_for_revision', 'approved', 'completed', 'rejected'];
+        foreach ($statOptions as $s): 
+        ?>
+        <option value="<?= $s ?>" <?= ($filterStat===$s || ($s==='under_review' && $filterStat==='submitted'))?'selected':'' ?>><?= ucfirst(str_replace('_',' ',$s)) ?></option>
         <?php endforeach; ?>
       </select>
       <button type="submit" class="btn btn-primary">Filter</button>
@@ -497,7 +554,7 @@ $activities = $acts->fetchAll();
             <tbody>
             <?php if (empty($activities)): ?>
             <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">
-              <?= $search||$filterStat ? 'No activities match your search.' : 'No activities yet.' ?>
+              <?= $search||$filterStat ? 'No activities match your search.' : ($user['role'] === 'program_head' ? 'No department activities yet.' : 'No activities yet.') ?>
               <?php if (!$search && !$filterStat): ?><br><a href="<?= BASE_URL ?>/faculty/proposal-create.php" style="color:var(--accent);">Create your first proposal →</a><?php endif; ?>
             </td></tr>
             <?php else: foreach($activities as $a): ?>
@@ -523,8 +580,16 @@ $activities = $acts->fetchAll();
               <td class="col-actions">
                 <div class="act-actions">
                   <a href="<?= BASE_URL ?>/faculty/proposal-view.php?id=<?= $a['id'] ?>" class="btn btn-outline btn-sm">View</a>
-                  <?php if (in_array($a['status'],['draft','returned_for_revision'])): ?>
+                  <?php if (in_array($a['status'],['draft','returned_for_revision']) && canUserAccessActivity((int)$a['id'], 'modify', (int)$user['id'], $user['role'], $user['dept'] ?? '')): ?>
                   <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= $a['id'] ?>" class="btn btn-primary btn-sm">Edit</a>
+                  <?php endif; ?>
+                  <?php if ($a['status'] === 'draft' && canUserAccessActivity((int)$a['id'], 'modify', (int)$user['id'], $user['role'], $user['dept'] ?? '')): ?>
+                  <button type="button" class="btn btn-danger btn-sm" onclick="confirmDeleteDraft(<?= (int)$a['id'] ?>, '<?= htmlspecialchars(addslashes($a['title']), ENT_QUOTES) ?>')">Delete</button>
+                  <?php endif; ?>
+                  <?php if (!empty($a['is_archived'])): ?>
+                  <button type="button" class="btn btn-outline btn-sm" onclick="confirmUnarchiveActivity(<?= (int)$a['id'] ?>, '<?= htmlspecialchars(addslashes($a['title']), ENT_QUOTES) ?>')">Unarchive</button>
+                  <?php elseif ($a['status'] === 'completed'): ?>
+                  <button type="button" class="btn btn-outline btn-sm" onclick="confirmArchiveSingleActivity(<?= (int)$a['id'] ?>, '<?= htmlspecialchars(addslashes($a['title']), ENT_QUOTES) ?>')">Archive</button>
                   <?php endif; ?>
                   <?php if ($a['status']==='approved'): ?>
                   <a href="<?= BASE_URL ?>/faculty/post-event.php?activity_id=<?= $a['id'] ?>" class="btn btn-success btn-sm">Post-Event</a>

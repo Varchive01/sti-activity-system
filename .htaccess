@@ -10,7 +10,7 @@ Options -Indexes
 DirectoryIndex index.php
 
 # 3. Block direct web access to sensitive environment configuration files
-<FilesMatch "^\.env">
+<FilesMatch ^\.env>
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
@@ -21,7 +21,7 @@ DirectoryIndex index.php
 </FilesMatch>
 
 # 4. Block direct web access to dependency manifests, lock files, and logs
-<FilesMatch "(composer\.(json|lock)|package(-lock)?\.json|\.git.*|\.log)$">
+<FilesMatch (composer\.(json|lock)|package(-lock)?\.json|\.git.*|\.log)$>
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
@@ -31,3 +31,19 @@ DirectoryIndex index.php
     </IfModule>
 </FilesMatch>
 
+# 5. Canonical HTTPS enforcement behind InfinityFree / Cloudflare reverse proxy
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Exclude localhost
+    RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)(:[0-9]+)?$ [NC]
+
+    # Redirect only when the connection is not already HTTPS
+    RewriteCond %{HTTPS} off
+
+    # Ignore requests already secured by a reverse proxy
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
+    RewriteCond %{HTTP:CF-Visitor} !^.*scheme\s*:\s*https.*$ [NC]
+
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>

@@ -294,6 +294,7 @@ $rcas = $db->query("
             <h2>🔍 Root Cause Analysis Records</h2>
           </div>
           <div class="card-body" style="padding:0;">
+            <div class="table-wrap">
             <table>
               <thead>
                 <tr>
@@ -314,6 +315,7 @@ $rcas = $db->query("
                 <?php endforeach; ?>
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       <?php endif; ?>

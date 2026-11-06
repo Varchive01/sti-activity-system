@@ -7,10 +7,18 @@ requireRole('dean');
 $user = currentUser();
 $db   = getDB();
 
-// Fetch all activities relevant to this role (Returned for Revision or Rejected)
-$where = "WHERE a.status IN ('returned_for_revision', 'rejected')";
-
-$activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JOIN users u ON a.faculty_id=u.id $where ORDER BY a.updated_at DESC")->fetchAll();
+// Fetch all activities returned or rejected by the Dean
+$stmt = $db->prepare("
+    SELECT a.*, u.name as faculty_name, MAX(al.acted_at) as last_acted_at
+    FROM activities a 
+    JOIN users u ON a.faculty_id = u.id 
+    JOIN approval_logs al ON a.id = al.activity_id 
+    WHERE al.reviewer_id = ? AND al.action IN ('returned', 'rejected', 'returned_for_revision') 
+    GROUP BY a.id, u.name
+    ORDER BY a.updated_at DESC
+");
+$stmt->execute([$user['id']]);
+$activities = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">

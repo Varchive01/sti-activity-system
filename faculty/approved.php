@@ -8,10 +8,11 @@ $user = currentUser();
 $db   = getDB();
 
 if ($user['role'] === 'program_head') {
-    $deptEsc = $db->quote($user['dept'] ?? '');
-    $where = "WHERE (u.department = $deptEsc OR a.faculty_id = {$user['id']}) AND a.status IN ('approved', 'completed')";
+    $userDept = resolveUserDepartment($db, $user);
+    $deptCond = buildDepartmentSqlCondition('u.department', $userDept);
+    $where = "WHERE ({$deptCond} OR a.faculty_id = {$user['id']} OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$user['id']} AND pc.status = 'active')) AND a.status IN ('approved', 'completed')";
 } else {
-    $where = "WHERE a.faculty_id = {$user['id']} AND a.status IN ('approved', 'completed')";
+    $where = "WHERE (a.faculty_id = {$user['id']} OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$user['id']} AND pc.status = 'active') OR EXISTS (SELECT 1 FROM faculty_tasks ft WHERE ft.activity_id = a.id AND ft.assigned_user_id = {$user['id']})) AND a.status IN ('approved', 'completed')";
 }
 
 $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JOIN users u ON a.faculty_id=u.id $where ORDER BY a.updated_at DESC")->fetchAll();
@@ -19,15 +20,16 @@ $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JO
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta charset="UTF-8">
-<title>Approved – STI Activity System</title>
+<title>Approved Activities – STI Activity System</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
 </head>
 <body class="theme-faculty">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 <div class="main-wrap">
   <header class="topbar">
-    <div class="page-title">Approved</div>
+    <div class="page-title">Approved Activities</div>
   
     <div class="topbar-right">
       <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
@@ -37,7 +39,7 @@ $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JO
   </header>
   <div class="content">
     <div class="card">
-      <div class="card-header"><h2>Approved</h2></div>
+      <div class="card-header"><h2>Approved Activities</h2></div>
       <div class="card-body" style="padding:0;">
         <div class="table-wrap">
           <table>

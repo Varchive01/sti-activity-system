@@ -85,7 +85,9 @@ try {
         );
     }
 
-    $db->commit();
+    if ($db->inTransaction()) {
+        $db->commit();
+    }
     header("Location: " . BASE_URL . "/faculty/post-event.php?saved=1");
     exit;
 } catch (Exception $e) {
