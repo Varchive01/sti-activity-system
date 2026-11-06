@@ -81,3 +81,4 @@ All automated test suites were executed to verify the fix:
 * **Schema Resilience Suite (`tests/test_activities_schema_resilience.php`):** ALL PASSED (Zero HTTP 500 error risk under any schema condition).
 * **Global Health Check (`tests/test_global_system_health.php`):** 298/298 files syntax clean (0 errors).
 * **Live Stress Testing (10 requests against `https://sti-armes.freedev.app/auth/login.php`):** 100% Succeeded (HTTP 200 OK, Average response time: 529.46 ms).
+

@@ -1847,32 +1847,32 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
               <!-- Manpower Summary Table -->
               <div class="manpower-summary-wrap" style="margin-top: 24px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
-                  <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-main, #1e293b);">
+                  <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-main);">
                     Manpower Summary
                   </h3>
-                  <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-main, #1e293b); background: #ffffff; border: 1px solid #e2e8f0; padding: 4px 10px; border-radius: 6px;">
-                    Total Persons Involved: <span id="mp-summary-unique-total" style="font-weight: 700;">0</span> <span style="font-size: 0.75rem; font-weight: 400; color: #64748b;">(distinct individuals)</span>
+                  <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-main); background: var(--bg-card); border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px;">
+                    Total Persons Involved: <span id="mp-summary-unique-total" style="font-weight: 700;">0</span> <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-muted);">(distinct individuals)</span>
                   </div>
                 </div>
-                <div class="dynamic-table" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto;">
-                  <table class="table" id="manpower-summary-table" style="width: 100%; border-collapse: collapse; margin: 0; background: #ffffff;">
+                <div class="dynamic-table" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; overflow-x: auto;">
+                  <table class="table" id="manpower-summary-table" style="width: 100%; border-collapse: collapse; margin: 0; background: var(--bg-card);">
                     <thead>
-                      <tr style="border-bottom: 1px solid #e2e8f0; background: #ffffff;">
-                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: left; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Role / Position</th>
-                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: center; width: 100px; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Faculty</th>
-                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: center; width: 100px; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Staff</th>
-                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: center; width: 100px; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Students</th>
-                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: #475569; text-align: center; width: 110px; background: #ffffff; border-bottom: 1px solid #e2e8f0;">Total #</th>
+                      <tr style="border-bottom: 1px solid var(--border); background: var(--bg-card-elevated);">
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-align: left; background: var(--bg-card-elevated); border-bottom: 1px solid var(--border);">Role / Position</th>
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-align: center; width: 100px; background: var(--bg-card-elevated); border-bottom: 1px solid var(--border);">Faculty</th>
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-align: center; width: 100px; background: var(--bg-card-elevated); border-bottom: 1px solid var(--border);">Staff</th>
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-align: center; width: 100px; background: var(--bg-card-elevated); border-bottom: 1px solid var(--border);">Students</th>
+                        <th style="padding: 10px 14px; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-align: center; width: 110px; background: var(--bg-card-elevated); border-bottom: 1px solid var(--border);">Total #</th>
                       </tr>
                     </thead>
-                    <tbody id="manpower-summary-body" style="background: #ffffff;">
+                    <tbody id="manpower-summary-body" style="background: var(--bg-card);">
                       <tr>
-                        <td colspan="5" style="text-align: center; color: #64748b; font-size: 0.82rem; padding: 14px; background: #ffffff;">
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 14px; background: var(--bg-card);">
                           No manpower assigned yet.
                         </td>
                       </tr>
                     </tbody>
-                    <tfoot id="manpower-summary-foot" style="background: #ffffff; border-top: 1px solid #e2e8f0;">
+                    <tfoot id="manpower-summary-foot" style="background: var(--bg-card); border-top: 1px solid var(--border);">
                       <tr style="border-top: 1px solid #e2e8f0; background: #ffffff; font-weight: 600;">
                         <td style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: left; background: #ffffff;">Total</td>
                         <td id="mp-sum-faculty" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; background: #ffffff;">0</td>

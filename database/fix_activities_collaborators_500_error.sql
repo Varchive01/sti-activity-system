@@ -104,3 +104,4 @@ CREATE TABLE IF NOT EXISTS `email_logs` (
   `sent_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
