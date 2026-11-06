@@ -57,9 +57,11 @@ $success    = isset($_GET['saved']);
 $selectedId = (int)($_GET['activity_id'] ?? 0);
 $selectedActivity = null;
 if ($selectedId) {
-  $sa = $db->prepare("SELECT * FROM activities WHERE id=? AND faculty_id=? AND status='approved'");
-  $sa->execute([$selectedId, $user['id']]);
-  $selectedActivity = $sa->fetch();
+  if (canUserAccessActivity($selectedId, 'modify', (int)$user['id'], $user['role'], $user['dept'] ?? '')) {
+    $sa = $db->prepare("SELECT * FROM activities WHERE id = ? AND status = 'approved' LIMIT 1");
+    $sa->execute([$selectedId]);
+    $selectedActivity = $sa->fetch();
+  }
 }
 ?>
 <!DOCTYPE html>
