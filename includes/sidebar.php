@@ -89,7 +89,6 @@ $navs = [
     ]],
     ['group' => 'Administration', 'links' => [
       ['icon' => 'users', 'label' => 'User Management', 'href' => BASE_URL . '/admin2/users.php'],
-      ['icon' => 'settings', 'label' => 'System Settings', 'href' => BASE_URL . '/admin2/settings.php'],
     ]],
   ],
   'dean' => [
@@ -107,6 +106,9 @@ $navs = [
     ['group' => 'Reports', 'links' => [
       ['icon' => 'bar-chart', 'label' => 'KPI Reports', 'href' => BASE_URL . '/dean/kpi-reports.php'],
       ['icon' => 'file-text', 'label' => 'Generate Report', 'href' => BASE_URL . '/dean/generate-report.php'],
+    ]],
+    ['group' => 'Administration', 'links' => [
+      ['icon' => 'users', 'label' => 'User Management', 'href' => BASE_URL . '/dean/users.php'],
     ]],
   ],
 ];

@@ -102,3 +102,4 @@ echo "Overall Result: " . ($allPassed ? "ALL TESTS PASSED (BREVO SEAMLESS CONNEC
 echo "=======================================================================\n";
 
 exit($allPassed ? 0 : 1);
+

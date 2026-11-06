@@ -28,23 +28,23 @@ $contributorsContent = file_get_contents(__DIR__ . '/../program_head/contributor
 checkTest("program_head/contributors.php enforces program_head role", strpos($contributorsContent, "requireRole('program_head')") !== false);
 checkTest("program_head/contributors.php enforces department scoping", strpos($contributorsContent, "resolveUserDepartment") !== false);
 
-// 2. Admin 2 settings.php check
-checkTest("admin2/settings.php file exists", file_exists(__DIR__ . '/../admin2/settings.php'));
-$settingsContent = file_get_contents(__DIR__ . '/../admin2/settings.php');
-checkTest("admin2/settings.php enforces admin2 role", strpos($settingsContent, "requireRole('admin2')") !== false);
-checkTest("admin2/settings.php contains academic year configuration", strpos($settingsContent, "academic_year") !== false);
+// 2. Admin 2 settings.php check (Removed per user request)
+checkTest("admin2/settings.php file is removed", !file_exists(__DIR__ . '/../admin2/settings.php'));
 
-// 3. Dean sidebar and users.php check
-$sidebarContent = file_get_contents(__DIR__ . '/../includes/sidebar.php');
+// 3. Dean and Admin 2 sidebar and User Management parity check
+$sidebarRaw = file_get_contents(__DIR__ . '/../includes/sidebar.php');
+checkTest("Admin 2 sidebar does NOT contain System Settings", strpos($sidebarRaw, "settings.php") === false);
+
 $_SESSION['user_id'] = 4;
 $_SESSION['user_role'] = 'dean';
 $_SESSION['user_name'] = 'Dean Frederic';
 include __DIR__ . '/../includes/sidebar.php';
 $deanNavGroups = array_column($navs['dean'] ?? [], 'group');
-checkTest("Dean sidebar does NOT contain 'Administration' group", !in_array('Administration', $deanNavGroups, true));
+checkTest("Dean sidebar contains 'Administration' group", in_array('Administration', $deanNavGroups, true));
 
 $deanUsersContent = file_get_contents(__DIR__ . '/../dean/users.php');
-checkTest("dean/users.php restricts access and redirects away", strpos($deanUsersContent, "header('Location:") !== false);
+checkTest("dean/users.php enforces dean role", strpos($deanUsersContent, "requireRole('dean')") !== false);
+checkTest("dean/users.php renders user-management-view.php", strpos($deanUsersContent, "user-management-view.php") !== false);
 
 // 4. Faculty dashboard draft card check
 $facultyDashContent = file_get_contents(__DIR__ . '/../faculty/dashboard.php');
