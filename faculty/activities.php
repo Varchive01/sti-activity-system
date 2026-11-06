@@ -13,12 +13,10 @@ $page       = max(1,(int)($_GET['page'] ?? 1));
 $perPage    = 10;
 $offset     = ($page-1)*$perPage;
 
-$hasCollabTable = true;
-try {
-    $db->query("SELECT 1 FROM proposal_collaborators LIMIT 1");
-} catch (\PDOException $e) {
-    $hasCollabTable = false;
-}
+// Schema capability checks (Ensures zero 500 crashes if columns/tables are missing or pending migration)
+$hasCollabTable = hasCollaboratorsTable($db);
+$hasTasksTable  = hasFacultyTasksTable($db);
+$hasArchivedCol = hasActivityArchiveColumn($db);
 
 if ($user['role'] === 'program_head') {
     $userDept = resolveUserDepartment($db, $user);
@@ -46,26 +44,36 @@ if ($user['role'] === 'program_head') {
         $params = [$user['id']];
     }
 } else {
+    $facultyConditions = ["a.faculty_id = ?"];
+    $params = [$user['id']];
+
     if ($hasCollabTable) {
-        $where  = "(
-            a.faculty_id = ? 
-            OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active')
-            OR (
-                a.status IN ('approved', 'completed')
-                AND EXISTS (SELECT 1 FROM faculty_tasks ft WHERE ft.activity_id = a.id AND ft.assigned_user_id = ?)
-            )
-        )";
-        $params = [$user['id'], $user['id'], $user['id']];
-    } else {
-        $where  = "(a.faculty_id = ? OR (a.status IN ('approved', 'completed') AND EXISTS (SELECT 1 FROM faculty_tasks ft WHERE ft.activity_id = a.id AND ft.assigned_user_id = ?)))";
-        $params = [$user['id'], $user['id']];
+        $facultyConditions[] = "EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active')";
+        $params[] = $user['id'];
     }
+    if ($hasTasksTable) {
+        $facultyConditions[] = "(a.status IN ('approved', 'completed') AND EXISTS (SELECT 1 FROM faculty_tasks ft WHERE ft.activity_id = a.id AND ft.assigned_user_id = ?))";
+        $params[] = $user['id'];
+    }
+    $where = "(" . implode(" OR ", $facultyConditions) . ")";
 }
-if ($search)     { $where .= " AND a.title LIKE ?"; $params[] = "%$search%"; }
+
+if ($search) {
+    $where .= " AND a.title LIKE ?";
+    $params[] = "%$search%";
+}
+
 if ($filterStat === 'archived') {
-    $where .= " AND a.is_archived = 1";
+    if ($hasArchivedCol) {
+        $where .= " AND a.is_archived = 1";
+    } else {
+        // If archived column is not present on database, archive filter yields empty cleanly
+        $where .= " AND 1=0";
+    }
 } else {
-    $where .= " AND (a.is_archived IS NULL OR a.is_archived = 0)";
+    if ($hasArchivedCol) {
+        $where .= " AND (a.is_archived IS NULL OR a.is_archived = 0)";
+    }
     if ($filterStat) {
         if ($user['role'] === 'program_head' && in_array(strtolower($filterStat), ['draft', 'under_review', 'submitted', 'resubmitted'], true)) {
             $where .= " AND 1=0";
@@ -78,13 +86,43 @@ if ($filterStat === 'archived') {
     }
 }
 
-$total = $db->prepare("SELECT COUNT(*) FROM activities a WHERE $where");
-$total->execute($params); $totalCount = $total->fetchColumn();
-$totalPages = ceil($totalCount/$perPage);
+$totalCount = 0;
+$totalPages = 1;
+$activities = [];
 
-$acts = $db->prepare("SELECT a.* FROM activities a WHERE $where ORDER BY a.updated_at DESC LIMIT $perPage OFFSET $offset");
-$acts->execute($params);
-$activities = $acts->fetchAll();
+try {
+    $total = $db->prepare("SELECT COUNT(*) FROM activities a WHERE $where");
+    $total->execute($params);
+    $totalCount = (int)$total->fetchColumn();
+    $totalPages = max(1, (int)ceil($totalCount / $perPage));
+
+    $acts = $db->prepare("SELECT a.* FROM activities a WHERE $where ORDER BY a.updated_at DESC LIMIT $perPage OFFSET $offset");
+    $acts->execute($params);
+    $activities = $acts->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Faculty activities query fallback triggered: " . $e->getMessage());
+    try {
+        $safeWhere = "a.faculty_id = ?";
+        $safeParams = [$user['id']];
+        if ($search) {
+            $safeWhere .= " AND a.title LIKE ?";
+            $safeParams[] = "%$search%";
+        }
+        $safeTotal = $db->prepare("SELECT COUNT(*) FROM activities a WHERE $safeWhere");
+        $safeTotal->execute($safeParams);
+        $totalCount = (int)$safeTotal->fetchColumn();
+        $totalPages = max(1, (int)ceil($totalCount / $perPage));
+
+        $safeActs = $db->prepare("SELECT a.* FROM activities a WHERE $safeWhere ORDER BY a.updated_at DESC LIMIT $perPage OFFSET $offset");
+        $safeActs->execute($safeParams);
+        $activities = $safeActs->fetchAll();
+    } catch (\Throwable $e2) {
+        error_log("Fatal fallback failure on faculty activities: " . $e2->getMessage());
+        $totalCount = 0;
+        $totalPages = 1;
+        $activities = [];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">

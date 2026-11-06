@@ -7,15 +7,39 @@ requireRole('faculty', 'program_head');
 $user = currentUser();
 $db   = getDB();
 
+$hasCollabTable = hasCollaboratorsTable($db);
+$hasTasksTable  = hasFacultyTasksTable($db);
+
 if ($user['role'] === 'program_head') {
     $userDept = resolveUserDepartment($db, $user);
     $deptCond = buildDepartmentSqlCondition('u.department', $userDept);
-    $where = "WHERE ({$deptCond} OR a.faculty_id = {$user['id']} OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$user['id']} AND pc.status = 'active')) AND a.status IN ('approved', 'completed')";
+    $phConds = ["({$deptCond})", "a.faculty_id = {$user['id']}"];
+    if ($hasCollabTable) {
+        $phConds[] = "EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$user['id']} AND pc.status = 'active')";
+    }
+    $where = "WHERE (" . implode(" OR ", $phConds) . ") AND a.status IN ('approved', 'completed')";
 } else {
-    $where = "WHERE (a.faculty_id = {$user['id']} OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$user['id']} AND pc.status = 'active') OR EXISTS (SELECT 1 FROM faculty_tasks ft WHERE ft.activity_id = a.id AND ft.assigned_user_id = {$user['id']})) AND a.status IN ('approved', 'completed')";
+    $facConds = ["a.faculty_id = {$user['id']}"];
+    if ($hasCollabTable) {
+        $facConds[] = "EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$user['id']} AND pc.status = 'active')";
+    }
+    if ($hasTasksTable) {
+        $facConds[] = "EXISTS (SELECT 1 FROM faculty_tasks ft WHERE ft.activity_id = a.id AND ft.assigned_user_id = {$user['id']})";
+    }
+    $where = "WHERE (" . implode(" OR ", $facConds) . ") AND a.status IN ('approved', 'completed')";
 }
 
-$activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JOIN users u ON a.faculty_id=u.id $where ORDER BY a.updated_at DESC")->fetchAll();
+$activities = [];
+try {
+    $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JOIN users u ON a.faculty_id=u.id $where ORDER BY a.updated_at DESC")->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Faculty approved activities query fallback triggered: " . $e->getMessage());
+    try {
+        $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.faculty_id = {$user['id']} AND a.status IN ('approved', 'completed') ORDER BY a.updated_at DESC")->fetchAll();
+    } catch (\Throwable $e2) {
+        $activities = [];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">

@@ -19,10 +19,17 @@ if ($search) {
   $where .= " AND a.title LIKE ?";
   $params[] = "%$search%";
 }
+$hasArchivedCol = hasActivityArchiveColumn($db);
 if ($filterStat === 'archived') {
-  $where .= " AND a.is_archived = 1";
+  if ($hasArchivedCol) {
+    $where .= " AND a.is_archived = 1";
+  } else {
+    $where .= " AND 1=0";
+  }
 } else {
-  $where .= " AND (a.is_archived IS NULL OR a.is_archived = 0)";
+  if ($hasArchivedCol) {
+    $where .= " AND (a.is_archived IS NULL OR a.is_archived = 0)";
+  }
   if ($filterStat) {
     if (strtolower($filterStat) === 'draft') {
       $where .= " AND 1=0";

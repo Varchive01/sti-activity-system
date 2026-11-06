@@ -3098,3 +3098,57 @@ function ensureActivitiesArchiveSchema(PDO $db): void
         // Safe fallback if column exists or restricted
     }
 }
+
+/**
+ * Checks whether the `is_archived` column exists in the `activities` table.
+ * Caches result per-request and auto-heals if possible.
+ */
+function hasActivityArchiveColumn(PDO $db): bool
+{
+    static $hasCol = null;
+    if ($hasCol !== null) return $hasCol;
+
+    ensureActivitiesArchiveSchema($db);
+
+    try {
+        $db->query("SELECT is_archived FROM activities LIMIT 1");
+        $hasCol = true;
+    } catch (\Throwable $e) {
+        $hasCol = false;
+    }
+    return $hasCol;
+}
+
+/**
+ * Checks whether the `faculty_tasks` table exists and is queryable.
+ */
+function hasFacultyTasksTable(PDO $db): bool
+{
+    static $hasTasks = null;
+    if ($hasTasks !== null) return $hasTasks;
+
+    try {
+        $db->query("SELECT 1 FROM faculty_tasks LIMIT 1");
+        $hasTasks = true;
+    } catch (\Throwable $e) {
+        $hasTasks = false;
+    }
+    return $hasTasks;
+}
+
+/**
+ * Checks whether the `proposal_collaborators` table exists and is queryable.
+ */
+function hasCollaboratorsTable(PDO $db): bool
+{
+    static $hasCollab = null;
+    if ($hasCollab !== null) return $hasCollab;
+
+    try {
+        $db->query("SELECT 1 FROM proposal_collaborators LIMIT 1");
+        $hasCollab = true;
+    } catch (\Throwable $e) {
+        $hasCollab = false;
+    }
+    return $hasCollab;
+}
