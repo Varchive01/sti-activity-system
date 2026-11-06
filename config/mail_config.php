@@ -4,13 +4,14 @@
 function getMailConfig() {
     $envFile = __DIR__ . '/../.env';
     $config = [
-        'SMTP_HOST' => 'smtp.office365.com',
+        'MAIL_DRIVER' => 'smtp',
+        'SMTP_HOST' => 'smtp-relay.brevo.com',
         'SMTP_PORT' => 587,
         'SMTP_USERNAME' => '',
         'SMTP_PASSWORD' => '',
         'SMTP_ENCRYPTION' => 'tls',
         'FROM_EMAIL' => '',
-        'FROM_NAME' => 'STI Marikina Activity System',
+        'FROM_NAME' => 'STI Activity System',
         'OAUTH_CLIENT_ID' => '',
         'OAUTH_CLIENT_SECRET' => '',
         'OAUTH_TENANT_ID' => 'common',

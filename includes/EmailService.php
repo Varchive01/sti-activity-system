@@ -29,12 +29,8 @@ class EmailService {
         if (!$this->mail) {
             return;
         }
-        // If we are using OAuth, we use the Microsoft Graph API, so we skip PHPMailer setup
-        if (!empty($this->config['OAUTH_REFRESH_TOKEN'])) {
-            return; 
-        }
         // Skip SMTP setup if credentials are not configured
-        if (empty($this->config['SMTP_USERNAME']) || empty($this->config['FROM_EMAIL'])) {
+        if (empty($this->config['SMTP_HOST']) || empty($this->config['SMTP_USERNAME']) || empty($this->config['FROM_EMAIL'])) {
             return;
         }
         
@@ -45,9 +41,18 @@ class EmailService {
             $this->mail->SMTPAuth   = true;
             $this->mail->Username   = $this->config['SMTP_USERNAME'];
             $this->mail->Password   = $this->config['SMTP_PASSWORD'];
-            $this->mail->SMTPSecure = $this->config['SMTP_ENCRYPTION'];
-            $this->mail->Port       = $this->config['SMTP_PORT'];
-            $this->mail->Timeout    = 3;
+            
+            $enc = strtolower(trim((string)$this->config['SMTP_ENCRYPTION']));
+            if ($enc === 'tls' || $enc === 'starttls') {
+                $this->mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            } elseif ($enc === 'ssl' || $enc === 'smtps') {
+                $this->mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+            } else {
+                $this->mail->SMTPSecure = $this->config['SMTP_ENCRYPTION'];
+            }
+
+            $this->mail->Port       = (int)$this->config['SMTP_PORT'];
+            $this->mail->Timeout    = 10;
 
             // Recipients
             $this->mail->setFrom($this->config['FROM_EMAIL'], $this->config['FROM_NAME']);
@@ -108,11 +113,40 @@ class EmailService {
             $altBody = strip_tags(str_replace(['<br>', '<br/>'], "\n", $body));
         }
 
-        if (!empty($this->config['OAUTH_REFRESH_TOKEN'])) {
-            return $this->sendViaGraphAPI($recipientEmail, $recipientName, $subject, $body, $activityId, $notificationType);
-        } else {
-            return $this->sendViaPHPMailer($recipientEmail, $recipientName, $subject, $body, $altBody, $activityId, $notificationType);
+        $mailDriver = strtolower(trim((string)($this->config['MAIL_DRIVER'] ?? 'smtp')));
+        $hasSmtp    = !empty($this->config['SMTP_HOST']) && !empty($this->config['SMTP_USERNAME']) && !empty($this->config['SMTP_PASSWORD']);
+        $hasGraph   = !empty($this->config['OAUTH_REFRESH_TOKEN']);
+
+        // 1. Primary: Brevo SMTP (if configured or explicit driver)
+        if ($mailDriver === 'smtp' || ($hasSmtp && $mailDriver !== 'graph')) {
+            $sent = $this->sendViaPHPMailer($recipientEmail, $recipientName, $subject, $body, $altBody, $activityId, $notificationType);
+            if ($sent) {
+                return true;
+            }
+            // Seamless redundant fallback: Microsoft Graph API
+            if ($hasGraph) {
+                error_log("Brevo SMTP sending failed for {$recipientEmail}. Initiating redundant Microsoft Graph API fallback...");
+                return $this->sendViaGraphAPI($recipientEmail, $recipientName, $subject, $body, $activityId, $notificationType);
+            }
+            return false;
         }
+
+        // 2. Secondary: Microsoft Graph API as primary driver
+        if ($hasGraph) {
+            $sent = $this->sendViaGraphAPI($recipientEmail, $recipientName, $subject, $body, $activityId, $notificationType);
+            if ($sent) {
+                return true;
+            }
+            // Fallback to Brevo SMTP
+            if ($hasSmtp) {
+                error_log("Microsoft Graph API sending failed for {$recipientEmail}. Initiating Brevo SMTP fallback...");
+                return $this->sendViaPHPMailer($recipientEmail, $recipientName, $subject, $body, $altBody, $activityId, $notificationType);
+            }
+            return false;
+        }
+
+        // 3. Fallback: PHPMailer standalone
+        return $this->sendViaPHPMailer($recipientEmail, $recipientName, $subject, $body, $altBody, $activityId, $notificationType);
     }
 
     /**
