@@ -5982,9 +5982,9 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     }
   </script>
   <!-- AI Evaluation Preview Modal -->
-  <div id="previewModal" class="modal fade" tabindex="-1" style="display: none;">
+  <div id="previewModal" class="modal fade" tabindex="-1" style="display: none; background:rgba(10,22,40,0.6); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);">
     <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 600px;">
-      <div class="modal-content" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: none;">
+      <div class="modal-content" style="border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.3); border: 1px solid var(--border, #cbd5e1);">
         <div class="modal-header" style="border-bottom: 1px solid var(--border); padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;">
           <h5 class="modal-title" style="font-size: 1rem; font-weight: 700; color: var(--text-main); margin: 0;">👁 Preview Evaluation Tool</h5>
           <button type="button" class="btn-close" onclick="closePreviewModal()" style="background: none; border: none; font-size: 1.25rem; cursor: pointer; color: var(--text-muted);">✕</button>
@@ -6009,9 +6009,9 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     </div>
   </div>
   <!-- ── Floor Plan Requirement Modal ── -->
-  <div class="modal fade" id="floorPlanRequirementModal" tabindex="-1" aria-labelledby="fpReqModalLabel" aria-hidden="true" style="display:none; background:rgba(0,0,0,0.5);">
+  <div class="modal fade" id="floorPlanRequirementModal" tabindex="-1" aria-labelledby="fpReqModalLabel" aria-hidden="true" style="display:none; background:rgba(10,22,40,0.6); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);">
     <div class="modal-dialog modal-dialog-centered" style="margin: 1.75rem auto; max-width: 520px;">
-      <div class="modal-content" style="border-radius:12px; overflow:hidden; border:none; box-shadow:0 12px 32px rgba(0,0,0,0.2); background:var(--bg-card, #fff);">
+      <div class="modal-content" style="border-radius:12px; overflow:hidden; border:1px solid var(--border, #cbd5e1); box-shadow:0 16px 40px rgba(0,0,0,0.3); background:var(--bg-card, #fff);">
         <div class="modal-header" style="padding: 16px 20px; border-bottom:1px solid var(--border, #e2e8f0); display:flex; align-items:center; justify-content:space-between;">
           <h5 class="modal-title fw-bold" id="fpReqModalLabel" style="font-size:1.1rem; margin:0; display:flex; align-items:center; gap:8px; color:var(--text-main, #1e293b);">
             🗺️ Floor Plan Requirement
@@ -6038,9 +6038,9 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     </div>
   </div>
   <!-- ── Initial Collaborator Invitation Modal (Prompt before Proposal Form) ── -->
-  <div class="modal fade" id="initCollabPromptModal" tabindex="-1" aria-labelledby="initCollabPromptLabel" aria-hidden="true" style="display:none; background:rgba(0,0,0,0.65); z-index:9999;">
+  <div class="modal fade" id="initCollabPromptModal" tabindex="-1" aria-labelledby="initCollabPromptLabel" aria-hidden="true" style="display:none; background:rgba(10,22,40,0.6); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); z-index:9999;">
     <div class="modal-dialog modal-dialog-centered" style="margin: 1.75rem auto; max-width: 480px;">
-      <div class="modal-content" style="border-radius:14px; overflow:hidden; border:none; box-shadow:0 16px 40px rgba(0,0,0,0.25); background:var(--bg-card, #fff);">
+      <div class="modal-content" style="border-radius:14px; overflow:hidden; border:1px solid var(--border, #cbd5e1); box-shadow:0 20px 48px rgba(0,0,0,0.35); background:var(--bg-card, #fff);">
         <div class="modal-header" style="padding: 18px 24px; border-bottom:1px solid var(--border, #e2e8f0); display:flex; align-items:center; justify-content:space-between; background:var(--bg-base, #f8fafc);">
           <h5 class="modal-title fw-bold" id="initCollabPromptLabel" style="font-size:1.15rem; margin:0; display:flex; align-items:center; gap:8px; color:var(--text-main, #1e293b);">
             👥 Add Collaborators?
@@ -6067,9 +6067,9 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
   </div>
 
   <!-- ── Manage Proposal Collaborators Modal ── -->
-  <div class="modal fade" id="collaboratorsModal" tabindex="-1" aria-labelledby="collaboratorsModalLabel" aria-hidden="true" style="display:none; background:rgba(0,0,0,0.65); z-index:9999;">
+  <div class="modal fade" id="collaboratorsModal" tabindex="-1" aria-labelledby="collaboratorsModalLabel" aria-hidden="true" style="display:none; background:rgba(10,22,40,0.6); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); z-index:9999;">
     <div class="modal-dialog modal-dialog-centered modal-lg" style="margin: 1.75rem auto; max-width: 680px;">
-      <div class="modal-content" style="border-radius:12px; overflow:hidden; border:none; box-shadow:0 12px 32px rgba(0,0,0,0.2); background:var(--bg-card, #fff);">
+      <div class="modal-content" style="border-radius:12px; overflow:hidden; border:1px solid var(--border, #cbd5e1); box-shadow:0 16px 40px rgba(0,0,0,0.3); background:var(--bg-card, #fff);">
         <div class="modal-header" style="padding: 16px 20px; border-bottom:1px solid var(--border, #e2e8f0); display:flex; align-items:center; justify-content:space-between;">
           <h5 class="modal-title fw-bold" id="collaboratorsModalLabel" style="font-size:1.1rem; margin:0; display:flex; align-items:center; gap:8px; color:var(--text-main, #1e293b);">
             👥 Manage Proposal Collaborators

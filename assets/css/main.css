@@ -5660,9 +5660,41 @@ html:not([data-theme="dark"]) td {
 }
 
 /* Modals, Popups, and System Dialogs */
+.modal.fade.show,
+.modal[style*="display: block"],
+.modal[style*="display:block"] {
+  background: rgba(10, 22, 40, 0.6) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
 [data-theme="dark"] .modal,
+[data-theme="dark"] .modal.fade.show,
+[data-theme="dark"] .modal[style*="display: block"],
+[data-theme="dark"] .modal[style*="display:block"] {
+  background: rgba(4, 9, 20, 0.65) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+.modal-backdrop.show {
+  background-color: rgba(10, 22, 40, 0.6) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  opacity: 1 !important;
+}
+
+[data-theme="dark"] .modal-backdrop.show {
+  background-color: rgba(4, 9, 20, 0.65) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+[data-theme="dark"] .modal-dialog {
+  background: transparent !important;
+}
+
 [data-theme="dark"] .modal-content,
-[data-theme="dark"] .modal-dialog,
 [data-theme="dark"] .modal-body,
 [data-theme="dark"] .um-modal,
 [data-theme="dark"] .sti-modal-card {
