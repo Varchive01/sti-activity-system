@@ -416,7 +416,7 @@ function renderAiValidationSection(int $proposalId, bool $showReviewButton = tru
         margin-bottom: 22px;
         border-radius: 12px;
         border: 1.5px solid var(--border, #E2E8F4);
-        background: linear-gradient(145deg, var(--bg-base, #F4F6FB) 0%, #FFFFFF 100%);
+        background: var(--bg-card, #FFFFFF);
         box-shadow: var(--shadow, 0 4px 24px rgba(10, 22, 40, 0.08));
         overflow: hidden;
         font-family: 'Plus Jakarta Sans', sans-serif;
@@ -466,14 +466,14 @@ function renderAiValidationSection(int $proposalId, bool $showReviewButton = tru
             </div>
         </div>
 
-        <div style="padding: 18px 20px; color: #1E293B;">
+        <div class="ai-validation-body" style="padding: 18px 20px; color: var(--text-main, #1E293B);">
             <?php if ($isUnavailable): ?>
-                <div style="
-                    background: #FEF3C7;
-                    border: 1px solid #FDE68A;
+                <div class="ai-val-unavailable-box" style="
+                    background: var(--bg-warning-subtle, #FEF3C7);
+                    border: 1px solid var(--border-warning, #FDE68A);
                     border-radius: 8px;
                     padding: 12px 14px;
-                    color: #92400E;
+                    color: var(--text-warning, #92400E);
                     font-size: 0.85rem;
                     font-weight: 600;
                     margin-bottom: 14px;
@@ -483,17 +483,17 @@ function renderAiValidationSection(int $proposalId, bool $showReviewButton = tru
             <?php else: ?>
                 <!-- Flagged Issues -->
                 <div style="margin-bottom: 16px;">
-                    <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; margin-bottom: 6px;">
+                    <div class="ai-val-label" style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted, #475569); margin-bottom: 6px;">
                         Flagged Issues
                     </div>
                     <?php if (!empty($issues)): ?>
-                        <ul style="margin: 0; padding-left: 20px; font-size: 0.88rem; color: #B91C1C; line-height: 1.5;">
+                        <ul style="margin: 0; padding-left: 20px; font-size: 0.88rem; color: #EF4444; line-height: 1.5;">
                             <?php foreach ($issues as $issue): ?>
                                 <li style="margin-bottom: 4px; font-weight: 500;"><?= htmlspecialchars((string)$issue) ?></li>
                             <?php endforeach; ?>
                         </ul>
                     <?php else: ?>
-                        <div style="font-size: 0.88rem; color: #059669; font-weight: 600;">
+                        <div style="font-size: 0.88rem; color: #10B981; font-weight: 600;">
                             ✓ No missing required fields or critical issues flagged.
                         </div>
                     <?php endif; ?>
@@ -502,10 +502,10 @@ function renderAiValidationSection(int $proposalId, bool $showReviewButton = tru
                 <!-- Suggestions -->
                 <?php if (!empty($suggestions)): ?>
                 <div style="margin-bottom: 16px;">
-                    <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; margin-bottom: 6px;">
+                    <div class="ai-val-label" style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted, #475569); margin-bottom: 6px;">
                         AI Suggestions for Reviewer
                     </div>
-                    <ul style="margin: 0; padding-left: 20px; font-size: 0.88rem; color: #334155; line-height: 1.5;">
+                    <ul class="ai-val-suggestions-list" style="margin: 0; padding-left: 20px; font-size: 0.88rem; color: var(--text-secondary, #334155); line-height: 1.5;">
                         <?php foreach ($suggestions as $sugg): ?>
                             <li style="margin-bottom: 4px;"><?= htmlspecialchars((string)$sugg) ?></li>
                         <?php endforeach; ?>
@@ -520,7 +520,7 @@ function renderAiValidationSection(int $proposalId, bool $showReviewButton = tru
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                border-top: 1px solid #E2E8F0;
+                border-top: 1px solid var(--border, #E2E8F0);
                 padding-top: 14px;
                 margin-top: 6px;
                 flex-wrap: wrap;

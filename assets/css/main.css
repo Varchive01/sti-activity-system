@@ -5744,3 +5744,144 @@ html:not([data-theme="dark"]) td {
   filter: brightness(0.92);
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
+
+/* ── Global AI Evaluation Questions & Parity Architecture ── */
+.ai-questions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ai-question-item {
+  padding: 12px;
+  background: var(--bg-card-elevated, #F8FAFC);
+  border: 1px solid var(--border, #E2E8F0);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ai-question-item .ai-question-text {
+  font-size: 0.825rem;
+  font-weight: 500;
+  color: var(--text-main, #0A1628);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.ai-question-item .ai-question-num {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted, #64748B);
+}
+
+[data-theme="dark"] .ai-question-item,
+[data-theme="dark"] .ai-questions-list .ai-question-item,
+[data-theme="dark"] div.ai-question-item {
+  background: #0B1524 !important;
+  border-color: #1E2D45 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+}
+
+[data-theme="dark"] .ai-question-item .ai-question-text,
+[data-theme="dark"] .ai-question-item div[style*="font-size: 0.825rem"] {
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .ai-question-item .ai-question-num,
+[data-theme="dark"] .ai-question-item span[style*="color: var(--text-muted)"],
+[data-theme="dark"] .ai-question-item span[style*="color: #64748b"] {
+  color: #94A3B8 !important;
+}
+
+/* ── Global AI Proposal Validation Card Parity Architecture ── */
+.ai-validation-card {
+  margin-bottom: 22px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border, #E2E8F4);
+  background: var(--bg-card, #FFFFFF);
+  box-shadow: var(--shadow, 0 4px 24px rgba(10, 22, 40, 0.08));
+  overflow: hidden;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ai-validation-card .ai-validation-body {
+  padding: 18px 20px;
+  color: var(--text-main, #0A1628);
+}
+
+.ai-validation-card .ai-val-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted, #475569);
+  margin-bottom: 6px;
+}
+
+.ai-validation-card .ai-val-suggestions-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 0.88rem;
+  color: var(--text-secondary, #334155);
+  line-height: 1.5;
+}
+
+/* Dark Mode Overrides for AI Proposal Validation Card */
+[data-theme="dark"] .ai-validation-card,
+[data-theme="dark"] div.ai-validation-card,
+[data-theme="dark"] div[id^="ai-validation-box-"] {
+  background: #0F1B2E !important;
+  border-color: #1E2D45 !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45) !important;
+}
+
+[data-theme="dark"] .ai-validation-card > div:first-child,
+[data-theme="dark"] div[id^="ai-validation-box-"] > div:first-child {
+  background: #15243C !important;
+  border-bottom: 1px solid #1E2D45 !important;
+}
+
+[data-theme="dark"] .ai-validation-card .ai-validation-body,
+[data-theme="dark"] .ai-validation-card div[style*="padding: 18px 20px"] {
+  background: #0F1B2E !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .ai-validation-card .ai-val-label,
+[data-theme="dark"] .ai-validation-card div[style*="color: #475569"] {
+  color: #94A3B8 !important;
+}
+
+[data-theme="dark"] .ai-validation-card .ai-val-suggestions-list,
+[data-theme="dark"] .ai-validation-card .ai-val-suggestions-list li,
+[data-theme="dark"] .ai-validation-card ul[style*="color: #334155"],
+[data-theme="dark"] .ai-validation-card ul[style*="color: #334155"] li,
+[data-theme="dark"] .ai-validation-card ul li {
+  color: #CBD5E1 !important;
+}
+
+[data-theme="dark"] .ai-validation-card div[style*="border-top: 1px solid #E2E8F0"],
+[data-theme="dark"] .ai-validation-card div[style*="border-top: 1px solid var(--border)"] {
+  border-top-color: #1E2D45 !important;
+}
+
+[data-theme="dark"] .ai-validation-card span[style*="color: #64748B"] {
+  color: #8899B2 !important;
+}
+
+/* Fallback protection for any container with subtle/off-white background in dark mode */
+[data-theme="dark"] div[style*="background: var(--bg-subtle"],
+[data-theme="dark"] div[style*="background: #f8f9fa"],
+[data-theme="dark"] div[style*="background:#f8f9fa"],
+[data-theme="dark"] div[style*="background: #f8fafc"],
+[data-theme="dark"] div[style*="background:#f8fafc"] {
+  background: #0B1524 !important;
+  border-color: #1E2D45 !important;
+  color: #FFFFFF !important;
+}

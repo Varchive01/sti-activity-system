@@ -641,12 +641,12 @@ function renderAiEvaluationQuestions($jsonStr) {
         $typeLabel = $isShort ? 'Short Answer' : ($isOpen ? 'Open-ended' : 'Rating Scale');
         $badgeClass = ($isShort || $isOpen) ? 'badge-secondary' : 'badge-info';
         
-        $html .= '<div class="ai-question-item" style="padding: 12px; background: var(--bg-subtle, #f8f9fa); border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.01);">';
+        $html .= '<div class="ai-question-item" style="padding: 12px; background: var(--bg-card-elevated, var(--bg-card, #f8f9fa)); border: 1px solid var(--border, #e5e7eb); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.01);">';
         $html .= '  <div style="display: flex; justify-content: space-between; align-items: center;">';
-        $html .= '    <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted, #64748b);">Question ' . ($idx + 1) . '</span>';
+        $html .= '    <span class="ai-question-num" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted, #64748b);">Question ' . ($idx + 1) . '</span>';
         $html .= '    <span class="badge ' . $badgeClass . '" style="font-size: 0.65rem; padding: 3px 6px; font-weight: 600; border-radius: 4px; display: inline-block;">' . $typeLabel . '</span>';
         $html .= '  </div>';
-        $html .= '  <div style="font-size: 0.825rem; font-weight: 500; color: var(--text, #1e293b); line-height: 1.4; word-break: break-word;">' . $questionText . '</div>';
+        $html .= '  <div class="ai-question-text" style="font-size: 0.825rem; font-weight: 500; color: var(--text-main, #0A1628); line-height: 1.4; word-break: break-word;">' . $questionText . '</div>';
         $html .= '</div>';
     }
     $html .= '</div>';

@@ -42,11 +42,25 @@ checkThemeTest("Component CSS", "Dark mode hover row highlights covered", strpos
 checkThemeTest("Component CSS", "Dark mode form inputs styled with #0B1524", strpos($css, '[data-theme="dark"] .form-control') !== false);
 checkThemeTest("Component CSS", "Dark mode modals & dialogs covered", strpos($css, '[data-theme="dark"] .modal') !== false);
 checkThemeTest("Component CSS", "Dark mode calendar event popup protected", strpos($css, '[data-theme="dark"] .event-popup') !== false);
+checkThemeTest("Component CSS", "Dark mode AI questions styled with #0B1524", strpos($css, '[data-theme="dark"] .ai-question-item') !== false);
+checkThemeTest("Component CSS", "Dark mode AI validation card styled with #0F1B2E", strpos($css, '[data-theme="dark"] .ai-validation-card') !== false);
 
 // 3. Inline Style Override Coverage
 checkThemeTest("Inline Overrides", "Dark mode overrides for hardcoded #ffffff", strpos($css, 'div[style*="background: #ffffff"]') !== false);
 checkThemeTest("Inline Overrides", "Dark mode overrides for hardcoded #fff5f5 (danger)", strpos($css, 'div[style*="background:#fff5f5"]') !== false);
 checkThemeTest("Inline Overrides", "Dark mode overrides for hardcoded #fffbeb (warning)", strpos($css, 'div[style*="background:#fffbeb"]') !== false);
+checkThemeTest("Inline Overrides", "Dark mode overrides for #f8f9fa and #f8fafc subtle containers", strpos($css, 'div[style*="background: #f8f9fa"]') !== false);
+
+// 4. Component Function Semantic Token Verification
+require_once __DIR__ . '/../includes/functions.php';
+$sampleQuestions = json_encode([['question' => 'How clear were the objectives?', 'type' => 'rating']]);
+$evalHtml = renderAiEvaluationQuestions($sampleQuestions);
+checkThemeTest("Semantic Tokens", "renderAiEvaluationQuestions uses var(--text-main)", strpos($evalHtml, 'var(--text-main') !== false);
+checkThemeTest("Semantic Tokens", "renderAiEvaluationQuestions uses elevated card surface", strpos($evalHtml, 'var(--bg-card-elevated') !== false);
+
+$validatorCode = file_get_contents(__DIR__ . '/../includes/ai/proposal_validator.php');
+checkThemeTest("Semantic Tokens", "renderAiValidationSection uses var(--bg-card)", strpos($validatorCode, 'background: var(--bg-card') !== false);
+checkThemeTest("Semantic Tokens", "renderAiValidationSection uses var(--text-main)", strpos($validatorCode, 'color: var(--text-main') !== false);
 
 // 4. Faculty Pages Scan
 $facultyPages = glob(__DIR__ . '/../faculty/*.php');
