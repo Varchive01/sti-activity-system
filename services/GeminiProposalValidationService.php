@@ -24,190 +24,19 @@ class GeminiProposalValidationService
      */
     public function validateProposal(array $proposal): array
     {
-        if (empty($this->apiKey)) {
-            error_log("GeminiProposalValidationService: No API Key configured. Using fallback analysis.");
-            return $this->getFallbackEvaluation($proposal);
-        }
-
-        $prompt = $this->buildPrompt($proposal);
-
-        $modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
-        $data = [
-            'contents' => [
-                [
-                    'parts' => [
-                        ['text' => $prompt]
-                    ]
-                ]
-            ],
-            'generationConfig' => [
-                'temperature' => 0.2,
-                'topP' => 0.8,
-                'maxOutputTokens' => 4000,
-                'responseMimeType' => 'application/json'
-            ]
-        ];
-
-        $success = false;
-        $response = '';
-        $httpCode = 0;
-        $curlError = '';
-
-        foreach ($modelsToTry as $modelName) {
-            $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $modelName . ':generateContent?key=' . urlencode($this->apiKey);
-            $maxAttempts = 2;
-            $attempt = 0;
-
-            while ($attempt < $maxAttempts) {
-                $attempt++;
-                $ch = curl_init($url);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-                curl_setopt($ch, CURLOPT_TIMEOUT, 40);
-                curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-
-                if (file_exists('C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem')) {
-                    curl_setopt($ch, CURLOPT_CAINFO, 'C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem');
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-                } elseif (file_exists('C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem')) {
-                    curl_setopt($ch, CURLOPT_CAINFO, 'C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem');
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-                } else {
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        // 100% hardcoded, rule-based deterministic evaluation (independent of Gemini API)
+        if (function_exists('autoCapitalizeText')) {
+            $capFields = ['title', 'theme', 'venue', 'venue_address', 'general_objectives', 'specific_objectives', 'involved_subjects', 'rationale', 'description'];
+            foreach ($capFields as $cf) {
+                if (isset($proposal[$cf]) && is_string($proposal[$cf])) {
+                    $proposal[$cf] = autoCapitalizeText($proposal[$cf]);
                 }
-
-                $response = curl_exec($ch);
-                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $curlError = curl_error($ch);
-                @curl_close($ch);
-
-                if (!$curlError && $httpCode === 200) {
-                    $success = true;
-                    break 2; // Success! Break both loops.
-                }
-
-                // Retry on 503 or 429
-                if ($httpCode === 503 || $httpCode === 429 || strpos($response, 'UNAVAILABLE') !== false) {
-                    if ($attempt < $maxAttempts) {
-                        $sleepSeconds = 2;
-                        error_log("Gemini API Model $modelName returned HTTP $httpCode in Proposal Validation. Attempt $attempt/$maxAttempts. Retrying in {$sleepSeconds}s...");
-                        sleep($sleepSeconds);
-                        continue;
-                    }
-                }
-                break; // For other errors (like 400), try next model directly
             }
-            error_log("Gemini API Model $modelName failed with HTTP $httpCode in Proposal Validation. Trying fallback model...");
         }
 
-        if (!$success) {
-            error_log("Gemini API Proposal Validation failed all models. Last HTTP Code: $httpCode. Error: " . ($curlError ?: $response));
-            return $this->getFallbackEvaluation($proposal);
-        }
-
-        try {
-            $jsonResponse = json_decode($response, true);
-            $rawText = $jsonResponse['candidates'][0]['content']['parts'][0]['text'] ?? '';
-
-            if (empty($rawText)) {
-                error_log("GeminiProposalValidationService: Empty candidates returned from Gemini API.");
-                return $this->getFallbackEvaluation($proposal);
-            }
-
-            $rawText = $this->stripMarkdownCodeBlocks($rawText);
-            $parsed = json_decode($rawText, true);
-
-            if (!is_array($parsed)) {
-                error_log("GeminiProposalValidationService: Could not decode JSON from model response: " . $rawText);
-                return $this->getFallbackEvaluation($proposal);
-            }
-
-            return $this->normalizeResponse($parsed, $proposal);
-
-        } catch (Exception $e) {
-            error_log("GeminiProposalValidationService Exception: " . $e->getMessage());
-            return $this->getFallbackEvaluation($proposal);
-        }
+        return $this->getFallbackEvaluation($proposal);
     }
 
-    /**
-     * Synthesizes a comprehensive proposal description from all relevant wizard fields
-     * (since the 9-step proposal form uses rationale, guidelines_*, and floor_plan_notes instead of a single description field).
-     */
-    public function extractProposalDescription(array $proposal): string
-    {
-        $desc = trim((string)($proposal['description'] ?? ''));
-        if ($desc === '') {
-            $parts = array_filter([
-                trim((string)($proposal['rationale'] ?? '')),
-                trim((string)($proposal['guidelines_mechanics'] ?? '')),
-                trim((string)($proposal['guidelines_criteria'] ?? '')),
-                trim((string)($proposal['guidelines_scoring'] ?? '')),
-                trim((string)($proposal['guidelines_awards'] ?? '')),
-                trim((string)($proposal['floor_plan_notes'] ?? ''))
-            ], fn($v) => $v !== '');
-            $desc = trim(implode(' ', $parts));
-        }
-        return $desc;
-    }
-
-    /**
-     * Extracts structured KPI entries across all supported form and database formats.
-     */
-    public function extractProposalKpiItems(array $proposal): array
-    {
-        $kpiItems = [];
-        if (!empty($proposal['kpis']) && is_array($proposal['kpis'])) {
-            foreach ($proposal['kpis'] as $k) {
-                $ind = trim((string)($k['indicator'] ?? ($k['criteria'] ?? '')));
-                $target = trim((string)($k['target_metric'] ?? ($k['target'] ?? '')));
-                $method = trim((string)($k['evaluation_method'] ?? ($k['method'] ?? '')));
-                if ($ind !== '') {
-                    $kpiItems[] = [
-                        'indicator' => $ind,
-                        'target'    => $target ?: 'Measured in post-event evaluation',
-                        'method'    => $method ?: 'Evaluation Survey / Attendance'
-                    ];
-                }
-            }
-        }
-        if (!empty($proposal['kpi_indicator']) && is_array($proposal['kpi_indicator'])) {
-            foreach ($proposal['kpi_indicator'] as $idx => $ind) {
-                $ind = trim((string)$ind);
-                if ($ind === '') continue;
-                $target = trim((string)($proposal['kpi_target'][$idx] ?? ''));
-                $method = trim((string)($proposal['kpi_method'][$idx] ?? ''));
-                $kpiItems[] = [
-                    'indicator' => $ind,
-                    'target'    => $target ?: 'Measured in post-event evaluation',
-                    'method'    => $method ?: 'Evaluation Survey / Attendance'
-                ];
-            }
-        }
-        if (!empty($proposal['kpi_criteria']) && is_array($proposal['kpi_criteria'])) {
-            foreach ($proposal['kpi_criteria'] as $idx => $crit) {
-                $crit = trim((string)$crit);
-                if ($crit === '') continue;
-                $rating = trim((string)($proposal['kpi_rating'][$idx] ?? ($proposal['kpi_target'][$idx] ?? '')));
-                $method = trim((string)($proposal['kpi_method'][$idx] ?? 'Evaluation Survey'));
-                $kpiItems[] = [
-                    'indicator' => $crit,
-                    'target'    => $rating ?: '85% satisfaction',
-                    'method'    => $method
-                ];
-            }
-        }
-        return $kpiItems;
-    }
-
-    /**
-     * Gets a normalized canonical representation of proposal fields relevant to AI validation.
-     */
     public function getCanonicalProposalPayload(array $proposal): array
     {
         $desc = trim((string)($proposal['description'] ?? ''));

@@ -5911,3 +5911,51 @@ html:not([data-theme="dark"]) td {
   border-color: #1E2D45 !important;
   color: #FFFFFF !important;
 }
+
+/* ── Hardcoded Rule-Based Proposal Validation Highlighting & Messages ── */
+.rule-field-error,
+.form-control.rule-field-error,
+textarea.rule-field-error,
+select.rule-field-error,
+input.rule-field-error {
+  border: 2px solid #EF4444 !important;
+  background-color: rgba(239, 68, 68, 0.05) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+[data-theme="dark"] .rule-field-error,
+[data-theme="dark"] .form-control.rule-field-error,
+[data-theme="dark"] textarea.rule-field-error,
+[data-theme="dark"] select.rule-field-error,
+[data-theme="dark"] input.rule-field-error {
+  border: 2px solid #F87171 !important;
+  background-color: rgba(239, 68, 68, 0.16) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3) !important;
+}
+
+.rule-error-msg {
+  color: #DC2626;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+[data-theme="dark"] .rule-error-msg {
+  color: #F87171 !important;
+}
+
+.rule-section-error {
+  border: 1.5px solid #EF4444 !important;
+  border-radius: 8px;
+  padding: 10px;
+  background-color: rgba(239, 68, 68, 0.03);
+}
+
+[data-theme="dark"] .rule-section-error {
+  border-color: #F87171 !important;
+  background-color: rgba(239, 68, 68, 0.12) !important;
+}

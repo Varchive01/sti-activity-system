@@ -655,6 +655,41 @@ function renderAiEvaluationQuestions($jsonStr) {
 }
 
 /**
+ * Automatically applies rule-based text capitalization:
+ * 1. Corrects every occurrence of the name "john" to "John" regardless of position, count, or sentence length.
+ * 2. Ensures every sentence begins with a capital letter (start of text, after . ? ! and line breaks).
+ *
+ * @param string|null $text
+ * @return string
+ */
+function autoCapitalizeText(?string $text): string
+{
+    if ($text === null || $text === '') {
+        return '';
+    }
+
+    // 1. Correct every occurrence of the name "john" to "John" (case-insensitive word boundary)
+    $text = preg_replace('/\bjohn\b/i', 'John', $text);
+
+    // 2. Capitalize first letter of string (skipping leading whitespace, quotes, brackets, bullets)
+    $text = preg_replace_callback('/^(\s*["\'“‘(\[-]*)(\p{L})/u', function($m) {
+        return $m[1] . mb_strtoupper($m[2], 'UTF-8');
+    }, $text);
+
+    // 3. Capitalize first letter after terminal punctuation (. ? !) followed by whitespace
+    $text = preg_replace_callback('/([.?!]\s+["\'“‘(\[-]*)(\p{L})/u', function($m) {
+        return $m[1] . mb_strtoupper($m[2], 'UTF-8');
+    }, $text);
+
+    // 4. Capitalize first letter after newlines / bullet points
+    $text = preg_replace_callback('/([\r\n]+\s*[-*•\d.)\]]*\s*["\'“‘(\[-]*)(\p{L})/u', function($m) {
+        return $m[1] . mb_strtoupper($m[2], 'UTF-8');
+    }, $text);
+
+    return $text;
+}
+
+/**
  * Normalizes a time string into minutes since midnight (0 to 1439).
  * Supports 12-hour format ("10:00 AM", "10:00 am", "12:00 AM", "12:00 PM")
  * and 24-hour format ("10:00", "14:00", "14:00:00", "00:00").

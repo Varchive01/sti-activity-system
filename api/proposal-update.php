@@ -10,6 +10,19 @@ requireRole('faculty', 'program_head');
 $user   = currentUser();
 $db     = getDB();
 $id     = (int)($_POST['activity_id'] ?? 0);
+// Apply global automatic capitalization rules (John correction and sentence capitalization)
+$textFieldsToCapitalize = [
+    'title', 'theme', 'venue', 'venue_address',
+    'general_objectives', 'specific_objectives',
+    'involved_subjects', 'rationale', 'description',
+    'floor_plan_notes'
+];
+foreach ($textFieldsToCapitalize as $tf) {
+    if (isset($_POST[$tf]) && is_string($_POST[$tf]) && function_exists('autoCapitalizeText')) {
+        $_POST[$tf] = autoCapitalizeText($_POST[$tf]);
+    }
+}
+
 $action = $_POST['action'] ?? 'draft';
 
 $isAjax = (
@@ -434,43 +447,18 @@ if ($action === 'submit') {
         unset($_POST['kpi_criteria']);
     }
 
-    // Server-side AI completeness & alignment validation gating
-    require_once __DIR__ . '/../services/GeminiProposalValidationService.php';
-    require_once __DIR__ . '/../includes/ai/proposal_validator.php';
+    // Server-side rule-based completeness & consistency validation gating (100% offline)
+    $ruleTitle     = trim((string)($_POST['title'] ?? ''));
+    $ruleGenObj    = trim((string)($_POST['general_objectives'] ?? ''));
+    $ruleSpecObj   = trim((string)($_POST['specific_objectives'] ?? ''));
+    $ruleRationale = trim((string)($_POST['rationale'] ?? ''));
+    $ruleVenue     = trim((string)($_POST['venue'] ?? ''));
+    $ruleDate      = trim((string)($_POST['event_date'] ?? ''));
+    $ruleStart     = trim((string)($_POST['start_time'] ?? ''));
+    $ruleEnd       = trim((string)($_POST['end_time'] ?? ''));
 
-    $aiService = new GeminiProposalValidationService(getGeminiApiKeySecure());
-    $canonicalPayload = $aiService->getCanonicalProposalPayload($_POST);
-    $currentHash = $aiService->calculateProposalHash($canonicalPayload);
-    $submittedHash = trim((string)($_POST['ai_validation_hash'] ?? ''));
-
-    // Resolve cached validation or perform on-the-fly fallback validation if session cache expired
-    $cachedValidation = null;
-    if (isset($_SESSION['last_ai_validation'][$currentHash]['result'])) {
-        $cachedValidation = $_SESSION['last_ai_validation'][$currentHash]['result'];
-    } elseif ($submittedHash !== '' && isset($_SESSION['last_ai_validation'][$submittedHash]['result'])) {
-        $cachedValidation = $_SESSION['last_ai_validation'][$submittedHash]['result'];
-    } else {
-        $cachedValidation = $aiService->validateProposal($_POST);
-        $_SESSION['last_ai_validation'][$currentHash] = [
-            'result'    => $cachedValidation,
-            'timestamp' => time()
-        ];
-    }
-
-    $hasCriticalAiIssues = false;
-    if (is_array($cachedValidation) && !empty($cachedValidation['sections']) && is_array($cachedValidation['sections'])) {
-        foreach ($cachedValidation['sections'] as $sec) {
-            if (is_array($sec) && ($sec['status'] ?? '') === 'error') {
-                $hasCriticalAiIssues = true;
-                break;
-            }
-        }
-    } else {
-        $hasCriticalAiIssues = true;
-    }
-
-    if ($hasCriticalAiIssues) {
-        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=ai_validation_critical");
+    if ($ruleTitle === '' || $ruleGenObj === '' || $ruleSpecObj === '' || $ruleRationale === '' || $ruleVenue === '' || $ruleDate === '' || $ruleStart === '' || $ruleEnd === '') {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=validation_incomplete");
         exit;
     }
 }

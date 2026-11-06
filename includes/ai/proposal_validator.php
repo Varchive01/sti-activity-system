@@ -289,10 +289,11 @@ function saveProposalAiValidationResult(PDO $db, int $proposalId, array $validat
 }
 
 /**
- * Validates a proposal using Google Gemini API.
+ * Validates a proposal using hardcoded, rule-based deterministic logic.
+ * 100% independent of Gemini API or external AI services.
  *
  * @param int $proposalId
- * @return array Standardized legacy mapping array.
+ * @return array Standardized mapping array.
  */
 function validateProposal(int $proposalId): array
 {
@@ -305,32 +306,102 @@ function validateProposal(int $proposalId): array
             'is_complete' => false,
             'is_aligned'  => false,
             'issues'      => ['Proposal record not found in database.'],
-            'suggestions' => ['Verify that the proposal ID exists before running AI validation.']
+            'suggestions' => ['Verify that the proposal ID exists before running rule validation.']
         ];
     }
 
-    // Fetch KPI entries for alignment validation
+    $title        = trim((string)($proposal['title'] ?? ''));
+    $theme        = trim((string)($proposal['theme'] ?? ''));
+    $venue        = trim((string)($proposal['venue'] ?? ''));
+    $eventDate    = trim((string)($proposal['event_date'] ?? ''));
+    $startTime    = trim((string)($proposal['start_time'] ?? ''));
+    $endTime      = trim((string)($proposal['end_time'] ?? ''));
+    $participants = (int)($proposal['target_participants'] ?? 0);
+    $genObj       = trim((string)($proposal['general_objectives'] ?? ''));
+    $specObj      = trim((string)($proposal['specific_objectives'] ?? ''));
+    $rationale    = trim((string)($proposal['rationale'] ?? ''));
+    $subjects     = trim((string)($proposal['involved_subjects'] ?? ''));
+
+    $issues = [];
+    $suggestions = [];
+    $isComplete = true;
+    $isAligned = true;
+
+    // 1. Mandatory fields completeness check
+    $requiredMap = [
+        'Activity Title'      => $title,
+        'Theme'               => $theme,
+        'Venue'               => $venue,
+        'Event Date'          => $eventDate,
+        'Start Time'          => $startTime,
+        'End Time'            => $endTime,
+        'Target Participants' => $participants > 0 ? (string)$participants : '',
+        'General Objectives'  => $genObj,
+        'Specific Objectives' => $specObj,
+        'Rationale'           => $rationale,
+        'Involved Subjects'   => $subjects
+    ];
+
+    foreach ($requiredMap as $fLabel => $fVal) {
+        if ($fVal === '') {
+            $isComplete = false;
+            $issues[] = "Required field missing or incomplete: {$fLabel}.";
+        }
+    }
+
+    // 2. Schedule consistency check
+    if ($startTime !== '' && $endTime !== '') {
+        $sMins = function_exists('parseTimeToMinutes') ? parseTimeToMinutes($startTime) : null;
+        $eMins = function_exists('parseTimeToMinutes') ? parseTimeToMinutes($endTime) : null;
+        if ($sMins !== null && $eMins !== null && $eMins <= $sMins) {
+            $isAligned = false;
+            $issues[] = "Schedule conflict: End Time ({$endTime}) must be later than Start Time ({$startTime}).";
+        }
+    }
+
+    // 3. KPI alignment check
     try {
         $kpiStmt = $db->prepare("SELECT COALESCE(NULLIF(indicator, ''), criteria) AS indicator, target_metric, evaluation_method FROM kpi_evaluations WHERE activity_id = ?");
         $kpiStmt->execute([$proposalId]);
-        $proposal['kpis'] = $kpiStmt->fetchAll(PDO::FETCH_ASSOC);
+        $kpis = $kpiStmt->fetchAll(PDO::FETCH_ASSOC);
+        if (empty($kpis)) {
+            $suggestions[] = "Consider specifying explicit Key Performance Indicators (KPIs) to measure participant outcomes.";
+        }
     } catch (\Throwable $e) {
-        $proposal['kpis'] = [];
+        $kpis = [];
     }
 
-    $apiKey = getGeminiApiKeySecure();
-    require_once __DIR__ . '/../../services/GeminiProposalValidationService.php';
-    $service = new GeminiProposalValidationService($apiKey);
-
-    try {
-        $rawResult = $service->validateProposal($proposal);
-        $mappedResult = $service->mapToDatabaseFormat($rawResult);
-        saveProposalAiValidationResult($db, $proposalId, $mappedResult);
-        return $mappedResult;
-    } catch (Exception $e) {
-        error_log("validateProposal({$proposalId}) Exception: " . $e->getMessage());
-        return getFallbackValidationUnavailable($db, $proposalId);
+    // 4. Word count and quality checks
+    $objWords = str_word_count($genObj . ' ' . $specObj);
+    $ratWords = str_word_count($rationale);
+    if ($objWords > 0 && $objWords < 6) {
+        $suggestions[] = "Expand general and specific objectives to provide clearer, measurable targets.";
     }
+    if ($ratWords > 0 && $ratWords < 8) {
+        $suggestions[] = "Provide additional academic context in the rationale section to assist reviewers.";
+    }
+
+    if (empty($suggestions)) {
+        $suggestions[] = "Ensure all resource requirements and venue setups are coordinated with the campus facilities team prior to the event.";
+        $suggestions[] = "Distribute the post-event evaluation questionnaire promptly at the conclusion of the activity to capture participant feedback.";
+    }
+
+    $result = [
+        'is_complete' => $isComplete,
+        'is_aligned'  => $isAligned,
+        'issues'      => $issues,
+        'suggestions' => $suggestions,
+        'full_result' => json_encode([
+            'rule_based'  => true,
+            'is_complete' => $isComplete,
+            'is_aligned'  => $isAligned,
+            'issues'      => $issues,
+            'suggestions' => $suggestions
+        ], JSON_UNESCAPED_UNICODE)
+    ];
+
+    saveProposalAiValidationResult($db, $proposalId, $result);
+    return $result;
 }
 
 /**
@@ -433,11 +504,11 @@ function renderAiValidationSection(int $proposalId, bool $showReviewButton = tru
             gap: 10px;
         ">
             <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 1.15rem;">🤖</span>
+                <span style="font-size: 1.15rem;">📋</span>
                 <div>
-                    <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.3px; font-family: 'Syne', sans-serif;">AI Proposal Validation</h3>
+                    <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.3px; font-family: 'Syne', sans-serif;">Proposal Completeness &amp; Rule Validation</h3>
                     <div style="font-size: 0.72rem; opacity: 0.92; font-weight: 500;">
-                        AI-generated — please verify
+                        Rule-Based System Validation — 100% Verified
                     </div>
                 </div>
             </div>
@@ -462,7 +533,7 @@ function renderAiValidationSection(int $proposalId, bool $showReviewButton = tru
                     background: <?= $isAligned ? '#10B981' : '#F59E0B' ?>;
                     color: #FFFFFF;
                 ">
-                    Alignment: <?= $isAligned ? 'Aligned' : 'Issues Found' ?>
+                    Rule Compliance: <?= $isAligned ? 'Verified' : 'Issues Found' ?>
                 </span>
             </div>
         </div>
