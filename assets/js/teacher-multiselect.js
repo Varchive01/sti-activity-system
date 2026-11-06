@@ -2,8 +2,14 @@
  * assets/js/teacher-multiselect.js
  * Searchable Multi-Select Component for STI-ARMES Subject Teachers
  *
- * Allows users to search faculty members by name, select multiple teachers,
- * displays removable tags within the field, and prevents duplicate entries.
+ * Features:
+ * - Dynamic roster population from window.ELIGIBLE_FACULTY_ROSTER
+ * - Strict de-duplication by account ID and normalized name (no duplicate faculty like Aldwin Alminar)
+ * - Removable tag pills inside search field
+ * - Floating dropdown panel styled for Light Mode & Dark Mode
+ * - Distinct avatar initials and department badges (IT, THM, G.E.)
+ * - Keyboard navigation (Up/Down/Enter/Escape/Backspace)
+ * - Safe table layout non-disruption (floating absolute overlay)
  */
 
 (function () {
@@ -30,6 +36,21 @@
     const div = document.createElement('div');
     div.textContent = text || '';
     return div.innerHTML;
+  }
+
+  function getInitials(name) {
+    if (!name) return 'FC';
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function getDeptClass(dept) {
+    const d = (dept || '').toLowerCase();
+    if (d.includes('it') || d.includes('information')) return 'it';
+    if (d.includes('thm') || d.includes('tourism') || d.includes('hospitality')) return 'thm';
+    if (d.includes('ge') || d.includes('g.e.') || d.includes('general')) return 'ge';
+    return 'default';
   }
 
   window.initTeacherMultiSelect = function (container, initialValue = null) {
@@ -116,29 +137,54 @@
       const roster = getRoster();
       const term   = (searchTerm || '').trim().toLowerCase();
 
+      // Strict de-duplication by account ID and normalized name
+      const seenIds   = new Set();
+      const seenNames = new Set();
       let visibleCount = 0;
+
       roster.forEach(faculty => {
+        const id   = faculty.id ? String(faculty.id) : null;
         const name = (faculty.name || '').trim();
         const dept = (faculty.department || '').trim();
         if (!name) return;
 
-        const isMatch = !term || name.toLowerCase().includes(term) || dept.toLowerCase().includes(term);
+        const normName = name.toLowerCase();
+
+        // Prevent duplicate entries
+        if (id && seenIds.has(id)) return;
+        if (seenNames.has(normName)) return;
+
+        if (id) seenIds.add(id);
+        seenNames.add(normName);
+
+        const isMatch = !term || normName.includes(term) || dept.toLowerCase().includes(term);
         if (!isMatch) return;
 
         visibleCount++;
-        const isSelected = selectedNames.some(n => n.toLowerCase() === name.toLowerCase());
+        const isSelected = selectedNames.some(n => n.toLowerCase() === normName);
+        const initials   = getInitials(name);
+        const deptClass  = getDeptClass(dept);
 
         const opt = document.createElement('div');
         opt.className = 'tms-option' + (isSelected ? ' tms-selected' : '');
         opt.setAttribute('data-name', name);
+        if (id) opt.setAttribute('data-id', id);
         opt.setAttribute('role', 'option');
         opt.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+
         opt.innerHTML = `
-          <div class="tms-opt-info">
-            <span class="tms-opt-name">${escapeHtml(name)}</span>
-            ${dept ? `<span class="tms-opt-dept">${escapeHtml(dept)}</span>` : ''}
+          <div class="tms-opt-left">
+            <div class="tms-opt-avatar">${initials}</div>
+            <div class="tms-opt-info">
+              <span class="tms-opt-name">${escapeHtml(name)}</span>
+              <span class="tms-dept-badge tms-dept-${deptClass}">${escapeHtml(dept || 'Faculty')}</span>
+            </div>
           </div>
-          ${isSelected ? '<span class="tms-opt-check" style="color: #0284c7; font-weight: bold; margin-left: 8px;">✓</span>' : ''}
+          <div class="tms-opt-status">
+            ${isSelected 
+              ? '<span class="tms-check-badge">✓ Selected</span>' 
+              : '<span class="tms-add-icon" title="Add">+</span>'}
+          </div>
         `;
 
         opt.addEventListener('click', (e) => {
@@ -161,7 +207,7 @@
 
     function openDropdown() {
       if (isReadonly || !dropdown) return;
-      // Close other open dropdowns first
+      // Close other open multi-select dropdowns
       document.querySelectorAll('.teacher-multiselect.tms-open').forEach(other => {
         if (other !== container && other._tms) {
           other._tms.closeDropdown();

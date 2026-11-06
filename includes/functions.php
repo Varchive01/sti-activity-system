@@ -2276,7 +2276,46 @@ if (!function_exists('getEligibleFacultyMembers')) {
 
         try {
             $stmt = $db->query($sql);
-            $cachedList = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $rawList = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            // De-duplicate strictly by unique account ID and normalized faculty name
+            // Ensures every eligible faculty member appears exactly once (e.g. no duplicate Aldwin Alminar)
+            $uniqueList = [];
+            $seenIds    = [];
+            $seenNames  = [];
+
+            foreach ($rawList as $row) {
+                $id = (int)($row['id'] ?? 0);
+                if (!$id || isset($seenIds[$id])) {
+                    continue;
+                }
+
+                $rawName = trim($row['name'] ?? '');
+                if ($rawName === '') {
+                    continue;
+                }
+
+                // Normalize name (strip redundant spaces, case-insensitive)
+                $normName = strtolower(preg_replace('/\s+/', ' ', $rawName));
+
+                // If this name has already been registered (e.g. separate program_head and faculty rows), keep the canonical one
+                if (isset($seenNames[$normName])) {
+                    continue;
+                }
+
+                $seenIds[$id]         = true;
+                $seenNames[$normName] = true;
+
+                $uniqueList[] = [
+                    'id'         => $id,
+                    'name'       => $rawName,
+                    'email'      => trim($row['email'] ?? ''),
+                    'department' => trim($row['department'] ?? ''),
+                    'role'       => trim($row['role'] ?? 'faculty')
+                ];
+            }
+
+            $cachedList = $uniqueList;
             return $cachedList;
         } catch (\Throwable $e) {
             error_log("getEligibleFacultyMembers query error: " . $e->getMessage());

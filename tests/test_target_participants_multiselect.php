@@ -50,15 +50,47 @@ assertCheck(
 
 $hasProgramHead = false;
 $hasFacultyRole = false;
+$namesLower = [];
+$hasDuplicateName = false;
+$ids = [];
+$hasDuplicateId = false;
+
 foreach ($facultyList as $f) {
     if ($f['role'] === 'program_head') $hasProgramHead = true;
     if ($f['role'] === 'faculty') $hasFacultyRole = true;
+
+    $n = strtolower(trim($f['name']));
+    if (in_array($n, $namesLower, true)) {
+        $hasDuplicateName = true;
+    }
+    $namesLower[] = $n;
+
+    $id = (int)$f['id'];
+    if (in_array($id, $ids, true)) {
+        $hasDuplicateId = true;
+    }
+    $ids[] = $id;
 }
+
 assertCheck(
     'Eligible Faculty',
     'Includes both faculty and program head roles',
     $hasProgramHead && $hasFacultyRole,
     "Program Head: " . ($hasProgramHead ? 'YES' : 'NO') . ", Faculty: " . ($hasFacultyRole ? 'YES' : 'NO')
+);
+
+assertCheck(
+    'Eligible Faculty',
+    'Roster contains zero duplicate names (e.g. Aldwin Alminar strictly unique)',
+    !$hasDuplicateName,
+    "Unique names count: " . count(array_unique($namesLower))
+);
+
+assertCheck(
+    'Eligible Faculty',
+    'Roster contains zero duplicate user IDs',
+    !$hasDuplicateId,
+    "Unique IDs count: " . count(array_unique($ids))
 );
 
 // 2. Database Schema
@@ -167,6 +199,22 @@ assertCheck(
     str_contains($cssContent, '[data-theme="dark"] .teacher-multiselect')
 );
 
+$dedicatedCssContent = file_get_contents(__DIR__ . '/../assets/css/teacher-multiselect.css');
+assertCheck(
+    'Dedicated CSS',
+    'teacher-multiselect.css exists and defines floating dropdown',
+    str_contains($dedicatedCssContent, '.teacher-multiselect .tms-dropdown') &&
+    str_contains($dedicatedCssContent, 'position: absolute !important;')
+);
+assertCheck(
+    'Dedicated CSS',
+    'teacher-multiselect.css defines department pill badges and dark mode styles',
+    str_contains($dedicatedCssContent, '.tms-dept-it') &&
+    str_contains($dedicatedCssContent, '.tms-dept-thm') &&
+    str_contains($dedicatedCssContent, '.tms-dept-ge') &&
+    str_contains($dedicatedCssContent, '[data-theme="dark"]')
+);
+
 // 7. proposal-create.php
 $createContent = file_get_contents(__DIR__ . '/../faculty/proposal-create.php');
 assertCheck(
@@ -244,3 +292,4 @@ echo "=======================================================================\n"
 if ($failCount > 0) {
     exit(1);
 }
+

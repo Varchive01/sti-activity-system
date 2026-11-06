@@ -111,7 +111,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
   <meta name="base-url" content="<?= BASE_URL ?>">
   <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
   <title>New Proposal – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/teacher-multiselect.css?v=<?= time() ?>">
   <style>
     .wizard-panel {
       display: none;
@@ -640,6 +641,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       background: #ffffff !important;
       border: 1px solid #e2e8f0 !important;
       border-radius: 8px !important;
+      overflow: visible !important;
     }
     .target-participants-panel .dynamic-table table {
       width: 100%;
@@ -661,10 +663,12 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       border-bottom: 1px solid #f1f5f9 !important;
       padding: 8px 12px !important;
       vertical-align: middle;
+      position: relative;
     }
     [data-theme="dark"] .target-participants-panel .dynamic-table {
       background: var(--bg-card, #0F1B2E) !important;
       border-color: var(--border, #1E2D45) !important;
+      overflow: visible !important;
     }
     [data-theme="dark"] .target-participants-panel .dynamic-table table {
       background: var(--bg-card, #0F1B2E) !important;
@@ -1617,14 +1621,14 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
               <input type="hidden" name="target_participants" id="f1_target_participants" value="0">
               <span class="field-error" id="e_target_participants" style="margin-bottom: 12px;">Target participants is required and must have at least 1 participant.</span>
 
-              <div class="dynamic-table" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto;">
-                <table class="table" style="margin: 0; width: 100%; border-collapse: collapse; background: #ffffff;">
+              <div class="dynamic-table" style="border-radius: 8px; overflow: visible;">
+                <table class="table" style="margin: 0; width: 100%; border-collapse: collapse;">
                   <thead>
                     <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
                       <th style="width: 50px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No.</th>
                       <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Involved Subject / Section <span class="text-danger">*</span></th>
                       <th style="width: 180px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No. of Participants <span class="text-danger">*</span></th>
-                      <th style="min-width: 250px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Subject Teacher(s)</th>
+                      <th style="min-width: 280px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Subject Teacher(s)</th>
                       <th style="width: 70px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Actions</th>
                     </tr>
                   </thead>
@@ -1639,7 +1643,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                       <td style="padding: 10px 12px;">
                         <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="" oninput="updateTotalTargetParticipants()">
                       </td>
-                      <td style="padding: 10px 12px; min-width: 250px;">
+                      <td style="padding: 10px 12px; min-width: 280px; position: relative;">
                         <div class="teacher-multiselect" data-row-idx="1">
                           <input type="hidden" name="part_teacher[]" class="part-teacher-input" value="">
                           <div class="tms-control" onclick="focusTmsInput(this)">
@@ -4800,7 +4804,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         <td style="padding: 10px 12px;">
           <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="${escapeHtml(count)}" oninput="updateTotalTargetParticipants()">
         </td>
-        <td style="padding: 10px 12px; min-width: 250px;">
+        <td style="padding: 10px 12px; min-width: 280px; position: relative;">
           <div class="teacher-multiselect" data-row-idx="${newIndex}">
             <input type="hidden" name="part_teacher[]" class="part-teacher-input" value="${escapeHtml(teacher)}">
             <div class="tms-control" onclick="focusTmsInput(this)">
