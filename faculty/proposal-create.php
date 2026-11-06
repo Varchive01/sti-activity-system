@@ -1403,9 +1403,25 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
           <strong>⚠️ Activity Title Required:</strong> Please enter an Activity Title before sharing this proposal with collaborators.
         </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'missing_fields'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Required Fields Incomplete:</strong> Please ensure all required proposal fields (Title, Theme, Venue, Date, Time, Target Participants, Objectives, and Rationale) are filled out before submitting.
+        </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'missing_kpi'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Key Performance Indicators (KPIs) Required:</strong> Please specify at least one Success Indicator or Evaluation Criteria in Step 8 before submitting for approval.
+        </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'validation_incomplete'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Rule Validation Check Failed:</strong> One or more required proposal sections are incomplete or have formatting issues. Please review highlighted fields in red before submitting.
+        </div>
+      <?php elseif (isset($_GET['error']) && $_GET['error'] === 'invalid_faculty_assignment'): ?>
+        <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
+          <strong>⚠️ Invalid Faculty Assignment:</strong> One of the assigned faculty members in Committee Tasks does not exist or is inactive. Please select a valid faculty member.
+        </div>
       <?php elseif (isset($_GET['error'])): ?>
         <div class="alert alert-danger" style="margin-bottom:20px; border-left:6px solid #dc3545; background:#fff5f5; color:#742a2a; border-radius:8px; padding:16px 20px; border:1px solid #feb2b2;">
-          <strong>⚠️ Error:</strong> An error occurred while saving the proposal. Please try again.
+          <strong>⚠️ Database / Server Error:</strong> An error occurred while saving the proposal. If you are on the live hosting server, please ensure the database migration script has been executed or try saving as a draft first.
         </div>
       <?php endif; ?>
 
