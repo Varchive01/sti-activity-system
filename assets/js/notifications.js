@@ -340,7 +340,14 @@
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         var saved = window.localStorage.getItem('sti-theme');
-        if (saved === 'dark') return 'dark';
+        if (saved === 'dark' || saved === 'light') return saved;
+      }
+      if (typeof document !== 'undefined' && document.cookie) {
+        var m = document.cookie.match(/(?:^|;\s*)sti-theme=([^;]+)/);
+        if (m && (m[1] === 'dark' || m[1] === 'light')) return m[1];
+      }
+      if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
       }
     } catch (e) {}
     return 'light';
@@ -350,6 +357,14 @@
     if (typeof document === 'undefined' || !document.documentElement) return;
     var finalTheme = (theme === 'dark') ? 'dark' : 'light';
     document.documentElement.dataset.theme = finalTheme;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('sti-theme', finalTheme);
+      }
+      if (typeof document !== 'undefined') {
+        document.cookie = 'sti-theme=' + encodeURIComponent(finalTheme) + '; path=/; max-age=31536000; SameSite=Lax';
+      }
+    } catch (e) {}
     updateToggleButtons(finalTheme);
   }
 

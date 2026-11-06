@@ -421,12 +421,13 @@ function renderAiValidationSection(int $proposalId, bool $showReviewButton = tru
         overflow: hidden;
         font-family: 'Plus Jakarta Sans', sans-serif;
     ">
-        <div style="
+        <div class="ai-val-header" style="
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 14px 20px;
-            background: linear-gradient(90deg, var(--sti-navy, #0A1628) 0%, var(--sti-slate, #1E2D45) 100%);
+            background: #0A1628;
+            background-image: linear-gradient(90deg, #0A1628 0%, #1E2D45 100%);
             color: #FFFFFF;
             flex-wrap: wrap;
             gap: 10px;

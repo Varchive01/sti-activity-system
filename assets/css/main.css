@@ -4,6 +4,23 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap');
 @import url('walkthrough.css');
 
+/* ── Anti-FOUC (Flash of Unstyled Content / White Flash Prevention) ── */
+html {
+  background-color: #F4F6FB;
+  color-scheme: light dark;
+}
+html[data-theme="dark"],
+[data-theme="dark"] {
+  background-color: #070E18 !important;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    background-color: #070E18;
+    color-scheme: dark;
+  }
+}
+
 /* ============================================================
    Design System Tokens (Light & Dark Theme Architecture)
    ============================================================ */
@@ -5841,10 +5858,19 @@ html:not([data-theme="dark"]) td {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45) !important;
 }
 
+[data-theme="dark"] .ai-val-header,
+[data-theme="dark"] .ai-validation-card .ai-val-header,
 [data-theme="dark"] .ai-validation-card > div:first-child,
 [data-theme="dark"] div[id^="ai-validation-box-"] > div:first-child {
   background: #15243C !important;
+  background-image: none !important;
   border-bottom: 1px solid #1E2D45 !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .ai-val-header h3,
+[data-theme="dark"] .ai-val-header div {
+  color: #FFFFFF !important;
 }
 
 [data-theme="dark"] .ai-validation-card .ai-validation-body,

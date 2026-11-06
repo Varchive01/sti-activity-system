@@ -19,6 +19,7 @@ $acts->execute([$user['id']]);
 $acts = $acts->fetchAll();
 ?>
 <!DOCTYPE html><html lang="en"><head>
+<?php include __DIR__ . '/../includes/head-theme-init.php'; ?>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"><meta charset="UTF-8">
 <title>Approved – STI Activity System</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css"></head>

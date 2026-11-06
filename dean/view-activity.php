@@ -83,6 +83,7 @@ $complianceStatusBadgeClass = match($complianceResult['overall_status'] ?? '') {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<?php include __DIR__ . '/../includes/head-theme-init.php'; ?>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>View Activity – STI Activity System</title>

@@ -71,6 +71,7 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<?php include __DIR__ . '/../includes/head-theme-init.php'; ?>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta charset="UTF-8">
 <title>View Activity – STI</title>
