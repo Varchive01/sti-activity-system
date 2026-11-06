@@ -47,9 +47,10 @@ $fp = $fpStmt->fetch();
 $kpiStmt = $db->prepare("SELECT * FROM kpi_evaluations WHERE activity_id=?");
 $kpiStmt->execute([$id]);
 $kpis = $kpiStmt->fetchAll();
-$partStmt = $db->prepare("SELECT * FROM activity_participants WHERE activity_id=? ORDER BY row_no ASC, id ASC");
-$partStmt->execute([$id]);
-$partRows = $partStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$psStmt = $db->prepare("SELECT * FROM activity_participants WHERE activity_id=? ORDER BY row_no ASC, id ASC");
+$psStmt->execute([$id]);
+$partSections = $psStmt->fetchAll();
 
 $logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON al.reviewer_id=u.id WHERE al.activity_id=? ORDER BY al.acted_at DESC");
 $logs->execute([$id]);
@@ -570,6 +571,46 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
           <a href="<?= htmlspecialchars($posterUrl) ?>" target="_blank" class="btn btn-outline btn-sm">🖼️ View Full Poster Image</a>
         </div>
       <?php endif; ?>
+      <?php if (!empty($partSections)): ?>
+        <div class="sl" style="margin-top:14px; margin-bottom:8px;">👥 Target Participants & Subject Teachers</div>
+        <div class="table-wrap" style="margin-bottom:12px;">
+          <table class="review-table">
+            <thead>
+              <tr>
+                <th style="width: 50px; text-align: center;">No.</th>
+                <th>Involved Subject / Section</th>
+                <th style="width: 170px; text-align: center;">Target Participants</th>
+                <th>Subject Teacher(s)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($partSections as $pIdx => $ps): ?>
+                <tr>
+                  <td style="text-align: center; font-weight: 600;"><?= $pIdx + 1 ?></td>
+                  <td style="font-weight: 600;"><?= htmlspecialchars($ps['subject_section'] ?? '—') ?></td>
+                  <td style="text-align: center;"><?= number_format((int)($ps['participants_count'] ?? 0)) ?></td>
+                  <td>
+                    <?php
+                      $teachers = array_filter(array_map('trim', explode(',', $ps['teacher_name'] ?? '')));
+                      if (empty($teachers)): ?>
+                        <span style="color: var(--text-muted); font-style: italic;">None assigned</span>
+                      <?php else: ?>
+                        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                          <?php foreach ($teachers as $t): ?>
+                            <span class="badge" style="background: rgba(2, 132, 199, 0.1); color: #0284c7; border: 1px solid rgba(2, 132, 199, 0.25); font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; font-weight: 600;">
+                              <?= htmlspecialchars($t) ?>
+                            </span>
+                          <?php endforeach; ?>
+                        </div>
+                      <?php endif; ?>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endif; ?>
+
     <?php renderSectionClose('event_details', $stagedComments, $id); ?>
 
     <?php renderSectionHeader('objectives', '🎯 Objectives & Academic Alignment', $stagedComments); ?>
@@ -580,12 +621,6 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
       <?php if (!empty($activity['involved_subjects'])): ?>
       <div class="sl" style="margin-top:14px;">Involved Subjects</div>
       <p><?= htmlspecialchars($activity['involved_subjects']) ?></p>
-      <?php endif; ?>
-      <?php if (!empty($partRows)): ?>
-      <div class="sl" style="margin-top:14px;">Target Participant Sections & Subject Teachers</div>
-      <?= renderParticipantSectionsTable($partRows) ?>
-      <?php endif; ?>
-      <?php if (false): ?>
       <?php endif; ?>
       <?php if (!empty($activity['rationale'])): ?>
       <div class="sl" style="margin-top:14px;">Rationale</div>

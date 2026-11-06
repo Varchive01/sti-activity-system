@@ -62,6 +62,7 @@ foreach ($grouped as $qText => $vals) {
 usort($questionAverages, fn($a, $b) => $b['average'] <=> $a['average']);
 
 $mats = $db->prepare("SELECT * FROM materials WHERE activity_id=?"); $mats->execute([$id]); $materials=$mats->fetchAll();
+$psStmt = $db->prepare("SELECT * FROM activity_participants WHERE activity_id=? ORDER BY row_no ASC, id ASC"); $psStmt->execute([$id]); $partSections=$psStmt->fetchAll();
 $prog = $db->prepare("SELECT * FROM program_sequence WHERE activity_id=? ORDER BY sort_order"); $prog->execute([$id]); $program=$prog->fetchAll();
 $mp   = $db->prepare("SELECT * FROM manpower WHERE activity_id=?"); $mp->execute([$id]); $manpower=$mp->fetchAll();
 $ft   = $db->prepare("SELECT ft.*, u.name as assigned_user_name, u.email as assigned_user_email FROM faculty_tasks ft LEFT JOIN users u ON ft.assigned_user_id = u.id WHERE ft.activity_id=? ORDER BY ft.id ASC"); $ft->execute([$id]); $ftasks=$ft->fetchAll();
@@ -713,6 +714,54 @@ label, input, button, select, textarea {
         </div>
       </div>
     </div>
+
+    <!-- Target Participants Breakdown -->
+    <?php if (!empty($partSections)): ?>
+    <div class="card detail-section-card">
+      <div class="card-header">
+        <h2><span>👥</span> Target Participants & Subject Teachers</h2>
+        <span class="badge badge-primary"><?= number_format((int)($activity['target_participants'] ?? 0)) ?> total participants</span>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <div class="table-wrap" style="margin:0; border:none; border-radius:0;">
+          <table class="detail-table">
+            <thead>
+              <tr>
+                <th style="width: 50px; text-align: center;">No.</th>
+                <th>Involved Subject / Section</th>
+                <th style="width: 170px; text-align: center;">Target Participants</th>
+                <th>Subject Teacher(s)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($partSections as $pIdx => $ps): ?>
+                <tr>
+                  <td style="text-align: center; font-weight: 600;"><?= $pIdx + 1 ?></td>
+                  <td style="font-weight: 600;"><?= htmlspecialchars($ps['subject_section'] ?? '—') ?></td>
+                  <td style="text-align: center;"><?= number_format((int)($ps['participants_count'] ?? 0)) ?></td>
+                  <td>
+                    <?php
+                      $teachers = array_filter(array_map('trim', explode(',', $ps['teacher_name'] ?? '')));
+                      if (empty($teachers)): ?>
+                        <span style="color: var(--text-muted); font-style: italic;">None assigned</span>
+                      <?php else: ?>
+                        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                          <?php foreach ($teachers as $t): ?>
+                            <span class="badge" style="background: rgba(2, 132, 199, 0.1); color: #0284c7; border: 1px solid rgba(2, 132, 199, 0.25); font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; font-weight: 600;">
+                              <?= htmlspecialchars($t) ?>
+                            </span>
+                          <?php endforeach; ?>
+                        </div>
+                      <?php endif; ?>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
 
     <?php if (!empty($activity['poster_path'])): ?>
     <?php $posterUrl = str_starts_with($activity['poster_path'], 'http') ? $activity['poster_path'] : BASE_URL . '/api/document-download.php?activity_id=' . (int)$activity['id'] . '&type=poster'; ?>

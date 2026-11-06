@@ -373,9 +373,10 @@ try {
         INDEX idx_activity_id (activity_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-    try {
+    $colInfo = $db->query("SHOW COLUMNS FROM activity_participants LIKE 'teacher_name'")->fetch(PDO::FETCH_ASSOC);
+    if ($colInfo && stripos($colInfo['Type'], 'varchar') !== false) {
         $db->exec("ALTER TABLE activity_participants MODIFY COLUMN teacher_name TEXT NOT NULL");
-    } catch (\Throwable $ignoredAlter) {}
+    }
 } catch (\Throwable $tblEx) {
     error_log("activity_participants table check notice: " . $tblEx->getMessage());
 }
@@ -453,13 +454,12 @@ try {
                 foreach ($sections as $i => $sec) {
                     $secText = sanitize($sec ?? '');
                     $cntNum  = max(0, (int)($counts[$i] ?? 0));
-                    $tRaw    = $teachers[$i] ?? '';
-                    if (is_array($tRaw)) {
-                        $tName = implode(', ', array_filter(array_map('trim', $tRaw)));
+                    $rawTeacher = $teachers[$i] ?? '';
+                    if (is_array($rawTeacher)) {
+                        $tName = implode(', ', array_filter(array_map('trim', array_map('sanitize', $rawTeacher))));
                     } else {
-                        $tName = trim((string)$tRaw);
+                        $tName = sanitize((string)$rawTeacher);
                     }
-                    $tName   = sanitize($tName);
                     $actVal  = (isset($actuals[$i]) && $actuals[$i] !== '' && is_numeric($actuals[$i])) ? max(0, (int)$actuals[$i]) : null;
                     $preVal  = (isset($preTests[$i]) && $preTests[$i] !== '' && is_numeric($preTests[$i])) ? (float)$preTests[$i] : null;
                     $postVal = (isset($postTests[$i]) && $postTests[$i] !== '' && is_numeric($postTests[$i])) ? (float)$postTests[$i] : null;

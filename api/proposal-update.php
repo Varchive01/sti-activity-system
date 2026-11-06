@@ -666,13 +666,12 @@ try {
                     foreach ($loopList as $i => $item) {
                         $secText = sanitize($partSections[$i] ?? '');
                         $cntVal  = max(0, (int)($partCounts[$i] ?? 0));
-                        $tRaw    = $partTeachers[$i] ?? '';
-                        if (is_array($tRaw)) {
-                            $tVal = implode(', ', array_filter(array_map('trim', $tRaw)));
+                        $rawTeacher = $partTeachers[$i] ?? '';
+                        if (is_array($rawTeacher)) {
+                            $tVal = implode(', ', array_filter(array_map('trim', array_map('sanitize', $rawTeacher))));
                         } else {
-                            $tVal = trim((string)$tRaw);
+                            $tVal = sanitize((string)$rawTeacher);
                         }
-                        $tVal    = sanitize($tVal);
 
                         $actVal = null;
                         $preVal = null;

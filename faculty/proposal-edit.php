@@ -6,9 +6,9 @@ require_once __DIR__ . '/../includes/functions.php';
 requireRole('faculty', 'program_head');
 $user = currentUser();
 $db   = getDB();
+$eligibleFacultyList = function_exists('getEligibleFacultyMembers') ? getEligibleFacultyMembers($db) : [];
 $facultyUsersStmt = $db->query("SELECT id, name, department FROM users WHERE role = 'faculty' ORDER BY name ASC");
 $facultyUsers = $facultyUsersStmt ? $facultyUsersStmt->fetchAll(PDO::FETCH_ASSOC) : [];
-$registeredFacultyRoster = function_exists('getRegisteredFacultyList') ? getRegisteredFacultyList($db) : [];
 
 $facultyDepartmentGroups = [
   'THM Department' => [
@@ -1778,7 +1778,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                       <th style="width: 50px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No.</th>
                       <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Involved Subject / Section <span class="text-danger">*</span></th>
                       <th style="width: 180px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No. of Participants <span class="text-danger">*</span></th>
-                      <th style="min-width: 240px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Subject Teacher(s)</th>
+                      <th style="min-width: 250px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Subject Teacher(s)</th>
                       <th style="width: 70px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Actions</th>
                     </tr>
                   </thead>
@@ -1798,13 +1798,21 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                         <td style="padding: 10px 12px;">
                           <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="<?= htmlspecialchars((string)($pRow['participants_count'] ?? '')) ?>" oninput="updateTotalTargetParticipants()" <?= $s1Attr ?>>
                         </td>
-                        <td class="part-teacher-cell" style="padding: 10px 12px; position: relative;">
-                          <div class="teacher-multi-select">
-                            <div class="teacher-tags-container">
-                              <input type="text" class="teacher-search-input" placeholder="Search or select teacher..." autocomplete="off" <?= $s1Attr ?>>
-                            </div>
+                        <td style="padding: 10px 12px; min-width: 250px;">
+                          <div class="teacher-multiselect" data-row-idx="<?= $pIdx + 1 ?>">
                             <input type="hidden" name="part_teacher[]" class="part-teacher-input" value="<?= htmlspecialchars($pRow['teacher_name'] ?? '') ?>" <?= $s1Attr ?>>
-                            <div class="teacher-dropdown-list"></div>
+                            <div class="tms-control" <?= $s1Editable ? 'onclick="focusTmsInput(this)"' : 'style="cursor: default; opacity: 0.85;"' ?>>
+                              <div class="tms-tags"></div>
+                              <?php if ($s1Editable): ?>
+                                <input type="text" class="tms-input" placeholder="Search and select faculty...">
+                              <?php endif; ?>
+                            </div>
+                            <?php if ($s1Editable): ?>
+                              <div class="tms-dropdown" style="display: none;">
+                                <div class="tms-list"></div>
+                                <div class="tms-empty" style="display: none;">No matching faculty found</div>
+                              </div>
+                            <?php endif; ?>
                           </div>
                         </td>
                         <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
@@ -4232,13 +4240,17 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         <td style="padding: 10px 12px;">
           <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="${escapeHtml(count)}" oninput="updateTotalTargetParticipants()">
         </td>
-        <td class="part-teacher-cell" style="padding: 10px 12px; position: relative;">
-          <div class="teacher-multi-select">
-            <div class="teacher-tags-container">
-              <input type="text" class="teacher-search-input" placeholder="Search or select teacher..." autocomplete="off">
-            </div>
+        <td style="padding: 10px 12px; min-width: 250px;">
+          <div class="teacher-multiselect" data-row-idx="${newIndex}">
             <input type="hidden" name="part_teacher[]" class="part-teacher-input" value="${escapeHtml(teacher)}">
-            <div class="teacher-dropdown-list"></div>
+            <div class="tms-control" onclick="focusTmsInput(this)">
+              <div class="tms-tags"></div>
+              <input type="text" class="tms-input" placeholder="Search and select faculty...">
+            </div>
+            <div class="tms-dropdown" style="display: none;">
+              <div class="tms-list"></div>
+              <div class="tms-empty" style="display: none;">No matching faculty found</div>
+            </div>
           </div>
         </td>
         <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
@@ -4246,9 +4258,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         </td>
       `;
       tbody.appendChild(tr);
-      if (typeof window.initTeacherMultiSelect === 'function') {
-        const ms = tr.querySelector('.teacher-multi-select');
-        if (ms) window.initTeacherMultiSelect(ms, teacher);
+      const newTms = tr.querySelector('.teacher-multiselect');
+      if (newTms && typeof window.initTeacherMultiSelect === 'function') {
+        window.initTeacherMultiSelect(newTms, teacher);
       }
       renumberParticipantRows();
       updateTotalTargetParticipants();
@@ -6331,6 +6343,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    window.ELIGIBLE_FACULTY_ROSTER = <?= json_encode($eligibleFacultyList, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+  </script>
+  <script src="<?= BASE_URL ?>/assets/js/teacher-multiselect.js?v=<?= time() ?>"></script>
   <script src="<?= BASE_URL ?>/assets/js/schedule-conflict-ui.js?v=<?= time() ?>"></script>
   <script src="<?= BASE_URL ?>/assets/js/proposal-ai-validator.js?v=<?= time() ?>"></script>
   <script src="<?= BASE_URL ?>/assets/js/offline-drafts.js?v=<?= time() ?>"></script>
@@ -6808,10 +6824,6 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         .replace(/'/g, '&#039;');
     }
   </script>
-  <script>
-    window.STI_FACULTY_ROSTER = <?= json_encode($registeredFacultyRoster ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>;
-  </script>
-  <script src="<?= BASE_URL ?>/assets/js/teacher-multi-select.js"></script>
 </body>
 
 </html>

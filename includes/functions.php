@@ -2229,6 +2229,62 @@ if (!function_exists('getOfficialFacultyRoster')) {
     }
 }
 
+if (!function_exists('getEligibleFacultyMembers')) {
+    /**
+     * Retrieve all eligible faculty members registered in STI-ARMES dynamically.
+     * Includes active faculty and program heads from database records.
+     * Excludes test, dummy, and system administrator accounts.
+     */
+    function getEligibleFacultyMembers(?PDO $db = null): array {
+        $db = $db ?? (function_exists('getDB') ? getDB() : null);
+        if (!$db) return [];
+
+        if (function_exists('ensureOfficialFacultyAccountsExist')) {
+            ensureOfficialFacultyAccountsExist($db);
+        }
+
+        static $cachedList = null;
+        if ($cachedList !== null) return $cachedList;
+
+        static $hasStatusCol = null;
+        if ($hasStatusCol === null) {
+            try {
+                $colCheck = $db->query("SHOW COLUMNS FROM users LIKE 'status'")->fetch();
+                $hasStatusCol = !empty($colCheck);
+            } catch (\Throwable $e) {
+                $hasStatusCol = false;
+            }
+        }
+
+        $sql = "
+            SELECT id, name, email, department, role" . ($hasStatusCol ? ", status" : "") . "
+            FROM users 
+            WHERE role IN ('faculty', 'program_head')
+              AND LOWER(name) NOT LIKE '%bad email%'
+              AND LOWER(name) NOT LIKE '%unrelated%'
+              AND LOWER(name) NOT LIKE '%placeholder%'
+              AND LOWER(name) NOT LIKE '%dummy%'
+              AND LOWER(name) NOT LIKE '%test%'
+              AND email NOT LIKE '%@invalid%'
+              AND email NOT LIKE 'simulated_%'
+              AND email NOT LIKE 'fac_unrelated_%'
+        ";
+        if ($hasStatusCol) {
+            $sql .= " AND (status = 'active' OR status IS NULL) ";
+        }
+        $sql .= " ORDER BY name ASC";
+
+        try {
+            $stmt = $db->query($sql);
+            $cachedList = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            return $cachedList;
+        } catch (\Throwable $e) {
+            error_log("getEligibleFacultyMembers query error: " . $e->getMessage());
+            return [];
+        }
+    }
+}
+
 if (!function_exists('ensureOfficialFacultyAccountsExist')) {
     /**
      * Globally ensures all 28 official faculty members from the STI organizational charts
@@ -2502,125 +2558,6 @@ if (!function_exists('getEligibleFacultyForDropdown')) {
         }
 
         return $cleanList;
-    }
-}
-
-if (!function_exists('getRegisteredFacultyList')) {
-    /**
-     * Retrieves all eligible faculty members registered in STI-ARMES for the Subject Teacher multi-select dropdown.
-     * Dynamically populated from the users table.
-     * Deduplicated and formatted with official names and departments.
-     */
-    function getRegisteredFacultyList(?PDO $db = null): array {
-        $db = $db ?? (function_exists('getDB') ? getDB() : null);
-        if (!$db) return [];
-        if (function_exists('ensureOfficialFacultyAccountsExist')) {
-            ensureOfficialFacultyAccountsExist($db);
-        }
-
-        try {
-            $stmt = $db->query("
-                SELECT id, name, department, role 
-                FROM users 
-                WHERE role IN ('faculty', 'program_head')
-                   OR (role IN ('admin1', 'admin2') AND department NOT IN ('Administration', 'System Administration'))
-                ORDER BY name ASC
-            ");
-            $raw = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $seen = [];
-            $list = [];
-            foreach ($raw as $u) {
-                $rawName = trim($u['name'] ?? '');
-                if ($rawName === '') continue;
-                if (stripos($rawName, 'Frederic') !== false && stripos($rawName, 'Yulo') !== false) continue;
-                if (stripos($rawName, 'test_') !== false || stripos($rawName, 'dummy') !== false) continue;
-
-                $normKey = function_exists('cleanFacultyNameKey') ? cleanFacultyNameKey($rawName) : strtolower(preg_replace('/[^a-zA-Z]/', '', $rawName));
-                if (!isset($seen[$normKey])) {
-                    $seen[$normKey] = true;
-                    $dept = trim($u['department'] ?? 'General Academics');
-                    if (empty($dept) || $dept === 'Not Assigned') {
-                        $dept = 'General Academics';
-                    }
-                    $list[] = [
-                        'id' => (int)$u['id'],
-                        'name' => $rawName,
-                        'department' => $dept,
-                        'role' => $u['role']
-                    ];
-                }
-            }
-
-            usort($list, function($a, $b) {
-                return strcasecmp($a['name'], $b['name']);
-            });
-
-            return $list;
-        } catch (\Throwable $e) {
-            return [];
-        }
-    }
-}
-
-if (!function_exists('renderParticipantSectionsTable')) {
-    /**
-     * Renders a responsive, clean table of target participant sections and multi-selected subject teachers.
-     * Designed for view and review screens without breaking table layout or mobile responsiveness.
-     */
-    function renderParticipantSectionsTable(array $participants): string {
-        if (empty($participants)) return '';
-
-        $totalParticipants = 0;
-        $rowsHtml = '';
-        foreach ($participants as $idx => $p) {
-            $rowNo = $idx + 1;
-            $sec = htmlspecialchars($p['subject_section'] ?? '—');
-            $count = (int)($p['participants_count'] ?? 0);
-            $totalParticipants += $count;
-            $rawTeachers = trim((string)($p['teacher_name'] ?? ''));
-
-            $teachersHtml = '';
-            if ($rawTeachers !== '') {
-                $names = array_filter(array_map('trim', explode(',', $rawTeachers)));
-                if (!empty($names)) {
-                    $chips = [];
-                    foreach ($names as $n) {
-                        $chips[] = '<span class="teacher-view-badge">' . htmlspecialchars($n) . '</span>';
-                    }
-                    $teachersHtml = '<div class="teacher-view-badges-wrap">' . implode('', $chips) . '</div>';
-                } else {
-                    $teachersHtml = '<span class="text-muted">—</span>';
-                }
-            } else {
-                $teachersHtml = '<span class="text-muted">—</span>';
-            }
-
-            $rowsHtml .= '<tr>';
-            $rowsHtml .= '<td style="text-align:center; font-weight:600; width:45px; padding:10px 12px; vertical-align:middle;">' . $rowNo . '</td>';
-            $rowsHtml .= '<td style="font-weight:500; padding:10px 12px; vertical-align:middle;">' . $sec . '</td>';
-            $rowsHtml .= '<td style="text-align:right; font-weight:600; width:140px; padding:10px 12px; vertical-align:middle;">' . number_format($count) . '</td>';
-            $rowsHtml .= '<td style="padding:10px 12px; vertical-align:middle;">' . $teachersHtml . '</td>';
-            $rowsHtml .= '</tr>';
-        }
-
-        $html = '<div class="table-wrap participant-sections-view-table" style="margin-top:10px; margin-bottom:18px; overflow-x:auto;">';
-        $html .= '<table class="table" style="width:100%; border-collapse:collapse; font-size:0.875rem;">';
-        $html .= '<thead><tr style="background:var(--bg-base, #f8fafc); border-bottom:1px solid var(--border, #e2e8f0);">';
-        $html .= '<th style="text-align:center; width:45px; padding:8px 12px; font-size:0.8rem; font-weight:600; color:var(--text-muted);">#</th>';
-        $html .= '<th style="padding:8px 12px; font-size:0.8rem; font-weight:600; color:var(--text-muted);">Involved Subject / Section</th>';
-        $html .= '<th style="text-align:right; width:140px; padding:8px 12px; font-size:0.8rem; font-weight:600; color:var(--text-muted);">Target Participants</th>';
-        $html .= '<th style="padding:8px 12px; font-size:0.8rem; font-weight:600; color:var(--text-muted);">Subject Teacher(s)</th>';
-        $html .= '</tr></thead>';
-        $html .= '<tbody>' . $rowsHtml . '</tbody>';
-        $html .= '<tfoot><tr style="font-weight:700; background:var(--bg-base, #f8fafc); border-top:2px solid var(--border, #e2e8f0);">';
-        $html .= '<td colspan="2" style="text-align:right; padding:8px 12px;">Total Target:</td>';
-        $html .= '<td style="text-align:right; padding:8px 12px; color:var(--sti-blue, #0284c7);">' . number_format($totalParticipants) . '</td>';
-        $html .= '<td></td>';
-        $html .= '</tr></tfoot>';
-        $html .= '</table></div>';
-
-        return $html;
     }
 }
 

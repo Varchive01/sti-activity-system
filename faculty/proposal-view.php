@@ -58,13 +58,28 @@ if ($hasTasks) {
 $fp   = $db->prepare("SELECT * FROM floor_plans WHERE activity_id=?");
 $fp->execute([$id]);
 $floorplan = $fp->fetch();
+
+$participantRows = [];
+try {
+  $partStmt = $db->prepare("SELECT * FROM activity_participants WHERE activity_id=? ORDER BY row_no ASC, id ASC");
+  $partStmt->execute([$id]);
+  $participantRows = $partStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (\Throwable $e) {
+  $participantRows = [];
+}
+if (empty($participantRows) && !empty($activity['target_participants'])) {
+  $participantRows = [
+    [
+      'row_no' => 1,
+      'subject_section' => $activity['involved_subjects'] ?? 'General Participants',
+      'participants_count' => (int)$activity['target_participants'],
+      'teacher_name' => ''
+    ]
+  ];
+}
 $kpiStmt = $db->prepare("SELECT * FROM kpi_evaluations WHERE activity_id=?");
 $kpiStmt->execute([$id]);
 $kpis = $kpiStmt->fetchAll();
-
-$partStmt = $db->prepare("SELECT * FROM activity_participants WHERE activity_id=? ORDER BY row_no ASC, id ASC");
-$partStmt->execute([$id]);
-$partRows = $partStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON al.reviewer_id=u.id WHERE al.activity_id=? ORDER BY al.acted_at DESC");
 $logs->execute([$id]);
@@ -741,12 +756,6 @@ $proposalPdfData = [
               <div class="obj-val"><?= htmlspecialchars($activity['involved_subjects']) ?></div>
             </div>
           <?php endif; ?>
-          <?php if (!empty($partRows)): ?>
-            <div class="obj-block" style="margin-top: 14px;">
-              <div class="obj-lbl">Target Participant Sections & Subject Teachers</div>
-              <?= renderParticipantSectionsTable($partRows) ?>
-            </div>
-          <?php endif; ?>
           <?php if (!empty($activity['rationale'])): ?>
             <div class="obj-block">
               <div class="obj-lbl">Rationale</div>
@@ -755,6 +764,54 @@ $proposalPdfData = [
           <?php endif; ?>
         </div>
       </div>
+
+      <!-- Target Participants & Involved Sections -->
+      <?php if (!empty($participantRows)): ?>
+        <div class="card">
+          <div class="card-header">
+            <h2>👥 Target Participants & Involved Sections</h2>
+            <span class="badge badge-primary"><?= number_format((int)($activity['target_participants'] ?? 0)) ?> total participants</span>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <div class="table-wrap">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th style="width: 50px; text-align: center;">No.</th>
+                    <th>Involved Subject / Section</th>
+                    <th style="width: 170px; text-align: center;">Target Participants</th>
+                    <th>Subject Teacher(s)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($participantRows as $pIdx => $pRow): ?>
+                    <tr>
+                      <td style="text-align: center; font-weight: 600;"><?= $pIdx + 1 ?></td>
+                      <td style="font-weight: 600;"><?= htmlspecialchars($pRow['subject_section'] ?? '—') ?></td>
+                      <td style="text-align: center;"><?= number_format((int)($pRow['participants_count'] ?? 0)) ?></td>
+                      <td>
+                        <?php
+                          $teachers = array_filter(array_map('trim', explode(',', $pRow['teacher_name'] ?? '')));
+                          if (empty($teachers)): ?>
+                            <span style="color: var(--text-muted); font-style: italic;">None assigned</span>
+                          <?php else: ?>
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                              <?php foreach ($teachers as $t): ?>
+                                <span class="badge" style="background: rgba(2, 132, 199, 0.1); color: var(--primary, #0284c7); border: 1px solid rgba(2, 132, 199, 0.25); font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; font-weight: 600;">
+                                  <?= htmlspecialchars($t) ?>
+                                </span>
+                              <?php endforeach; ?>
+                            </div>
+                          <?php endif; ?>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      <?php endif; ?>
 
       <!-- Materials Needed -->
       <?php if (!empty($materials)): ?>
