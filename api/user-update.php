@@ -95,11 +95,11 @@ $assignedRole = $targetUser['role'];
 if ($currentUser['role'] === 'admin2') {
     // Admin2 can edit faculty and program_head accounts
     if (!in_array($targetUser['role'], ['faculty', 'program_head'], true)) {
-        respondUpdateError('forbidden_target', 'Admin 2 is not authorized to edit administrative accounts.', $isJsonRequest, $redirectUrl, 403);
+        respondUpdateError('forbidden_target', 'Events Committee Head is not authorized to edit administrative accounts.', $isJsonRequest, $redirectUrl, 403);
     }
     // Admin2 cannot promote accounts to administrative roles (admin1, admin2, dean)
     if (!in_array($requestedRole, ['faculty', 'program_head'], true)) {
-        respondUpdateError('forbidden_role_change', 'Admin 2 cannot promote accounts to administrative roles.', $isJsonRequest, $redirectUrl, 403);
+        respondUpdateError('forbidden_role_change', 'Events Committee Head cannot promote accounts to administrative roles.', $isJsonRequest, $redirectUrl, 403);
     }
     $assignedRole = $requestedRole;
 

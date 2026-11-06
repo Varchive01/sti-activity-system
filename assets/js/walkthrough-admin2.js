@@ -11,23 +11,23 @@
   const admin2Steps = [
     {
       target: 'aside.sidebar',
-      title: 'Admin2 Navigation',
+      title: 'Events Committee Head Navigation',
       description: 'The sidebar provides access to proposal review, activities, calendar, KPI/monitoring tools, and user management.'
     },
     {
       target: 'a.sidebar-nav-item[href*="admin2/dashboard.php"]',
-      title: 'Admin2 Dashboard',
+      title: 'Events Committee Head Dashboard',
       description: 'The dashboard summarizes faculty proposals, review activity, KPI information, and upcoming activities.'
     },
     {
       target: 'a.sidebar-nav-item[href*="admin2/pending.php"]',
       title: 'Review Queue',
-      description: 'This is where faculty proposals requiring Admin2 action are reviewed.'
+      description: 'This is where faculty proposals requiring Events Committee Head action are reviewed.'
     },
     {
       target: 'a.sidebar-nav-item[href*="admin2/activities.php"]',
       title: 'Activities',
-      description: 'Access and monitor faculty activity records and ongoing proposals handled by Admin2.'
+      description: 'Access and monitor faculty activity records and ongoing proposals handled by Events Committee Head.'
     },
     {
       target: 'a.sidebar-nav-item[href*="admin2/calendar.php"]',

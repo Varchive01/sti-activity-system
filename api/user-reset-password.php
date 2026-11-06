@@ -80,7 +80,7 @@ if (!$targetUser) {
 if ($currentUser['role'] === 'admin2') {
     // Admin 2 can ONLY set passwords for faculty accounts
     if ($targetUser['role'] !== 'faculty') {
-        respondResetError('forbidden_target', 'Admin 2 is not authorized to set passwords for administrative accounts.', $isJsonRequest, $redirectUrl, 403);
+        respondResetError('forbidden_target', 'Events Committee Head is not authorized to set passwords for administrative accounts.', $isJsonRequest, $redirectUrl, 403);
     }
 } elseif ($currentUser['role'] === 'dean') {
     // Dean can set passwords for faculty, admin1, and admin2. Cannot set password for other Dean accounts.

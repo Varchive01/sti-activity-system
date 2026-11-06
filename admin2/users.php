@@ -8,6 +8,6 @@ requireRole('admin2');
 
 $themeClass  = 'theme-ian';
 $currentRole = 'admin2';
-$pageTitle   = 'User Management – Admin 2';
+$pageTitle   = 'User Management – Events Committee Head';
 
 require_once __DIR__ . '/../includes/user-management-view.php';

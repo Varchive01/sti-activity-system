@@ -92,7 +92,7 @@ if ($currentUser['role'] === 'dean') {
 } elseif ($currentUser['role'] === 'admin2') {
     // Admin2 can create Faculty and Program Head accounts
     if (!in_array($requestedRole, ['faculty', 'program_head'], true)) {
-        respondError('forbidden_role', 'Admin 2 is not authorized to create administrative accounts.', $isJsonRequest, $redirectUrl, 403);
+        respondError('forbidden_role', 'Events Committee Head is not authorized to create administrative accounts.', $isJsonRequest, $redirectUrl, 403);
     }
     $assignedRole = $requestedRole;
 } else {

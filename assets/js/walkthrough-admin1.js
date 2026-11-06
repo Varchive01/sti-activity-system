@@ -11,12 +11,12 @@
   const admin1Steps = [
     {
       target: 'aside.sidebar',
-      title: 'Admin1 Navigation',
+      title: 'Student Organization Head Navigation',
       description: 'The sidebar provides access to proposal review, activities, calendar, reports, and monitoring.'
     },
     {
       target: 'a.sidebar-nav-item[href*="admin1/dashboard.php"]',
-      title: 'Admin1 Dashboard',
+      title: 'Student Organization Head Dashboard',
       description: 'The dashboard summarizes submitted proposals, review activity, KPI information, and trends.'
     },
     {
@@ -27,7 +27,7 @@
     {
       target: 'a.sidebar-nav-item[href*="admin1/activities.php"]',
       title: 'Activities',
-      description: 'Access and monitor all student organization activities handled by Admin1.'
+      description: 'Access and monitor all student organization activities handled by Student Organization Head.'
     },
     {
       target: 'a.sidebar-nav-item[href*="admin1/calendar.php"]',

@@ -8,8 +8,8 @@ A web-based activity proposal, review, scheduling, and analytics system designed
 
 ### 1. Multi-Tier Role-Based Workflow
 - **Faculty / Proponent**: Draft, validate, submit, and track activity proposals; upload floorplans, posters, and post-event documentation.
-- **Admin 1 (Department / Head)**: Initial review, proposal endorsement, and KPI tracking.
-- **Admin 2 (Academic Affairs / QA)**: Schedule coordination, venue availability verification, and compliance assessment.
+- **Student Organization Head (Admin 1)**: Initial review, proposal endorsement, and KPI tracking for student organization activities.
+- **Events Committee Head (Admin 2)**: Schedule coordination, venue availability verification, user management, and compliance assessment.
 - **Dean**: Executive review, final approval/return with structured section feedback, and institutional reports.
 
 ### 2. Gemini AI Integration
@@ -174,8 +174,8 @@ Automated integration and regression test suites require dedicated seed accounts
 ## 📁 Project Structure
 
 ```
-├── admin1/          # Admin 1 dashboard, reviews, KPI reports
-├── admin2/          # Admin 2 dashboard, reviews, schedule tracking
+├── admin1/          # Student Organization Head dashboard, reviews, KPI reports
+├── admin2/          # Events Committee Head dashboard, reviews, user management, schedule tracking
 ├── api/             # RESTful API endpoints (validation, scheduling, AI analytics)
 ├── assets/          # CSS stylesheets, JavaScript files, and images
 ├── auth/            # Login, session management, and access control

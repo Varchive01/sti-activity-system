@@ -102,7 +102,7 @@ if ((int)$targetUser['id'] === (int)$currentUser['id']) {
 if ($currentUser['role'] === 'admin2') {
     // Admin 2 can ONLY delete faculty accounts
     if ($targetUser['role'] !== 'faculty') {
-        respondDeleteError('forbidden_target', 'Admin 2 is authorized to delete Faculty accounts only.', $isJsonRequest, $redirectUrl, 403);
+        respondDeleteError('forbidden_target', 'Events Committee Head is authorized to delete Faculty accounts only.', $isJsonRequest, $redirectUrl, 403);
     }
 } elseif ($currentUser['role'] === 'dean') {
     // Dean can delete faculty, admin1, and admin2 accounts.

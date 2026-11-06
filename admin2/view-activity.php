@@ -59,7 +59,7 @@ $logs = $db->prepare("SELECT al.*,u.name,u.role as reviewer_role FROM approval_l
 
 $currentApprover = 'None';
 if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted'])) {
-    $currentApprover = 'Admin 1 (Committee Review)';
+    $currentApprover = (($activity['source'] ?? '') === 'student_org') ? 'Student Organization Head (Committee Review)' : 'Events Committee Head (Review)';
 } elseif (in_array($activity['status'], ['endorsed', 'pending_final_approval'])) {
     $currentApprover = 'Dean (Final Approval)';
 } elseif ($activity['status'] === 'returned_for_revision') {

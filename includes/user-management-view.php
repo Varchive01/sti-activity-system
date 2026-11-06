@@ -255,8 +255,8 @@ $csrfToken = generateCsrfToken();
                       $roleLabels = [
                           'faculty'      => 'Faculty',
                           'program_head' => 'Program Head',
-                          'admin1'       => 'Admin 1',
-                          'admin2'       => 'Admin 2',
+                          'admin1'       => 'Student Organization Head',
+                          'admin2'       => 'Events Committee Head',
                           'dean'         => 'Dean'
                       ];
                       $roleLabel = $roleLabels[$roleKey] ?? ucfirst($roleKey);
@@ -369,8 +369,8 @@ $csrfToken = generateCsrfToken();
               <?php if ($user['role'] === 'dean'): ?>
                 <option value="faculty">Faculty</option>
                 <option value="program_head">Program Head</option>
-                <option value="admin1">Admin 1</option>
-                <option value="admin2">Admin 2</option>
+                <option value="admin1">Student Organization Head</option>
+                <option value="admin2">Events Committee Head</option>
               <?php else: ?>
                 <option value="faculty" selected>Faculty</option>
                 <option value="program_head">Program Head</option>
@@ -378,9 +378,9 @@ $csrfToken = generateCsrfToken();
             </select>
             <div class="form-help">
               <?php if ($user['role'] === 'dean'): ?>
-                Dean can create Faculty, Program Head, Admin 1, and Admin 2 accounts.
+                Dean can create Faculty, Program Head, Student Organization Head, and Events Committee Head accounts.
               <?php else: ?>
-                Admin 2 is authorized to create Faculty and Program Head accounts.
+                Events Committee Head is authorized to create Faculty and Program Head accounts.
               <?php endif; ?>
             </div>
           </div>
@@ -436,8 +436,8 @@ $csrfToken = generateCsrfToken();
               <?php if ($user['role'] === 'dean'): ?>
                 <option value="faculty">Faculty</option>
                 <option value="program_head">Program Head</option>
-                <option value="admin1">Admin 1</option>
-                <option value="admin2">Admin 2</option>
+                <option value="admin1">Student Organization Head</option>
+                <option value="admin2">Events Committee Head</option>
                 <option value="dean" id="optEditDean" disabled>Dean (Cannot assign)</option>
               <?php else: ?>
                 <option value="faculty" selected>Faculty</option>
@@ -446,9 +446,9 @@ $csrfToken = generateCsrfToken();
             </select>
             <div class="form-help" id="editRoleHelp">
               <?php if ($user['role'] === 'dean'): ?>
-                Dean can modify roles between Faculty, Program Head, Admin 1, and Admin 2.
+                Dean can modify roles between Faculty, Program Head, Student Organization Head, and Events Committee Head.
               <?php else: ?>
-                Admin 2 is authorized to modify roles between Faculty and Program Head.
+                Events Committee Head is authorized to modify roles between Faculty and Program Head.
               <?php endif; ?>
             </div>
           </div>

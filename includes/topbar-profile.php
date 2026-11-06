@@ -64,7 +64,14 @@ if (!empty($topbarUser['id'])) {
 $uName      = $topbarUser['name'] ?? 'User';
 $uEmail     = $topbarUser['email'] ?? '';
 $uRole      = $topbarUser['role'] ?? 'faculty';
-$uRoleTitle = ucwords(str_replace('_', ' ', $uRole));
+$roleDisplayMap = [
+    'faculty'      => 'Faculty',
+    'program_head' => 'Program Head',
+    'admin1'       => 'Student Organization Head',
+    'admin2'       => 'Events Committee Head',
+    'dean'         => 'Dean',
+];
+$uRoleTitle = $roleDisplayMap[$uRole] ?? ucwords(str_replace('_', ' ', $uRole));
 $uDept      = $topbarUser['dept'] ?? ($topbarUser['department'] ?? 'Not Assigned');
 $uPic       = $topbarUser['profile_picture'] ?? null;
 $uInitial   = strtoupper(substr(trim($uName) ?: 'U', 0, 1));

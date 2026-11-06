@@ -243,7 +243,7 @@ try {
         $deans->execute();
         $ns = $db->prepare("INSERT INTO notifications (user_id,activity_id,message) VALUES (?,?,?)");
         foreach ($deans->fetchAll() as $d) {
-            $forwarderNote = ($role === 'arjay') ? 'Admin 1 (Committee Review)' : (($role === 'ian') ? 'Sir Ian' : 'Committee');
+            $forwarderNote = in_array($role, ['arjay', 'admin1'], true) ? 'Student Organization Head (Committee Review)' : (in_array($role, ['ian', 'admin2'], true) ? 'Events Committee Head' : 'Committee');
             $ns->execute([$d['id'], $actId, "New proposal forwarded by {$forwarderNote} for final approval: " . sanitize($act['title'])]);
             
             $emailService->sendNotification(
