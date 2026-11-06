@@ -367,11 +367,15 @@ try {
         pre_test_score DECIMAL(5,2) NULL DEFAULT NULL,
         post_test_score DECIMAL(5,2) NULL DEFAULT NULL,
         learning_kpi_result VARCHAR(100) NULL DEFAULT NULL,
-        teacher_name VARCHAR(255) NOT NULL DEFAULT '',
+        teacher_name TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_activity_id (activity_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    try {
+        $db->exec("ALTER TABLE activity_participants MODIFY COLUMN teacher_name TEXT NOT NULL");
+    } catch (\Throwable $ignoredAlter) {}
 } catch (\Throwable $tblEx) {
     error_log("activity_participants table check notice: " . $tblEx->getMessage());
 }
@@ -449,7 +453,13 @@ try {
                 foreach ($sections as $i => $sec) {
                     $secText = sanitize($sec ?? '');
                     $cntNum  = max(0, (int)($counts[$i] ?? 0));
-                    $tName   = sanitize($teachers[$i] ?? '');
+                    $tRaw    = $teachers[$i] ?? '';
+                    if (is_array($tRaw)) {
+                        $tName = implode(', ', array_filter(array_map('trim', $tRaw)));
+                    } else {
+                        $tName = trim((string)$tRaw);
+                    }
+                    $tName   = sanitize($tName);
                     $actVal  = (isset($actuals[$i]) && $actuals[$i] !== '' && is_numeric($actuals[$i])) ? max(0, (int)$actuals[$i]) : null;
                     $preVal  = (isset($preTests[$i]) && $preTests[$i] !== '' && is_numeric($preTests[$i])) ? (float)$preTests[$i] : null;
                     $postVal = (isset($postTests[$i]) && $postTests[$i] !== '' && is_numeric($postTests[$i])) ? (float)$postTests[$i] : null;

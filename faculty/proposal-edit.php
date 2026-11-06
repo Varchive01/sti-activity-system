@@ -8,6 +8,7 @@ $user = currentUser();
 $db   = getDB();
 $facultyUsersStmt = $db->query("SELECT id, name, department FROM users WHERE role = 'faculty' ORDER BY name ASC");
 $facultyUsers = $facultyUsersStmt ? $facultyUsersStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+$registeredFacultyRoster = function_exists('getRegisteredFacultyList') ? getRegisteredFacultyList($db) : [];
 
 $facultyDepartmentGroups = [
   'THM Department' => [
@@ -1777,7 +1778,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                       <th style="width: 50px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No.</th>
                       <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Involved Subject / Section <span class="text-danger">*</span></th>
                       <th style="width: 180px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No. of Participants <span class="text-danger">*</span></th>
-                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Subject Teacher</th>
+                      <th style="min-width: 240px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Subject Teacher(s)</th>
                       <th style="width: 70px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Actions</th>
                     </tr>
                   </thead>
@@ -1797,8 +1798,14 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                         <td style="padding: 10px 12px;">
                           <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="<?= htmlspecialchars((string)($pRow['participants_count'] ?? '')) ?>" oninput="updateTotalTargetParticipants()" <?= $s1Attr ?>>
                         </td>
-                        <td style="padding: 10px 12px;">
-                          <input type="text" name="part_teacher[]" class="form-control part-teacher-input" placeholder="e.g. Prof. Juan Dela Cruz" value="<?= htmlspecialchars($pRow['teacher_name'] ?? '') ?>" <?= $s1Attr ?>>
+                        <td class="part-teacher-cell" style="padding: 10px 12px; position: relative;">
+                          <div class="teacher-multi-select">
+                            <div class="teacher-tags-container">
+                              <input type="text" class="teacher-search-input" placeholder="Search or select teacher..." autocomplete="off" <?= $s1Attr ?>>
+                            </div>
+                            <input type="hidden" name="part_teacher[]" class="part-teacher-input" value="<?= htmlspecialchars($pRow['teacher_name'] ?? '') ?>" <?= $s1Attr ?>>
+                            <div class="teacher-dropdown-list"></div>
+                          </div>
                         </td>
                         <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
                           <?php if ($s1Editable): ?>
@@ -4225,14 +4232,24 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         <td style="padding: 10px 12px;">
           <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="${escapeHtml(count)}" oninput="updateTotalTargetParticipants()">
         </td>
-        <td style="padding: 10px 12px;">
-          <input type="text" name="part_teacher[]" class="form-control part-teacher-input" placeholder="e.g. Prof. Juan Dela Cruz" value="${escapeHtml(teacher)}">
+        <td class="part-teacher-cell" style="padding: 10px 12px; position: relative;">
+          <div class="teacher-multi-select">
+            <div class="teacher-tags-container">
+              <input type="text" class="teacher-search-input" placeholder="Search or select teacher..." autocomplete="off">
+            </div>
+            <input type="hidden" name="part_teacher[]" class="part-teacher-input" value="${escapeHtml(teacher)}">
+            <div class="teacher-dropdown-list"></div>
+          </div>
         </td>
         <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
           <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Delete section" style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1;">✕</button>
         </td>
       `;
       tbody.appendChild(tr);
+      if (typeof window.initTeacherMultiSelect === 'function') {
+        const ms = tr.querySelector('.teacher-multi-select');
+        if (ms) window.initTeacherMultiSelect(ms, teacher);
+      }
       renumberParticipantRows();
       updateTotalTargetParticipants();
     }
@@ -6791,6 +6808,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         .replace(/'/g, '&#039;');
     }
   </script>
+  <script>
+    window.STI_FACULTY_ROSTER = <?= json_encode($registeredFacultyRoster ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>;
+  </script>
+  <script src="<?= BASE_URL ?>/assets/js/teacher-multi-select.js"></script>
 </body>
 
 </html>

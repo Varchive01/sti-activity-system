@@ -54,6 +54,7 @@ foreach ($grouped as $qText => $vals) {
 usort($questionAverages, fn($a, $b) => $b['average'] <=> $a['average']);
 
 $prog = $db->prepare("SELECT * FROM program_sequence WHERE activity_id=? ORDER BY sort_order"); $prog->execute([$id]); $program=$prog->fetchAll();
+$apStmt = $db->prepare("SELECT * FROM activity_participants WHERE activity_id=? ORDER BY row_no ASC, id ASC"); $apStmt->execute([$id]); $activityParticipants=$apStmt->fetchAll(PDO::FETCH_ASSOC);
 $mp   = $db->prepare("SELECT * FROM manpower WHERE activity_id=?"); $mp->execute([$id]); $manpower=$mp->fetchAll();
 $ft   = $db->prepare("SELECT ft.*, u.name as assigned_user_name FROM faculty_tasks ft LEFT JOIN users u ON ft.assigned_user_id = u.id WHERE ft.activity_id=? ORDER BY ft.id ASC"); $ft->execute([$id]); $ftasks=$ft->fetchAll();
 $delivStmt = $db->prepare("SELECT td.*, u.name as uploader_name FROM task_deliverables td LEFT JOIN users u ON td.uploaded_by = u.id WHERE td.activity_id = ? ORDER BY td.uploaded_at ASC");
@@ -204,6 +205,12 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
     <div style="margin-bottom:18px;">
       <div class="text-sm fw-bold" style="margin-bottom:4px;">Involved Subjects</div>
       <div class="text-sm"><?= htmlspecialchars($activity['involved_subjects']) ?></div>
+    </div>
+    <?php endif; ?>
+    <?php if (!empty($activityParticipants)): ?>
+    <div style="margin-bottom:18px;">
+      <div class="text-sm fw-bold" style="margin-bottom:4px;">Target Participant Sections & Subject Teachers</div>
+      <?= renderParticipantSectionsTable($activityParticipants) ?>
     </div>
     <?php endif; ?>
     <?php if (!empty($activity['rationale'])): ?>

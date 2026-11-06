@@ -574,7 +574,7 @@ try {
         pre_test_score DECIMAL(5,2) NULL DEFAULT NULL,
         post_test_score DECIMAL(5,2) NULL DEFAULT NULL,
         learning_kpi_result VARCHAR(100) NULL DEFAULT NULL,
-        teacher_name VARCHAR(255) NOT NULL DEFAULT '',
+        teacher_name TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_activity_id (activity_id)
@@ -666,7 +666,13 @@ try {
                     foreach ($loopList as $i => $item) {
                         $secText = sanitize($partSections[$i] ?? '');
                         $cntVal  = max(0, (int)($partCounts[$i] ?? 0));
-                        $tVal    = sanitize($partTeachers[$i] ?? '');
+                        $tRaw    = $partTeachers[$i] ?? '';
+                        if (is_array($tRaw)) {
+                            $tVal = implode(', ', array_filter(array_map('trim', $tRaw)));
+                        } else {
+                            $tVal = trim((string)$tRaw);
+                        }
+                        $tVal    = sanitize($tVal);
 
                         $actVal = null;
                         $preVal = null;

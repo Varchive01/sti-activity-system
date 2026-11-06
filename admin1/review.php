@@ -48,6 +48,10 @@ $kpiStmt = $db->prepare("SELECT * FROM kpi_evaluations WHERE activity_id=?");
 $kpiStmt->execute([$id]);
 $kpis = $kpiStmt->fetchAll();
 
+$partStmt = $db->prepare("SELECT * FROM activity_participants WHERE activity_id=? ORDER BY row_no ASC, id ASC");
+$partStmt->execute([$id]);
+$partRows = $partStmt->fetchAll(PDO::FETCH_ASSOC);
+
 $logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON al.reviewer_id=u.id WHERE al.activity_id=? ORDER BY al.acted_at DESC");
 $logs->execute([$id]);
 $history = $logs->fetchAll();
@@ -960,6 +964,10 @@ label, input, button, select, textarea {
       <?php if (!empty($activity['involved_subjects'])): ?>
       <div class="sl" style="margin-top:14px;">Involved Subjects</div>
       <p><?= htmlspecialchars($activity['involved_subjects']) ?></p>
+      <?php endif; ?>
+      <?php if (!empty($partRows)): ?>
+      <div class="sl" style="margin-top:14px;">Target Participant Sections & Subject Teachers</div>
+      <?= renderParticipantSectionsTable($partRows) ?>
       <?php endif; ?>
       <?php if (!empty($activity['rationale'])): ?>
       <div class="sl" style="margin-top:14px;">Rationale</div>

@@ -5983,3 +5983,204 @@ input.rule-field-error {
   color: #FCA5A5 !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
 }
+
+/* ── Subject Teacher Searchable Multi-Select Component ── */
+.teacher-multi-select {
+  position: relative;
+  width: 100%;
+  min-width: 220px;
+}
+
+.teacher-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-height: 38px;
+  padding: 4px 8px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  cursor: text;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+[data-theme="dark"] .teacher-tags-container {
+  background: var(--bg-card, #0f172a);
+  border-color: var(--border, #334155);
+}
+
+.teacher-tags-container:focus-within {
+  border-color: var(--sti-blue, #0284c7) !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
+}
+
+.teacher-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(2, 132, 199, 0.1);
+  color: var(--sti-blue, #0284c7);
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  animation: teacherChipIn 0.12s ease-out;
+}
+
+@keyframes teacherChipIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+[data-theme="dark"] .teacher-chip {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.teacher-chip-remove {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  opacity: 0.65;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.1s ease, color 0.1s ease;
+}
+
+.teacher-chip-remove:hover {
+  opacity: 1;
+  color: #ef4444 !important;
+}
+
+.teacher-search-input {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 3px 4px !important;
+  margin: 0 !important;
+  background: transparent !important;
+  color: var(--text-main, #1e293b) !important;
+  font-size: 0.85rem !important;
+  flex: 1 1 120px;
+  min-width: 90px;
+}
+
+[data-theme="dark"] .teacher-search-input {
+  color: var(--text-main, #f8fafc) !important;
+}
+
+.teacher-search-input::placeholder {
+  color: var(--text-muted, #94a3b8) !important;
+  font-size: 0.8rem;
+}
+
+.teacher-dropdown-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--bg-card-elevated, var(--bg-card, #ffffff));
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  z-index: 1050;
+  display: none;
+  padding: 4px 0;
+}
+
+[data-theme="dark"] .teacher-dropdown-list {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.teacher-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  color: var(--text-main, #1e293b);
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+[data-theme="dark"] .teacher-dropdown-item {
+  color: #f1f5f9;
+}
+
+.teacher-dropdown-item:hover,
+.teacher-dropdown-item.highlighted {
+  background: rgba(2, 132, 199, 0.08);
+}
+
+[data-theme="dark"] .teacher-dropdown-item:hover,
+[data-theme="dark"] .teacher-dropdown-item.highlighted {
+  background: rgba(56, 189, 248, 0.15) !important;
+}
+
+.teacher-dropdown-item.selected {
+  background: rgba(2, 132, 199, 0.04);
+  opacity: 0.7;
+}
+
+.teacher-dropdown-item .teacher-item-dept {
+  font-size: 0.7rem;
+  color: var(--text-muted, #64748b);
+  background: var(--bg-base, #f1f5f9);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+[data-theme="dark"] .teacher-dropdown-item .teacher-item-dept {
+  color: #94a3b8;
+  background: #0f172a;
+}
+
+.teacher-dropdown-empty {
+  padding: 12px;
+  font-size: 0.82rem;
+  color: var(--text-muted, #64748b);
+  text-align: center;
+}
+
+/* Multi-teacher presentation in View screens */
+.teacher-view-badges-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+
+.teacher-view-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(2, 132, 199, 0.1);
+  color: #0284c7;
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+[data-theme="dark"] .teacher-view-badge {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
+}

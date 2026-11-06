@@ -48,6 +48,7 @@ foreach ($grouped as $qText => $vals) {
 usort($questionAverages, fn($a, $b) => $b['average'] <=> $a['average']);
 
 $prog = $db->prepare("SELECT * FROM program_sequence WHERE activity_id=? ORDER BY sort_order"); $prog->execute([$id]); $program=$prog->fetchAll();
+$apStmt = $db->prepare("SELECT * FROM activity_participants WHERE activity_id=? ORDER BY row_no ASC, id ASC"); $apStmt->execute([$id]); $activityParticipants=$apStmt->fetchAll(PDO::FETCH_ASSOC);
 $mp   = $db->prepare("SELECT * FROM manpower WHERE activity_id=?"); $mp->execute([$id]); $manpower=$mp->fetchAll();
 $ft   = $db->prepare("SELECT ft.*, u.name as assigned_user_name FROM faculty_tasks ft LEFT JOIN users u ON ft.assigned_user_id = u.id WHERE ft.activity_id=? ORDER BY ft.id ASC"); $ft->execute([$id]); $ftasks=$ft->fetchAll();
 $gl   = $db->prepare("SELECT * FROM guidelines WHERE activity_id=?"); $gl->execute([$id]); $guidelines=$gl->fetch();
@@ -163,6 +164,14 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
     <div style="margin-bottom:24px;">
       <div class="text-sm fw-bold" style="margin-bottom:4px;">Specific Objectives</div>
       <div class="text-sm"><?= nl2br(htmlspecialchars($activity['specific_objectives']??'—')) ?></div>
+    </div>
+    <?php if (!empty($activityParticipants)): ?>
+    <div style="margin-bottom:24px;">
+      <div class="text-sm fw-bold" style="margin-bottom:4px;">Target Participant Sections & Subject Teachers</div>
+      <?= renderParticipantSectionsTable($activityParticipants) ?>
+    </div>
+    <?php endif; ?>
+
     </div>
 
     <?php if (!empty($activity['poster_path'])): ?>
