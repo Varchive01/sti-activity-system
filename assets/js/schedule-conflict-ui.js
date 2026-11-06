@@ -263,14 +263,17 @@ window.ScheduleConflictUI = (function () {
         if (isPreliminary) {
           hideSuccessMessage();
           hideErrorMessage();
+          highlightConflictFields(false);
           showPreliminaryMessage(data.message || 'Date selected. Complete the venue and event time to check availability.');
         } else if (isConflict) {
           hidePreliminaryMessage();
           hideSuccessMessage();
+          highlightConflictFields(true, data.message || 'The selected venue and time overlaps with an existing activity.');
           showConflictModal(data, { venue, date: normDate, start, end });
         } else {
           hidePreliminaryMessage();
           hideErrorMessage();
+          highlightConflictFields(false);
           showSuccessMessage(data.message || 'Schedule is available.');
         }
 
@@ -331,11 +334,44 @@ window.ScheduleConflictUI = (function () {
     return cachedResult;
   }
 
+  function highlightConflictFields(isConflict, message) {
+    const fields = [settings.venueId, settings.dateId, settings.startId, settings.endId];
+    fields.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (isConflict) {
+        el.classList.add('rule-field-error');
+        el.style.borderColor = '#EF4444';
+      } else {
+        el.classList.remove('rule-field-error');
+        el.style.borderColor = '';
+      }
+    });
+
+    let warningBanner = document.getElementById('scuConflictWarningBanner');
+    if (isConflict && message) {
+      if (!warningBanner) {
+        warningBanner = document.createElement('div');
+        warningBanner.id = 'scuConflictWarningBanner';
+        warningBanner.style.cssText = 'background: #FEF2F2; border: 1.5px solid #FCA5A5; color: #991B1B; padding: 12px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; margin-top: 10px; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 8px; line-height: 1.4;';
+        const dateInput = document.getElementById(settings.dateId);
+        if (dateInput && dateInput.closest('.row, .form-group, .card-body, form')) {
+          dateInput.closest('.row, .form-group, .card-body, form').prepend(warningBanner);
+        }
+      }
+      warningBanner.innerHTML = `<span>⚠️</span><div><strong>Schedule Conflict:</strong> ${escapeHtml(message)}</div>`;
+      warningBanner.style.display = 'flex';
+    } else if (warningBanner) {
+      warningBanner.style.display = 'none';
+    }
+  }
+
   function handleScheduleFieldChange() {
     invalidateCache();
     hideSuccessMessage();
     hideErrorMessage();
     hidePreliminaryMessage();
+    highlightConflictFields(false);
   }
 
   function handleDateInput(immediate = false) {
@@ -529,7 +565,7 @@ window.ScheduleConflictUI = (function () {
           if (modalInstance) {
             modalInstance.hide();
           }
-          // Highlight fields briefly
+          // Highlight fields briefly in light green to confirm adoption
           const fields = [settings.dateId, settings.startId, settings.endId, settings.venueId];
           fields.forEach(id => {
             const el = document.getElementById(id);
@@ -539,6 +575,7 @@ window.ScheduleConflictUI = (function () {
               setTimeout(() => el.style.background = '', 1500);
             }
           });
+          highlightConflictFields(false);
           handleDateInput(true);
         }
       });

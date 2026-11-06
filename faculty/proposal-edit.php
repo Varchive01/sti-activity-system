@@ -6266,10 +6266,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             </div>
           </div>
 
-          <!-- AI Recommendation -->
+          <!-- Suggested Available Alternative Slots -->
           <div style="background: #fff; padding: 12px 16px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <h6 class="text-primary fw-bold d-flex align-items-center gap-2" style="font-size:0.85rem; color: #0d6efd; margin: 0 0 10px 0; display: flex; align-items: center; gap: 6px;">
-              🤖 AI Recommendation
+              🗓️ Suggested Available Alternative Slots (Rule-Based Verification)
             </h6>
             <div id="scuAiLoading" class="text-center py-2" style="text-align: center; padding: 10px 0;">
               <div class="spinner-border text-primary spinner-border-sm" role="status" style="display: inline-block; width: 0.9rem; height: 0.9rem; border: 0.15em solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .75s linear infinite;"></div>

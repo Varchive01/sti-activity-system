@@ -95,3 +95,4 @@ echo "Overall Result: " . ($allPassed ? "ALL TESTS PASSED (100% RULE VALIDATION 
 echo "=======================================================================\n";
 
 exit($allPassed ? 0 : 1);
+

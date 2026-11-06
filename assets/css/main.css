@@ -5959,3 +5959,27 @@ input.rule-field-error {
   border-color: #F87171 !important;
   background-color: rgba(239, 68, 68, 0.12) !important;
 }
+
+/* ── Rule-Based Schedule Conflict Banner Parity ── */
+#scuConflictWarningBanner {
+  background: #FEF2F2 !important;
+  border: 1.5px solid #FCA5A5 !important;
+  color: #991B1B !important;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 10px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+[data-theme="dark"] #scuConflictWarningBanner {
+  background: #3B1219 !important;
+  border-color: #991B1B !important;
+  color: #FCA5A5 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+}

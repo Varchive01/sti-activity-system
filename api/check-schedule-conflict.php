@@ -78,10 +78,24 @@ if ($venue === '' || $startTime === '' || $endTime === '') {
 
 $timeCheck = validateScheduleTimeRange($startTime, $endTime, true);
 if (!$timeCheck['valid']) {
-    http_response_code(400);
     echo json_encode([
-        'error' => $timeCheck['error'],
-        'code'  => $timeCheck['code']
+        'conflict'               => true,
+        'rule_based'             => true,
+        'error_type'             => 'invalid_time_range',
+        'error'                  => $timeCheck['error'],
+        'message'                => $timeCheck['error'],
+        'code'                   => $timeCheck['code'],
+        'is_preliminary'         => false,
+        'date_valid'             => true,
+        'availability_confirmed' => false,
+        'conflicting_activity'   => [
+            'title'      => 'Invalid Time Interval',
+            'event_date' => $eventDate,
+            'start_time' => $startTime,
+            'end_time'   => $endTime,
+            'venue'      => $venue
+        ],
+        'alternatives'           => []
     ]);
     exit;
 }

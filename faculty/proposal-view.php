@@ -156,7 +156,7 @@ $proposalPdfData = [
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>View Proposal – STI</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=<?= @filemtime(__DIR__ . '/../assets/css/main.css') ?: time() ?>">
   <!-- jsPDF & autoTable CDN for Client-Side PDF Export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -190,12 +190,74 @@ $proposalPdfData = [
     .topbar-user-role,
     .info-tile,
     .detail-table,
+    .ai-question-item,
+    .ai-validation-card,
     label,
     input,
     button,
     select,
     textarea {
       font-family: 'Plus Jakarta Sans', sans-serif !important;
+    }
+
+    /* ── AI Evaluation Questions & Validation Card Parity ── */
+    .ai-questions-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .ai-question-item {
+      padding: 12px 16px !important;
+      background: var(--bg-card-elevated, #F8FAFC) !important;
+      border: 1px solid var(--border, #E2E8F0) !important;
+      border-radius: 8px !important;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .ai-question-item .ai-question-text {
+      font-size: 0.825rem !important;
+      font-weight: 500 !important;
+      color: var(--text-main, #0A1628) !important;
+      line-height: 1.4 !important;
+      word-break: break-word;
+    }
+    .ai-question-item .ai-question-num {
+      font-size: 0.75rem !important;
+      font-weight: 600 !important;
+      color: var(--text-muted, #64748B) !important;
+    }
+    [data-theme="dark"] .ai-question-item {
+      background: #0B1524 !important;
+      border-color: #1E2D45 !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25) !important;
+    }
+    [data-theme="dark"] .ai-question-item .ai-question-text {
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .ai-question-item .ai-question-num {
+      color: #94A3B8 !important;
+    }
+    [data-theme="dark"] .ai-validation-card {
+      background: #0F1B2E !important;
+      border-color: #1E2D45 !important;
+    }
+    [data-theme="dark"] .ai-val-header {
+      background: #15243C !important;
+      background-image: none !important;
+      border-bottom: 1px solid #1E2D45 !important;
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .ai-val-header h3,
+    [data-theme="dark"] .ai-val-header div {
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .ai-validation-body {
+      background: #0F1B2E !important;
+      color: #FFFFFF !important;
     }
 
     /* ── Content & Container Spacing ── */
