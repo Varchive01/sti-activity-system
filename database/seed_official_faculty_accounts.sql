@@ -26,3 +26,12 @@ INSERT INTO `users` (`name`, `email`, `password`, `role`, `department`, `created
 ('Perine O. Dela Cruz', 'perine.cruz@marikina.sti.edu.ph', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'faculty', 'G.E. Department', NOW())
 ON DUPLICATE KEY UPDATE name=VALUES(name);
 
+-- Self-healing: Ensure existing accounts with legacy @test.com or placeholder emails are updated to official institutional format
+UPDATE `users` SET `email` = 'andrea.gatbonton@marikina.sti.edu.ph' WHERE `name` LIKE '%Andrea Gatbonton%' AND `email` LIKE '%@test.com%';
+UPDATE `users` SET `email` = 'ricky.manliguis@marikina.sti.edu.ph' WHERE `name` LIKE '%Ricky Manliguis%' AND `email` LIKE '%@test.com%';
+UPDATE `users` SET `email` = 'ian.barangan@marikina.sti.edu.ph' WHERE `name` LIKE '%Ian Jade Barangan%' AND `email` LIKE '%@sti.edu%';
+UPDATE `users` SET `email` = 'frederic.yulo@marikina.sti.edu.ph' WHERE `name` LIKE '%Frederic Yulo%' AND `email` LIKE '%@sti.edu%';
+UPDATE `users` SET `email` = 'dave.rubaya@marikina.sti.edu.ph' WHERE `name` LIKE '%Dave Lord%' AND `email` LIKE '%@sti.edu%';
+UPDATE `users` SET `email` = 'aldwin.alminar@marikina.sti.edu.ph' WHERE `name` LIKE '%Aldwin Alminar%' AND `email` LIKE '%@sti.edu%';
+UPDATE `users` SET `email` = 'tristan.unabia@marikina.sti.edu.ph' WHERE `name` LIKE '%Tristan Unabia%' AND `email` LIKE '%@sti.edu%';
+UPDATE `users` SET `email` = 'maria.santos@marikina.sti.edu.ph' WHERE `name` LIKE '%Maria Santos%' AND `email` LIKE '%@sti.edu%';

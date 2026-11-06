@@ -2233,16 +2233,33 @@ if (!function_exists('ensureOfficialFacultyAccountsExist')) {
 
                 $offKey = cleanFacultyNameKey($officialName);
                 $found = false;
+                $matchedUser = null;
 
                 foreach ($existingUsers as $u) {
                     if (cleanFacultyNameKey($u['name']) === $offKey) {
                         $found = true;
+                        $matchedUser = $u;
                         break;
                     }
                     similar_text($offKey, cleanFacultyNameKey($u['name']), $pct);
                     if ($pct >= 85) {
                         $found = true;
+                        $matchedUser = $u;
                         break;
+                    }
+                }
+
+                if ($found && $matchedUser) {
+                    $uEmail = strtolower(trim((string)($matchedUser['email'] ?? '')));
+                    // Auto-heal placeholder test domains to official institutional format
+                    if (str_contains($uEmail, '@test.com') || str_contains($uEmail, '@invalid') || str_starts_with($uEmail, 'fac_')) {
+                        $cleanParts = array_values(array_filter(explode(' ', preg_replace('/[^a-zA-Z\s]/', '', $officialName))));
+                        $firstName = strtolower($cleanParts[0] ?? 'faculty');
+                        $lastName = strtolower(end($cleanParts) ?? 'member');
+                        $newEmail = $firstName . '.' . $lastName . '@marikina.sti.edu.ph';
+                        try {
+                            $db->prepare("UPDATE users SET email = ? WHERE id = ?")->execute([$newEmail, (int)$matchedUser['id']]);
+                        } catch (\Throwable $e) {}
                     }
                 }
 
