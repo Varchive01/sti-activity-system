@@ -299,3 +299,4 @@ function getDeterministicAlternativeSlots(
 
     return $alternatives;
 }
+

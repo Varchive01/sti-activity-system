@@ -38,3 +38,9 @@ All agent responses, bug investigations, and feature implementations in this rep
 - The final phase of every implementation must include stress testing and verification against the live domain:
   - **Target Live Endpoint:** `https://sti-armes.freedev.app/auth/login.php`
   - Perform live endpoint verification, session handling checks, responsiveness, and stress/load resilience testing to confirm stability in the live environment before marking the request complete.
+
+---
+
+### Rule 6: Explicit List of Files to Apply for Updating the Website
+- At the end of every response and implementation result, always provide an explicit, clear, and comprehensive list of files that were created or modified that need to be deployed/applied to update the website.
+- Include the exact relative path for each file, a brief layman's note on what that file does, and provide clickable links so the user knows exactly which files to push or upload to the live hosting server.

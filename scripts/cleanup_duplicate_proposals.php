@@ -44,3 +44,4 @@ try {
 if (!$isCli) {
     echo "</div></body></html>";
 }
+
