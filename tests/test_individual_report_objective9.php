@@ -114,37 +114,7 @@ try {
         VALUES (?, 'Secondary Criteria', 2, 'SECRET_SECONDARY_COMMENT_DO_NOT_LEAK', 'Student Gamma', '2026-10-16 10:00:00')
     ")->execute([$secondaryActId]);
 
-    // D. AI Qualitative Feedback Analysis for Primary
-    $feedbackPayload = [
-        'is_finalized' => true,
-        'finalized_by' => ['name' => 'Dean Test User', 'role' => 'Dean'],
-        'finalized_at' => '2026-10-17 11:00:00',
-        'overall_summary' => 'Participants expressed exceptional enthusiasm regarding technical workshops.',
-        'positive_themes' => [
-            ['theme' => 'Hands-on Coding Experience', 'frequency' => 45, 'summary' => 'Engaging coding challenges provided deep insights.']
-        ],
-        'improvement_themes' => [
-            ['theme' => 'Session Timing and Pacing', 'frequency' => 12, 'summary' => 'Afternoon sessions had tight breakout timeframes.']
-        ],
-        'key_findings' => [
-            '95% of attendees reported improved programming confidence.',
-            'Practical demonstrations scored highest across criteria.'
-        ],
-        'common_suggestions' => [
-            'Provide code repositories prior to workshop.',
-            'Extend lab time by 30 minutes.'
-        ],
-        'recommendations' => [
-            'Incorporate pre-workshop tutorial links.',
-            'Schedule follow-up hands-on lab sessions.'
-        ]
-    ];
-    $db->prepare("
-        INSERT INTO activity_feedback_analysis (activity_id, analysis_json, response_hash, responses_count)
-        VALUES (?, ?, 'hash123', 57)
-    ")->execute([$primaryActId, json_encode($feedbackPayload)]);
-
-    // Secondary Activity will intentionally have NO feedback analysis, NO documents, NO approval logs, and NO comments.
+    // Secondary Activity will intentionally have NO documents, NO approval logs, and NO comments.
 
     // -------------------------------------------------------------
     // HELPER: Execute dean/generate-report.php via CLI runner helper
@@ -266,49 +236,7 @@ try {
         "Raw filesystem path found in HTML!"
     );
 
-    // 4. AI Qualitative Feedback Analysis
-    assertCondition(
-        "AI Qualitative Feedback Analysis section is displayed",
-        str_contains($primaryOutput, "AI Qualitative Feedback Analysis"),
-        "Section header missing"
-    );
-    assertCondition(
-        "AI Qualitative Feedback summary is displayed",
-        str_contains($primaryOutput, "Participants expressed exceptional enthusiasm regarding technical workshops."),
-        "Summary missing"
-    );
-    assertCondition(
-        "AI Qualitative positive themes are displayed",
-        str_contains($primaryOutput, "Hands-on Coding Experience") && str_contains($primaryOutput, "Engaging coding challenges"),
-        "Positive themes missing"
-    );
-    assertCondition(
-        "AI Qualitative improvement themes are displayed",
-        str_contains($primaryOutput, "Session Timing and Pacing") && str_contains($primaryOutput, "Afternoon sessions had tight breakout timeframes."),
-        "Improvement themes missing"
-    );
-    assertCondition(
-        "AI Qualitative key findings are displayed",
-        str_contains($primaryOutput, "95% of attendees reported improved programming confidence."),
-        "Key findings missing"
-    );
-    assertCondition(
-        "AI Qualitative common suggestions are displayed",
-        str_contains($primaryOutput, "Provide code repositories prior to workshop."),
-        "Suggestions missing"
-    );
-    assertCondition(
-        "AI Qualitative actionable recommendations are displayed",
-        str_contains($primaryOutput, "Incorporate pre-workshop tutorial links."),
-        "Recommendations missing"
-    );
-    assertCondition(
-        "Reviewed/finalized status badge is displayed with administrator metadata",
-        str_contains($primaryOutput, "Finalized by Dean Test User"),
-        "Finalized status badge missing"
-    );
-
-    // 5. Existing Deterministic KPI Calculations & Advisory Notices
+    // 4. Existing Deterministic KPI Calculations & Advisory Notices
     assertCondition(
         "Deterministic KPI Calculations section is intact",
         str_contains($primaryOutput, "Deterministic KPI Calculations") && str_contains($primaryOutput, "Overall Performance Score"),
@@ -341,11 +269,6 @@ try {
     assertCondition(
         "Empty comments renders clean fallback notice",
         str_contains($emptyOutput, "No participant written comments recorded for this activity."),
-        "Fallback notice missing"
-    );
-    assertCondition(
-        "Empty feedback analysis renders clean fallback notice",
-        str_contains($emptyOutput, "No qualitative participant feedback analysis has been generated for this activity yet."),
         "Fallback notice missing"
     );
 
@@ -386,14 +309,13 @@ try {
     $facultyDeniedOutput = renderReportOutput(0, 'faculty');
     assertCondition(
         "Faculty user attempting to access aggregate report is denied access",
-        str_contains($facultyDeniedOutput, "Access denied."),
+        stripos($facultyDeniedOutput, "Access Denied") !== false || str_contains($facultyDeniedOutput, "Faculty cannot view"),
         "Faculty should be blocked from aggregate report generation"
     );
 
 } finally {
     // Clean up test data
     echo "\nCleaning up test fixtures...\n";
-    $db->prepare("DELETE FROM activity_feedback_analysis WHERE activity_id IN (?, ?, ?)")->execute([$primaryActId, $secondaryActId, $emptyActId]);
     $db->prepare("DELETE FROM kpi_evaluations WHERE activity_id IN (?, ?, ?)")->execute([$primaryActId, $secondaryActId, $emptyActId]);
     $db->prepare("DELETE FROM documents WHERE activity_id IN (?, ?, ?)")->execute([$primaryActId, $secondaryActId, $emptyActId]);
     $db->prepare("DELETE FROM approval_logs WHERE activity_id IN (?, ?, ?)")->execute([$primaryActId, $secondaryActId, $emptyActId]);

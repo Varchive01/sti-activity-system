@@ -11,7 +11,6 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/ai/kpi_helper.php';
 require_once __DIR__ . '/../includes/ai/schedule_conflict.php';
 require_once __DIR__ . '/../services/GeminiKpiAnalyticsService.php';
-require_once __DIR__ . '/../services/GeminiFeedbackAnalysisService.php';
 
 $pdo = getDB();
 
@@ -337,13 +336,6 @@ runTest('AREA 11 (Asset & JS Integrity)', 'main.css and core stylesheet existenc
 // -------------------------------------------------------------------------
 // AREA 12: PII PROTECTION IN ALL GEMINI/AI PAYLOADS
 // -------------------------------------------------------------------------
-
-runTest('AREA 12 (PII Protection)', 'Feedback analysis prompt anonymizes evaluator names', function() {
-    $feedbackCode = file_get_contents(__DIR__ . '/../services/GeminiFeedbackAnalysisService.php');
-    $hasAnon = str_contains($feedbackCode, "'Participant ' . \$anonCounter++") &&
-               str_contains($feedbackCode, "'Anonymous Participant'");
-    return $hasAnon;
-}, $results);
 
 runTest('AREA 12 (PII Protection)', 'Institutional analytics prompt anonymizes activity references', function() {
     $kpiCode = file_get_contents(__DIR__ . '/../services/GeminiKpiAnalyticsService.php');

@@ -5912,11 +5912,11 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
             <h6 class="text-primary fw-bold d-flex align-items-center gap-2" style="font-size:0.85rem; color: #0d6efd; margin: 0 0 10px 0; display: flex; align-items: center; gap: 6px;">
               🗓️ Suggested Available Alternative Slots (Rule-Based Verification)
             </h6>
-            <div id="scuAiLoading" class="text-center py-2" style="text-align: center; padding: 10px 0;">
+            <div id="scuAlternativeLoading" class="text-center py-2" style="text-align: center; padding: 10px 0;">
               <div class="spinner-border text-primary spinner-border-sm" role="status" style="display: inline-block; width: 0.9rem; height: 0.9rem; border: 0.15em solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .75s linear infinite;"></div>
               <span class="ms-2 text-muted" style="font-size:0.8rem; margin-left: 6px; color: #6c757d;">Finding alternative available dates and times...</span>
             </div>
-            <div id="scuAiRecommendationList" class="d-flex flex-column gap-2" style="display:none; flex-direction: column; gap: 6px;">
+            <div id="scuAlternativeList" class="d-flex flex-column gap-2" style="display:none; flex-direction: column; gap: 6px;">
               <!-- Alternative items -->
             </div>
           </div>
@@ -5929,14 +5929,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     </div>
   </div>
 
-  <!-- ── AI Proposal Validation Modal ── -->
-  <div class="modal fade" id="aiProposalValidationModal" tabindex="-1" aria-labelledby="aiProposalValidationModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered" style="margin: 1.75rem auto; max-width: 1050px;">
-      <div class="modal-content" style="border-radius:16px; overflow:hidden; border:none; box-shadow:0 12px 36px rgba(10, 22, 40, 0.2); font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc;" id="aiProposalValidationContent">
-        <!-- Inner content is rendered dynamically by proposal-ai-validator.js -->
-      </div>
-    </div>
-  </div>
+  
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
@@ -5944,7 +5937,6 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
   </script>
   <script src="<?= BASE_URL ?>/assets/js/teacher-multiselect.js?v=<?= time() ?>"></script>
   <script src="<?= BASE_URL ?>/assets/js/schedule-conflict-ui.js?v=<?= time() ?>"></script>
-  <script src="<?= BASE_URL ?>/assets/js/proposal-ai-validator.js?v=<?= time() ?>"></script>
   <script src="<?= BASE_URL ?>/assets/js/offline-drafts.js?v=<?= time() ?>"></script>
   <script src="<?= BASE_URL ?>/assets/js/ai-proposal-guidance.js?v=<?= time() ?>"></script>
   <script>
@@ -5961,12 +5953,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       });
     }
 
-    if (typeof ProposalAIValidator !== 'undefined') {
-      ProposalAIValidator.init({
-        baseUrl:       '<?= BASE_URL ?>',
-        formSelector:  '#proposalForm',
-        modalSelector: '#aiProposalValidationModal'
-      });
+    );
     }
 
     if (typeof AIProposalGuidance !== 'undefined') {

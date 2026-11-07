@@ -1179,13 +1179,7 @@ $proposalPdfData = [
         </div>
       <?php endif; ?>
 
-      <!-- AI Proposal Validator Section -->
-      <?php if ($activity['status'] !== 'draft'): ?>
-        <?php
-        require_once __DIR__ . '/../includes/ai/proposal_validator.php';
-        renderAiValidationSection($id, false);
-        ?>
-      <?php endif; ?>
+      
 
       <!-- Approval History -->
       <?php if (!empty($history)): ?>

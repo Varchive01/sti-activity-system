@@ -10,8 +10,8 @@
  * faculty members can review, accept, modify, or dismiss without automatic overwriting.
  */
 
-require_once __DIR__ . '/GeminiProposalValidationService.php';
-require_once __DIR__ . '/../includes/ai/proposal_validator.php';
+
+
 
 class GeminiProposalGuidanceService
 {

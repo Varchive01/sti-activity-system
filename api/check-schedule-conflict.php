@@ -9,7 +9,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/ai/schedule_conflict.php';
+require_once __DIR__ . '/../includes/schedule_conflict.php';
 
 requireRole('faculty', 'program_head');
 

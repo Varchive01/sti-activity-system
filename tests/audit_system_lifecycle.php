@@ -33,10 +33,8 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/ai/proposal_validator.php';
-require_once __DIR__ . '/../includes/ai/schedule_conflict.php';
+require_once __DIR__ . '/../includes/schedule_conflict.php';
 require_once __DIR__ . '/../includes/ai/kpi_helper.php';
-require_once __DIR__ . '/../services/GeminiFeedbackAnalysisService.php';
 require_once __DIR__ . '/../services/GeminiKpiAnalyticsService.php';
 
 $db = getDB();
@@ -276,31 +274,7 @@ try {
         "Stored {$evalCount} participant evaluation records across 3 criteria.");
 
     // -------------------------------------------------------------------------
-    // STAGE 10: AI Feedback Summarization & Prompt Anonymization (Zero PII)
-    // -------------------------------------------------------------------------
-    $fbService = new GeminiFeedbackAnalysisService('');
-    $fbReflection = new ReflectionClass($fbService);
-    $buildPromptMethod = $fbReflection->getMethod('buildPrompt');
-
-    $actForFb = $db->query("SELECT * FROM activities WHERE id = {$testActId}")->fetch(PDO::FETCH_ASSOC);
-    $evalResponses = $db->query("SELECT * FROM kpi_evaluations WHERE activity_id = {$testActId}")->fetchAll(PDO::FETCH_ASSOC);
-    $mockQuestions = [
-        ['question' => 'Were objectives achieved?', 'type' => 'rating', 'category' => 'Objectives'],
-        ['question' => 'Was venue organized?', 'type' => 'rating', 'category' => 'Logistics']
-    ];
-
-    $fbPrompt = $buildPromptMethod->invoke($fbService, $actForFb, $mockQuestions, $evalResponses);
-    $noPiiInPrompt = !str_contains($fbPrompt, 'Participant Alpha') &&
-                     !str_contains($fbPrompt, 'Participant Beta') &&
-                     str_contains($fbPrompt, 'Participant 1') &&
-                     str_contains($fbPrompt, 'Participant 2');
-
-    $s10Passed = !empty($fbPrompt) && $noPiiInPrompt;
-    recordAuditStep("STAGE 10: AI Feedback Analysis Prompt Anonymization (Zero PII)", $s10Passed,
-        "Evaluator names masked: " . ($noPiiInPrompt ? 'YES (Participant 1, 2...)' : 'NO - PII LEAK DETECTED!'));
-
-    // -------------------------------------------------------------------------
-    // STAGE 11: Quantitative KPI Computation
+    // STAGE 10: Quantitative KPI Computation
     // -------------------------------------------------------------------------
     $kpisComputed = calculateActivityKpis($testActId, $db);
     $overallPct = $kpisComputed['overall_performance'];

@@ -172,8 +172,7 @@ try {
         'api/create-google-form.php' => "canUserAccessActivity",
         'api/sync-google-form-responses.php' => "canUserAccessActivity",
         'api/import-evaluations-csv.php' => "canUserAccessActivity",
-        'api/generate-kpi-analytics.php' => "canUserAccessActivity",
-        'api/generate-feedback-analysis.php' => "canUserAccessActivity"
+        'api/generate-kpi-analytics.php' => "canUserAccessActivity"
     ];
 
     foreach ($apis as $apiRel => $expectedPattern) {

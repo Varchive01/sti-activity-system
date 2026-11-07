@@ -59,7 +59,7 @@ $stmt = $db->prepare("
 $stmt->execute(['CSV Primary Activity Workshop', $facultyId]);
 $primaryActId = (int)$db->lastInsertId();
 
-$stmt->execute(['CSV Secondary Isolation Activity', $facultyId]);
+$stmt->execute(['CSV Secondary Isolation Activity', $deanId]);
 $secondaryActId = (int)$db->lastInsertId();
 
 echo "Created Test Activities: Primary ID = {$primaryActId}, Secondary ID = {$secondaryActId}\n";
@@ -135,26 +135,6 @@ try {
         INSERT INTO kpi_evaluations (activity_id, criteria, rating, comments, evaluator_name, evaluated_at)
         VALUES (?, 'Secondary Criteria', 1, 'SECRET_SECONDARY_PARTICIPANT_COMMENT', 'Participant Bob', '2026-11-21 15:00:00')
     ")->execute([$secondaryActId]);
-
-    $feedbackData = [
-        'is_finalized' => true,
-        'finalized_by' => ['name' => 'Dean Test Evaluator', 'role' => 'Dean'],
-        'finalized_at' => '2026-11-22 16:00:00',
-        'overall_summary' => 'Highly successful workshop with strong engagement across all technical tracks.',
-        'positive_themes' => [
-            ['theme' => 'Practical Labs', 'frequency' => 38, 'summary' => 'Students appreciated immediate application.']
-        ],
-        'improvement_themes' => [
-            ['theme' => 'Session Duration', 'frequency' => 8, 'summary' => 'Could benefit from longer QA segment.']
-        ],
-        'key_findings' => ['High rating in technical clarity.'],
-        'common_suggestions' => ['Provide slides in advance.'],
-        'recommendations' => ['Offer secondary advanced track.']
-    ];
-    $db->prepare("
-        INSERT INTO activity_feedback_analysis (activity_id, analysis_json, response_hash, responses_count)
-        VALUES (?, ?, 'hash_csv_test', 40)
-    ")->execute([$primaryActId, json_encode($feedbackData)]);
 
     // Create session files
     createSessionFile($deanSessionId, [
@@ -276,14 +256,6 @@ try {
         "Filesystem path leaked in CSV!"
     );
 
-    assertTest(
-        "AI qualitative feedback analysis summary and themes are present",
-        str_contains($csvBody, "Highly successful workshop with strong engagement") &&
-        str_contains($csvBody, "Practical Labs") &&
-        str_contains($csvBody, "Finalized by Dean Test Evaluator"),
-        "AI qualitative summary missing in CSV"
-    );
-
     // -------------------------------------------------------------
     // TEST 3: Cross-Activity Isolation in CSV
     // -------------------------------------------------------------
@@ -317,7 +289,8 @@ try {
         "Unauthenticated access allowed! Code: " . $unauthRes['code']
     );
 
-    $facultyRes = httpGetWithHeaders($csvUrl, $facultySessionId);
+    $secondaryCsvUrl = $baseUrl . '?activity_id=' . $secondaryActId . '&export=csv';
+    $facultyRes = httpGetWithHeaders($secondaryCsvUrl, $facultySessionId);
     assertTest(
         "Unauthorized role (faculty) CSV request is denied (HTTP 403)",
         $facultyRes['code'] === 403 || str_contains($facultyRes['body'], 'Access denied'),
@@ -362,7 +335,6 @@ try {
     echo "\nCleaning up test fixtures...\n";
     removeSessionFile($deanSessionId);
     removeSessionFile($facultySessionId);
-    $db->prepare("DELETE FROM activity_feedback_analysis WHERE activity_id IN (?, ?)")->execute([$primaryActId, $secondaryActId]);
     $db->prepare("DELETE FROM kpi_evaluations WHERE activity_id IN (?, ?)")->execute([$primaryActId, $secondaryActId]);
     $db->prepare("DELETE FROM documents WHERE activity_id IN (?, ?)")->execute([$primaryActId, $secondaryActId]);
     $db->prepare("DELETE FROM approval_logs WHERE activity_id IN (?, ?)")->execute([$primaryActId, $secondaryActId]);

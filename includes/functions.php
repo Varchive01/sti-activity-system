@@ -3292,3 +3292,29 @@ function hasCollaboratorsTable(PDO $db): bool
     }
     return $hasCollab;
 }
+
+if (!function_exists('getGeminiApiKeySecure')) {
+    function getGeminiApiKeySecure(): string
+    {
+        $key = getenv('GEMINI_API_KEY');
+        if (!$key && defined('GEMINI_API_KEY')) {
+            $key = GEMINI_API_KEY;
+        }
+        if (!$key && isset($_ENV['GEMINI_API_KEY'])) {
+            $key = $_ENV['GEMINI_API_KEY'];
+        }
+        if (!$key && isset($_SERVER['GEMINI_API_KEY'])) {
+            $key = $_SERVER['GEMINI_API_KEY'];
+        }
+        if (!$key) {
+            $envFile = __DIR__ . '/../.env';
+            if (file_exists($envFile)) {
+                $envVars = parse_ini_file($envFile);
+                if (isset($envVars['GEMINI_API_KEY'])) {
+                    $key = (string)$envVars['GEMINI_API_KEY'];
+                }
+            }
+        }
+        return trim((string)$key);
+    }
+}

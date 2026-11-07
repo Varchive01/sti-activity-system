@@ -79,23 +79,6 @@ CREATE TABLE `activities` (
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ---------------------------------------------------------------------
--- Table structure for table `activity_feedback_analysis`
--- ---------------------------------------------------------------------
-DROP TABLE IF EXISTS `activity_feedback_analysis`;
-CREATE TABLE `activity_feedback_analysis` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `activity_id` int(11) NOT NULL,
-  `analysis_json` longtext NOT NULL,
-  `response_hash` varchar(64) NOT NULL,
-  `responses_count` int(11) NOT NULL DEFAULT 0,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_activity_id` (`activity_id`),
-  CONSTRAINT `fk_feedback_analysis_activity` FOREIGN KEY (`activity_id`) REFERENCES `activities` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- ---------------------------------------------------------------------
 -- Table structure for table `activity_kpi_analytics`
 -- ---------------------------------------------------------------------
 DROP TABLE IF EXISTS `activity_kpi_analytics`;
@@ -352,45 +335,6 @@ CREATE TABLE `program_sequence` (
   KEY `activity_id` (`activity_id`),
   CONSTRAINT `program_sequence_ibfk_1` FOREIGN KEY (`activity_id`) REFERENCES `activities` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- ---------------------------------------------------------------------
--- Table structure for table `proposal_ai_validation`
--- ---------------------------------------------------------------------
-DROP TABLE IF EXISTS `proposal_ai_validation`;
-CREATE TABLE `proposal_ai_validation` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `proposal_id` int(11) NOT NULL,
-  `is_complete` tinyint(1) NOT NULL DEFAULT 0,
-  `is_aligned` tinyint(1) NOT NULL DEFAULT 0,
-  `issues` text DEFAULT NULL,
-  `suggestions` text DEFAULT NULL,
-  `reviewed_by_human` tinyint(1) NOT NULL DEFAULT 0,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `full_result` longtext DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_proposal_id` (`proposal_id`),
-  CONSTRAINT `fk_proposal_ai_validation_proposal` FOREIGN KEY (`proposal_id`) REFERENCES `activities` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- ---------------------------------------------------------------------
--- Table structure for table `proposal_ai_validation_orphans_archive`
--- ---------------------------------------------------------------------
-DROP TABLE IF EXISTS `proposal_ai_validation_orphans_archive`;
-CREATE TABLE `proposal_ai_validation_orphans_archive` (
-  `id` int(11) NOT NULL,
-  `proposal_id` int(11) NOT NULL,
-  `is_complete` tinyint(1) NOT NULL DEFAULT 0,
-  `is_aligned` tinyint(1) NOT NULL DEFAULT 0,
-  `issues` text DEFAULT NULL,
-  `suggestions` text DEFAULT NULL,
-  `full_result` longtext DEFAULT NULL,
-  `reviewed_by_human` tinyint(1) NOT NULL DEFAULT 0,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `archived_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ---------------------------------------------------------------------
 -- Table structure for table `proposal_comments`

@@ -159,11 +159,11 @@ try {
         "DELETE FROM proposal_collaborators WHERE activity_id = ?",
         "DELETE FROM proposal_contributions WHERE activity_id = ?",
         "DELETE FROM proposal_comments WHERE proposal_id = ?",
-        "DELETE FROM proposal_ai_validation WHERE proposal_id = ?",
+        // Removed proposal_ai_validation
         "DELETE FROM section_revisions WHERE activity_id = ?",
         "DELETE FROM approval_logs WHERE activity_id = ?",
         "DELETE FROM notifications WHERE activity_id = ?",
-        "DELETE FROM feedback_analysis WHERE activity_id = ?",
+        // Removed feedback_analysis
         "DELETE FROM kpi_analytics WHERE activity_id = ?",
         "DELETE FROM activities WHERE id = ?"
     ];

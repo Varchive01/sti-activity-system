@@ -9,7 +9,7 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/ai/schedule_conflict.php';
+require_once __DIR__ . '/../includes/schedule_conflict.php';
 
 $db = getDB();
 
@@ -166,7 +166,7 @@ try {
     );
 
     // ── TEST 11: Zero Gemini / AI References in schedule_conflict.php ──
-    $fileContent = file_get_contents(__DIR__ . '/../includes/ai/schedule_conflict.php');
+    $fileContent = file_get_contents(__DIR__ . '/../includes/schedule_conflict.php');
     assertScheduleTest(
         'Zero AI Dependency',
         'No Google Gemini API endpoints or cURL in schedule_conflict.php',

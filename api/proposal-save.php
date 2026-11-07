@@ -4,7 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/EmailService.php';
-require_once __DIR__ . '/../includes/ai/schedule_conflict.php';
+require_once __DIR__ . '/../includes/schedule_conflict.php';
 requireRole('faculty', 'program_head');
 
 $user   = currentUser();
@@ -788,15 +788,6 @@ try {
         }
     }
 
-    // Persist verified AI validation record to database
-    if ($status === 'submitted' && !empty($cachedValidation) && isset($aiService) && is_object($aiService) && function_exists('saveProposalAiValidationResult')) {
-        try {
-            $mappedAi = $aiService->mapToDatabaseFormat($cachedValidation);
-            saveProposalAiValidationResult($db, $actId, $mappedAi);
-        } catch (\Throwable $aiSaveEx) {
-            error_log("Failed to persist AI validation for activity {$actId}: " . $aiSaveEx->getMessage());
-        }
-    }
 
     // Send emails after successful commit so failure never impacts database transaction
     if (!empty($emailsToSend)) {

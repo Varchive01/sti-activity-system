@@ -644,8 +644,8 @@ window.ScheduleConflictUI = (function () {
     if (elPropVenue) elPropVenue.textContent = propVenue;
 
     // Reset Suggestion UI
-    const loadingEl = document.getElementById('scuAiLoading');
-    const listEl = document.getElementById('scuAiRecommendationList');
+    const loadingEl = document.getElementById('scuAlternativeLoading') || document.getElementById('scuAiLoading');
+    const listEl = document.getElementById('scuAlternativeList') || document.getElementById('scuAiRecommendationList');
     const useBtn = document.getElementById('scuUseBtn');
 
     if (useBtn) useBtn.disabled = true;
@@ -712,7 +712,7 @@ window.ScheduleConflictUI = (function () {
         }
       }
     } catch (renderErr) {
-      console.error('Error rendering AI alternatives:', renderErr);
+      console.error('Error rendering alternative slots:', renderErr);
       if (loadingEl) loadingEl.style.display = 'none';
       if (listEl) {
         listEl.style.display = 'flex';

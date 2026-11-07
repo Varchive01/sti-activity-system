@@ -84,12 +84,6 @@ if ($activityId > 0) {
     $commentsStmt->execute([$activityId]);
     $participantComments = $commentsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // 4. Retrieve Qualitative AI Feedback Analysis (advisory; do not regenerate)
-    $fbStmt = $db->prepare("SELECT analysis_json, updated_at FROM activity_feedback_analysis WHERE activity_id = ?");
-    $fbStmt->execute([$activityId]);
-    $fbRow = $fbStmt->fetch(PDO::FETCH_ASSOC);
-    $feedbackAnalysis = $fbRow ? json_decode($fbRow['analysis_json'], true) : null;
-
     // Retrieve all participant evaluations for report/export
     $evalStmt = $db->prepare("
         SELECT criteria, rating, comments, evaluator_name, evaluated_at 
@@ -446,57 +440,7 @@ if ($activityId > 0) {
         }
         fputcsv($out, []);
 
-        // 7. AI Qualitative Feedback Analysis Summary
-        fputcsv($out, ['--- AI QUALITATIVE FEEDBACK ANALYSIS ---']);
-        if (empty($feedbackAnalysis)) {
-            fputcsv($out, ['No qualitative participant feedback analysis generated yet.']);
-        } else {
-            $statusStr = 'Unreviewed AI Draft';
-            if (!empty($feedbackAnalysis['is_finalized'])) {
-                $statusStr = 'Finalized by ' . ($feedbackAnalysis['finalized_by']['name'] ?? 'Administrator') . ' (' . ($feedbackAnalysis['finalized_by']['role'] ?? 'Admin') . ') on ' . ($feedbackAnalysis['finalized_at'] ?? 'N/A');
-            } elseif (!empty($feedbackAnalysis['is_reviewed'])) {
-                $statusStr = 'Administrator Reviewed Draft';
-            }
-            fputcsv($out, ['Analysis Status', $statusStr]);
-            if (!empty($feedbackAnalysis['overall_summary'])) {
-                fputcsv($out, ['Thematic Summary', $feedbackAnalysis['overall_summary']]);
-            }
-            if (!empty($feedbackAnalysis['positive_themes'])) {
-                fputcsv($out, ['Positive Themes']);
-                foreach ($feedbackAnalysis['positive_themes'] as $i => $pt) {
-                    $freq = isset($pt['frequency']) ? ' (' . (int)$pt['frequency'] . ' responses)' : '';
-                    fputcsv($out, ['  ' . ($i + 1) . '. ' . $pt['theme'] . $freq, $pt['summary'] ?? '']);
-                }
-            }
-            if (!empty($feedbackAnalysis['improvement_themes'])) {
-                fputcsv($out, ['Areas for Improvement']);
-                foreach ($feedbackAnalysis['improvement_themes'] as $i => $it) {
-                    $freq = isset($it['frequency']) ? ' (' . (int)$it['frequency'] . ' responses)' : '';
-                    fputcsv($out, ['  ' . ($i + 1) . '. ' . $it['theme'] . $freq, $it['summary'] ?? '']);
-                }
-            }
-            if (!empty($feedbackAnalysis['key_findings'])) {
-                fputcsv($out, ['Key Findings']);
-                foreach ($feedbackAnalysis['key_findings'] as $kf) {
-                    fputcsv($out, ['  - ' . $kf]);
-                }
-            }
-            if (!empty($feedbackAnalysis['common_suggestions'])) {
-                fputcsv($out, ['Common Suggestions']);
-                foreach ($feedbackAnalysis['common_suggestions'] as $cs) {
-                    fputcsv($out, ['  - ' . $cs]);
-                }
-            }
-            if (!empty($feedbackAnalysis['recommendations'])) {
-                fputcsv($out, ['Actionable Recommendations']);
-                foreach ($feedbackAnalysis['recommendations'] as $ar) {
-                    fputcsv($out, ['  - ' . $ar]);
-                }
-            }
-        }
-        fputcsv($out, []);
-
-        // 8. AI Numerical KPI Insights Summary
+        // 7. AI Numerical KPI Insights Summary
         fputcsv($out, ['--- AI NUMERICAL KPI INTERPRETATION (ADVISORY ONLY) ---']);
         if (empty($aiInsights)) {
             fputcsv($out, ['No AI interpretation generated yet.']);
@@ -1062,120 +1006,7 @@ if ($activityId > 0) {
             </div>
           </div>
 
-          <!-- Section 6: AI Qualitative Feedback Analysis -->
-          <div class="card report-section">
-            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-              <h2 style="margin:0;">AI Qualitative Feedback Analysis</h2>
-              <?php if ($feedbackAnalysis): ?>
-                <?php if (!empty($feedbackAnalysis['is_finalized'])): ?>
-                  <span style="font-size:0.75rem; color:#15803d; font-weight:700; background:#ecfdf5; border:1px solid #a7f3d0; padding:3px 8px; border-radius:4px;">
-                    🔒 Finalized by <?= htmlspecialchars($feedbackAnalysis['finalized_by']['name'] ?? 'Administrator') ?> (<?= htmlspecialchars($feedbackAnalysis['finalized_by']['role'] ?? 'Admin') ?>) on <?= htmlspecialchars(date('M j, Y', strtotime($feedbackAnalysis['finalized_at'] ?? 'now'))) ?>
-                  </span>
-                <?php elseif (!empty($feedbackAnalysis['is_reviewed'])): ?>
-                  <span style="font-size:0.75rem; color:#d97706; font-weight:700; background:#fffbeb; border:1px solid #fef3c7; padding:3px 8px; border-radius:4px;">
-                    ✏️ Administrator Reviewed Draft
-                  </span>
-                <?php else: ?>
-                  <span style="font-size:0.75rem; color:#64748b; font-weight:600; background:var(--bg-base); border:1px solid var(--border); padding:3px 8px; border-radius:4px;">
-                    🤖 Unreviewed AI Draft
-                  </span>
-                <?php endif; ?>
-              <?php endif; ?>
-            </div>
-            <div class="card-body">
-              <?php if ($feedbackAnalysis): ?>
-                <?php if (!empty($feedbackAnalysis['overall_summary'])): ?>
-                <div style="margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--border);">
-                  <strong style="display:block; margin-bottom:4px; font-size:0.9rem;">Thematic Summary:</strong>
-                  <p style="color:var(--text-main); margin:0; line-height:1.5; font-size:0.88rem; font-style:italic;">
-                    "<?= htmlspecialchars($feedbackAnalysis['overall_summary']) ?>"
-                  </p>
-                </div>
-                <?php endif; ?>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:14px;">
-                  <div>
-                    <strong style="display:block; margin-bottom:6px; font-size:0.85rem; color:#16a34a;">🟢 Positive Themes</strong>
-                    <?php if (!empty($feedbackAnalysis['positive_themes'])): ?>
-                      <?php foreach ($feedbackAnalysis['positive_themes'] as $i => $pt): ?>
-                        <div style="margin-bottom:8px; font-size:0.82rem;">
-                          <strong><?= $i+1 ?>. <?= htmlspecialchars($pt['theme']) ?></strong>
-                          <?php if (isset($pt['frequency'])): ?>
-                            <span class="text-muted">(<?= (int)$pt['frequency'] ?> responses)</span>
-                          <?php endif; ?><br>
-                          <span style="color:var(--text-muted);"><?= htmlspecialchars($pt['summary']) ?></span>
-                        </div>
-                      <?php endforeach; ?>
-                    <?php else: ?>
-                      <div class="text-muted text-sm">No positive themes recorded.</div>
-                    <?php endif; ?>
-                  </div>
-
-                  <div>
-                    <strong style="display:block; margin-bottom:6px; font-size:0.85rem; color:#d97706;">Area for Improvement</strong>
-                    <?php if (!empty($feedbackAnalysis['improvement_themes'])): ?>
-                      <?php foreach ($feedbackAnalysis['improvement_themes'] as $i => $it): ?>
-                        <div style="margin-bottom:8px; font-size:0.82rem;">
-                          <strong><?= $i+1 ?>. <?= htmlspecialchars($it['theme']) ?></strong>
-                          <?php if (isset($it['frequency'])): ?>
-                            <span class="text-muted">(<?= (int)$it['frequency'] ?> responses)</span>
-                          <?php endif; ?><br>
-                          <span style="color:var(--text-muted);"><?= htmlspecialchars($it['summary']) ?></span>
-                        </div>
-                      <?php endforeach; ?>
-                    <?php else: ?>
-                      <div class="text-muted text-sm">No improvement areas recorded.</div>
-                    <?php endif; ?>
-                  </div>
-                </div>
-
-                <?php if (!empty($feedbackAnalysis['key_findings'])): ?>
-                <div style="margin-bottom:14px;">
-                  <strong style="display:block; margin-bottom:4px; font-size:0.85rem;">🔍 Key Findings</strong>
-                  <ul style="font-size:0.82rem; color:var(--text-muted); padding-left:16px; margin:0; line-height:1.4;">
-                    <?php foreach ($feedbackAnalysis['key_findings'] as $kf): ?>
-                      <li><?= htmlspecialchars($kf) ?></li>
-                    <?php endforeach; ?>
-                  </ul>
-                </div>
-                <?php endif; ?>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                  <div>
-                    <strong style="display:block; margin-bottom:4px; font-size:0.85rem;">💡 Common Suggestions</strong>
-                    <?php if (!empty($feedbackAnalysis['common_suggestions'])): ?>
-                      <ul style="font-size:0.82rem; color:var(--text-muted); padding-left:16px; margin:0; line-height:1.4;">
-                        <?php foreach ($feedbackAnalysis['common_suggestions'] as $cs): ?>
-                          <li><?= htmlspecialchars($cs) ?></li>
-                        <?php endforeach; ?>
-                      </ul>
-                    <?php else: ?>
-                      <div class="text-muted text-sm">No common suggestions recorded.</div>
-                    <?php endif; ?>
-                  </div>
-
-                  <div>
-                    <strong style="display:block; margin-bottom:4px; font-size:0.85rem; color:var(--accent);">🎯 Actionable Recommendations</strong>
-                    <?php if (!empty($feedbackAnalysis['recommendations'])): ?>
-                      <ul style="font-size:0.82rem; color:var(--text-muted); padding-left:16px; margin:0; line-height:1.4;">
-                        <?php foreach ($feedbackAnalysis['recommendations'] as $ar): ?>
-                          <li><?= htmlspecialchars($ar) ?></li>
-                        <?php endforeach; ?>
-                      </ul>
-                    <?php else: ?>
-                      <div class="text-muted text-sm">No recommendations recorded.</div>
-                    <?php endif; ?>
-                  </div>
-                </div>
-              <?php else: ?>
-                <div class="text-muted text-sm" style="text-align:center; padding:10px;">
-                  No qualitative participant feedback analysis has been generated for this activity yet.
-                </div>
-              <?php endif; ?>
-            </div>
-          </div>
-
-          <!-- Section 7: AI-Generated Insight — Advisory Only (Quantitative Interpretation) -->
+          <!-- Section 6: AI-Generated Insight — Advisory Only (Quantitative Interpretation) -->
           <div class="card report-section">
             <div class="card-header"><h2>AI Numerical KPI Interpretation — Advisory Only</h2></div>
             <div class="card-body">

@@ -15,7 +15,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/EmailService.php';
-require_once __DIR__ . '/../services/GeminiProposalValidationService.php';
+
 
 $db = getDB();
 $baseUrl = 'http://localhost/sti-activity-system';
@@ -389,31 +389,7 @@ $submitPayload = [
     'last_known_updated_at' => $actRow4['updated_at']
 ];
 
-// Pre-seed passing AI validation cache into Faculty A's session file via sub-process
-$aiService = new GeminiProposalValidationService('');
-$canonicalPayload = $aiService->getCanonicalProposalPayload($submitPayload);
-$currentHash = $aiService->calculateProposalHash($canonicalPayload);
-
-$sessIdA = getSessionId($cookieA);
-if ($sessIdA) {
-    $sessScript = __DIR__ . '/../scratch/seed_sess_' . time() . '.php';
-    $code = '<?php ' .
-        "session_save_path('C:/xampp/tmp'); " .
-        "session_id('{$sessIdA}'); " .
-        "session_start(); " .
-        "\$_SESSION['last_ai_validation']['{$currentHash}'] = [ " .
-        "  'result' => [ 'status' => 'pass', 'sections' => [ " .
-        "    ['section' => 'Event Details', 'status' => 'pass'], " .
-        "    ['section' => 'Objectives', 'status' => 'pass'], " .
-        "    ['section' => 'KPI & Evaluation', 'status' => 'pass'] " .
-        "  ]], " .
-        "  'timestamp' => time() " .
-        "]; " .
-        "session_write_close();";
-    file_put_contents($sessScript, $code);
-    exec("php {$sessScript}");
-    @unlink($sessScript);
-}
+// Submit proposal directly without AI validation interception
 
 $resSubmitA = makeRequest("{$baseUrl}/api/proposal-update.php", 'POST', $submitPayload, $cookieA);
 assertCheck($resSubmitA['code'] === 200 || $resSubmitA['code'] === 302, "Requirement 12a: Proposal Owner Faculty A submitted the proposal.");

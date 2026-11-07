@@ -102,10 +102,7 @@ if ($action === 'check' || $action === 'auto') {
 
     // 2. No cache or stale cache: Automatically generate / refresh via Gemini
     $apiKey = defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '';
-    $feedbackStmt = $db->prepare("SELECT analysis_json FROM activity_feedback_analysis WHERE activity_id = ?");
-    $feedbackStmt->execute([$activityId]);
-    $feedbackRow = $feedbackStmt->fetch(PDO::FETCH_ASSOC);
-    $feedbackAnalysis = $feedbackRow ? json_decode($feedbackRow['analysis_json'], true) : null;
+    $feedbackAnalysis = null;
 
     $service = new GeminiKpiAnalyticsService($apiKey);
     $analyticsResult = $service->analyzeActivityKpis($kpiResults, $feedbackAnalysis);
@@ -190,11 +187,7 @@ if ($action === 'analyze') {
         exit;
     }
 
-    // Fetch existing qualitative feedback analysis for prompt context
-    $feedbackStmt = $db->prepare("SELECT analysis_json FROM activity_feedback_analysis WHERE activity_id = ?");
-    $feedbackStmt->execute([$activityId]);
-    $feedbackRow = $feedbackStmt->fetch(PDO::FETCH_ASSOC);
-    $feedbackAnalysis = $feedbackRow ? json_decode($feedbackRow['analysis_json'], true) : null;
+    $feedbackAnalysis = null;
 
     $service = new GeminiKpiAnalyticsService($apiKey);
     $analyticsResult = $service->analyzeActivityKpis($kpiResults, $feedbackAnalysis);

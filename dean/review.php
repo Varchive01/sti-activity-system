@@ -3,7 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/ai/proposal_validator.php';
+
 requireRole('dean');
 $user = currentUser();
 $db   = getDB();
@@ -500,7 +500,7 @@ label, input, button, select, textarea {
   </div>
 
   <div class="content">
-    <?php renderAiValidationSection($id); ?>
+    
 
     <?php renderSectionHeader('event_details', '📋 Event Details', $stagedComments); ?>
       <div class="info-grid" style="margin-bottom:14px;">

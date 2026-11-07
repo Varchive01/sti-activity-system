@@ -12,7 +12,7 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/ai/schedule_conflict.php';
+require_once __DIR__ . '/../includes/schedule_conflict.php';
 
 $db = getDB();
 
@@ -44,11 +44,6 @@ $facultyId = (int)$faculty['id'];
 
 // Helper to execute endpoint in subproc with session and post data
 function runSaveEndpoint(array $postData, int $userId) {
-    require_once __DIR__ . '/../services/GeminiProposalValidationService.php';
-    $aiService = new GeminiProposalValidationService('TEST_DUMMY_KEY');
-    $canonicalPayload = $aiService->getCanonicalProposalPayload($postData);
-    $currentHash = $aiService->calculateProposalHash($canonicalPayload);
-
     $script = str_replace('\\', '/', realpath(__DIR__ . '/../api/proposal-save.php'));
     $postExport = var_export($postData, true);
     
@@ -61,15 +56,7 @@ function runSaveEndpoint(array $postData, int $userId) {
     \$_SESSION['user_name'] = 'Faculty Tester';
     \$_SESSION['user_email'] = 'faculty@test.sti.edu';
     \$_SESSION['last_activity'] = time();
-    \$_SESSION['last_ai_validation'] = [
-        '{$currentHash}' => [
-            'result' => [
-                'sections' => [
-                    ['status' => 'success', 'section' => 'all']
-                ]
-            ]
-        ]
-    ];
+
     \$_POST = {$postExport};
     \$_SERVER['REQUEST_METHOD'] = 'POST';
     try {
