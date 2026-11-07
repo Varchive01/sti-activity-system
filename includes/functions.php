@@ -3380,6 +3380,10 @@ if (!function_exists('deleteProposalCascade')) {
             }
 
             // 2. Database cascading deletion
+            try {
+                $db->exec("SET FOREIGN_KEY_CHECKS = 0");
+            } catch (\Throwable $e) {}
+
             $tablesWithActivityId = [
                 'activity_kpi_analytics',
                 'activity_participants',
@@ -3416,6 +3420,10 @@ if (!function_exists('deleteProposalCascade')) {
             // Finally, delete the activity itself
             $delAct = $db->prepare("DELETE FROM activities WHERE id = ?");
             $delAct->execute([$activityId]);
+
+            try {
+                $db->exec("SET FOREIGN_KEY_CHECKS = 1");
+            } catch (\Throwable $e) {}
 
             return true;
         } catch (\Throwable $e) {
