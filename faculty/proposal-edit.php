@@ -3668,6 +3668,8 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       return valid;
     }
 
+    let isSubmittingEditProposal = false;
+
     // ── Form submit validation ────────────────────────────────────────
     const proposalFormEl = document.getElementById('proposalForm');
     if (proposalFormEl) {
@@ -3845,6 +3847,19 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           showStep(9);
           alert('⚠️ Please review the AI-Generated Evaluation Tool questions in Step 9 before submitting.');
           return;
+        }
+
+        // Prevent duplicate submissions from rapid multi-clicks
+        if (isSubmittingEditProposal) {
+          e.preventDefault();
+          return;
+        }
+
+        isSubmittingEditProposal = true;
+        const submitBtn = document.getElementById('submitBtn');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Submitting Proposal...';
         }
       });
     }

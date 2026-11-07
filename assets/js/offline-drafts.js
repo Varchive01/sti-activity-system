@@ -991,6 +991,13 @@
 
         document.getElementById('btnApplyLocalDraft').onclick = () => {
           restoreForm(formEl, matchingDraft.form_data);
+          if (matchingDraft.server_id && parseInt(matchingDraft.server_id, 10) > 0) {
+            const actInput = formEl.elements['activity_id'] || document.getElementById('proposalActivityId');
+            if (actInput) {
+              actInput.value = matchingDraft.server_id;
+            }
+            formEl.action = baseUrl + '/api/proposal-update.php';
+          }
           resumeNotice.remove();
           isFormDirty = true;
           showToast('✓ Proposal progress resumed from auto-saved draft.', 'success');

@@ -3318,3 +3318,205 @@ if (!function_exists('getGeminiApiKeySecure')) {
         return trim((string)$key);
     }
 }
+
+if (!function_exists('deleteProposalCascade')) {
+    /**
+     * Safely purges an activity and all related child records and uploaded assets.
+     */
+    function deleteProposalCascade(int $activityId, ?PDO $db = null): bool
+    {
+        if ($activityId <= 0) return false;
+        if ($db === null) {
+            $db = getDB();
+        }
+
+        try {
+            // 1. Fetch file paths for disk cleanup
+            $stmt = $db->prepare("SELECT poster_path FROM activities WHERE id = ?");
+            $stmt->execute([$activityId]);
+            $act = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $filesToDelete = [];
+            if (!empty($act['poster_path'])) {
+                $filesToDelete[] = $act['poster_path'];
+            }
+
+            // Floor plans
+            try {
+                $fpStmt = $db->prepare("SELECT file_path FROM floor_plans WHERE activity_id = ?");
+                $fpStmt->execute([$activityId]);
+                while ($row = $fpStmt->fetch(PDO::FETCH_ASSOC)) {
+                    if (!empty($row['file_path'])) $filesToDelete[] = $row['file_path'];
+                }
+            } catch (\Throwable $e) {}
+
+            // Documents
+            try {
+                $docStmt = $db->prepare("SELECT file_path FROM documents WHERE activity_id = ?");
+                $docStmt->execute([$activityId]);
+                while ($row = $docStmt->fetch(PDO::FETCH_ASSOC)) {
+                    if (!empty($row['file_path'])) $filesToDelete[] = $row['file_path'];
+                }
+            } catch (\Throwable $e) {}
+
+            // Task deliverables
+            try {
+                $delivStmt = $db->prepare("SELECT file_path FROM task_deliverables WHERE activity_id = ?");
+                $delivStmt->execute([$activityId]);
+                while ($row = $delivStmt->fetch(PDO::FETCH_ASSOC)) {
+                    if (!empty($row['file_path'])) $filesToDelete[] = $row['file_path'];
+                }
+            } catch (\Throwable $e) {}
+
+            // Unlink disk files safely
+            if (defined('UPLOAD_PATH')) {
+                foreach ($filesToDelete as $relPath) {
+                    $clean = ltrim(str_replace(['../', '..\\'], '', $relPath), '/\\');
+                    $full = UPLOAD_PATH . $clean;
+                    if (file_exists($full) && is_file($full)) {
+                        @unlink($full);
+                    }
+                }
+            }
+
+            // 2. Database cascading deletion
+            $tablesWithActivityId = [
+                'activity_kpi_analytics',
+                'activity_participants',
+                'approval_logs',
+                'documents',
+                'email_logs',
+                'task_deliverables',
+                'task_reminder_logs',
+                'faculty_tasks',
+                'floor_plans',
+                'guidelines',
+                'kpi_evaluations',
+                'manpower',
+                'materials',
+                'notifications',
+                'post_event',
+                'program_sequence',
+                'proposal_collaborators',
+                'proposal_contribution_logs',
+                'root_cause_analysis',
+                'schedules',
+                'section_comments',
+                'section_revisions',
+            ];
+
+            foreach ($tablesWithActivityId as $table) {
+                try {
+                    $db->prepare("DELETE FROM `{$table}` WHERE activity_id = ?")->execute([$activityId]);
+                } catch (\Throwable $tEx) {
+                    // Ignore missing optional tables
+                }
+            }
+
+            // Finally, delete the activity itself
+            $delAct = $db->prepare("DELETE FROM activities WHERE id = ?");
+            $delAct->execute([$activityId]);
+
+            return true;
+        } catch (\Throwable $e) {
+            error_log("deleteProposalCascade error for ID {$activityId}: " . $e->getMessage());
+            return false;
+        }
+    }
+}
+
+if (!function_exists('cleanupDuplicateProposals')) {
+    /**
+     * Automatically identifies duplicate proposal entries (e.g. from concurrent submissions or draft desyncs)
+     * and deletes redundant duplicates, preserving the most complete/submitted proposal.
+     */
+    function cleanupDuplicateProposals(?PDO $db = null): array
+    {
+        if ($db === null) {
+            $db = getDB();
+        }
+
+        $deletedIds = [];
+        $retainedIds = [];
+
+        try {
+            // Find duplicate activities sharing the same faculty_id and case-insensitive trimmed title
+            $sql = "SELECT faculty_id, LOWER(TRIM(title)) AS norm_title, COUNT(*) as cnt, GROUP_CONCAT(id ORDER BY id ASC) as group_ids
+                    FROM activities
+                    WHERE title IS NOT NULL AND TRIM(title) != ''
+                    GROUP BY faculty_id, LOWER(TRIM(title))
+                    HAVING COUNT(*) > 1";
+            $groups = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($groups as $grp) {
+                $ids = array_map('intval', explode(',', $grp['group_ids']));
+                if (count($ids) <= 1) continue;
+
+                $bestId = $ids[0];
+                $bestScore = -1;
+
+                foreach ($ids as $id) {
+                    $score = 0;
+                    $stmt = $db->prepare("SELECT status, submitted_at FROM activities WHERE id = ?");
+                    $stmt->execute([$id]);
+                    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if (!$row) continue;
+
+                    if ($row['status'] !== 'draft') {
+                        $score += 100;
+                    }
+                    if (!empty($row['submitted_at'])) {
+                        $score += 50;
+                    }
+
+                    // Count participants
+                    try {
+                        $pCount = (int)$db->query("SELECT COUNT(*) FROM activity_participants WHERE activity_id = {$id}")->fetchColumn();
+                        $score += ($pCount * 2);
+                    } catch (\Throwable $e) {}
+
+                    // Count materials
+                    try {
+                        $mCount = (int)$db->query("SELECT COUNT(*) FROM materials WHERE activity_id = {$id}")->fetchColumn();
+                        $score += $mCount;
+                    } catch (\Throwable $e) {}
+
+                    if ($score > $bestScore) {
+                        $bestScore = $score;
+                        $bestId = $id;
+                    }
+                }
+
+                $retainedIds[] = $bestId;
+
+                // Delete the duplicate copies
+                foreach ($ids as $dupId) {
+                    if ($dupId !== $bestId && !in_array($dupId, $deletedIds, true)) {
+                        deleteProposalCascade($dupId, $db);
+                        $deletedIds[] = $dupId;
+                    }
+                }
+            }
+
+            // Also specifically scan for 'Future Professionals' or 'Career Readiness' duplicates across all entries
+            $fps = $db->query("SELECT id, faculty_id, status FROM activities WHERE title LIKE '%Future Professionals%' OR title LIKE '%Career Readiness%' ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
+            if (count($fps) > 1) {
+                $keepId = $fps[0]['id'];
+                foreach ($fps as $fpRow) {
+                    $fId = (int)$fpRow['id'];
+                    if ($fId !== $keepId && !in_array($fId, $deletedIds, true)) {
+                        deleteProposalCascade($fId, $db);
+                        $deletedIds[] = $fId;
+                    }
+                }
+                if (!in_array($keepId, $retainedIds, true)) {
+                    $retainedIds[] = $keepId;
+                }
+            }
+        } catch (\Throwable $ex) {
+            error_log("cleanupDuplicateProposals error: " . $ex->getMessage());
+        }
+
+        return ['deleted_ids' => $deletedIds, 'retained_ids' => $retainedIds];
+    }
+}

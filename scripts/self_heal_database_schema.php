@@ -163,6 +163,15 @@ try {
     ");
     logMsg("email_logs table verified/created.", "SUCCESS");
 
+    // 7. Auto-Deduplication of Redundant Proposals
+    logMsg("Checking for duplicate proposal entries across the database...");
+    $dedupRes = cleanupDuplicateProposals($db);
+    if (!empty($dedupRes['deleted_ids'])) {
+        logMsg("Cleaned up " . count($dedupRes['deleted_ids']) . " duplicate proposal(s): IDs [" . implode(', ', $dedupRes['deleted_ids']) . "]. Retained IDs: [" . implode(', ', $dedupRes['retained_ids']) . "]", "SUCCESS");
+    } else {
+        logMsg("No duplicate proposal submissions found.", "INFO");
+    }
+
     logMsg("ALL SCHEMA CHECKS AND MIGRATIONS COMPLETED SUCCESSFULLY! The system is 100% healthy.", "SUCCESS");
 
     if (!$isCli) {

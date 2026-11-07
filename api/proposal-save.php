@@ -76,6 +76,33 @@ if ($existingActivityId > 0) {
     }
 }
 
+// Global Duplicate Prevention:
+// Check if this faculty user already has an active draft or recently submitted proposal with the exact same title.
+// Prevents duplicate submissions caused by double clicks, network retries, or creating a proposal when a draft already exists.
+$rawTitle = trim((string)($_POST['title'] ?? ''));
+if ($existingActivityId <= 0 && $rawTitle !== '') {
+    // 1. If an existing draft with this exact title exists for this user, adopt that draft ID and update it
+    $chkDraft = $db->prepare("SELECT id FROM activities WHERE faculty_id = ? AND LOWER(TRIM(title)) = LOWER(TRIM(?)) AND status = 'draft' ORDER BY id DESC LIMIT 1");
+    $chkDraft->execute([(int)$user['id'], $rawTitle]);
+    $existingDraftId = (int)$chkDraft->fetchColumn();
+    if ($existingDraftId > 0) {
+        $_POST['activity_id'] = $existingDraftId;
+        require __DIR__ . '/proposal-update.php';
+        exit;
+    }
+
+    // 2. Prevent concurrent rapid double-submits (within 60 seconds by same user with same title)
+    $chkRecent = $db->prepare("SELECT id, status FROM activities WHERE faculty_id = ? AND LOWER(TRIM(title)) = LOWER(TRIM(?)) AND created_at >= (NOW() - INTERVAL 60 SECOND) ORDER BY id DESC LIMIT 1");
+    $chkRecent->execute([(int)$user['id'], $rawTitle]);
+    $recentRow = $chkRecent->fetch(PDO::FETCH_ASSOC);
+    if ($recentRow) {
+        $recentId = (int)$recentRow['id'];
+        $_POST['activity_id'] = $recentId;
+        require __DIR__ . '/proposal-update.php';
+        exit;
+    }
+}
+
 // Authoritative server-side date validation (Asia/Manila)
 $todayManila = date('Y-m-d');
 $eventDate   = trim($_POST['event_date'] ?? '');

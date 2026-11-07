@@ -18,6 +18,16 @@ requireRole('program_head');
 $user = currentUser();
 $db   = getDB();
 
+// Auto-deduplicate any redundant proposal submissions (e.g. concurrent submits or draft sync desyncs)
+try {
+    if (empty($_SESSION['last_dedup_check']) || (time() - $_SESSION['last_dedup_check']) > 120) {
+        $_SESSION['last_dedup_check'] = time();
+        cleanupDuplicateProposals($db);
+    }
+} catch (\Throwable $dedupEx) {
+    error_log("Deduplication notice: " . $dedupEx->getMessage());
+}
+
 // 1. Identify authenticated Program Head's assigned department (IT, THM, or G.E.)
 $dept = resolveUserDepartment($db, $user);
 $user['dept'] = $dept;

@@ -14,6 +14,16 @@ requireRole('faculty');
 $user = currentUser();
 $db   = getDB();
 
+// Auto-deduplicate any redundant proposal submissions (e.g. concurrent submits or draft sync desyncs)
+try {
+    if (empty($_SESSION['last_dedup_check']) || (time() - $_SESSION['last_dedup_check']) > 120) {
+        $_SESSION['last_dedup_check'] = time();
+        cleanupDuplicateProposals($db);
+    }
+} catch (\Throwable $dedupEx) {
+    error_log("Deduplication notice: " . $dedupEx->getMessage());
+}
+
 $stats = null;
 $s = [];
 try {

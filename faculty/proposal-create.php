@@ -4171,6 +4171,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       return valid;
     }
 
+    let isSubmittingProposal = false;
+
     // ── Form submit validation ────────────────────────────────────────
     document.getElementById('proposalForm').addEventListener('submit', function(e) {
       serializeEvaluationQuestions();
@@ -4340,6 +4342,19 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         showStep(9);
         alert('⚠️ Please review the AI-Generated Evaluation Tool questions in Step 9 before submitting.');
         return;
+      }
+
+      // Prevent duplicate submissions from rapid multi-clicks
+      if (isSubmittingProposal) {
+        e.preventDefault();
+        return;
+      }
+
+      isSubmittingProposal = true;
+      const submitBtn = document.getElementById('submitBtn');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Submitting Proposal...';
       }
     });
 
