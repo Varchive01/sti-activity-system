@@ -2703,6 +2703,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+    window.showStep = showStep;
 
     function nextStep() {
       if (!validateStep(currentStep)) return;

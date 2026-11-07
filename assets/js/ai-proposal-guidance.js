@@ -421,7 +421,89 @@ const AIProposalGuidance = (function () {
     `;
   }
 
-  function openModal() {
+  function getMissingEventDetails() {
+    const form = getFormElement();
+    if (!form) return [{ id: 'f1_title', name: 'title', label: 'Event Name / Title' }];
+
+    const requiredFields = [
+      { id: 'f1_title', name: 'title', label: 'Event Name / Title' },
+      { id: 'f1_event_date', name: 'event_date', label: 'Date of Event' },
+      { id: 'f1_source', name: 'source', label: 'Source' },
+      { id: 'f1_start_time', name: 'start_time', label: 'Start Time' },
+      { id: 'f1_end_time', name: 'end_time', label: 'End Time' },
+      { id: 'f1_theme', name: 'theme', label: 'Theme' },
+      { id: 'f1_venue', name: 'venue', label: 'Venue' },
+      { id: 'f1_venue_address', name: 'venue_address', label: 'Venue Address' }
+    ];
+
+    const missing = [];
+    requiredFields.forEach((field) => {
+      const el = form.querySelector(`[name="${field.name}"]`) || document.getElementById(field.id);
+      const val = el ? el.value.trim() : '';
+      if (!val) {
+        missing.push(field);
+      }
+    });
+
+    // Target participants check
+    const targetParticipantsEl = form.querySelector('[name="target_participants"]') || document.getElementById('f1_target_participants');
+    const targetCount = targetParticipantsEl ? parseInt(targetParticipantsEl.value, 10) : 0;
+    const partSectionInputs = form.querySelectorAll('.part-section-input');
+    let hasSection = false;
+    partSectionInputs.forEach((input) => {
+      if (input.value.trim()) hasSection = true;
+    });
+
+    if (targetCount <= 0 && !hasSection) {
+      missing.push({ id: 'f1_target_participants', name: 'target_participants', label: 'Target Participants' });
+    }
+
+    return missing;
+  }
+
+  async function checkEventDetailsOrWarn() {
+    const missing = getMissingEventDetails();
+    if (missing.length > 0) {
+      const warningMsg = 'You need to fill up the event details first before you can use the request ai guidance feature.\n\nPlease complete the required fields in Event Details (Step 1) before requesting AI guidance.';
+
+      if (window.STIModal && typeof window.STIModal.alert === 'function') {
+        await window.STIModal.alert(warningMsg, {
+          title: 'Event Details Required',
+          icon: '⚠️',
+          variant: 'warning',
+          confirmText: 'Fill Up Event Details'
+        });
+      } else {
+        alert('You need to fill up the event details first before you can use the request ai guidance feature.');
+      }
+
+      // Automatically navigate user to Step 1 (Event Details)
+      if (typeof window.showStep === 'function') {
+        window.showStep(1);
+      } else {
+        const step1Btn = document.querySelector('.wizard-step[data-step="1"]');
+        if (step1Btn && typeof step1Btn.click === 'function') {
+          step1Btn.click();
+        }
+      }
+
+      // Focus on the first missing field in Event Details
+      const firstMissing = missing[0];
+      const form = getFormElement();
+      const targetEl = form?.querySelector(`[name="${firstMissing.name}"]`) || document.getElementById(firstMissing.id);
+      if (targetEl && typeof targetEl.focus === 'function') {
+        setTimeout(() => targetEl.focus(), 120);
+      }
+
+      return false;
+    }
+    return true;
+  }
+
+  async function openModal() {
+    const isReady = await checkEventDetailsOrWarn();
+    if (!isReady) return;
+
     ensureModalDom();
     renderCheckboxes();
     updateContextTitle();
@@ -444,8 +526,8 @@ const AIProposalGuidance = (function () {
     document.body.style.overflow = '';
   }
 
-  function requestGuidance() {
-    openModal();
+  async function requestGuidance() {
+    await openModal();
   }
 
   function getSelectedSectionsFromCheckboxes() {
@@ -462,19 +544,16 @@ const AIProposalGuidance = (function () {
   async function generateSections(forceRefresh = false) {
     if (_isLoading) return;
 
+    const isReady = await checkEventDetailsOrWarn();
+    if (!isReady) {
+      closeModal();
+      return;
+    }
+
     const selectedSections = getSelectedSectionsFromCheckboxes();
     if (selectedSections.length === 0) {
       alert('Please select at least one proposal section to generate.');
       return;
-    }
-
-    const title = getActivityTitle();
-    if (!title) {
-      const msg = 'Activity Title in Step 1 is currently blank.\n\nFor the best AI suggestions, entering a descriptive title first is highly recommended.\n\nDo you want to proceed anyway?';
-      const proceed = window.STIModal
-        ? await window.STIModal.confirm(msg, { title: 'Activity Title is Blank', confirmText: 'Proceed Anyway', cancelText: 'Cancel', variant: 'warning' })
-        : confirm(msg);
-      if (!proceed) return;
     }
 
     _isLoading = true;
@@ -1232,6 +1311,8 @@ const AIProposalGuidance = (function () {
     requestGuidance,
     openModal,
     closeModal,
+    getMissingEventDetails,
+    checkEventDetailsOrWarn,
     generateSections,
     applySection,
     applySelected,

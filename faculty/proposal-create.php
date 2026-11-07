@@ -2339,6 +2339,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         behavior: 'smooth'
       });
     }
+    window.showStep = showStep;
 
     function nextStep() {
       if (!validateStep(currentStep)) return;
