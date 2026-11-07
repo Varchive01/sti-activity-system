@@ -723,7 +723,7 @@ try {
                         $rowNo++;
                     }
                 }
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 error_log("Error saving activity_participants in proposal-update: " . $e->getMessage());
             }
         }
@@ -748,7 +748,7 @@ try {
                 }
                 $updateKpiStmt->execute([$actVal, $preVal, $postVal, $kpiOutcome, $ep['id']]);
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error updating post-activity participant KPIs: " . $e->getMessage());
         }
     }
@@ -841,7 +841,7 @@ try {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Not Started', ?)
         ");
 
-        $facultyLookupStmt = $db->prepare("SELECT id, name FROM users WHERE id = ? AND role = 'faculty' LIMIT 1");
+        $facultyLookupStmt = $db->prepare("SELECT id, name FROM users WHERE id = ? AND role IN ('faculty', 'program_head') LIMIT 1");
 
         $taskItems = !empty($_POST['ft_task']) && is_array($_POST['ft_task'])
             ? $_POST['ft_task']
@@ -869,6 +869,12 @@ try {
                         $facultyName = $fUser['name'];
                     } else {
                         $db->rollBack();
+                        if ($isAjax) {
+                            http_response_code(422);
+                            header('Content-Type: application/json; charset=utf-8');
+                            echo json_encode(['success' => false, 'error_code' => 'invalid_faculty_assignment', 'error' => 'Invalid faculty member assigned.']);
+                            exit;
+                        }
                         header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id=" . $id . "&error=invalid_faculty_assignment");
                         exit;
                     }
@@ -1030,7 +1036,7 @@ try {
         $logStmt->execute([$id]);
         $lastReturn = $logStmt->fetch();
 
-        $currSource = $curr['source'] ?? 'faculty';
+        $currSource = $activity['source'] ?? $source ?? 'faculty';
         if ($lastReturn) {
             if ($lastReturn['role'] === 'admin1') {
                 $nextStatus = 'under_review';
@@ -1122,7 +1128,7 @@ try {
     }
 
     // Persist verified AI validation record to database
-    if ($newStatus === 'submitted' && !empty($cachedValidation)) {
+    if ($newStatus === 'submitted' && !empty($cachedValidation) && isset($aiService) && is_object($aiService) && function_exists('saveProposalAiValidationResult')) {
         try {
             $mappedAi = $aiService->mapToDatabaseFormat($cachedValidation);
             saveProposalAiValidationResult($db, $id, $mappedAi);
@@ -1295,7 +1301,7 @@ try {
 
     header("Location: ".BASE_URL."/faculty/proposal-view.php?id={$id}&updated=1");
     exit;
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     if ($db->inTransaction()) {
         $db->rollBack();
     }

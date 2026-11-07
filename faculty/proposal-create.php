@@ -7,7 +7,7 @@ requireRole('faculty', 'program_head');
 $user = currentUser();
 $db = getDB();
 $eligibleFacultyList = function_exists('getEligibleFacultyMembers') ? getEligibleFacultyMembers($db) : [];
-$facultyUsersStmt = $db->query("SELECT id, name, department FROM users WHERE role = 'faculty' ORDER BY name ASC");
+$facultyUsersStmt = $db->query("SELECT id, name, department FROM users WHERE role IN ('faculty', 'program_head') ORDER BY name ASC");
 $facultyUsers = $facultyUsersStmt ? $facultyUsersStmt->fetchAll(PDO::FETCH_ASSOC) : [];
 
 $facultyDepartmentGroups = [

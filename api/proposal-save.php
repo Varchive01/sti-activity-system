@@ -477,7 +477,7 @@ try {
                         }
                     }
                 }
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 error_log("Error saving activity_participants in proposal-save: " . $e->getMessage());
             }
         }
@@ -488,7 +488,7 @@ try {
         if ($colCheck) {
             $db->prepare("UPDATE activities SET floor_plan_required = ? WHERE id = ?")->execute([$fpRequiredInt, $actId]);
         }
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         // Schema migration pending; handled gracefully
     }
 
@@ -553,7 +553,7 @@ try {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Not Started', ?)
         ");
 
-        $facultyLookupStmt = $db->prepare("SELECT id, name FROM users WHERE id = ? AND role = 'faculty' LIMIT 1");
+        $facultyLookupStmt = $db->prepare("SELECT id, name FROM users WHERE id = ? AND role IN ('faculty', 'program_head') LIMIT 1");
 
         foreach ($taskItems as $i => $itemVal) {
             $tTitle = sanitize($_POST['ft_task'][$i] ?? '');
@@ -576,6 +576,12 @@ try {
                     $facultyName = $fUser['name'];
                 } else {
                     $db->rollBack();
+                    if ($isAjax) {
+                        http_response_code(422);
+                        header('Content-Type: application/json; charset=utf-8');
+                        echo json_encode(['success' => false, 'error_code' => 'invalid_faculty_assignment', 'error' => 'Invalid faculty member assigned.']);
+                        exit;
+                    }
                     header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_faculty_assignment");
                     exit;
                 }
@@ -783,7 +789,7 @@ try {
     }
 
     // Persist verified AI validation record to database
-    if ($status === 'submitted' && !empty($cachedValidation)) {
+    if ($status === 'submitted' && !empty($cachedValidation) && isset($aiService) && is_object($aiService) && function_exists('saveProposalAiValidationResult')) {
         try {
             $mappedAi = $aiService->mapToDatabaseFormat($cachedValidation);
             saveProposalAiValidationResult($db, $actId, $mappedAi);
@@ -833,7 +839,7 @@ try {
                 : 'Proposal draft saved successfully.',
             'redirect'    => $isSendToCollaborators
                 ? BASE_URL . "/faculty/proposal-edit.php?id={$actId}&shared=1"
-                : BASE_URL . "/faculty/dashboard.php?saved=1",
+                : ((($user['role'] ?? '') === 'program_head') ? BASE_URL . "/program_head/dashboard.php?saved=1" : BASE_URL . "/faculty/dashboard.php?saved=1"),
             'updated_at'  => date('Y-m-d H:i:s'),
             'title'       => sanitize($_POST['title'] ?? '')
         ]);
@@ -845,10 +851,13 @@ try {
         exit;
     }
 
-    header("Location: " . BASE_URL . "/faculty/dashboard.php?saved=1");
+    $targetDash = (($user['role'] ?? '') === 'program_head')
+        ? BASE_URL . "/program_head/dashboard.php?saved=1"
+        : BASE_URL . "/faculty/dashboard.php?saved=1";
+    header("Location: " . $targetDash);
     exit;
 
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     if ($db->inTransaction()) {
         $db->rollBack();
     }
