@@ -7,6 +7,9 @@ require_once __DIR__ . '/../includes/ai/kpi_helper.php';
 requireRole('faculty', 'program_head');
 $user = currentUser();
 $db   = getDB();
+if (function_exists('reconcilePostEventMetrics')) {
+    reconcilePostEventMetrics($db);
+}
 
 $isProgramHead = ($user['role'] === 'program_head');
 
@@ -442,7 +445,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
                       <?= ($da['satisfaction_score'] !== null && $da['satisfaction_score'] !== '') ? number_format((float)$da['satisfaction_score'], 1) . ' / 5' : '—' ?>
                     </td>
                     <td style="text-align:center; white-space:nowrap;">
-                      <a href="<?= BASE_URL ?>/dean/generate-report.php?activity_id=<?= $da['id'] ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 8px; font-size:0.75rem;">
+                      <a href="<?= BASE_URL ?>/faculty/generate-report.php?activity_id=<?= $da['id'] ?>" class="btn btn-outline btn-sm" style="padding:4px 8px; font-size:0.75rem;">
                         Report
                       </a>
                     </td>
@@ -475,13 +478,17 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
     <?php else: ?>
 
     <?php foreach ($allReports as $r):
+      // Calculate dynamic KPI metrics using proposal-defined criteria
+      $kpiCalc = calculateActivityKpis((int)$r['activity_id'], $db);
+      $allKpiRows = !empty($kpiCalc['all_kpi_rows']) ? $kpiCalc['all_kpi_rows'] : [];
+
       [$kpiLabel, $kpiClass] = kpiClass($r['avg_kpi'] ?? 0);
       [$attLabel, $attClass] = attendanceClass($r['actual_attendance'], $r['target_attendance']);
       $attPct = ($r['target_attendance'] > 0 && isset($r['actual_attendance'])) ? min(100, round(($r['actual_attendance'] / $r['target_attendance']) * 100)) : 0;
       $kpiPct = $r['avg_kpi'] > 0 ? round(($r['avg_kpi']/4)*100) : 0;
 
       // Get individual KPI breakdown
-      $breakdown = $db->prepare("SELECT criteria, AVG(rating) as avg FROM kpi_evaluations WHERE activity_id=? GROUP BY criteria");
+      $breakdown = $db->prepare("SELECT criteria, AVG(rating) as avg FROM kpi_evaluations WHERE activity_id=? AND rating IS NOT NULL AND criteria IS NOT NULL AND TRIM(criteria) != '' GROUP BY criteria");
       $breakdown->execute([$r['activity_id']]);
       $kpiDetails = $breakdown->fetchAll();
     ?>
@@ -492,7 +499,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
           <div class="text-sm text-muted"><?= $r['event_date'] ? date('F j, Y', strtotime($r['event_date'])) : '—' ?></div>
         </div>
         <div>
-          <a href="<?= BASE_URL ?>/dean/generate-report.php?activity_id=<?= $r['activity_id'] ?>" target="_blank" class="btn btn-outline btn-sm" style="display:inline-flex; align-items:center; gap:4px;">
+          <a href="<?= BASE_URL ?>/faculty/generate-report.php?activity_id=<?= $r['activity_id'] ?>" class="btn btn-outline btn-sm" style="display:inline-flex; align-items:center; gap:4px;">
             📄 View Full Report
           </a>
         </div>
@@ -512,15 +519,24 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
           <div class="lbl">Attendance Rate</div>
         </div>
         <div class="kpi-metric">
-          <div class="val"><?= $r['avg_kpi'] ? number_format($r['avg_kpi'],2) : '—' ?></div>
-          <div class="lbl">Avg KPI / 4.0</div>
+          <div class="val"><?= $kpiCalc['overall_performance'] !== null ? $kpiCalc['overall_performance'] . '%' : ($r['avg_kpi'] ? number_format($r['avg_kpi'],2) : '—') ?></div>
+          <div class="lbl">KPI Performance</div>
         </div>
       </div>
 
-      <div style="display:flex;gap:8px;margin-bottom:14px; flex-wrap:wrap;">
+      <div style="display:flex;gap:8px;margin-bottom:14px; flex-wrap:wrap; align-items:center;">
         <span class="badge <?= $attClass ?>"><?= $attLabel ?></span>
-        <?php if ($r['avg_kpi']): ?><span class="badge <?= $kpiClass ?>"><?= $kpiLabel ?></span><?php endif; ?>
-        <?php if ($r['satisfaction_score']): ?><span class="badge badge-primary">Satisfaction: <?= number_format($r['satisfaction_score'],1) ?>/5</span><?php endif; ?>
+        <?php if (!empty($kpiCalc['overall_status'])): ?>
+          <span class="badge <?= getKpiStatusClass($kpiCalc['overall_status']) ?>"><?= htmlspecialchars($kpiCalc['overall_status']) ?></span>
+        <?php elseif ($r['avg_kpi']): ?>
+          <span class="badge <?= $kpiClass ?>"><?= $kpiLabel ?></span>
+        <?php endif; ?>
+        <?php if ($r['satisfaction_score']): ?>
+          <span class="badge badge-primary">Satisfaction: <?= number_format($r['satisfaction_score'],1) ?>/5</span>
+        <?php endif; ?>
+        <?php if (!empty($kpiCalc['deduplication_applied'])): ?>
+          <span class="badge badge-info" style="font-size:0.75rem;">🔀 Attendance Deduplicated</span>
+        <?php endif; ?>
       </div>
 
       <!-- Attendance bar -->
@@ -534,9 +550,39 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge
       </div>
       <?php endif; ?>
 
-      <!-- KPI breakdown -->
+      <!-- Proposal-Defined KPI Calculations -->
+      <?php if (!empty($allKpiRows)): ?>
+      <div style="margin-top:14px; margin-bottom:14px;">
+        <div class="text-sm fw-bold" style="margin-bottom:8px;">Proposal Key Performance Indicators (KPIs)</div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <?php foreach ($allKpiRows as $ak):
+            $stCls = getKpiStatusClass($ak['status'] ?? 'Insufficient Data');
+          ?>
+          <div style="background:var(--bg-base); border:1px solid var(--border); border-radius:6px; padding:10px 14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+              <div>
+                <strong style="font-size:0.85rem; color:var(--text-main);"><?= htmlspecialchars($ak['indicator'] ?? '') ?></strong>
+                <span class="badge badge-secondary" style="font-size:0.7rem; margin-left:6px;"><?= htmlspecialchars($ak['evaluation_method'] ?? '—') ?></span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:0.8rem; color:var(--text-muted);">Target: <strong><?= htmlspecialchars($ak['target'] ?? '—') ?></strong> | Actual: <strong><?= htmlspecialchars($ak['actual'] ?? '—') ?></strong></span>
+                <span class="badge <?= $stCls ?>"><?= htmlspecialchars($ak['status'] ?? '—') ?> (<?= htmlspecialchars($ak['achievement'] ?? '—') ?>)</span>
+              </div>
+            </div>
+            <?php if (!empty($ak['calculation_details'])): ?>
+              <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px; line-height:1.4;">
+                <?= htmlspecialchars($ak['calculation_details']) ?>
+              </div>
+            <?php endif; ?>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <!-- KPI question rating breakdown if available -->
       <?php if (!empty($kpiDetails)): ?>
-      <div class="text-sm fw-bold" style="margin-bottom:6px;">KPI Breakdown</div>
+      <div class="text-sm fw-bold" style="margin-bottom:6px; margin-top:12px;">Evaluation Survey Question Ratings</div>
       <div class="criteria-grid">
         <?php foreach ($kpiDetails as $kd): $stars = round($kd['avg']); ?>
         <div class="criteria-item">

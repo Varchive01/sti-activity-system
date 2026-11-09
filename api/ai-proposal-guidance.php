@@ -60,6 +60,34 @@ $action = trim((string)($input['action'] ?? $_GET['action'] ?? 'review'));
 $activityId = (int)($input['activity_id'] ?? $_GET['activity_id'] ?? 0);
 $db = getDB();
 
+// Normalize and safeguard Activity Title
+$resolvedTitle = trim((string)($input['title'] ?? $input['activity_title'] ?? $input['event_title'] ?? ''));
+
+// If title was not provided directly in payload, but activityId > 0, lookup activity from DB
+if ($resolvedTitle === '' && $activityId > 0) {
+    try {
+        $stmtAct = $db->prepare("SELECT title, theme, source, venue, venue_address, event_date, start_time, end_time, target_participants, general_objectives, specific_objectives, rationale, involved_subjects FROM activities WHERE id = ? LIMIT 1");
+        $stmtAct->execute([$activityId]);
+        $actRow = $stmtAct->fetch(PDO::FETCH_ASSOC);
+        if ($actRow && !empty($actRow['title'])) {
+            $resolvedTitle = trim($actRow['title']);
+            $input['title'] = $resolvedTitle;
+            $input['activity_title'] = $resolvedTitle;
+            // Backfill other missing event context
+            foreach ($actRow as $k => $v) {
+                if (empty($input[$k]) && !empty($v)) {
+                    $input[$k] = $v;
+                }
+            }
+        }
+    } catch (Exception $dbEx) {
+        error_log("api/ai-proposal-guidance.php DB lookup fallback error: " . $dbEx->getMessage());
+    }
+} else {
+    $input['title'] = $resolvedTitle;
+    $input['activity_title'] = $resolvedTitle;
+}
+
 // 5. Action: log_applied (logs when faculty accepts and applies a suggestion)
 if ($action === 'log_applied') {
     if ($activityId > 0) {
@@ -94,6 +122,20 @@ if ($action === 'generate_sections') {
     $guidanceService = new GeminiProposalGuidanceService();
     try {
         $suggestions = $guidanceService->generateProposalSections($input, $requestedSections);
+
+        // Record AI suggestion generation in proposal contribution log if activity ID exists
+        if ($activityId > 0 && function_exists('logProposalContribution') && !empty($user['id'])) {
+            $secCount = count($requestedSections);
+            logProposalContribution(
+                $activityId,
+                (int)$user['id'],
+                'requested_ai_guidance',
+                'Proposal Guidance',
+                "Generated AI proposal suggestions for {$secCount} section(s) based on Step 1 event details.",
+                $db
+            );
+        }
+
         ob_clean();
         echo json_encode([
             'success'     => true,
@@ -105,6 +147,19 @@ if ($action === 'generate_sections') {
     } catch (Exception $e) {
         error_log("api/ai-proposal-guidance.php generate_sections Exception: " . $e->getMessage());
         $fallback = $guidanceService->getFallbackSectionSuggestions($input, $requestedSections);
+
+        if ($activityId > 0 && function_exists('logProposalContribution') && !empty($user['id'])) {
+            $secCount = count($requestedSections);
+            logProposalContribution(
+                $activityId,
+                (int)$user['id'],
+                'requested_ai_guidance',
+                'Proposal Guidance',
+                "Generated fallback AI proposal suggestions for {$secCount} section(s) based on Step 1 event details.",
+                $db
+            );
+        }
+
         ob_clean();
         echo json_encode([
             'success'     => true,

@@ -815,8 +815,9 @@ class OneDriveService
         }
 
         return new Client([
-            'timeout' => 30.0,
-            'verify'  => $verify,
+            'connect_timeout' => 3.0,
+            'timeout'         => 5.0,
+            'verify'          => $verify,
         ]);
     }
 }

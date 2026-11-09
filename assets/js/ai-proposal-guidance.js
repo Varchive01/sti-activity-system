@@ -25,9 +25,9 @@ const AIProposalGuidance = (function () {
   const SECTION_CONFIG = {
     objectives: {
       id: 'objectives',
-      name: 'Objectives',
+      name: 'Objectives & Rationale',
       icon: '🎯',
-      fields: ['general_objectives', 'specific_objectives', 'rationale', 'involved_subjects']
+      fields: ['rationale', 'involved_subjects']
     },
     materials: {
       id: 'materials',
@@ -92,10 +92,44 @@ const AIProposalGuidance = (function () {
   }
 
   function getActivityTitle() {
+    // 1. Direct ID check (primary standard input in STI-ARMES)
+    const byId = document.getElementById('f1_title');
+    if (byId && byId.value && byId.value.trim()) {
+      return byId.value.trim();
+    }
+
+    // 2. Query within form or whole document by name="title"
     const form = getFormElement();
-    if (!form) return '';
-    const titleInput = form.querySelector('[name="title"]') || document.getElementById('f1_title');
-    return titleInput ? titleInput.value.trim() : '';
+    const byName = (form ? form.querySelector('input[name="title"]') : null) || document.querySelector('input[name="title"]') || (form ? form.querySelector('[name="title"]') : null) || document.querySelector('[name="title"]');
+    if (byName && byName.value && byName.value.trim()) {
+      return byName.value.trim();
+    }
+
+    // 3. Alternative name attributes (activity_title, event_title)
+    const byAltName = (form ? form.querySelector('[name="activity_title"], [name="event_title"]') : null) || document.querySelector('[name="activity_title"], [name="event_title"]');
+    if (byAltName && byAltName.value && byAltName.value.trim()) {
+      return byAltName.value.trim();
+    }
+
+    // 4. Global JS variables if present
+    if (typeof window !== 'undefined') {
+      if (typeof window.ACTIVITY_TITLE === 'string' && window.ACTIVITY_TITLE.trim()) {
+        return window.ACTIVITY_TITLE.trim();
+      }
+      if (typeof window.PROPOSAL_TITLE === 'string' && window.PROPOSAL_TITLE.trim()) {
+        return window.PROPOSAL_TITLE.trim();
+      }
+    }
+
+    // 5. Check offline draft title if available
+    if (typeof OfflineDrafts !== 'undefined' && typeof OfflineDrafts.getCurrentDraft === 'function') {
+      const draft = OfflineDrafts.getCurrentDraft();
+      if (draft && draft.title && draft.title.trim() && draft.title !== 'Untitled Proposal Draft' && draft.title !== 'Untitled Draft') {
+        return draft.title.trim();
+      }
+    }
+
+    return '';
   }
 
   function escapeHtml(text) {
@@ -124,7 +158,7 @@ const AIProposalGuidance = (function () {
           width: 44px;
           height: 44px;
           margin: 0 auto 16px auto;
-          border: 4px solid #E2E8F0;
+          border: 4px solid var(--aig-border, #E2E8F0);
           border-top-color: var(--sti-blue, #0284C7);
           border-radius: 50%;
           animation: aiGuidanceSpin 0.8s linear infinite;
@@ -142,27 +176,384 @@ const AIProposalGuidance = (function () {
             min-height: auto;
           }
         }
-        .ai-card-item {
-          background: #FFFFFF;
-          border: 1px solid #E2E8F0;
+
+        /* ── Modal & Theme Variables ── */
+        #aiProposalGuidanceModal {
+          --aig-bg-backdrop:    rgba(10, 22, 40, 0.65);
+          --aig-bg-modal:       #FFFFFF;
+          --aig-bg-header:      #F8FAFC;
+          --aig-bg-panel-left:  #F8FAFC;
+          --aig-bg-panel-right: #FFFFFF;
+          --aig-bg-box:         #FFFFFF;
+          --aig-bg-subtle:      #F8FAFC;
+          --aig-text-main:      #0A1628;
+          --aig-text-secondary: #334155;
+          --aig-text-muted:     #64748B;
+          --aig-border:         #E2E8F0;
+          --aig-border-subtle:  #F1F5F9;
+          --aig-card-bg:        #FFFFFF;
+          --aig-badge-bg:       #E0F2FE;
+          --aig-badge-color:    #0284C7;
+          --aig-table-th-bg:    #F8FAFC;
+          --aig-table-border:   #E2E8F0;
+          --aig-table-td-border:#F1F5F9;
+          --aig-input-bg:       #FFFFFF;
+          --aig-input-color:    #0A1628;
+          --aig-input-border:   #CBD5E1;
+          --aig-pill-bg:        #F1F5F9;
+          --aig-pill-color:     #475569;
+        }
+
+        [data-theme="dark"] #aiProposalGuidanceModal,
+        html[data-theme="dark"] #aiProposalGuidanceModal,
+        body.dark-mode #aiProposalGuidanceModal {
+          --aig-bg-backdrop:    rgba(7, 14, 24, 0.85);
+          --aig-bg-modal:       #0F1B2E;
+          --aig-bg-header:      #0B1524;
+          --aig-bg-panel-left:  #15243C;
+          --aig-bg-panel-right: #0F1B2E;
+          --aig-bg-box:         #0B1524;
+          --aig-bg-subtle:      #0B1524;
+          --aig-text-main:      #FFFFFF;
+          --aig-text-secondary: #CBD5E1;
+          --aig-text-muted:     #8899B2;
+          --aig-border:         #1E2D45;
+          --aig-border-subtle:  #162438;
+          --aig-card-bg:        #15243C;
+          --aig-badge-bg:       rgba(2, 132, 199, 0.22);
+          --aig-badge-color:    #38BDF8;
+          --aig-table-th-bg:    #0B1524;
+          --aig-table-border:   #1E2D45;
+          --aig-table-td-border:#162438;
+          --aig-input-bg:       #070E18;
+          --aig-input-color:    #FFFFFF;
+          --aig-input-border:   #1E2D45;
+          --aig-pill-bg:        #15243C;
+          --aig-pill-color:     #CBD5E1;
+        }
+
+        #aiProposalGuidanceModal .modal-content {
+          background: var(--aig-bg-modal) !important;
+          color: var(--aig-text-main) !important;
+          border: 1px solid var(--aig-border) !important;
+          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+        }
+
+        #aiProposalGuidanceModal .modal-header {
+          background: var(--aig-bg-header) !important;
+          border-bottom: 1px solid var(--aig-border) !important;
+          color: var(--aig-text-main) !important;
+        }
+
+        #aiProposalGuidanceModal .modal-footer {
+          background: var(--aig-bg-header) !important;
+          border-top: 1px solid var(--aig-border) !important;
+          color: var(--aig-text-muted) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-guidance-left-panel {
+          background: var(--aig-bg-panel-left) !important;
+          border: 1.5px solid var(--aig-border) !important;
+          color: var(--aig-text-main) !important;
+          border-radius: 12px;
+          padding: 18px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        #aiProposalGuidanceModal .ai-guidance-right-panel {
+          background: var(--aig-bg-panel-right) !important;
+          border: 1.5px solid var(--aig-border) !important;
+          color: var(--aig-text-main) !important;
+          border-radius: 12px;
+          padding: 18px;
+          display: flex;
+          flex-direction: column;
+          min-height: 480px;
+        }
+
+        #aiProposalGuidanceModal .ai-context-title-box {
+          background: var(--aig-bg-box) !important;
+          border: 1px solid var(--aig-border) !important;
+          border-radius: 8px;
+          padding: 12px;
+          margin-bottom: 16px;
+        }
+
+        #aiProposalGuidanceModal .ai-title-badge {
+          background: var(--aig-badge-bg) !important;
+          color: var(--aig-badge-color) !important;
+          border: 1px solid var(--aig-border) !important;
+          font-size: 0.65rem;
+          font-weight: 700;
+          padding: 2px 8px;
+          border-radius: 999px;
+        }
+
+        #aiProposalGuidanceModal .ai-title-display {
+          font-size: 0.85rem;
+          font-weight: 700;
+          color: var(--aig-text-main) !important;
+          line-height: 1.35;
+        }
+
+        #aiProposalGuidanceModal .ai-section-item-label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 0.82rem;
+          color: var(--aig-text-main) !important;
+          cursor: pointer;
+          user-select: none;
+          margin: 0;
+          padding: 5px 8px;
+          border-radius: 6px;
+          transition: background 0.15s ease;
+        }
+
+        #aiProposalGuidanceModal .ai-section-item-label:hover {
+          background: rgba(2, 132, 199, 0.12) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-card-item {
+          background: var(--aig-card-bg) !important;
+          border: 1px solid var(--aig-border) !important;
+          color: var(--aig-text-main) !important;
           border-radius: 10px;
           padding: 16px;
           margin-bottom: 14px;
-          box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06);
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
-        .ai-card-item:hover {
-          border-color: #CBD5E1;
-          box-shadow: 0 3px 10px rgba(0,0,0,0.06);
+
+        #aiProposalGuidanceModal .ai-card-item:hover {
+          border-color: var(--sti-blue, #0284C7) !important;
+          box-shadow: 0 4px 14px rgba(0,0,0,0.2) !important;
         }
-        .ai-card-item.applied {
-          border-color: #10B981;
-          background: #F0FDF4;
+
+        #aiProposalGuidanceModal .ai-card-item.applied {
+          border-color: #10B981 !important;
+          background: rgba(16, 185, 129, 0.12) !important;
         }
-        .ai-section-check:checked + label {
-          color: #0284C7;
+
+        #aiProposalGuidanceModal .ai-card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+          padding-bottom: 10px;
+          border-bottom: 1px solid var(--aig-border) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-card-title {
+          font-size: 0.92rem;
+          font-weight: 700;
+          color: var(--aig-text-main) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-preview-box {
+          background: var(--aig-bg-subtle) !important;
+          border: 1px solid var(--aig-border) !important;
+          color: var(--aig-text-secondary) !important;
+          border-radius: 6px;
+          padding: 10px 12px;
+          line-height: 1.45;
+        }
+
+        #aiProposalGuidanceModal .ai-label-header {
+          color: var(--aig-text-main) !important;
+          font-weight: 700;
+          display: block;
+          margin-bottom: 3px;
+          font-size: 0.82rem;
+        }
+
+        #aiProposalGuidanceModal .ai-preview-table {
+          width: 100%;
+          font-size: 0.80rem;
+          border-collapse: collapse;
+        }
+
+        #aiProposalGuidanceModal .ai-preview-table th {
+          background: var(--aig-table-th-bg) !important;
+          color: var(--aig-text-main) !important;
+          border-bottom: 1px solid var(--aig-table-border) !important;
+          padding: 6px 8px;
           font-weight: 700;
         }
+
+        #aiProposalGuidanceModal .ai-preview-table td {
+          color: var(--aig-text-main) !important;
+          border-bottom: 1px solid var(--aig-table-td-border) !important;
+          padding: 6px 8px;
+        }
+
+        #aiProposalGuidanceModal .ai-person-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: var(--aig-bg-subtle) !important;
+          border: 1px solid var(--aig-border) !important;
+          color: var(--aig-text-main) !important;
+          padding: 4px 10px;
+          border-radius: 6px;
+          font-size: 0.78rem;
+        }
+
+        #aiProposalGuidanceModal .ai-schedule-row {
+          display: flex;
+          gap: 10px;
+          align-items: flex-start;
+          font-size: 0.80rem;
+          padding: 6px 0;
+          border-bottom: 1px dashed var(--aig-border) !important;
+          color: var(--aig-text-main) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-task-card {
+          background: var(--aig-bg-subtle) !important;
+          border: 1px solid var(--aig-border) !important;
+          padding: 8px 10px;
+          border-radius: 6px;
+          font-size: 0.80rem;
+          margin-bottom: 6px;
+          color: var(--aig-text-main) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-kpi-card {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: var(--aig-bg-subtle) !important;
+          border: 1px solid var(--aig-border) !important;
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-size: 0.80rem;
+          margin-bottom: 6px;
+          color: var(--aig-text-main) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-kpi-target-badge {
+          font-weight: 700;
+          color: #16A34A !important;
+          background: #DCFCE7 !important;
+          padding: 2px 8px;
+          border-radius: 6px;
+          font-size: 0.75rem;
+        }
+
+        [data-theme="dark"] #aiProposalGuidanceModal .ai-kpi-target-badge,
+        html[data-theme="dark"] #aiProposalGuidanceModal .ai-kpi-target-badge {
+          color: #4ADE80 !important;
+          background: rgba(34, 197, 94, 0.18) !important;
+          border: 1px solid rgba(34, 197, 94, 0.3) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-applied-badge {
+          font-size: 0.68rem;
+          font-weight: 700;
+          color: #16A34A !important;
+          background: #DCFCE7 !important;
+          padding: 2px 8px;
+          border-radius: 999px;
+        }
+
+        [data-theme="dark"] #aiProposalGuidanceModal .ai-applied-badge,
+        html[data-theme="dark"] #aiProposalGuidanceModal .ai-applied-badge {
+          color: #4ADE80 !important;
+          background: rgba(34, 197, 94, 0.18) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-ready-badge {
+          font-size: 0.68rem;
+          font-weight: 600;
+          color: var(--aig-text-muted) !important;
+          background: var(--aig-bg-subtle) !important;
+          border: 1px solid var(--aig-border) !important;
+          padding: 2px 8px;
+          border-radius: 999px;
+        }
+
+        #aiProposalGuidanceModal .ai-notice-box {
+          background: var(--aig-badge-bg) !important;
+          border: 1px solid var(--aig-border) !important;
+          color: var(--aig-badge-color) !important;
+          padding: 6px 10px;
+          border-radius: 6px;
+          font-size: 0.75rem;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        #aiProposalGuidanceModal .ai-empty-title,
+        #aiProposalGuidanceModal .ai-loading-title {
+          font-size: 1rem;
+          font-weight: 700;
+          color: var(--aig-text-main) !important;
+          margin-bottom: 8px;
+        }
+
+        #aiProposalGuidanceModal .ai-empty-desc,
+        #aiProposalGuidanceModal .ai-loading-desc {
+          font-size: 0.84rem;
+          max-width: 440px;
+          margin: 0 auto 18px auto;
+          line-height: 1.5;
+          color: var(--aig-text-muted) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-empty-pill {
+          display: inline-block;
+          background: var(--aig-pill-bg) !important;
+          border: 1px solid var(--aig-border) !important;
+          color: var(--aig-pill-color) !important;
+          padding: 6px 14px;
+          border-radius: 999px;
+          font-size: 0.75rem;
+        }
+
+        #aiProposalGuidanceModal .ai-text-main {
+          color: var(--aig-text-main) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-text-secondary {
+          color: var(--aig-text-secondary) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-text-muted {
+          color: var(--aig-text-muted) !important;
+        }
+
+        #aiProposalGuidanceModal .form-control {
+          background: var(--aig-input-bg) !important;
+          color: var(--aig-input-color) !important;
+          border: 1px solid var(--aig-input-border) !important;
+        }
+
+        #aiProposalGuidanceModal .ai-btn-action {
+          font-size: 0.74rem;
+          padding: 4px 10px;
+          font-weight: 600;
+          border-radius: 6px;
+          background: var(--aig-card-bg) !important;
+          border: 1px solid var(--aig-border) !important;
+          color: var(--aig-text-main) !important;
+          cursor: pointer;
+        }
+
+        #aiProposalGuidanceModal .ai-btn-close-footer {
+          font-size: 0.82rem;
+          padding: 6px 18px;
+          border-radius: 6px;
+          background: var(--aig-card-bg) !important;
+          border: 1px solid var(--aig-border) !important;
+          color: var(--aig-text-main) !important;
+          cursor: pointer;
+        }
+
         .ai-toast-notify {
           position: fixed;
           bottom: 24px;
@@ -198,31 +589,31 @@ const AIProposalGuidance = (function () {
       modal.style.display = 'none';
       modal.style.position = 'fixed';
       modal.style.inset = '0';
-      modal.style.background = 'rgba(10, 22, 40, 0.65)';
-      modal.style.backdropFilter = 'blur(3px)';
-      modal.style.webkitBackdropFilter = 'blur(3px)';
+      modal.style.background = 'var(--aig-bg-backdrop, rgba(10, 22, 40, 0.75))';
+      modal.style.backdropFilter = 'blur(8px)';
+      modal.style.webkitBackdropFilter = 'blur(8px)';
       modal.style.zIndex = '1060';
       modal.style.overflowY = 'auto';
       modal.style.padding = '16px';
 
       modal.innerHTML = `
         <div class="modal-dialog modal-dialog-centered" style="margin: 1.5rem auto; max-width: 1140px; width: 100%;">
-          <div class="modal-content" style="border-radius: 14px; overflow: hidden; border: 1px solid #E2E8F0; box-shadow: 0 16px 48px rgba(10, 22, 40, 0.25); background: var(--bg-card, #FFFFFF); color: var(--text-main, #0A1628); font-family: 'Plus Jakarta Sans', sans-serif;">
+          <div class="modal-content" style="border-radius: 14px; overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif;">
             
             <!-- Modal Header -->
-            <div class="modal-header" style="padding: 16px 22px; border-bottom: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: space-between; background: var(--bg-base, #F8FAFC);">
+            <div class="modal-header" style="padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span style="font-size: 1.4rem;">✨</span>
                 <div>
-                  <h5 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: var(--text-main, #0A1628); letter-spacing: -0.01em;">
+                  <h5 class="ai-text-main" style="margin: 0; font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em;">
                     AI Proposal Guidance
                   </h5>
-                  <span style="font-size: 0.76rem; color: var(--text-muted, #64748B);">
+                  <span class="ai-text-muted" style="font-size: 0.76rem;">
                     Generate, review, edit, and selectively apply AI suggestions to your proposal form
                   </span>
                 </div>
               </div>
-              <button type="button" onclick="AIProposalGuidance.closeModal()" aria-label="Close" style="background: none; border: none; font-size: 1.5rem; color: #64748B; cursor: pointer; padding: 2px 8px; border-radius: 6px; line-height: 1;">&times;</button>
+              <button type="button" onclick="AIProposalGuidance.closeModal()" aria-label="Close" class="ai-text-muted" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; padding: 2px 8px; border-radius: 6px; line-height: 1;">&times;</button>
             </div>
 
             <!-- Modal Body (Two-Panel Layout) -->
@@ -230,33 +621,33 @@ const AIProposalGuidance = (function () {
               <div class="ai-guidance-layout">
 
                 <!-- ── LEFT PANEL: Generate Proposal Content ── -->
-                <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 16px;">
+                <div class="ai-guidance-left-panel">
                   <div>
-                    <h6 style="font-size: 0.95rem; font-weight: 800; color: #0A1628; margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px;">
+                    <h6 class="ai-text-main" style="font-size: 0.95rem; font-weight: 800; margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px;">
                       <span>⚙️</span> Generate Proposal Content
                     </h6>
 
                     <!-- Activity Title Context Box (Manual, Protected) -->
-                    <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                    <div class="ai-context-title-box">
                       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                        <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #64748B; letter-spacing: 0.03em;">Activity Title</span>
-                        <span style="font-size: 0.65rem; font-weight: 700; color: #0284C7; background: #E0F2FE; padding: 2px 6px; border-radius: 999px;">Manual (Protected)</span>
+                        <span class="ai-text-muted" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;">Activity Title</span>
+                        <span class="ai-title-badge">Manual (Protected)</span>
                       </div>
-                      <div id="aiContextTitleDisplay" style="font-size: 0.85rem; font-weight: 700; color: #0A1628; line-height: 1.35;">
+                      <div id="aiContextTitleDisplay" class="ai-title-display">
                         <em>Loading title...</em>
                       </div>
-                      <div style="font-size: 0.70rem; color: #64748B; margin-top: 4px;">
+                      <div class="ai-text-muted" style="font-size: 0.70rem; margin-top: 4px;">
                         * Title is manually provided and will NEVER be changed by AI.
                       </div>
                     </div>
 
                     <!-- Section Checkboxes -->
                     <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-                      <span style="font-size: 0.78rem; font-weight: 700; color: #334155;">Sections to Generate:</span>
+                      <span class="ai-text-secondary" style="font-size: 0.78rem; font-weight: 700;">Sections to Generate:</span>
                       <div style="display: flex; gap: 8px; font-size: 0.72rem;">
                         <a href="javascript:void(0)" onclick="AIProposalGuidance.toggleAllSections(true)" style="color: #0284C7; text-decoration: none; font-weight: 600;">Select All</a>
-                        <span style="color: #CBD5E1;">|</span>
-                        <a href="javascript:void(0)" onclick="AIProposalGuidance.toggleAllSections(false)" style="color: #64748B; text-decoration: none; font-weight: 600;">Clear</a>
+                        <span class="ai-text-muted">|</span>
+                        <a href="javascript:void(0)" onclick="AIProposalGuidance.toggleAllSections(false)" class="ai-text-muted" style="text-decoration: none; font-weight: 600;">Clear</a>
                       </div>
                     </div>
 
@@ -266,36 +657,36 @@ const AIProposalGuidance = (function () {
                   </div>
 
                   <!-- Generate Button -->
-                  <div style="padding-top: 12px; border-top: 1px solid #E2E8F0;">
+                  <div style="padding-top: 12px; border-top: 1px solid var(--aig-border, #E2E8F0);">
                     <button type="button" id="btnGenerateAI" class="btn btn-primary" onclick="AIProposalGuidance.generateSections()" style="width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; padding: 11px 16px; font-size: 0.88rem; font-weight: 700; border-radius: 8px; background: var(--sti-blue, #0284C7); border: none; color: #FFFFFF; cursor: pointer; transition: background 0.15s ease;">
                       <span>✨</span> Generate with AI
                     </button>
-                    <div style="font-size: 0.68rem; color: #64748B; text-align: center; margin-top: 6px;">
+                    <div class="ai-text-muted" style="font-size: 0.68rem; text-align: center; margin-top: 6px;">
                       Suggestions will preview on the right before applying.
                     </div>
                   </div>
                 </div>
 
                 <!-- ── RIGHT PANEL: AI Suggestions for Your Proposal ── -->
-                <div style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; min-height: 480px;">
+                <div class="ai-guidance-right-panel">
                   
                   <!-- Right Panel Toolbar -->
-                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--aig-border, #E2E8F0); margin-bottom: 16px;">
                     <div>
-                      <h6 style="font-size: 0.95rem; font-weight: 800; color: #0A1628; margin: 0 0 2px 0;">
+                      <h6 class="ai-text-main" style="font-size: 0.95rem; font-weight: 800; margin: 0 0 2px 0;">
                         AI Suggestions for Your Proposal
                       </h6>
-                      <span id="aiSuggestionsStatus" style="font-size: 0.74rem; color: #64748B;">
+                      <span id="aiSuggestionsStatus" class="ai-text-muted" style="font-size: 0.74rem;">
                         Select sections and click "Generate with AI" to preview.
                       </span>
                     </div>
 
                     <!-- Action Controls -->
                     <div id="aiRightPanelActions" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap;">
-                      <button type="button" class="btn btn-outline btn-sm" onclick="AIProposalGuidance.generateSections(true)" style="font-size: 0.76rem; padding: 5px 10px; font-weight: 600; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;">
+                      <button type="button" class="btn btn-outline btn-sm ai-btn-action" onclick="AIProposalGuidance.generateSections(true)" style="display: inline-flex; align-items: center; gap: 5px;">
                         <span>🔄</span> Regenerate
                       </button>
-                      <button type="button" id="btnApplySelected" class="btn btn-outline btn-sm" onclick="AIProposalGuidance.applySelected()" style="font-size: 0.76rem; padding: 5px 12px; font-weight: 600; border-radius: 6px; border-color: #0284C7; color: #0284C7;">
+                      <button type="button" id="btnApplySelected" class="btn btn-outline btn-sm ai-btn-action" onclick="AIProposalGuidance.applySelected()" style="border-color: #0284C7; color: #0284C7;">
                         Apply Selected (0)
                       </button>
                       <button type="button" class="btn btn-primary btn-sm" onclick="AIProposalGuidance.applyAll()" style="font-size: 0.76rem; padding: 5px 14px; font-weight: 700; border-radius: 6px; background: #0284C7; border: none; color: #FFFFFF;">
@@ -315,11 +706,11 @@ const AIProposalGuidance = (function () {
             </div>
 
             <!-- Modal Footer -->
-            <div class="modal-footer" style="padding: 12px 22px; border-top: 1px solid #E2E8F0; display: flex; justify-content: space-between; align-items: center; background: var(--bg-base, #F8FAFC);">
-              <div style="font-size: 0.75rem; color: #64748B;">
+            <div class="modal-footer" style="padding: 12px 22px; display: flex; justify-content: space-between; align-items: center;">
+              <div class="ai-text-muted" style="font-size: 0.75rem;">
                 🔒 Content is applied only when explicitly confirmed. Generating never auto-submits.
               </div>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="AIProposalGuidance.closeModal()" style="font-size: 0.82rem; padding: 6px 18px; border-radius: 6px;">
+              <button type="button" class="ai-btn-close-footer" onclick="AIProposalGuidance.closeModal()">
                 Close
               </button>
             </div>
@@ -346,7 +737,7 @@ const AIProposalGuidance = (function () {
     SECTION_KEYS.forEach((key) => {
       const sec = SECTION_CONFIG[key];
       html += `
-        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #1E293B; cursor: pointer; user-select: none; margin: 0; padding: 4px 6px; border-radius: 6px; transition: background 0.15s ease;">
+        <label class="ai-section-item-label">
           <input type="checkbox" id="chk_sec_${key}" class="ai-section-check" value="${key}" checked style="width: 16px; height: 16px; accent-color: #0284C7; cursor: pointer;">
           <span style="font-size: 0.95rem;">${sec.icon}</span>
           <span>${sec.name}</span>
@@ -369,7 +760,6 @@ const AIProposalGuidance = (function () {
     const title = getActivityTitle();
     if (title) {
       el.textContent = title;
-      el.style.color = '#0A1628';
       el.style.fontStyle = 'normal';
     } else {
       el.innerHTML = '<span style="color:#D97706; font-style:italic;">⚠️ No Activity Title entered yet. Please enter title in Step 1 for context.</span>';
@@ -385,15 +775,15 @@ const AIProposalGuidance = (function () {
     if (!container) return;
 
     container.innerHTML = `
-      <div style="text-align: center; padding: 60px 20px; color: #64748B;">
+      <div style="text-align: center; padding: 60px 20px;">
         <div style="font-size: 3rem; margin-bottom: 14px;">📋</div>
-        <h6 style="font-size: 1rem; font-weight: 700; color: #1E293B; margin-bottom: 8px;">
+        <h6 class="ai-empty-title">
           Ready to Generate Proposal Suggestions
         </h6>
-        <p style="font-size: 0.84rem; max-width: 440px; margin: 0 auto 18px auto; line-height: 1.5;">
+        <p class="ai-empty-desc">
           Select the sections on the left that you would like AI to assist you with. Suggestions will appear here where you can review, edit, and apply them.
         </p>
-        <span style="display: inline-block; background: #F1F5F9; border: 1px solid #E2E8F0; padding: 6px 14px; border-radius: 999px; font-size: 0.75rem; color: #475569;">
+        <span class="ai-empty-pill">
           Protected: The Activity Title is preserved and never modified by AI.
         </span>
       </div>
@@ -411,10 +801,10 @@ const AIProposalGuidance = (function () {
     container.innerHTML = `
       <div style="text-align: center; padding: 80px 20px;">
         <div class="ai-guidance-spinner"></div>
-        <h6 style="font-size: 1.05rem; font-weight: 800; color: #0A1628; margin-bottom: 6px;">
+        <h6 class="ai-loading-title">
           Generating Tailored Suggestions...
         </h6>
-        <p style="font-size: 0.84rem; color: #64748B; max-width: 420px; margin: 0 auto; line-height: 1.5;">
+        <p class="ai-loading-desc">
           Consulting academic guidelines, STI outcome standards, and logistical templates for your selected sections.
         </p>
       </div>
@@ -423,10 +813,9 @@ const AIProposalGuidance = (function () {
 
   function getMissingEventDetails() {
     const form = getFormElement();
-    if (!form) return [{ id: 'f1_title', name: 'title', label: 'Event Name / Title' }];
 
     const requiredFields = [
-      { id: 'f1_title', name: 'title', label: 'Event Name / Title' },
+      { id: 'f1_title', name: 'title', label: 'Event Name / Title', getValue: () => getActivityTitle() },
       { id: 'f1_event_date', name: 'event_date', label: 'Date of Event' },
       { id: 'f1_source', name: 'source', label: 'Source' },
       { id: 'f1_start_time', name: 'start_time', label: 'Start Time' },
@@ -438,27 +827,47 @@ const AIProposalGuidance = (function () {
 
     const missing = [];
     requiredFields.forEach((field) => {
-      const el = form.querySelector(`[name="${field.name}"]`) || document.getElementById(field.id);
-      const val = el ? el.value.trim() : '';
+      let val = '';
+      if (typeof field.getValue === 'function') {
+        val = field.getValue();
+      } else {
+        const el = (form ? form.querySelector(`[name="${field.name}"]`) : null) || document.getElementById(field.id);
+        val = el ? el.value.trim() : '';
+      }
       if (!val) {
         missing.push(field);
       }
     });
 
     // Target participants check
-    const targetParticipantsEl = form.querySelector('[name="target_participants"]') || document.getElementById('f1_target_participants');
+    const targetParticipantsEl = (form ? form.querySelector('[name="target_participants"]') : null) || document.getElementById('f1_target_participants');
     const targetCount = targetParticipantsEl ? parseInt(targetParticipantsEl.value, 10) : 0;
-    const partSectionInputs = form.querySelectorAll('.part-section-input');
+    const partSectionInputs = (form ? form.querySelectorAll('.part-section-input') : null) || document.querySelectorAll('.part-section-input');
     let hasSection = false;
-    partSectionInputs.forEach((input) => {
-      if (input.value.trim()) hasSection = true;
-    });
+    if (partSectionInputs) {
+      partSectionInputs.forEach((input) => {
+        if (input.value.trim()) hasSection = true;
+      });
+    }
 
     if (targetCount <= 0 && !hasSection) {
       missing.push({ id: 'f1_target_participants', name: 'target_participants', label: 'Target Participants' });
     }
 
     return missing;
+  }
+
+  function bindTitleListeners() {
+    const titleEl = document.getElementById('f1_title') || document.querySelector('input[name="title"]');
+    if (titleEl && !titleEl._aiGuidanceBound && typeof titleEl.addEventListener === 'function') {
+      titleEl._aiGuidanceBound = true;
+      titleEl.addEventListener('input', () => {
+        updateContextTitle();
+      });
+      titleEl.addEventListener('change', () => {
+        updateContextTitle();
+      });
+    }
   }
 
   async function checkEventDetailsOrWarn() {
@@ -490,7 +899,7 @@ const AIProposalGuidance = (function () {
       // Focus on the first missing field in Event Details
       const firstMissing = missing[0];
       const form = getFormElement();
-      const targetEl = form?.querySelector(`[name="${firstMissing.name}"]`) || document.getElementById(firstMissing.id);
+      const targetEl = (form ? form.querySelector(`[name="${firstMissing.name}"]`) : null) || document.getElementById(firstMissing.id);
       if (targetEl && typeof targetEl.focus === 'function') {
         setTimeout(() => targetEl.focus(), 120);
       }
@@ -501,6 +910,7 @@ const AIProposalGuidance = (function () {
   }
 
   async function openModal() {
+    bindTitleListeners();
     const isReady = await checkEventDetailsOrWarn();
     if (!isReady) return;
 
@@ -561,15 +971,40 @@ const AIProposalGuidance = (function () {
 
     try {
       const form = getFormElement();
+      const title = getActivityTitle();
+      const theme = (form?.querySelector('[name="theme"]')?.value || document.getElementById('f1_theme')?.value || '').trim();
+      const source = (form?.querySelector('[name="source"]')?.value || document.getElementById('f1_source')?.value || '').trim();
+      const eventDate = (form?.querySelector('[name="event_date"]')?.value || document.getElementById('f1_event_date')?.value || '').trim();
+      const startTime = (form?.querySelector('[name="start_time"]')?.value || document.getElementById('f1_start_time')?.value || '').trim();
+      const endTime = (form?.querySelector('[name="end_time"]')?.value || document.getElementById('f1_end_time')?.value || '').trim();
+      const venue = (form?.querySelector('[name="venue"]')?.value || document.getElementById('f1_venue')?.value || '').trim();
+      const venueAddress = (form?.querySelector('[name="venue_address"]')?.value || document.getElementById('f1_venue_address')?.value || '').trim();
+      const targetParticipants = (form?.querySelector('[name="target_participants"]')?.value || document.getElementById('f1_target_participants')?.value || '50').trim();
+      const involvedSubjects = (form?.querySelector('[name="involved_subjects"]')?.value || document.getElementById('f2_involved_subjects')?.value || '').trim();
+      const rationale = (form?.querySelector('[name="rationale"]')?.value || document.getElementById('f2_rationale')?.value || '').trim();
+      const genObj = (form?.querySelector('[name="general_objectives"]')?.value || document.getElementById('f2_general_objectives')?.value || '').trim();
+      const specObj = (form?.querySelector('[name="specific_objectives"]')?.value || document.getElementById('f2_specific_objectives')?.value || '').trim();
+      const actIdInput = form?.querySelector('[name="activity_id"]') || form?.querySelector('[name="id"]');
+      const activityId = parseInt(actIdInput?.value || window.ACTIVITY_ID || new URLSearchParams(window.location.search).get('id') || '0', 10);
+
       const payload = {
         action: 'generate_sections',
+        activity_id: activityId,
         sections: selectedSections,
         title: title,
-        theme: form?.querySelector('[name="theme"]')?.value || '',
-        venue: form?.querySelector('[name="venue"]')?.value || '',
-        event_date: form?.querySelector('[name="event_date"]')?.value || '',
-        target_participants: form?.querySelector('[name="target_participants"]')?.value || '50',
-        involved_subjects: form?.querySelector('[name="involved_subjects"]')?.value || '',
+        activity_title: title,
+        theme: theme,
+        source: source,
+        event_date: eventDate,
+        start_time: startTime,
+        end_time: endTime,
+        venue: venue,
+        venue_address: venueAddress,
+        target_participants: targetParticipants,
+        involved_subjects: involvedSubjects,
+        rationale: rationale,
+        general_objectives: genObj,
+        specific_objectives: specObj,
         force_refresh: forceRefresh ? 1 : 0
       };
 
@@ -644,20 +1079,20 @@ const AIProposalGuidance = (function () {
       html += `
         <div class="ai-card-item ${isApplied ? 'applied' : ''}" id="aiCard_${secKey}">
           <!-- Card Header -->
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #E2E8F0;">
+          <div class="ai-card-header">
             <div style="display: flex; align-items: center; gap: 8px;">
               <input type="checkbox" id="chk_apply_${secKey}" ${isSelected ? 'checked' : ''} onchange="AIProposalGuidance.toggleSectionSelection('${secKey}', this.checked)" style="width: 16px; height: 16px; accent-color: #0284C7; cursor: pointer;">
               <span style="font-size: 1.1rem;">${sec.icon}</span>
-              <strong style="font-size: 0.92rem; color: #0A1628;">${sec.name}</strong>
-              ${isApplied ? '<span style="font-size: 0.68rem; font-weight: 700; color: #16A34A; background: #DCFCE7; padding: 2px 8px; border-radius: 999px;">✓ Applied</span>' : '<span style="font-size: 0.68rem; font-weight: 600; color: #64748B; background: #F1F5F9; padding: 2px 8px; border-radius: 999px;">Ready</span>'}
+              <strong class="ai-card-title">${sec.name}</strong>
+              ${isApplied ? '<span class="ai-applied-badge">✓ Applied</span>' : '<span class="ai-ready-badge">Ready</span>'}
             </div>
 
             <!-- Card Actions -->
             <div style="display: flex; align-items: center; gap: 6px;">
-              <button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.toggleEditSection('${secKey}')" style="font-size: 0.74rem; padding: 4px 10px; font-weight: 600; border-radius: 6px;">
+              <button type="button" class="btn btn-outline btn-xs ai-btn-action" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">
                 ${isEditing ? '✕ Cancel' : '✏️ Edit'}
               </button>
-              <button type="button" class="btn btn-primary btn-xs" onclick="AIProposalGuidance.applySection('${secKey}')" style="font-size: 0.74rem; padding: 4px 12px; font-weight: 700; border-radius: 6px; background: #0284C7; border: none; color: #FFFFFF;">
+              <button type="button" class="btn btn-primary btn-xs" onclick="AIProposalGuidance.applySection('${secKey}')" style="font-size: 0.74rem; padding: 4px 12px; font-weight: 700; border-radius: 6px; background: #0284C7; border: none; color: #FFFFFF; cursor: pointer;">
                 Apply
               </button>
             </div>
@@ -675,48 +1110,48 @@ const AIProposalGuidance = (function () {
   }
 
   function renderPreviewView(secKey, data) {
-    if (!data) return '<em style="color:#94A3B8;">No content generated.</em>';
+    if (!data) return '<em class="ai-text-muted">No content generated.</em>';
 
     switch (secKey) {
       case 'objectives':
         return `
           <div style="font-size: 0.84rem; display: flex; flex-direction: column; gap: 8px;">
-            <div>
-              <strong style="color:#0A1628; display:block; margin-bottom:2px;">General Objective:</strong>
-              <div style="color:#334155; line-height:1.45; background:#F8FAFC; padding:8px 10px; border-radius:6px; border:1px solid #E2E8F0;">${escapeHtml(data.general_objectives)}</div>
+            <div class="ai-notice-box">
+              <span>ℹ️</span>
+              <span><strong>Note:</strong> General and Specific Objectives are automatically generated upon clicking "Next" in Step 1.</span>
             </div>
             <div>
-              <strong style="color:#0A1628; display:block; margin-bottom:2px;">Specific Objectives:</strong>
-              <div style="color:#334155; line-height:1.45; white-space:pre-line; background:#F8FAFC; padding:8px 10px; border-radius:6px; border:1px solid #E2E8F0;">${escapeHtml(data.specific_objectives)}</div>
+              <strong class="ai-label-header">Rationale / Educational Justification:</strong>
+              <div class="ai-preview-box">${escapeHtml(data.rationale || '')}</div>
             </div>
             <div>
-              <strong style="color:#0A1628; display:block; margin-bottom:2px;">Rationale:</strong>
-              <div style="color:#334155; line-height:1.45; background:#F8FAFC; padding:8px 10px; border-radius:6px; border:1px solid #E2E8F0;">${escapeHtml(data.rationale)}</div>
+              <strong class="ai-label-header">Involved Subjects / Courses:</strong>
+              <div class="ai-preview-box">${escapeHtml(data.involved_subjects || '')}</div>
             </div>
           </div>
         `;
 
       case 'materials':
-        if (!Array.isArray(data) || data.length === 0) return '<em style="color:#94A3B8;">No materials suggested.</em>';
+        if (!Array.isArray(data) || data.length === 0) return '<em class="ai-text-muted">No materials suggested.</em>';
         let matRows = data.map((m, i) => `
-          <tr style="border-bottom: 1px solid #F1F5F9;">
-            <td style="padding: 6px 8px; font-weight:600; color:#0A1628;">${escapeHtml(m.item)}</td>
-            <td style="padding: 6px 8px; color:#64748B;">${escapeHtml(m.desc || '—')}</td>
-            <td style="padding: 6px 8px; text-align:center;">${m.qty}</td>
-            <td style="padding: 6px 8px; color:#64748B;">${escapeHtml(m.provider || '—')}</td>
-            <td style="padding: 6px 8px; text-align:right; font-weight:600;">₱${parseFloat(m.cost || 0).toFixed(2)}</td>
+          <tr>
+            <td style="font-weight:600;">${escapeHtml(m.item)}</td>
+            <td class="ai-text-muted">${escapeHtml(m.desc || '—')}</td>
+            <td style="text-align:center;">${m.qty}</td>
+            <td class="ai-text-muted">${escapeHtml(m.provider || '—')}</td>
+            <td style="text-align:right; font-weight:600;">₱${parseFloat(m.cost || 0).toFixed(2)}</td>
           </tr>
         `).join('');
         return `
           <div style="overflow-x:auto;">
-            <table style="width:100%; font-size:0.80rem; border-collapse:collapse;">
+            <table class="ai-preview-table">
               <thead>
-                <tr style="background:#F8FAFC; border-bottom:1px solid #E2E8F0; text-align:left;">
-                  <th style="padding:6px 8px;">Item</th>
-                  <th style="padding:6px 8px;">Description</th>
-                  <th style="padding:6px 8px; text-align:center;">Qty</th>
-                  <th style="padding:6px 8px;">Supplier</th>
-                  <th style="padding:6px 8px; text-align:right;">Est. Cost</th>
+                <tr>
+                  <th>Item</th>
+                  <th>Description</th>
+                  <th style="text-align:center;">Qty</th>
+                  <th>Supplier</th>
+                  <th style="text-align:right;">Est. Cost</th>
                 </tr>
               </thead>
               <tbody>${matRows}</tbody>
@@ -727,8 +1162,8 @@ const AIProposalGuidance = (function () {
       case 'floor_plan':
         return `
           <div style="font-size: 0.84rem;">
-            <strong style="color:#0A1628; display:block; margin-bottom:4px;">Layout &amp; Facility Plan Notes:</strong>
-            <div style="color:#334155; line-height:1.5; background:#F8FAFC; padding:10px 12px; border-radius:6px; border:1px solid #E2E8F0;">
+            <strong class="ai-label-header">Layout &amp; Facility Plan Notes:</strong>
+            <div class="ai-preview-box">
               ${escapeHtml(data.notes || '')}
             </div>
           </div>
@@ -737,10 +1172,10 @@ const AIProposalGuidance = (function () {
       case 'people':
         if (!Array.isArray(data)) return '';
         let pplRows = data.map(p => `
-          <div style="display:inline-flex; align-items:center; gap:6px; background:#F8FAFC; border:1px solid #E2E8F0; padding:4px 10px; border-radius:6px; font-size:0.78rem;">
+          <div class="ai-person-pill">
             <span style="font-weight:700; color:#0284C7;">${escapeHtml(p.role)}:</span>
-            <span style="color:#0A1628;">${escapeHtml(p.person)}</span>
-            <span style="font-size:0.68rem; color:#64748B;">(${escapeHtml(p.type)})</span>
+            <span>${escapeHtml(p.person)}</span>
+            <span class="ai-text-muted" style="font-size:0.68rem;">(${escapeHtml(p.type)})</span>
           </div>
         `).join(' ');
         return `<div style="display:flex; flex-wrap:wrap; gap:8px;">${pplRows}</div>`;
@@ -748,13 +1183,13 @@ const AIProposalGuidance = (function () {
       case 'schedule':
         if (!Array.isArray(data)) return '';
         let schRows = data.map(s => `
-          <div style="display:flex; gap:10px; align-items:flex-start; font-size:0.80rem; padding:4px 0; border-bottom:1px dashed #E2E8F0;">
+          <div class="ai-schedule-row">
             <span style="font-weight:700; color:#0284C7; min-width:55px;">${escapeHtml(s.time)}</span>
             <div style="flex:1;">
-              <strong style="color:#0A1628;">${escapeHtml(s.segment)}</strong>
-              <span style="color:#64748B; margin-left:4px;">— ${escapeHtml(s.desc || '')}</span>
+              <strong>${escapeHtml(s.segment)}</strong>
+              <span class="ai-text-muted" style="margin-left:4px;">— ${escapeHtml(s.desc || '')}</span>
             </div>
-            <span style="color:#475569; font-size:0.75rem;">PIC: ${escapeHtml(s.pic || '—')}</span>
+            <span class="ai-text-muted" style="font-size:0.75rem;">PIC: ${escapeHtml(s.pic || '—')}</span>
           </div>
         `).join('');
         return `<div style="display:flex; flex-direction:column; gap:4px;">${schRows}</div>`;
@@ -763,16 +1198,16 @@ const AIProposalGuidance = (function () {
         return `
           <div style="font-size:0.82rem; display:flex; flex-direction:column; gap:6px;">
             <div>
-              <strong style="color:#0A1628;">Mechanics:</strong>
-              <div style="white-space:pre-line; color:#334155; margin-top:2px;">${escapeHtml(data.mechanics || '')}</div>
+              <strong class="ai-label-header">Mechanics:</strong>
+              <div class="ai-preview-box" style="white-space:pre-line;">${escapeHtml(data.mechanics || '')}</div>
             </div>
             <div>
-              <strong style="color:#0A1628;">Judging Criteria:</strong>
-              <div style="white-space:pre-line; color:#334155; margin-top:2px;">${escapeHtml(data.criteria || '')}</div>
+              <strong class="ai-label-header">Judging Criteria:</strong>
+              <div class="ai-preview-box" style="white-space:pre-line;">${escapeHtml(data.criteria || '')}</div>
             </div>
             <div>
-              <strong style="color:#0A1628;">Scoring &amp; Awards:</strong>
-              <div style="color:#475569; margin-top:2px;">${escapeHtml(data.scoring || '')} · ${escapeHtml(data.awards || '')}</div>
+              <strong class="ai-label-header">Scoring &amp; Awards:</strong>
+              <div class="ai-preview-box">${escapeHtml(data.scoring || '')} · ${escapeHtml(data.awards || '')}</div>
             </div>
           </div>
         `;
@@ -780,12 +1215,12 @@ const AIProposalGuidance = (function () {
       case 'faculty_tasks':
         if (!Array.isArray(data)) return '';
         let ftRows = data.map(t => `
-          <div style="background:#F8FAFC; border:1px solid #E2E8F0; padding:8px 10px; border-radius:6px; font-size:0.80rem; margin-bottom:6px;">
+          <div class="ai-task-card">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-              <strong style="color:#0A1628;">${escapeHtml(t.task)}</strong>
-              <span style="font-size:0.72rem; color:#64748B;">Due: ${escapeHtml(t.due_date || 'TBD')}</span>
+              <strong>${escapeHtml(t.task)}</strong>
+              <span class="ai-text-muted" style="font-size:0.72rem;">Due: ${escapeHtml(t.due_date || 'TBD')}</span>
             </div>
-            <div style="color:#475569; margin-top:2px;">${escapeHtml(t.contribution || '')} (Role: ${escapeHtml(t.role || 'Faculty')})</div>
+            <div class="ai-text-secondary" style="margin-top:2px;">${escapeHtml(t.contribution || '')} (Role: ${escapeHtml(t.role || 'Faculty')})</div>
           </div>
         `).join('');
         return `<div>${ftRows}</div>`;
@@ -793,12 +1228,12 @@ const AIProposalGuidance = (function () {
       case 'evaluation_kpi':
         if (!Array.isArray(data)) return '';
         let kpiRows = data.map(k => `
-          <div style="display:flex; justify-content:space-between; align-items:center; background:#F8FAFC; border:1px solid #E2E8F0; padding:8px 12px; border-radius:6px; font-size:0.80rem; margin-bottom:6px;">
+          <div class="ai-kpi-card">
             <div>
-              <strong style="color:#0A1628;">${escapeHtml(k.indicator)}</strong>
-              <div style="font-size:0.74rem; color:#64748B;">Method: ${escapeHtml(k.method || 'Evaluation Form')}</div>
+              <strong>${escapeHtml(k.indicator)}</strong>
+              <div class="ai-text-muted" style="font-size:0.74rem;">Method: ${escapeHtml(k.method || 'Evaluation Form')}</div>
             </div>
-            <span style="font-weight:700; color:#16A34A; background:#DCFCE7; padding:2px 8px; border-radius:6px; font-size:0.75rem;">
+            <span class="ai-kpi-target-badge">
               Target: ${escapeHtml(k.target)}
             </span>
           </div>
@@ -806,7 +1241,7 @@ const AIProposalGuidance = (function () {
         return `<div>${kpiRows}</div>`;
 
       default:
-        return `<pre style="font-size:0.75rem; background:#F8FAFC; padding:8px;">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+        return `<pre class="ai-preview-box" style="font-size:0.75rem;">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
     }
   }
 
@@ -815,20 +1250,19 @@ const AIProposalGuidance = (function () {
       case 'objectives':
         return `
           <div style="display:flex; flex-direction:column; gap:8px;">
-            <div>
-              <label style="font-size:0.74rem; font-weight:700;">General Objective:</label>
-              <textarea id="edit_gen_obj" class="form-control" rows="2" style="font-size:0.82rem;">${escapeHtml(data.general_objectives || '')}</textarea>
+            <div class="ai-notice-box">
+              ℹ️ General and Specific Objectives are automatically generated upon clicking "Next" in Step 1. You can edit rationale and involved subjects below:
             </div>
             <div>
-              <label style="font-size:0.74rem; font-weight:700;">Specific Objectives:</label>
-              <textarea id="edit_spec_obj" class="form-control" rows="3" style="font-size:0.82rem;">${escapeHtml(data.specific_objectives || '')}</textarea>
+              <label class="ai-label-header">Rationale / Educational Justification:</label>
+              <textarea id="edit_rationale" class="form-control" rows="3" style="font-size:0.82rem;">${escapeHtml(data.rationale || '')}</textarea>
             </div>
             <div>
-              <label style="font-size:0.74rem; font-weight:700;">Rationale:</label>
-              <textarea id="edit_rationale" class="form-control" rows="2" style="font-size:0.82rem;">${escapeHtml(data.rationale || '')}</textarea>
+              <label class="ai-label-header">Involved Subjects / Courses:</label>
+              <input type="text" id="edit_involved_subjects" class="form-control" style="font-size:0.82rem;" value="${escapeHtml(data.involved_subjects || '')}">
             </div>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
-              <button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
+              <button type="button" class="btn btn-outline btn-xs ai-btn-action" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
               <button type="button" class="btn btn-primary btn-xs" onclick="AIProposalGuidance.saveSectionEdits('${secKey}')">Save Changes</button>
             </div>
           </div>
@@ -837,10 +1271,10 @@ const AIProposalGuidance = (function () {
       case 'floor_plan':
         return `
           <div>
-            <label style="font-size:0.74rem; font-weight:700;">Floor Plan Layout Notes:</label>
+            <label class="ai-label-header">Floor Plan Layout Notes:</label>
             <textarea id="edit_fp_notes" class="form-control" rows="4" style="font-size:0.82rem;">${escapeHtml(data.notes || '')}</textarea>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
-              <button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
+              <button type="button" class="btn btn-outline btn-xs ai-btn-action" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
               <button type="button" class="btn btn-primary btn-xs" onclick="AIProposalGuidance.saveSectionEdits('${secKey}')">Save Changes</button>
             </div>
           </div>
@@ -850,23 +1284,23 @@ const AIProposalGuidance = (function () {
         return `
           <div style="display:flex; flex-direction:column; gap:8px;">
             <div>
-              <label style="font-size:0.74rem; font-weight:700;">Mechanics:</label>
+              <label class="ai-label-header">Mechanics:</label>
               <textarea id="edit_guidelines_mech" class="form-control" rows="3" style="font-size:0.82rem;">${escapeHtml(data.mechanics || '')}</textarea>
             </div>
             <div>
-              <label style="font-size:0.74rem; font-weight:700;">Judging Criteria:</label>
+              <label class="ai-label-header">Judging Criteria:</label>
               <textarea id="edit_guidelines_crit" class="form-control" rows="2" style="font-size:0.82rem;">${escapeHtml(data.criteria || '')}</textarea>
             </div>
             <div>
-              <label style="font-size:0.74rem; font-weight:700;">Scoring System:</label>
+              <label class="ai-label-header">Scoring System:</label>
               <input type="text" id="edit_guidelines_score" class="form-control" style="font-size:0.82rem;" value="${escapeHtml(data.scoring || '')}">
             </div>
             <div>
-              <label style="font-size:0.74rem; font-weight:700;">Special Awards:</label>
+              <label class="ai-label-header">Special Awards:</label>
               <input type="text" id="edit_guidelines_awards" class="form-control" style="font-size:0.82rem;" value="${escapeHtml(data.awards || '')}">
             </div>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
-              <button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
+              <button type="button" class="btn btn-outline btn-xs ai-btn-action" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
               <button type="button" class="btn btn-primary btn-xs" onclick="AIProposalGuidance.saveSectionEdits('${secKey}')">Save Changes</button>
             </div>
           </div>
@@ -896,9 +1330,8 @@ const AIProposalGuidance = (function () {
     try {
       switch (secKey) {
         case 'objectives':
-          _currentSuggestions.objectives.general_objectives = document.getElementById('edit_gen_obj')?.value || '';
-          _currentSuggestions.objectives.specific_objectives = document.getElementById('edit_spec_obj')?.value || '';
           _currentSuggestions.objectives.rationale = document.getElementById('edit_rationale')?.value || '';
+          _currentSuggestions.objectives.involved_subjects = document.getElementById('edit_involved_subjects')?.value || '';
           break;
 
         case 'floor_plan':
@@ -951,10 +1384,9 @@ const AIProposalGuidance = (function () {
 
     switch (secKey) {
       case 'objectives':
-        const gen = form.querySelector('[name="general_objectives"]')?.value.trim();
-        const spec = form.querySelector('[name="specific_objectives"]')?.value.trim();
-        const rat = form.querySelector('[name="rationale"]')?.value.trim();
-        return !!(gen || spec || rat);
+        const rat = (form.querySelector('[name="rationale"]') || document.getElementById('f2_rationale'))?.value.trim();
+        const subj = (form.querySelector('[name="involved_subjects"]') || document.getElementById('f2_involved_subjects'))?.value.trim();
+        return !!(rat || subj);
 
       case 'materials':
         const matItems = form.querySelectorAll('input[name="mat_item[]"]');
@@ -1030,15 +1462,20 @@ const AIProposalGuidance = (function () {
     try {
       switch (secKey) {
         case 'objectives':
-          const fGen = form.querySelector('[name="general_objectives"]');
-          const fSpec = form.querySelector('[name="specific_objectives"]');
-          const fRat = form.querySelector('[name="rationale"]');
-          const fSubj = form.querySelector('[name="involved_subjects"]');
+          const fRat = form.querySelector('[name="rationale"]') || document.getElementById('f2_rationale');
+          const fSubj = form.querySelector('[name="involved_subjects"]') || document.getElementById('f2_involved_subjects');
 
-          if (fGen && data.general_objectives) { fGen.value = data.general_objectives; fGen.dispatchEvent(new Event('input', { bubbles: true })); }
-          if (fSpec && data.specific_objectives) { fSpec.value = data.specific_objectives; fSpec.dispatchEvent(new Event('input', { bubbles: true })); }
-          if (fRat && data.rationale) { fRat.value = data.rationale; fRat.dispatchEvent(new Event('input', { bubbles: true })); }
-          if (fSubj && data.involved_subjects && !fSubj.value.trim()) { fSubj.value = data.involved_subjects; fSubj.dispatchEvent(new Event('input', { bubbles: true })); }
+          // Do NOT touch or overwrite general_objectives or specific_objectives
+          if (fRat && data.rationale) {
+            fRat.value = data.rationale;
+            fRat.dispatchEvent(new Event('input', { bubbles: true }));
+            fRat.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          if (fSubj && data.involved_subjects) {
+            fSubj.value = data.involved_subjects;
+            fSubj.dispatchEvent(new Event('input', { bubbles: true }));
+            fSubj.dispatchEvent(new Event('change', { bubbles: true }));
+          }
           break;
 
         case 'materials':
@@ -1212,6 +1649,24 @@ const AIProposalGuidance = (function () {
       _appliedSections.add(secKey);
       renderSuggestions();
       showToast(`✓ Applied ${SECTION_CONFIG[secKey].name} to proposal form.`);
+
+      // Record applied suggestion in proposal contribution / generation log
+      const actIdInput = form.querySelector('[name="activity_id"]') || form.querySelector('[name="id"]');
+      const actId = parseInt(actIdInput?.value || window.ACTIVITY_ID || new URLSearchParams(window.location.search).get('id') || '0', 10);
+      if (actId > 0) {
+        const baseUrl = getBaseUrl();
+        fetch(`${baseUrl}/api/ai-proposal-guidance.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'log_applied',
+            activity_id: actId,
+            section: SECTION_CONFIG[secKey]?.name || secKey,
+            details: `Applied AI proposal guidance for ${SECTION_CONFIG[secKey]?.name || secKey} based on Step 1 event details.`
+          })
+        }).catch(err => console.warn('Could not record proposal contribution log:', err));
+      }
+
       return true;
 
     } catch (err) {
@@ -1299,11 +1754,16 @@ const AIProposalGuidance = (function () {
   function init(options) {
     options = options || {};
     _baseUrl = (options.baseUrl || getBaseUrl() || '').replace(/\/$/, '');
-    _formEl = typeof options.formSelector === 'string'
-      ? document.querySelector(options.formSelector)
-      : options.formSelector;
+    if (typeof options.formSelector === 'string') {
+      _formEl = document.querySelector(options.formSelector);
+    } else if (options.formSelector) {
+      _formEl = options.formSelector;
+    } else {
+      _formEl = document.getElementById('proposalForm');
+    }
 
     ensureModalDom();
+    bindTitleListeners();
   }
 
   return {
@@ -1311,6 +1771,7 @@ const AIProposalGuidance = (function () {
     requestGuidance,
     openModal,
     closeModal,
+    getActivityTitle,
     getMissingEventDetails,
     checkEventDetailsOrWarn,
     generateSections,

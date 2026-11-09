@@ -26,7 +26,8 @@ $navs = [
       ['icon' => 'activity', 'label' => 'Department Activities', 'href' => BASE_URL . '/faculty/activities.php'],
       ['icon' => 'inbox', 'label' => 'Pending Proposals', 'href' => BASE_URL . '/faculty/pending.php'],
       ['icon' => 'check-circle', 'label' => 'Approved Activities', 'href' => BASE_URL . '/faculty/approved.php'],
-      ['icon' => 'x-circle', 'label' => 'Returned / Rejected', 'href' => BASE_URL . '/faculty/returned.php'],
+      ['icon' => 'rotate-ccw', 'label' => 'Returned for Revision', 'href' => BASE_URL . '/faculty/returned.php'],
+      ['icon' => 'x-circle', 'label' => 'Rejected Proposals', 'href' => BASE_URL . '/faculty/rejected.php'],
     ]],
     ['group' => 'Monitoring', 'links' => [
       ['icon' => 'list', 'label' => 'Task Monitoring', 'href' => BASE_URL . '/faculty/tasks.php'],
@@ -46,7 +47,8 @@ $navs = [
       ['icon' => 'list', 'label' => 'My Activities', 'href' => BASE_URL . '/faculty/activities.php'],
       ['icon' => 'inbox', 'label' => 'Pending Proposals', 'href' => BASE_URL . '/faculty/pending.php'],
       ['icon' => 'check-circle', 'label' => 'Approved Activities', 'href' => BASE_URL . '/faculty/approved.php'],
-      ['icon' => 'x-circle', 'label' => 'Returned / Rejected', 'href' => BASE_URL . '/faculty/returned.php'],
+      ['icon' => 'rotate-ccw', 'label' => 'Returned for Revision', 'href' => BASE_URL . '/faculty/returned.php'],
+      ['icon' => 'x-circle', 'label' => 'Rejected Proposals', 'href' => BASE_URL . '/faculty/rejected.php'],
       ['icon' => 'check-circle', 'label' => 'My Tasks', 'href' => BASE_URL . '/faculty/tasks.php'],
       ['icon' => 'calendar', 'label' => 'Calendar', 'href' => BASE_URL . '/faculty/calendar.php'],
     ]],
@@ -60,7 +62,8 @@ $navs = [
       ['icon' => 'home', 'label' => 'Dashboard', 'href' => BASE_URL . '/admin1/dashboard.php'],
       ['icon' => 'inbox', 'label' => 'Pending Reviews', 'href' => BASE_URL . '/admin1/pending.php'],
       ['icon' => 'check-circle', 'label' => 'Approved', 'href' => BASE_URL . '/admin1/approved.php'],
-      ['icon' => 'x-circle', 'label' => 'Returned / Rejected', 'href' => BASE_URL . '/admin1/returned.php'],
+      ['icon' => 'rotate-ccw', 'label' => 'Returned for Revision', 'href' => BASE_URL . '/admin1/returned.php'],
+      ['icon' => 'x-circle', 'label' => 'Rejected Proposals', 'href' => BASE_URL . '/admin1/rejected.php'],
     ]],
     ['group' => 'Monitoring', 'links' => [
       ['icon' => 'check-circle', 'label' => 'My Tasks', 'href' => BASE_URL . '/admin1/tasks.php'],
@@ -68,6 +71,7 @@ $navs = [
       ['icon' => 'activity', 'label' => 'All Activities', 'href' => BASE_URL . '/admin1/activities.php'],
     ]],
     ['group' => 'Reports', 'links' => [
+      ['icon' => 'upload', 'label' => 'Post-Event Results', 'href' => BASE_URL . '/admin1/post-event.php'],
       ['icon' => 'file-text', 'label' => 'Generate Report', 'href' => BASE_URL . '/admin1/generate-report.php'],
     ]],
   ],
@@ -76,7 +80,8 @@ $navs = [
       ['icon' => 'home', 'label' => 'Dashboard', 'href' => BASE_URL . '/admin2/dashboard.php'],
       ['icon' => 'inbox', 'label' => 'Pending Reviews', 'href' => BASE_URL . '/admin2/pending.php'],
       ['icon' => 'check-circle', 'label' => 'Approved', 'href' => BASE_URL . '/admin2/approved.php'],
-      ['icon' => 'x-circle', 'label' => 'Returned / Rejected', 'href' => BASE_URL . '/admin2/returned.php'],
+      ['icon' => 'rotate-ccw', 'label' => 'Returned for Revision', 'href' => BASE_URL . '/admin2/returned.php'],
+      ['icon' => 'x-circle', 'label' => 'Rejected Proposals', 'href' => BASE_URL . '/admin2/rejected.php'],
     ]],
     ['group' => 'Monitoring', 'links' => [
       ['icon' => 'check-circle', 'label' => 'My Tasks', 'href' => BASE_URL . '/admin2/tasks.php'],
@@ -84,6 +89,7 @@ $navs = [
       ['icon' => 'activity', 'label' => 'All Activities', 'href' => BASE_URL . '/admin2/activities.php'],
     ]],
     ['group' => 'Reports', 'links' => [
+      ['icon' => 'upload', 'label' => 'Post-Event Results', 'href' => BASE_URL . '/admin2/post-event.php'],
       ['icon' => 'bar-chart', 'label' => 'KPI Overview', 'href' => BASE_URL . '/admin2/kpi-overview.php'],
       ['icon' => 'file-text', 'label' => 'Generate Report', 'href' => BASE_URL . '/dean/generate-report.php'],
     ]],
@@ -96,7 +102,8 @@ $navs = [
       ['icon' => 'home', 'label' => 'Dashboard', 'href' => BASE_URL . '/dean/dashboard.php'],
       ['icon' => 'inbox', 'label' => 'Pending Approvals', 'href' => BASE_URL . '/dean/pending.php'],
       ['icon' => 'check-circle', 'label' => 'Approved', 'href' => BASE_URL . '/dean/approved.php'],
-      ['icon' => 'x-circle', 'label' => 'Returned / Rejected', 'href' => BASE_URL . '/dean/returned.php'],
+      ['icon' => 'rotate-ccw', 'label' => 'Returned for Revision', 'href' => BASE_URL . '/dean/returned.php'],
+      ['icon' => 'x-circle', 'label' => 'Rejected Proposals', 'href' => BASE_URL . '/dean/rejected.php'],
     ]],
     ['group' => 'Overview', 'links' => [
       ['icon' => 'activity', 'label' => 'All Activities', 'href' => BASE_URL . '/dean/activities.php'],
@@ -104,6 +111,7 @@ $navs = [
       ['icon' => 'calendar', 'label' => 'Calendar', 'href' => BASE_URL . '/dean/calendar.php'],
     ]],
     ['group' => 'Reports', 'links' => [
+      ['icon' => 'upload', 'label' => 'Post-Event Results', 'href' => BASE_URL . '/dean/post-event.php'],
       ['icon' => 'bar-chart', 'label' => 'KPI Reports', 'href' => BASE_URL . '/dean/kpi-reports.php'],
       ['icon' => 'file-text', 'label' => 'Generate Report', 'href' => BASE_URL . '/dean/generate-report.php'],
     ]],
@@ -128,6 +136,7 @@ if (!function_exists('sidebarIcon')) {
       'inbox'        => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>',
       'check-circle' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>',
       'x-circle'     => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+      'rotate-ccw'   => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>',
       'activity'     => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>',
       'file-text'    => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>',
       'users'        => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>',
@@ -610,7 +619,8 @@ if (!function_exists('sidebarIcon')) {
       <div class="nav-group">
         <div class="nav-label"><?= $section['group'] ?></div>
         <?php foreach ($section['links'] as $link):
-          $active = strpos($_SERVER['PHP_SELF'], basename($link['href'])) !== false ? 'active' : ''; ?>
+          $linkBase = basename($link['href']);
+          $active = (strpos($_SERVER['PHP_SELF'], $linkBase) !== false || (strpos($_SERVER['PHP_SELF'], 'post-event-view.php') !== false && $linkBase === 'post-event.php')) ? 'active' : ''; ?>
           <a href="<?= $link['href'] ?>" class="sidebar-nav-item <?= $active ?>" aria-label="<?= htmlspecialchars($link['label']) ?>">
             <span class="nav-icon"><?= sidebarIcon($link['icon']) ?></span>
             <span class="nav-label-text"><?= $link['label'] ?></span>

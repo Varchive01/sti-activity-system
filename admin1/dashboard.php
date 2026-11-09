@@ -56,7 +56,7 @@ $selectedPeriod = sanitize($_GET['period'] ?? 'all');
 // Discover available years dynamically from activities table
 $availableYears = [$currentYear, $currentYear + 1];
 try {
-    $dbYears = $db->query("SELECT DISTINCT YEAR(event_date) as yr FROM activities WHERE event_date IS NOT NULL AND event_date != '0000-00-00' ORDER BY yr DESC")->fetchAll(PDO::FETCH_COLUMN);
+    $dbYears = $db->query("SELECT DISTINCT YEAR(event_date) as yr FROM activities WHERE source='student_org' AND event_date IS NOT NULL AND event_date != '0000-00-00' ORDER BY yr DESC")->fetchAll(PDO::FETCH_COLUMN);
     if (!empty($dbYears)) {
         $availableYears = array_values(array_unique(array_merge($availableYears, array_map('intval', $dbYears))));
         rsort($availableYears);
@@ -174,7 +174,7 @@ try {
         GROUP BY activity_id
       ) sub ON a.id = sub.activity_id
       LEFT JOIN post_event pe ON a.id = pe.activity_id
-      WHERE a.status = 'completed' AND {$whereClause}
+      WHERE a.source = 'student_org' AND a.status = 'completed' AND {$whereClause}
     ");
     $kpiStmt->execute($params);
     $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -803,12 +803,18 @@ try {
       fill: #15803D;
     }
     .val-returned {
+      fill: #C2410C;
+    }
+    .val-rejected {
       fill: #DC2626;
     }
     [data-theme="dark"] .val-approved {
       fill: #4ADE80;
     }
     [data-theme="dark"] .val-returned {
+      fill: #FB923C;
+    }
+    [data-theme="dark"] .val-rejected {
       fill: #F87171;
     }
     .chart-bar {
@@ -823,12 +829,18 @@ try {
       fill: #16A34A;
     }
     .bar-returned {
+      fill: #EA580C;
+    }
+    .bar-rejected {
       fill: #DC2626;
     }
     [data-theme="dark"] .bar-approved {
       fill: #22C55E;
     }
     [data-theme="dark"] .bar-returned {
+      fill: #F97316;
+    }
+    [data-theme="dark"] .bar-rejected {
       fill: #EF4444;
     }
     .chart-bar-zero {
@@ -862,12 +874,18 @@ try {
       background: #16A34A;
     }
     .legend-dot.returned-dot {
+      background: #EA580C;
+    }
+    .legend-dot.rejected-dot {
       background: #DC2626;
     }
     [data-theme="dark"] .legend-dot.approved-dot {
       background: #22C55E;
     }
     [data-theme="dark"] .legend-dot.returned-dot {
+      background: #F97316;
+    }
+    [data-theme="dark"] .legend-dot.rejected-dot {
       background: #EF4444;
     }
 
@@ -1363,7 +1381,7 @@ try {
             </div>
             <div class="stat-strip stat-strip-returned"></div>
           </a>
-          <a href="<?= BASE_URL ?>/admin1/returned.php" class="stat-card stat-card-rejected">
+          <a href="<?= BASE_URL ?>/admin1/rejected.php" class="stat-card stat-card-rejected">
             <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
             <div>
               <div class="stat-val"><?= $stats['rejected'] ?? 0 ?></div>
@@ -1410,7 +1428,8 @@ try {
             <h2>📈 Proposal Approval Trends — <?= $selectedYear ?></h2>
             <span class="text-xs text-muted">
               Approved: <strong class="chart-summary-approved" style="color:#16A34A;"><?= $approvalTrends['total_approved'] ?></strong> &bull; 
-              Returned/Rejected: <strong class="chart-summary-returned" style="color:#DC2626;"><?= $approvalTrends['total_returned'] ?></strong>
+              Returned: <strong class="chart-summary-returned" style="color:#EA580C;"><?= $approvalTrends['total_returned'] ?></strong> &bull; 
+              Rejected: <strong class="chart-summary-rejected" style="color:#DC2626;"><?= $approvalTrends['total_rejected'] ?></strong>
             </span>
           </div>
           <div class="card-body chart-body">
@@ -1428,12 +1447,14 @@ try {
                 $mName = date('M', mktime(0, 0, 0, $m, 1));
                 $appCount = (int)($trendLookup[$m]['approved'] ?? 0);
                 $retCount = (int)($trendLookup[$m]['returned'] ?? 0);
-                $chartMaxVal = max($chartMaxVal, $appCount, $retCount);
+                $rejCount = (int)($trendLookup[$m]['rejected'] ?? 0);
+                $chartMaxVal = max($chartMaxVal, $appCount, $retCount, $rejCount);
                 $chartMonths[] = [
                     'num' => $m,
                     'name' => $mName,
                     'approved' => $appCount,
-                    'returned' => $retCount
+                    'returned' => $retCount,
+                    'rejected' => $rejCount
                 ];
             }
 
@@ -1462,8 +1483,8 @@ try {
             $plotW = $plotRight - $plotLeft;
             $plotH = $plotBottom - $plotTop;
             $colW = $plotW / 12;
-            $barW = 12;
-            $barGap = 4;
+            $barW = 10;
+            $barGap = 3;
             ?>
             <div class="chart-container-wrap">
               <svg viewBox="0 0 <?= $svgW ?> <?= $svgH ?>" preserveAspectRatio="xMidYMid meet" class="trends-chart-svg" aria-label="Proposal Approval Trends Grouped Column Chart">
@@ -1484,17 +1505,22 @@ try {
                 <!-- Month Columns (Grouped Bars) -->
                 <?php foreach ($chartMonths as $i => $cm): 
                   $centerX = $plotLeft + ($i + 0.5) * $colW;
-                  $xApp = $centerX - $barW - ($barGap / 2);
-                  $xRet = $centerX + ($barGap / 2);
+                  $xApp = $centerX - 1.5 * $barW - $barGap;
+                  $xRet = $centerX - 0.5 * $barW;
+                  $xRej = $centerX + 0.5 * $barW + $barGap;
                   $slotX = $plotLeft + $i * $colW;
 
                   // Approved bar height and position
                   $appH = $cm['approved'] > 0 ? max(6, round(($cm['approved'] / $yMax) * $plotH)) : 0;
                   $appY = $plotBottom - $appH;
 
-                  // Returned/Rejected bar height and position
+                  // Returned bar height and position
                   $retH = $cm['returned'] > 0 ? max(6, round(($cm['returned'] / $yMax) * $plotH)) : 0;
                   $retY = $plotBottom - $retH;
+
+                  // Rejected bar height and position
+                  $rejH = $cm['rejected'] > 0 ? max(6, round(($cm['rejected'] / $yMax) * $plotH)) : 0;
+                  $rejY = $plotBottom - $rejH;
                 ?>
                   <g class="month-column-group" data-month-index="<?= $i ?>">
                     <!-- Approved Bar (Green) -->
@@ -1507,21 +1533,31 @@ try {
                       <rect x="<?= $xApp ?>" y="<?= $plotBottom - 2 ?>" width="<?= $barW ?>" height="2" rx="1" class="chart-bar-zero" />
                     <?php endif; ?>
 
-                    <!-- Returned/Rejected Bar (Red) -->
+                    <!-- Returned Bar (Orange) -->
                     <?php if ($cm['returned'] > 0): ?>
                       <rect x="<?= $xRet ?>" y="<?= $retY ?>" width="<?= $barW ?>" height="<?= $retH ?>" rx="3" class="chart-bar bar-returned">
-                        <title><?= $cm['name'] ?>: <?= $cm['returned'] ?> Returned/Rejected</title>
+                        <title><?= $cm['name'] ?>: <?= $cm['returned'] ?> Returned</title>
                       </rect>
                       <text x="<?= $xRet + ($barW / 2) ?>" y="<?= $retY - 5 ?>" text-anchor="middle" class="chart-val-text val-returned"><?= $cm['returned'] ?></text>
                     <?php else: ?>
                       <rect x="<?= $xRet ?>" y="<?= $plotBottom - 2 ?>" width="<?= $barW ?>" height="2" rx="1" class="chart-bar-zero" />
                     <?php endif; ?>
 
+                    <!-- Rejected Bar (Red) -->
+                    <?php if ($cm['rejected'] > 0): ?>
+                      <rect x="<?= $xRej ?>" y="<?= $rejY ?>" width="<?= $barW ?>" height="<?= $rejH ?>" rx="3" class="chart-bar bar-rejected">
+                        <title><?= $cm['name'] ?>: <?= $cm['rejected'] ?> Rejected</title>
+                      </rect>
+                      <text x="<?= $xRej + ($barW / 2) ?>" y="<?= $rejY - 5 ?>" text-anchor="middle" class="chart-val-text val-rejected"><?= $cm['rejected'] ?></text>
+                    <?php else: ?>
+                      <rect x="<?= $xRej ?>" y="<?= $plotBottom - 2 ?>" width="<?= $barW ?>" height="2" rx="1" class="chart-bar-zero" />
+                    <?php endif; ?>
+
                     <!-- Month Label on X-Axis -->
                     <text x="<?= $centerX ?>" y="<?= $plotBottom + 20 ?>" text-anchor="middle" class="chart-month-label"><?= $cm['name'] ?></text>
 
                     <!-- Transparent Column Hover Slot for Tooltip Interaction -->
-                    <rect x="<?= $slotX ?>" y="<?= $plotTop ?>" width="<?= $colW ?>" height="<?= $plotH + 28 ?>" class="chart-hover-slot" data-month="<?= $cm['name'] ?>" data-year="<?= $selectedYear ?>" data-approved="<?= $cm['approved'] ?>" data-returned="<?= $cm['returned'] ?>" fill="rgba(0,0,0,0.0001)" />
+                    <rect x="<?= $slotX ?>" y="<?= $plotTop ?>" width="<?= $colW ?>" height="<?= $plotH + 28 ?>" class="chart-hover-slot" data-month="<?= $cm['name'] ?>" data-year="<?= $selectedYear ?>" data-approved="<?= $cm['approved'] ?>" data-returned="<?= $cm['returned'] ?>" data-rejected="<?= $cm['rejected'] ?>" fill="rgba(0,0,0,0.0001)" />
                   </g>
                 <?php endforeach; ?>
               </svg>
@@ -1534,8 +1570,12 @@ try {
                   <span>Approved: <strong id="ttApproved">0</strong></span>
                 </div>
                 <div class="chart-tooltip-row">
+                  <span class="chart-tooltip-dot" style="background:#EA580C;"></span>
+                  <span>Returned: <strong id="ttReturned">0</strong></span>
+                </div>
+                <div class="chart-tooltip-row">
                   <span class="chart-tooltip-dot" style="background:#DC2626;"></span>
-                  <span>Returned / Rejected: <strong id="ttReturned">0</strong></span>
+                  <span>Rejected: <strong id="ttRejected">0</strong></span>
                 </div>
               </div>
             </div>
@@ -1543,7 +1583,8 @@ try {
             <!-- Legend -->
             <div class="flex gap-3 text-xs" style="margin-top:12px;justify-content:center;">
               <span style="display:inline-flex;align-items:center;"><span class="legend-dot approved-dot"></span>Approved Proposals</span>
-              <span style="display:inline-flex;align-items:center;"><span class="legend-dot returned-dot"></span>Returned / Rejected</span>
+              <span style="display:inline-flex;align-items:center;"><span class="legend-dot returned-dot"></span>Returned Proposals</span>
+              <span style="display:inline-flex;align-items:center;"><span class="legend-dot rejected-dot"></span>Rejected Proposals</span>
             </div>
           </div>
         </div>
@@ -1580,7 +1621,7 @@ try {
           </div>
 
           <!-- My Assigned Tasks Card -->
-          <div class="card" style="margin-bottom: 20px;">
+          <div class="card">
             <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
               <h2 style="font-size:0.95rem;margin:0;display:flex;align-items:center;gap:6px;">
                 <span>📋</span> My Assigned Tasks
@@ -1662,14 +1703,17 @@ try {
           const year = this.getAttribute('data-year');
           const approved = this.getAttribute('data-approved');
           const returned = this.getAttribute('data-returned');
+          const rejected = this.getAttribute('data-rejected');
 
           const ttMonth = document.getElementById('ttMonth');
           const ttApproved = document.getElementById('ttApproved');
           const ttReturned = document.getElementById('ttReturned');
+          const ttRejected = document.getElementById('ttRejected');
 
           if (ttMonth) ttMonth.textContent = month + ' ' + year;
           if (ttApproved) ttApproved.textContent = approved;
           if (ttReturned) ttReturned.textContent = returned;
+          if (ttRejected) ttRejected.textContent = rejected;
 
           tooltip.classList.add('show');
           tooltip.setAttribute('aria-hidden', 'false');

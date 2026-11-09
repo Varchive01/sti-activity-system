@@ -5,6 +5,9 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('dean');
 $db = getDB();
+if (function_exists('reconcilePostEventMetrics')) {
+    reconcilePostEventMetrics($db);
+}
 $year = 2026;
 $deptFilter = sanitize($_GET['department'] ?? 'all');
 

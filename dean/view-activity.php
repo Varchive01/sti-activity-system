@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/ai/kpi_helper.php';
 requireRole('dean');
 $db = getDB();
 $id = (int)($_GET['id'] ?? 0);
@@ -20,6 +21,10 @@ if (!canUserAccessActivity($id, 'view', $user['id'], $user['role'], $user['dept'
 
 $mats = $db->prepare("SELECT * FROM materials WHERE activity_id=?"); $mats->execute([$id]); $materials=$mats->fetchAll();
 $psStmt = $db->prepare("SELECT * FROM activity_participants WHERE activity_id=? ORDER BY row_no ASC, id ASC"); $psStmt->execute([$id]); $partSections=$psStmt->fetchAll();
+
+if (function_exists('reconcilePostEventMetrics')) {
+    reconcilePostEventMetrics($db, $id);
+}
 
 // Fetch raw evaluation responses
 $responsesStmt = $db->prepare("
@@ -69,7 +74,15 @@ $pe   = $db->prepare("SELECT * FROM post_event WHERE activity_id=?"); $pe->execu
 $docs = $db->prepare("SELECT * FROM documents WHERE activity_id=? ORDER BY uploaded_at DESC"); $docs->execute([$id]); $documents=$docs->fetchAll();
 $kpis = $db->prepare("SELECT * FROM kpi_evaluations WHERE activity_id=?"); $kpis->execute([$id]); $kpiData=$kpis->fetchAll();
 $rca  = $db->prepare("SELECT * FROM root_cause_analysis WHERE activity_id=?"); $rca->execute([$id]); $rcas=$rca->fetchAll();
-$logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON al.reviewer_id=u.id WHERE al.activity_id=? ORDER BY al.acted_at"); $logs->execute([$id]); $history=$logs->fetchAll();
+$logs = $db->prepare("
+    SELECT al.*, u.name, u.role as reviewer_role 
+    FROM approval_logs al 
+    JOIN users u ON al.reviewer_id = u.id 
+    WHERE al.activity_id = ? 
+    ORDER BY al.acted_at ASC, al.id ASC
+");
+$logs->execute([$id]);
+$history = $logs->fetchAll();
 
 // Post-Activity Compliance calculation
 $complianceResult = calculatePostActivityCompliance($id, null, $db);
@@ -121,7 +134,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
       <?php if ($activity['status'] === 'pending_final_approval'): ?>
         <a href="<?= BASE_URL ?>/dean/review.php?id=<?= $activity['id'] ?>" class="btn btn-primary btn-sm">Review Proposal</a>
       <?php endif; ?>
-      <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 Print</button>
+      <button type="button" id="exportPdfBtn" class="btn btn-outline btn-sm" onclick="exportProposalPdf()" title="Download formal PDF document" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">📄 Export PDF</button>
       <!-- User Profile Control -->
       <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
     </div>
@@ -172,6 +185,34 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
         <span class="badge badge-secondary"><?= ucfirst(str_replace('_',' ',$activity['source'])) ?></span>
       </div>
     </div>
+
+    <?php if (in_array($activity['status'], ['returned_for_revision', 'rejected'], true)): 
+      $lastDecisionLog = null;
+      if (!empty($history)) {
+        foreach (array_reverse($history) as $hLog) {
+          if (in_array($hLog['action'], ['returned', 'rejected', 'returned_for_revision'], true)) {
+            $lastDecisionLog = $hLog;
+            break;
+          }
+        }
+      }
+      $decisionNotes = $lastDecisionLog['notes'] ?? $activity['revision_notes'] ?? '';
+      $decisionBy = $lastDecisionLog ? htmlspecialchars($lastDecisionLog['name']) . ' (' . htmlspecialchars(ucwords(str_replace('_', ' ', $lastDecisionLog['reviewer_role'] ?? ''))) . ')' : 'Previous Approver';
+      $isRej = ($activity['status'] === 'rejected');
+    ?>
+    <div style="margin-bottom:20px;padding:14px 18px;border-radius:10px;background:<?= $isRej ? '#FEF2F2' : '#FFFBEB' ?>;border:1px solid <?= $isRej ? '#FCA5A5' : '#FCD34D' ?>;color:<?= $isRej ? '#991B1B' : '#92400E' ?>;">
+      <div style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.95rem;margin-bottom:6px;">
+        <span><?= $isRej ? '⛔ Proposal Rejected' : '⚠️ Proposal Returned for Revision' ?></span>
+        <span style="font-size:0.8rem;font-weight:500;opacity:0.9;">— Decision by <?= $decisionBy ?></span>
+      </div>
+      <?php if (!empty($decisionNotes)): ?>
+        <div style="font-size:0.86rem;line-height:1.5;background:rgba(255,255,255,0.7);padding:10px 12px;border-radius:6px;border:1px solid rgba(0,0,0,0.06);margin-top:6px;">
+          <strong>Reason / Review Remarks:</strong><br>
+          <?= nl2br(htmlspecialchars($decisionNotes)) ?>
+        </div>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
 
     <!-- Event Info -->
     <?php
@@ -278,7 +319,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
     <?php endif; ?>
 
     <?php if ($clrInfoView['required'] || !empty($activity['clearance_obtained'])): ?>
-    <div id="clearance-view-strip" style="margin-bottom:24px; padding:12px 16px; background:var(--bg-subtle, #f8f9fa); border:1px solid var(--border-color, #e5e7eb); border-radius:6px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+    <div id="clearance-view-strip" style="margin-bottom:24px; padding:12px 16px; background:var(--bg-base); border:1px solid var(--border); border-radius:6px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <span style="font-weight:700; color:var(--text-muted); font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px;">School Admin / President Clearance:</span>
         <?= $clrInfoView['badge'] ?>
@@ -314,7 +355,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
 
     <!-- Task & Role Assignments -->
     <div class="section-title">📋 Task & Role Assignments (<?= count($ftasks) ?>)</div>
-    <div style="margin-bottom: 12px; padding: 10px 16px; background: var(--bg-subtle, #f8f9fa); border: 1px solid var(--border-color, #e5e7eb); border-radius: 6px; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+    <div style="margin-bottom: 12px; padding: 10px 16px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
       <div>
         <span style="font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.5px;">Activity Leader:</span>
         <strong style="color: var(--text-main); margin-left: 4px;"><?= htmlspecialchars($activity['fn']) ?></strong>
@@ -396,7 +437,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
                       $rBadge = ($dl['review_status'] === 'approved') ? 'badge-success' : (($dl['review_status'] === 'returned_for_improvement') ? 'badge-danger' : 'badge-warning');
                       $rLabel = ($dl['review_status'] === 'approved') ? 'Approved' : (($dl['review_status'] === 'returned_for_improvement') ? 'Returned' : 'Pending');
                     ?>
-                      <div style="font-size:0.75rem;background:var(--bg-subtle,#f8f9fa);padding:4px 8px;border-radius:6px;border:1px solid var(--border-color,#e5e7eb);">
+                      <div style="font-size:0.75rem;background:var(--bg-base);padding:4px 8px;border-radius:6px;border:1px solid var(--border);">
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
                           <a href="<?= BASE_URL ?>/api/document-download.php?deliverable_id=<?= (int)$dl['id'] ?>" target="_blank" style="font-weight:700;color:#0284c7;text-decoration:none;" title="Download / Open file">
                             📎 <?= htmlspecialchars(mb_strimwidth($dl['file_name'], 0, 18, '...')) ?>
@@ -440,14 +481,53 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
       <div>
         <?php if ($postEvent): ?>
-        <div class="info-grid" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="info-grid" style="grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));">
           <?php
           $attPct = ($postEvent['target_attendance'] > 0 && isset($postEvent['actual_attendance'])) ? min(100, round(($postEvent['actual_attendance'] / $postEvent['target_attendance']) * 100)) : 0;
-          foreach(['Actual Attendance'=>$postEvent['actual_attendance'],'Target'=>$postEvent['target_attendance'],'Attendance Rate'=>$attPct.'%','Satisfaction Score'=>number_format($postEvent['satisfaction_score'],1).'/5'] as $l=>$v):
+          $deanTiles = [
+            'Actual Attendance' => $postEvent['actual_attendance'],
+            'Target'            => $postEvent['target_attendance'],
+            'Attendance Rate'   => $attPct . '%',
+            'Satisfaction Score'=> (isset($postEvent['satisfaction_score']) && $postEvent['satisfaction_score'] !== null) ? number_format($postEvent['satisfaction_score'], 1) . '/5' : '—'
+          ];
+          if (!empty($postEvent['manual_attendance'])) {
+            $deanTiles['Paper-Based Count'] = (int)$postEvent['manual_attendance'];
+          }
+          foreach($deanTiles as $l=>$v):
           ?>
           <div class="info-tile"><div class="lbl"><?= $l ?></div><div class="val"><?= $v ?></div></div>
           <?php endforeach; ?>
         </div>
+
+        <?php if (!empty($postEvent['assessment_report_path']) || !empty($postEvent['survey_csv_path'])): ?>
+        <div class="info-tile" style="margin-top:10px;">
+          <div class="lbl" style="margin-bottom:8px;">📑 Core Report Documents</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <?php if (!empty($postEvent['assessment_report_path'])):
+              $vaPdfName = function_exists('getFriendlyDocumentFilename') ? getFriendlyDocumentFilename($db, $id, $postEvent['assessment_report_path']) : basename($postEvent['assessment_report_path']);
+              $vaPdfUrl  = function_exists('resolveUploadedFileUrl') ? resolveUploadedFileUrl($postEvent['assessment_report_path']) : (BASE_URL . '/uploads/' . ltrim($postEvent['assessment_report_path'], '/\\'));
+            ?>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.28);border-radius:6px;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:0.85rem;font-weight:600;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+                <span style="color:#059669;font-weight:bold;">[✓ PDF]</span> Assessment Report: <?= htmlspecialchars($vaPdfName) ?>
+              </span>
+              <a href="<?= htmlspecialchars($vaPdfUrl) ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:0.75rem;">View PDF</a>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($postEvent['survey_csv_path'])):
+              $vaCsvName = function_exists('getFriendlyDocumentFilename') ? getFriendlyDocumentFilename($db, $id, $postEvent['survey_csv_path']) : basename($postEvent['survey_csv_path']);
+              $vaCsvUrl  = function_exists('resolveUploadedFileUrl') ? resolveUploadedFileUrl($postEvent['survey_csv_path']) : (BASE_URL . '/uploads/' . ltrim($postEvent['survey_csv_path'], '/\\'));
+            ?>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(2,132,199,0.06);border:1px solid rgba(2,132,199,0.2);border-radius:6px;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:0.85rem;font-weight:600;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+                <span style="color:#0284c7;font-weight:bold;">[✓ CSV]</span> Survey Results: <?= htmlspecialchars($vaCsvName) ?>
+              </span>
+              <a href="<?= htmlspecialchars($vaCsvUrl) ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:0.75rem;">Download CSV</a>
+            </div>
+            <?php endif; ?>
+          </div>
+        </div>
+        <?php endif; ?>
         <?php if (!empty($postEvent['observations'])): ?>
         <div class="info-tile" style="margin-top:10px;"><div class="lbl">Observations</div><div style="font-size:.82rem;margin-top:6px;"><?= nl2br(htmlspecialchars($postEvent['observations'])) ?></div></div>
         <?php endif; ?>
@@ -461,17 +541,17 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
           <div class="lbl" style="margin-bottom:10px;">📎 Attached Documents & Reports (<?= count($documents) ?>)</div>
           <div style="display:flex;flex-direction:column;gap:8px;">
             <?php foreach ($documents as $doc): ?>
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg-subtle,#f8f9fa);border:1px solid var(--border-color,#e5e7eb);border-radius:6px;">
-              <div style="display:flex;align-items:center;gap:8px;overflow:hidden;min-width:0;">
-                <span style="font-size:1.1rem;flex-shrink:0;">📄</span>
+            <div class="doc-item-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;">
+              <div style="display:flex;align-items:center;gap:10px;overflow:hidden;min-width:0;">
+                <span style="font-size:1.15rem;flex-shrink:0;">📄</span>
                 <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                  <span style="font-size:0.85rem;font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;"><?= htmlspecialchars($doc['file_name'] ?: basename($doc['file_path'])) ?></span>
+                  <span style="font-size:0.85rem;font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;color:var(--text-main);"><?= htmlspecialchars($doc['file_name'] ?: basename($doc['file_path'])) ?></span>
                   <small style="color:var(--text-muted);font-size:0.75rem;"><?= date('M d, Y h:i A', strtotime($doc['uploaded_at'])) ?></small>
                 </div>
               </div>
               <div style="display:flex;gap:6px;flex-shrink:0;margin-left:12px;">
-                <a href="<?= BASE_URL ?>/api/document-download.php?id=<?= $doc['id'] ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:0.75rem;">View</a>
-                <a href="<?= BASE_URL ?>/api/document-download.php?id=<?= $doc['id'] ?>&download=1" class="btn btn-primary btn-sm" style="padding:4px 8px;font-size:0.75rem;">Download</a>
+                <a href="<?= BASE_URL ?>/api/document-download.php?id=<?= $doc['id'] ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:0.75rem;">View</a>
+                <a href="<?= BASE_URL ?>/api/document-download.php?id=<?= $doc['id'] ?>&download=1" class="btn btn-primary btn-sm" style="padding:4px 10px;font-size:0.75rem;">Download</a>
               </div>
             </div>
             <?php endforeach; ?>
@@ -590,8 +670,56 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
       </table>
     </div>
 
-    <!-- KPI Targets -->
-    <?php if (!empty($kpiData)): ?>
+    <!-- KPI Targets & Results -->
+    <?php
+    $deanKpiCalc = function_exists('calculateActivityKpis') ? calculateActivityKpis($id, $db) : [];
+    $deanAllKpis = !empty($deanKpiCalc['all_kpi_rows']) ? $deanKpiCalc['all_kpi_rows'] : [];
+    ?>
+    <?php if (!empty($deanAllKpis)): ?>
+    <div class="section-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+      <span>📊 Key Performance Indicators (KPIs) & Evaluation Results</span>
+      <?php if (!empty($deanKpiCalc['overall_performance'])): ?>
+        <span class="badge <?= getKpiStatusClass($deanKpiCalc['overall_status'] ?? '') ?>">
+          Overall: <?= $deanKpiCalc['overall_performance'] ?>% (<?= htmlspecialchars($deanKpiCalc['overall_status'] ?? '') ?>)
+        </span>
+      <?php endif; ?>
+    </div>
+    <?php if (!empty($deanKpiCalc['deduplication_applied'])): ?>
+      <div style="padding:8px 12px; background:var(--bg-subtle, #f0fdf4); border:1px solid #86efac; border-radius:6px; color:#166534; font-size:0.8rem; margin-bottom:12px;">
+        <strong>ℹ️ Overlapping Attendees Protection:</strong> Both paper-based attendance and online survey responses were recorded. Overlapping participants have been deduplicated to prevent double-counting.
+      </div>
+    <?php endif; ?>
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <table>
+        <thead>
+          <tr>
+            <th>KPI / Indicator</th>
+            <th>Target Metric</th>
+            <th>Evaluation Method</th>
+            <th>Actual Result</th>
+            <th>Achievement</th>
+            <th>Calculation Details</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($deanAllKpis as $dk):
+            $dCls = getKpiStatusClass($dk['status'] ?? 'Insufficient Data');
+          ?>
+          <tr>
+            <td><strong><?= htmlspecialchars($dk['indicator'] ?? $dk['name'] ?? '') ?></strong></td>
+            <td><?= htmlspecialchars($dk['target'] ?? '—') ?></td>
+            <td><small class="badge badge-secondary" style="font-size:0.75rem;"><?= htmlspecialchars($dk['evaluation_method'] ?? '—') ?></small></td>
+            <td><?= htmlspecialchars($dk['actual'] ?? '—') ?></td>
+            <td><strong><?= htmlspecialchars($dk['achievement'] ?? '—') ?></strong></td>
+            <td><small style="color:var(--text-muted); line-height:1.4; display:block;"><?= htmlspecialchars($dk['calculation_details'] ?? 'Standard calculation') ?></small></td>
+            <td><span class="badge <?= $dCls ?>"><?= htmlspecialchars($dk['status'] ?? '—') ?></span></td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php elseif (!empty($kpiData)): ?>
     <div class="section-title">📊 KPI & Evaluation Targets</div>
     <div class="table-wrap" style="margin-bottom:24px;">
       <table><thead><tr><th>Indicator</th><th>Target Metric</th><th>Evaluation Method</th></tr></thead>
@@ -630,12 +758,16 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
       <?php foreach($history as $h): ?>
       <div class="timeline-item">
         <div>
-          <div class="timeline-dot" style="background:<?= in_array($h['action'],['approved','forwarded'])?'#16A34A':($h['action']==='returned'?'#D97706':'#DC2626') ?>"></div>
+          <div class="timeline-dot" style="background:<?= in_array($h['action'],['approved','forwarded'])?'#16A34A':(in_array($h['action'],['returned','returned_for_revision'])?'#D97706':'#DC2626') ?>"></div>
         </div>
         <div>
-          <div style="font-size:.83rem;font-weight:600;"><?= htmlspecialchars($h['name']) ?> — <?= ucfirst($h['action']) ?></div>
+          <div style="font-size:.83rem;font-weight:600;">
+            <?= htmlspecialchars($h['name']) ?> 
+            <span style="color:var(--text-muted);font-weight:400;">(<?= htmlspecialchars(ucwords(str_replace('_',' ',$h['reviewer_role']??''))) ?>)</span>
+            — <?= ucfirst(str_replace('_', ' ', $h['action'])) ?>
+          </div>
           <div class="text-sm text-muted"><?= date('F j, Y g:i A', strtotime($h['acted_at'])) ?></div>
-          <?php if ($h['notes']): ?><div class="text-sm" style="margin-top:4px;font-style:italic;">"<?= htmlspecialchars($h['notes']) ?>"</div><?php endif; ?>
+          <?php if (!empty($h['notes'])): ?><div class="text-sm" style="margin-top:4px;font-style:italic;color:var(--text-secondary);">"<?= nl2br(htmlspecialchars($h['notes'])) ?>"</div><?php endif; ?>
         </div>
       </div>
       <?php endforeach; ?>
@@ -790,6 +922,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
 
   </div>
 </div>
+<?php include __DIR__ . '/../includes/activity-print-document.php'; ?>
 </body>
 </html>
 

@@ -8,6 +8,17 @@
   position: relative !important;
   width: 100% !important;
   font-family: inherit;
+  z-index: 1;
+}
+
+.teacher-multiselect.tms-open {
+  z-index: 100000 !important;
+}
+
+.target-participants-panel,
+.target-participants-panel .card-body,
+.target-participants-panel .dynamic-table {
+  overflow: visible !important;
 }
 
 .teacher-multiselect .tms-control {
@@ -48,8 +59,8 @@ html[data-theme="dark"] .teacher-multiselect .tms-control {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #e0f2fe;
-  color: #0369a1;
+  background: rgba(2, 132, 199, 0.08);
+  color: #0284c7;
   font-size: 0.8rem;
   font-weight: 600;
   padding: 4px 10px;
@@ -57,16 +68,16 @@ html[data-theme="dark"] .teacher-multiselect .tms-control {
   line-height: 1.3;
   max-width: 100%;
   word-break: break-word;
-  border: 1px solid #bae6fd;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(2, 132, 199, 0.22);
+  box-shadow: 0 1px 2px rgba(2, 132, 199, 0.05);
   transition: all 0.15s ease;
 }
 
 [data-theme="dark"] .teacher-multiselect .tms-tag,
 html[data-theme="dark"] .teacher-multiselect .tms-tag {
-  background: rgba(2, 132, 199, 0.25) !important;
+  background: rgba(2, 132, 199, 0.2) !important;
   color: #7dd3fc !important;
-  border-color: rgba(2, 132, 199, 0.45) !important;
+  border-color: rgba(56, 189, 248, 0.35) !important;
 }
 
 .teacher-multiselect .tms-tag-remove {
@@ -109,10 +120,11 @@ html[data-theme="dark"] .teacher-multiselect .tms-input {
   color: var(--text-main, #f8fafc) !important;
 }
 
-/* ── FLOATING DROPDOWN PANEL ── */
+/* ── FLOATING DROPUP PANEL (OPENS UPWARD) ── */
 .teacher-multiselect .tms-dropdown {
   position: absolute !important;
-  top: calc(100% + 4px) !important;
+  bottom: calc(100% + 6px) !important;
+  top: auto !important;
   left: 0 !important;
   right: 0 !important;
   min-width: 280px !important;
@@ -121,8 +133,8 @@ html[data-theme="dark"] .teacher-multiselect .tms-input {
   background: #ffffff !important;
   border: 1px solid #cbd5e1 !important;
   border-radius: 8px !important;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.15), 0 4px 10px rgba(15, 23, 42, 0.08) !important;
-  max-height: 250px !important;
+  box-shadow: 0 -10px 25px rgba(15, 23, 42, 0.14), 0 -4px 10px rgba(15, 23, 42, 0.08) !important;
+  max-height: 220px !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
   display: none;
@@ -133,7 +145,7 @@ html[data-theme="dark"] .teacher-multiselect .tms-input {
 html[data-theme="dark"] .teacher-multiselect .tms-dropdown {
   background: #15243C !important;
   border-color: #2A3C5A !important;
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.6), 0 10px 10px rgba(0, 0, 0, 0.35) !important;
+  box-shadow: 0 -12px 28px rgba(0, 0, 0, 0.6), 0 -6px 12px rgba(0, 0, 0, 0.35) !important;
 }
 
 .teacher-multiselect .tms-dropdown-header {
@@ -195,14 +207,26 @@ html[data-theme="dark"] .teacher-multiselect .tms-option:hover {
 }
 
 .teacher-multiselect .tms-option.tms-selected {
-  background: #e0f2fe !important;
+  background: rgba(2, 132, 199, 0.08) !important;
   border-left-color: #0284c7 !important;
+  color: #0369a1 !important;
+  font-weight: 600;
+}
+
+.teacher-multiselect .tms-option.tms-selected:hover {
+  background: rgba(2, 132, 199, 0.14) !important;
 }
 
 [data-theme="dark"] .teacher-multiselect .tms-option.tms-selected,
 html[data-theme="dark"] .teacher-multiselect .tms-option.tms-selected {
-  background: rgba(2, 132, 199, 0.3) !important;
+  background: rgba(2, 132, 199, 0.22) !important;
   border-left-color: #38bdf8 !important;
+  color: #e0f2fe !important;
+}
+
+[data-theme="dark"] .teacher-multiselect .tms-option.tms-selected:hover,
+html[data-theme="dark"] .teacher-multiselect .tms-option.tms-selected:hover {
+  background: rgba(2, 132, 199, 0.3) !important;
 }
 
 /* ── OPTION LEFT / AVATAR / INFO ── */
@@ -258,8 +282,16 @@ html[data-theme="dark"] .teacher-multiselect .tms-opt-name {
   color: #f8fafc !important;
 }
 
-/* ── DEPARTMENT PILL BADGES ── */
-.teacher-multiselect .tms-dept-badge {
+/* ── DEPARTMENT & ROLE PILL BADGES ── */
+.teacher-multiselect .tms-opt-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.teacher-multiselect .tms-dept-badge,
+.teacher-multiselect .tms-role-badge {
   display: inline-block;
   font-size: 0.68rem;
   font-weight: 600;
@@ -268,6 +300,58 @@ html[data-theme="dark"] .teacher-multiselect .tms-opt-name {
   line-height: 1.3;
   width: fit-content;
   white-space: nowrap;
+}
+
+/* Student Organization Head (admin1) */
+.teacher-multiselect .tms-role-org-head {
+  background: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #e9d5ff;
+}
+[data-theme="dark"] .teacher-multiselect .tms-role-org-head,
+html[data-theme="dark"] .teacher-multiselect .tms-role-org-head {
+  background: rgba(107, 33, 168, 0.35) !important;
+  color: #d8b4fe !important;
+  border-color: rgba(216, 180, 254, 0.3) !important;
+}
+
+/* Events Committee Head (admin2) */
+.teacher-multiselect .tms-role-committee-head {
+  background: #ffedd5;
+  color: #9a3412;
+  border: 1px solid #fed7aa;
+}
+[data-theme="dark"] .teacher-multiselect .tms-role-committee-head,
+html[data-theme="dark"] .teacher-multiselect .tms-role-committee-head {
+  background: rgba(154, 52, 18, 0.35) !important;
+  color: #fdba74 !important;
+  border-color: rgba(253, 186, 116, 0.3) !important;
+}
+
+/* Program Head */
+.teacher-multiselect .tms-role-prog-head {
+  background: #e0e7ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+}
+[data-theme="dark"] .teacher-multiselect .tms-role-prog-head,
+html[data-theme="dark"] .teacher-multiselect .tms-role-prog-head {
+  background: rgba(55, 48, 163, 0.35) !important;
+  color: #a5b4fc !important;
+  border-color: rgba(165, 180, 252, 0.3) !important;
+}
+
+/* Faculty Role Badge */
+.teacher-multiselect .tms-role-faculty {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+[data-theme="dark"] .teacher-multiselect .tms-role-faculty,
+html[data-theme="dark"] .teacher-multiselect .tms-role-faculty {
+  background: rgba(51, 65, 85, 0.45) !important;
+  color: #cbd5e1 !important;
+  border-color: rgba(148, 163, 184, 0.25) !important;
 }
 
 /* IT Department */
@@ -335,17 +419,19 @@ html[data-theme="dark"] .teacher-multiselect .tms-dept-default {
   gap: 4px;
   background: #0284c7;
   color: #ffffff;
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 14px;
   white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.25);
 }
 
 [data-theme="dark"] .teacher-multiselect .tms-check-badge,
 html[data-theme="dark"] .teacher-multiselect .tms-check-badge {
-  background: #0ea5e9 !important;
-  color: #0f172a !important;
+  background: #0284c7 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 
 .teacher-multiselect .tms-add-icon {

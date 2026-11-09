@@ -189,27 +189,45 @@
     }
 
     // Mark All As Read
-    if (markAllBtn) {
-      markAllBtn.addEventListener('click', function () {
-        fetch(baseUrl + '/api/notifications.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'mark_all_read' })
+    function handleMarkAllAsRead() {
+      fetch(baseUrl + '/api/notifications.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'mark_all_read' })
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (!d.success) return;
+          // Topbar drawer items
+          document.querySelectorAll('.notif-item.unread').forEach(el => {
+            el.classList.remove('unread');
+            el.querySelector('.notif-unread-dot')?.remove();
+          });
+          document.getElementById('notifBadge')?.remove();
+          if (markAllBtn) markAllBtn.style.display = 'none';
+          const hspan = document.getElementById('notifCountPill') || panel.querySelector('.notif-header h3 span');
+          if (hspan) hspan.remove();
+
+          // Dedicated notifications.php page items
+          document.querySelectorAll('.page-notif-item.unread').forEach(el => {
+            el.classList.remove('unread');
+            el.querySelector('.badge-unread')?.remove();
+            el.querySelector('.btn-mark-single-read')?.remove();
+          });
+          const pageUnreadPill = document.getElementById('pageUnreadCountPill');
+          if (pageUnreadPill) pageUnreadPill.textContent = '0 Unread';
+          const pageMarkAllBtn = document.getElementById('pageMarkAllBtn');
+          if (pageMarkAllBtn) pageMarkAllBtn.style.display = 'none';
         })
-          .then(r => r.json())
-          .then(d => {
-            if (!d.success) return;
-            document.querySelectorAll('.notif-item.unread').forEach(el => {
-              el.classList.remove('unread');
-              el.querySelector('.notif-unread-dot')?.remove();
-            });
-            document.getElementById('notifBadge')?.remove();
-            markAllBtn.style.display = 'none';
-            const hspan = document.getElementById('notifCountPill') || panel.querySelector('.notif-header h3 span');
-            if (hspan) hspan.remove();
-          })
-          .catch(err => console.error('Error marking all as read:', err));
-      });
+        .catch(err => console.error('Error marking all as read:', err));
+    }
+
+    if (markAllBtn) {
+      markAllBtn.addEventListener('click', handleMarkAllAsRead);
+    }
+    const pageMarkAllBtn = document.getElementById('pageMarkAllBtn');
+    if (pageMarkAllBtn) {
+      pageMarkAllBtn.addEventListener('click', handleMarkAllAsRead);
     }
 
     // Delete All

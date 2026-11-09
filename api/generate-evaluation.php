@@ -7,7 +7,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('faculty', 'program_head');
+requireRole('faculty', 'program_head', 'admin1', 'admin2');
 
 // Helper to send clean JSON response without stray buffers or notice pollution
 function sendEvalJsonResponse(int $statusCode, array $payload): void {

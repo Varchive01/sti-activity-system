@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>STI-ARMES Performance, Scalability & Concurrency Dashboard</title>
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-dark: #0369a1;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 32px 24px; line-height: 1.5; }
+    .container { max-width: 1240px; margin: 0 auto; }
+    header { margin-bottom: 28px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
+    header h1 { font-size: 26px; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 10px; }
+    header p { color: var(--text-muted); font-size: 14px; margin-top: 6px; }
+    .badge-live { background: #065f46; color: #34d399; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 9999px; text-transform: uppercase; }
+    .grid-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .kpi-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; position: relative; overflow: hidden; }
+    .kpi-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--primary); }
+    .kpi-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600; }
+    .kpi-value { font-size: 28px; font-weight: 700; color: #fff; margin-top: 6px; }
+    .kpi-sub { font-size: 12px; color: var(--success); margin-top: 4px; }
+    .section-title { font-size: 18px; font-weight: 600; margin-bottom: 14px; color: #e2e8f0; display: flex; align-items: center; gap: 8px; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+    th { background: #0f172a; color: var(--text-muted); padding: 10px 14px; font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    .status-pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+    .status-pill.pass { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .meter-container { background: #334155; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 6px; width: 100%; }
+    .meter-bar { height: 100%; background: #38bdf8; border-radius: 4px; }
+    .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 840px) { .grid-2col { grid-template-columns: 1fr; } }
+    footer { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>🚀 STI-ARMES Performance, Scalability & Concurrency Verification</h1>
+        <span class="badge-live">● Verified Live & Local</span>
+      </div>
+      <p>Automated Benchmark Suite executed on 11/9/2026, 5:29:59 PM | Evaluates High-Concurrency Resilience, Request Throughput & Response Latency</p>
+    </header>
+
+    <!-- Top KPI Cards -->
+    <div class="grid-kpi">
+      <div class="kpi-card">
+        <div class="kpi-title">Total Requests Fired</div>
+        <div class="kpi-value">370</div>
+        <div class="kpi-sub">Across 4 Test Phases</div>
+      </div>
+      <div class="kpi-card" style="--primary: #10b981;">
+        <div class="kpi-title">Overall Success Rate</div>
+        <div class="kpi-value">100.0%</div>
+        <div class="kpi-sub">0 Unhandled Exceptions</div>
+      </div>
+      <div class="kpi-card" style="--primary: #38bdf8;">
+        <div class="kpi-title">Peak Concurrency Level</div>
+        <div class="kpi-value">50 Workers</div>
+        <div class="kpi-sub">Simultaneous Virtual Clients</div>
+      </div>
+      <div class="kpi-card" style="--primary: #f59e0b;">
+        <div class="kpi-title">Peak Throughput</div>
+        <div class="kpi-value">2222.2 <span style="font-size:16px;">req/s</span></div>
+        <div class="kpi-sub">High-Concurrency Burst</div>
+      </div>
+    </div>
+
+    <!-- Section 1: Baseline Performance Benchmarks -->
+    <div class="card">
+      <div class="section-title">📊 1. Baseline Performance Benchmarks (Latency & Throughput)</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Target Endpoint</th>
+            <th>Samples</th>
+            <th>Success</th>
+            <th>Throughput</th>
+            <th>Min</th>
+            <th>Avg</th>
+            <th>Median (P50)</th>
+            <th>95th %ile</th>
+            <th>Max</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr>
+              <td><strong>Local Auth Portal (/auth/login.php)</strong><br><span style="color:#64748b; font-size:11px;">http://localhost/sti-activity-system/auth/login.php</span></td>
+              <td>25</td>
+              <td>100.0%</td>
+              <td><strong>32.01</strong> req/s</td>
+              <td>1.9 ms</td>
+              <td><strong>2.5 ms</strong></td>
+              <td>2.4 ms</td>
+              <td><span style="color:#38bdf8;">3.6 ms</span></td>
+              <td>4.4 ms</td>
+              <td><span class="status-pill pass">PASS</span></td>
+            </tr>
+          
+            <tr>
+              <td><strong>Local Auth API Endpoint (/api/check-auth.php)</strong><br><span style="color:#64748b; font-size:11px;">http://localhost/sti-activity-system/api/check-auth.php</span></td>
+              <td>25</td>
+              <td>100.0%</td>
+              <td><strong>32.34</strong> req/s</td>
+              <td>1.8 ms</td>
+              <td><strong>2.1 ms</strong></td>
+              <td>2.0 ms</td>
+              <td><span style="color:#38bdf8;">2.3 ms</span></td>
+              <td>2.5 ms</td>
+              <td><span class="status-pill pass">PASS</span></td>
+            </tr>
+          
+            <tr>
+              <td><strong>Local Authenticated Dean Dashboard (/dean/dashboard.php)</strong><br><span style="color:#64748b; font-size:11px;">http://localhost/sti-activity-system/dean/dashboard.php</span></td>
+              <td>20</td>
+              <td>100.0%</td>
+              <td><strong>12.79</strong> req/s</td>
+              <td>15.0 ms</td>
+              <td><strong>46.5 ms</strong></td>
+              <td>29.2 ms</td>
+              <td><span style="color:#38bdf8;">30.5 ms</span></td>
+              <td>448.5 ms</td>
+              <td><span class="status-pill pass">PASS</span></td>
+            </tr>
+          
+            <tr>
+              <td><strong>Live Cloud Endpoint (https://sti-armes.freedev.app/auth/login.php)</strong><br><span style="color:#64748b; font-size:11px;">https://sti-armes.freedev.app/auth/login.php</span></td>
+              <td>15</td>
+              <td>100.0%</td>
+              <td><strong>3.06</strong> req/s</td>
+              <td>253.1 ms</td>
+              <td><strong>292.7 ms</strong></td>
+              <td>254.8 ms</td>
+              <td><span style="color:#38bdf8;">266.9 ms</span></td>
+              <td>804.9 ms</td>
+              <td><span class="status-pill pass">PASS</span></td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 2: Scalability Ramp-up Tests -->
+    <div class="card">
+      <div class="section-title">📈 2. Multi-Tier Load Scalability Test (Ramp-up Curve)</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Load Tier</th>
+            <th>Concurrency</th>
+            <th>Total Volume</th>
+            <th>Throughput (req/s)</th>
+            <th>Average Latency</th>
+            <th>95th %ile Latency</th>
+            <th>Max Latency</th>
+            <th>Error Rate</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr>
+              <td><strong>Tier 1: Light Concurrency</strong></td>
+              <td><strong>5</strong> concurrent</td>
+              <td>25 reqs</td>
+              <td><span style="color:#38bdf8; font-weight:700;">1666.67</span> req/s</td>
+              <td>2.8 ms</td>
+              <td>6.3 ms</td>
+              <td>7.1 ms</td>
+              <td><span style="color:#34d399; font-weight:600;">0.00%</span></td>
+              <td><span class="status-pill pass">PASSED</span></td>
+            </tr>
+          
+            <tr>
+              <td><strong>Tier 2: Moderate Concurrency</strong></td>
+              <td><strong>15</strong> concurrent</td>
+              <td>45 reqs</td>
+              <td><span style="color:#38bdf8; font-weight:700;">2142.86</span> req/s</td>
+              <td>6.4 ms</td>
+              <td>9.8 ms</td>
+              <td>11.2 ms</td>
+              <td><span style="color:#34d399; font-weight:600;">0.00%</span></td>
+              <td><span class="status-pill pass">PASSED</span></td>
+            </tr>
+          
+            <tr>
+              <td><strong>Tier 3: High Concurrency</strong></td>
+              <td><strong>30</strong> concurrent</td>
+              <td>60 reqs</td>
+              <td><span style="color:#38bdf8; font-weight:700;">2068.97</span> req/s</td>
+              <td>12.0 ms</td>
+              <td>17.6 ms</td>
+              <td>18.7 ms</td>
+              <td><span style="color:#34d399; font-weight:600;">0.00%</span></td>
+              <td><span class="status-pill pass">PASSED</span></td>
+            </tr>
+          
+            <tr>
+              <td><strong>Tier 4: Saturation Load</strong></td>
+              <td><strong>50</strong> concurrent</td>
+              <td>100 reqs</td>
+              <td><span style="color:#38bdf8; font-weight:700;">2127.66</span> req/s</td>
+              <td>19.6 ms</td>
+              <td>32.6 ms</td>
+              <td>33.5 ms</td>
+              <td><span style="color:#34d399; font-weight:600;">0.00%</span></td>
+              <td><span class="status-pill pass">PASSED</span></td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 3 & 4: Concurrency Stress Burst & Live Verification -->
+    <div class="grid-2col">
+      <div class="card">
+        <div class="section-title">⚡ 3. High-Concurrency Stress Burst</div>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom: 14px;">Instantaneous parallel burst across authentication and session verification microservices.</p>
+        <div style="background:#0f172a; padding:14px; border-radius:8px; border:1px solid #334155;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="color:var(--text-muted);">Simultaneous Burst Volume:</span>
+            <strong>40 parallel requests</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="color:var(--text-muted);">Successful Requests:</span>
+            <strong style="color:var(--success);">40 / 40 (100.0%)</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="color:var(--text-muted);">Burst Throughput:</span>
+            <strong style="color:#38bdf8;">2222.22 req/sec</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="color:var(--text-muted);">Median Response Latency:</span>
+            <strong>14.0 ms</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span style="color:var(--text-muted);">95th Percentile Latency:</span>
+            <strong>17.3 ms</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">🌐 4. Live Cloud Domain Verification (Rule 5)</div>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom: 14px;">Target: <code style="color:#38bdf8;">https://sti-armes.freedev.app/auth/login.php</code></p>
+        <div style="background:#0f172a; padding:14px; border-radius:8px; border:1px solid #334155;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="color:var(--text-muted);">Live Verification Queries:</span>
+            <strong>15 iterations</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="color:var(--text-muted);">Live Response Code:</span>
+            <strong style="color:var(--success);">HTTP 200 OK</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="color:var(--text-muted);">Average Live Latency:</span>
+            <strong>256.3 ms</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="color:var(--text-muted);">Fastest Live Response:</span>
+            <strong style="color:var(--success);">252.6 ms</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span style="color:var(--text-muted);">Anti-Bot & Cookie Integrity:</span>
+            <strong style="color:var(--success);">Pass (Redirect verified)</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      STI College Marikina &bull; Activity Request & Management Electronic System (STI-ARMES) &bull; Performance & Resilience Telemetry
+    </footer>
+  </div>
+</body>
+</html>

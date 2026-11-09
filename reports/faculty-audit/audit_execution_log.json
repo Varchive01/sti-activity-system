@@ -1,0 +1,572 @@
+{
+  "startTime": "2026-11-09T10:40:28.963Z",
+  "pagesInspected": 20,
+  "testsExecuted": 20,
+  "passed": 19,
+  "failed": 1,
+  "blocked": 0,
+  "notTested": 0,
+  "issues": [
+    {
+      "page": "Proposal Detail View",
+      "url": "http://localhost/sti-activity-system/faculty/proposal-view.php?id=1218",
+      "severity": "Critical",
+      "description": "PHP Error, Warning, or Notice detected in rendered HTML of Proposal Detail View",
+      "actual": "PHP warning/error in output",
+      "expected": "Clean page rendering with 0 PHP notices/errors",
+      "sourceFile": "faculty/proposal-view.php?id=1218",
+      "status": "FAILED"
+    }
+  ],
+  "pageRecords": [
+    {
+      "name": "Auth Login Page",
+      "url": "http://localhost/sti-activity-system/auth/login.php",
+      "interactiveCounts": {},
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Faculty Dashboard",
+      "url": "http://localhost/sti-activity-system/faculty/dashboard.php",
+      "title": "Faculty Dashboard – STI Activity System",
+      "h1": "Faculty Dashboard",
+      "bodyLength": 162527,
+      "interactiveCounts": {
+        "buttons": 44,
+        "inputs": 8,
+        "links": 40,
+        "tables": 1
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Proposal Create - Step 1 Details",
+      "url": "http://localhost/sti-activity-system/faculty/proposal-create.php",
+      "title": "New Proposal – STI Activity System",
+      "h1": "New Activity Proposal",
+      "bodyLength": 432571,
+      "interactiveCounts": {
+        "buttons": 119,
+        "inputs": 77,
+        "links": 17,
+        "tables": 9
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Proposal Create - Step 2 Schedule & Budget",
+      "url": "http://localhost/sti-activity-system/faculty/proposal-create.php?step=2",
+      "title": "New Proposal – STI Activity System",
+      "h1": "New Activity Proposal",
+      "bodyLength": 432571,
+      "interactiveCounts": {
+        "buttons": 119,
+        "inputs": 77,
+        "links": 17,
+        "tables": 9
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Proposal Create - Step 3 Manpower & Tasks",
+      "url": "http://localhost/sti-activity-system/faculty/proposal-create.php?step=3",
+      "title": "New Proposal – STI Activity System",
+      "h1": "New Activity Proposal",
+      "bodyLength": 432571,
+      "interactiveCounts": {
+        "buttons": 119,
+        "inputs": 77,
+        "links": 17,
+        "tables": 9
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Proposal Create - Step 4 Review & Submit",
+      "url": "http://localhost/sti-activity-system/faculty/proposal-create.php?step=4",
+      "title": "New Proposal – STI Activity System",
+      "h1": "New Activity Proposal",
+      "bodyLength": 432571,
+      "interactiveCounts": {
+        "buttons": 119,
+        "inputs": 77,
+        "links": 17,
+        "tables": 9
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Faculty My Activities List",
+      "url": "http://localhost/sti-activity-system/faculty/activities.php",
+      "title": "My Activities – STI Activity System",
+      "h1": "My Activities",
+      "bodyLength": 142313,
+      "interactiveCounts": {
+        "buttons": 53,
+        "inputs": 10,
+        "links": 48,
+        "tables": 1
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Pending Proposals",
+      "url": "http://localhost/sti-activity-system/faculty/pending.php",
+      "title": "Pending Proposals – STI Activity System",
+      "h1": "Pending Proposals",
+      "bodyLength": 131336,
+      "interactiveCounts": {
+        "buttons": 33,
+        "inputs": 8,
+        "links": 25,
+        "tables": 1
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Approved Activities",
+      "url": "http://localhost/sti-activity-system/faculty/approved.php",
+      "title": "Approved Activities – STI Activity System",
+      "h1": "Approved Activities",
+      "bodyLength": 126293,
+      "interactiveCounts": {
+        "buttons": 23,
+        "inputs": 8,
+        "links": 15,
+        "tables": 1
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Returned for Revision",
+      "url": "http://localhost/sti-activity-system/faculty/returned.php",
+      "title": "Returned Proposals – STI Activity System",
+      "h1": "Returned Proposals",
+      "bodyLength": 134779,
+      "interactiveCounts": {
+        "buttons": 27,
+        "inputs": 8,
+        "links": 22,
+        "tables": 1
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Rejected Proposals",
+      "url": "http://localhost/sti-activity-system/faculty/rejected.php",
+      "title": "Rejected Proposals – STI Activity System",
+      "h1": "Rejected Proposals",
+      "bodyLength": 127721,
+      "interactiveCounts": {
+        "buttons": 22,
+        "inputs": 8,
+        "links": 14,
+        "tables": 1
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "My Assigned Tasks",
+      "url": "http://localhost/sti-activity-system/faculty/tasks.php",
+      "title": "My Assigned Tasks – STI Activity System",
+      "h1": "My Assigned Tasks",
+      "bodyLength": 163757,
+      "interactiveCounts": {
+        "buttons": 33,
+        "inputs": 16,
+        "links": 19,
+        "tables": 1
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Faculty Calendar",
+      "url": "http://localhost/sti-activity-system/faculty/calendar.php",
+      "title": "Calendar – STI Activity System",
+      "h1": "Activity Calendar",
+      "bodyLength": 141600,
+      "interactiveCounts": {
+        "buttons": 24,
+        "inputs": 8,
+        "links": 18,
+        "tables": 0
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Post-Event Module",
+      "url": "http://localhost/sti-activity-system/faculty/post-event.php",
+      "title": "Upload Post-Event Report – STI Activity System",
+      "h1": "Upload Post-Event Report",
+      "bodyLength": 128532,
+      "interactiveCounts": {
+        "buttons": 24,
+        "inputs": 8,
+        "links": 16,
+        "tables": 1
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Faculty KPI Results",
+      "url": "http://localhost/sti-activity-system/faculty/kpi.php",
+      "title": "KPI Results – STI Activity System",
+      "h1": "KPI Results",
+      "bodyLength": 130938,
+      "interactiveCounts": {
+        "buttons": 22,
+        "inputs": 8,
+        "links": 14,
+        "tables": 0
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Proposal Detail View",
+      "url": "http://localhost/sti-activity-system/faculty/proposal-view.php?id=1218",
+      "title": "View Proposal – STI",
+      "h1": "View Proposal",
+      "bodyLength": 129966,
+      "interactiveCounts": {
+        "buttons": 23,
+        "inputs": 8,
+        "links": 14,
+        "tables": 1
+      },
+      "hasPhpErrors": true,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "FAILED"
+    },
+    {
+      "name": "Activity Master Detail View",
+      "url": "http://localhost/sti-activity-system/faculty/view-activity.php?id=1233",
+      "title": "Capstone Concurrency Stress Node #0 - IT Department – STI",
+      "h1": "Activity Detail",
+      "bodyLength": 191242,
+      "interactiveCounts": {
+        "buttons": 44,
+        "inputs": 26,
+        "links": 17,
+        "tables": 1
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Proposal Edit Mode",
+      "url": "http://localhost/sti-activity-system/faculty/proposal-edit.php?id=1060",
+      "title": "Edit Proposal – STI Activity System",
+      "h1": "Edit Proposal",
+      "bodyLength": 436592,
+      "interactiveCounts": {
+        "buttons": 112,
+        "inputs": 78,
+        "links": 16,
+        "tables": 10
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "Notifications Center",
+      "url": "http://localhost/sti-activity-system/notifications.php",
+      "title": "All Notifications – STI Activity System",
+      "h1": "Notifications Center",
+      "bodyLength": 140419,
+      "interactiveCounts": {
+        "buttons": 29,
+        "inputs": 14,
+        "links": 18,
+        "tables": 0
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    },
+    {
+      "name": "User Profile Modal Test",
+      "url": "http://localhost/sti-activity-system/faculty/dashboard.php",
+      "title": "Faculty Dashboard – STI Activity System",
+      "h1": "Faculty Dashboard",
+      "bodyLength": 162527,
+      "interactiveCounts": {
+        "buttons": 44,
+        "inputs": 8,
+        "links": 40,
+        "tables": 1
+      },
+      "hasPhpErrors": false,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "status": "PASSED"
+    }
+  ],
+  "screenshots": [
+    {
+      "id": "FAC-01",
+      "filename": "FAC-01-AUTH-LOGIN.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-01-AUTH-LOGIN.png",
+      "caption": "STI-ARMES Authentication Login Page",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:34.864Z"
+    },
+    {
+      "id": "FAC-02",
+      "filename": "FAC-02-DASHBOARD-OVERVIEW.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-02-DASHBOARD-OVERVIEW.png",
+      "caption": "Faculty Dashboard Overview & Key Stat Cards",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:36.699Z"
+    },
+    {
+      "id": "FAC-03",
+      "filename": "FAC-03-DASHBOARD-DARKMODE.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-03-DASHBOARD-DARKMODE.png",
+      "caption": "Faculty Dashboard rendered in Dark Theme",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:37.280Z"
+    },
+    {
+      "id": "FAC-04",
+      "filename": "FAC-04-PROPOSAL-CREATE-STEP1.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-04-PROPOSAL-CREATE-STEP1.png",
+      "caption": "Proposal Creation Wizard - Step 1: Event Information & Concept",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:39.408Z"
+    },
+    {
+      "id": "FAC-06",
+      "filename": "FAC-06-PROPOSAL-CREATE-STEP2.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-06-PROPOSAL-CREATE-STEP2.png",
+      "caption": "Proposal Creation Wizard - Step 2: Schedule, Floor Plan & Budget",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:41.533Z"
+    },
+    {
+      "id": "FAC-07",
+      "filename": "FAC-07-PROPOSAL-CREATE-STEP3.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-07-PROPOSAL-CREATE-STEP3.png",
+      "caption": "Proposal Creation Wizard - Step 3: Working Committees, Manpower & Gantt Timeline",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:43.717Z"
+    },
+    {
+      "id": "FAC-08",
+      "filename": "FAC-08-PROPOSAL-CREATE-STEP4.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-08-PROPOSAL-CREATE-STEP4.png",
+      "caption": "Proposal Creation Wizard - Step 4: Proposal Summary, Export Draft PDF & Submit",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:45.900Z"
+    },
+    {
+      "id": "FAC-09",
+      "filename": "FAC-09-ACTIVITIES-LIST.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-09-ACTIVITIES-LIST.png",
+      "caption": "My Activities Master Table with Filters and Status Badges",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:47.736Z"
+    },
+    {
+      "id": "FAC-10",
+      "filename": "FAC-10-ACTIVITIES-FILTERED.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-10-ACTIVITIES-FILTERED.png",
+      "caption": "Activities Filtered by \"Under Review\" Status",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:49.316Z"
+    },
+    {
+      "id": "FAC-11",
+      "filename": "FAC-11-PENDING-PROPOSALS.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-11-PENDING-PROPOSALS.png",
+      "caption": "Faculty Pending Proposals Review Queue",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:51.121Z"
+    },
+    {
+      "id": "FAC-12",
+      "filename": "FAC-12-APPROVED-ACTIVITIES.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-12-APPROVED-ACTIVITIES.png",
+      "caption": "Faculty Approved Activities Oversight",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:52.903Z"
+    },
+    {
+      "id": "FAC-13",
+      "filename": "FAC-13-RETURNED-REVISIONS.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-13-RETURNED-REVISIONS.png",
+      "caption": "Returned for Revision Table with Approver Feedback Links",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:54.694Z"
+    },
+    {
+      "id": "FAC-14",
+      "filename": "FAC-14-REJECTED-PROPOSALS.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-14-REJECTED-PROPOSALS.png",
+      "caption": "Rejected Proposals History with Stated Justifications",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:56.461Z"
+    },
+    {
+      "id": "FAC-15",
+      "filename": "FAC-15-MY-TASKS.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-15-MY-TASKS.png",
+      "caption": "Faculty Task Monitoring with Timing Indicators & Filtering",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:40:58.266Z"
+    },
+    {
+      "id": "FAC-16",
+      "filename": "FAC-16-CALENDAR-VIEW.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-16-CALENDAR-VIEW.png",
+      "caption": "Faculty Calendar Grid with Scheduled Institutional Activities",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:41:00.045Z"
+    },
+    {
+      "id": "FAC-17",
+      "filename": "FAC-17-POST-EVENT-MODULE.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-17-POST-EVENT-MODULE.png",
+      "caption": "Post-Event Reporting, Deliverable File Uploads & Evaluation Tool",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:41:01.857Z"
+    },
+    {
+      "id": "FAC-18",
+      "filename": "FAC-18-KPI-RESULTS.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-18-KPI-RESULTS.png",
+      "caption": "Faculty Personal KPI Performance Analysis & Attendance Ratings",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:41:03.647Z"
+    },
+    {
+      "id": "FAC-19",
+      "filename": "FAC-19-PROPOSAL-VIEW-TIMELINE.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-19-PROPOSAL-VIEW-TIMELINE.png",
+      "caption": "Faculty Proposal View with Review History Timeline & Signatures",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:41:05.461Z"
+    },
+    {
+      "id": "FAC-20",
+      "filename": "FAC-20-ACTIVITY-VIEW-DETAILS.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-20-ACTIVITY-VIEW-DETAILS.png",
+      "caption": "Faculty Activity Master Detail View with Tabbed Sub-Panels",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:41:07.260Z"
+    },
+    {
+      "id": "FAC-21",
+      "filename": "FAC-21-PROPOSAL-EDIT-REVISION.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-21-PROPOSAL-EDIT-REVISION.png",
+      "caption": "Faculty Proposal Edit Mode for Returned Proposal with Approver Notes",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:41:09.344Z"
+    },
+    {
+      "id": "FAC-22",
+      "filename": "FAC-22-NOTIFICATIONS-VIEW.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-22-NOTIFICATIONS-VIEW.png",
+      "caption": "Notifications Center with Filter Tabs & Read Status Controls",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:41:15.210Z"
+    },
+    {
+      "id": "FAC-24",
+      "filename": "FAC-24-RBAC-DENIED-ADMIN1.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-24-RBAC-DENIED-ADMIN1.png",
+      "caption": "RBAC Boundary Enforcement: Access Denied / Safe Redirection Screen",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:41:23.272Z"
+    },
+    {
+      "id": "FAC-25",
+      "filename": "FAC-25-LIVE-ENDPOINT-PRODUCTION.png",
+      "path": "C:\\xampp\\htdocs\\sti-activity-system\\reports\\faculty-audit\\screenshots\\FAC-25-LIVE-ENDPOINT-PRODUCTION.png",
+      "caption": "Live Production Endpoint State at https://sti-armes.freedev.app/auth/login.php",
+      "issueId": "",
+      "timestamp": "2026-11-09T10:41:28.478Z"
+    }
+  ],
+  "endTime": "2026-11-09T10:41:28.478Z",
+  "totalConsoleErrors": 5,
+  "totalNetworkErrors": 5,
+  "allConsoleErrors": [
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "allNetworkErrors": [
+    {
+      "status": 403,
+      "url": "http://localhost/sti-activity-system/admin1/dashboard.php"
+    },
+    {
+      "status": 403,
+      "url": "http://localhost/sti-activity-system/admin2/dashboard.php"
+    },
+    {
+      "status": 403,
+      "url": "http://localhost/sti-activity-system/dean/dashboard.php"
+    },
+    {
+      "status": 403,
+      "url": "http://localhost/sti-activity-system/program_head/dashboard.php"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost/sti-activity-system/admin1/users.php"
+    }
+  ]
+}

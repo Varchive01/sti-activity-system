@@ -1,4 +1,5 @@
 <?php
+@set_time_limit(30);
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
@@ -25,7 +26,8 @@ $stagedCollabs = (!empty($sessionToken) && isset($_SESSION['temp_collaborators']
     ? $_SESSION['temp_collaborators'][$sessionToken]
     : [];
 
-// Apply global automatic capitalization rules (John correction and sentence capitalization)
+try {
+    // Apply global automatic capitalization rules (John correction and sentence capitalization)
 $textFieldsToCapitalize = [
     'title', 'theme', 'venue', 'venue_address',
     'general_objectives', 'specific_objectives',
@@ -114,8 +116,8 @@ if ($action === 'submit' && empty($eventDate)) {
 
 if (!empty($eventDate)) {
     $d = DateTime::createFromFormat('Y-m-d', $eventDate);
-    // Rule: event_date > today's date (earliest allowed date is tomorrow)
-    if (!$d || $d->format('Y-m-d') !== $eventDate || $eventDate <= $todayManila) {
+    // Rule: event_date > today's date (earliest allowed date is tomorrow) strictly enforced on submission
+    if ($action === 'submit' && (!$d || $d->format('Y-m-d') !== $eventDate || $eventDate <= $todayManila)) {
         if ($isAjax) {
             http_response_code(400);
             header('Content-Type: application/json; charset=utf-8');
@@ -127,12 +129,18 @@ if (!empty($eventDate)) {
     }
 }
 
-if (!empty($_POST['sched_date']) && is_array($_POST['sched_date'])) {
+if ($action === 'submit' && !empty($_POST['sched_date']) && is_array($_POST['sched_date'])) {
     foreach ($_POST['sched_date'] as $sDate) {
         $sDate = trim($sDate);
         if (!empty($sDate)) {
             $sd = DateTime::createFromFormat('Y-m-d', $sDate);
             if (!$sd || $sd->format('Y-m-d') !== $sDate || $sDate <= $todayManila) {
+                if ($isAjax) {
+                    http_response_code(400);
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'error_code' => 'past_date', 'error' => 'Schedule date cannot be in the past.']);
+                    exit;
+                }
                 header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=past_date");
                 exit;
             }
@@ -410,8 +418,7 @@ try {
 
 $newlyCreatedDiskPath = null;
 
-try {
-    $db->beginTransaction();
+$db->beginTransaction();
 
     // 1. Insert activity
     $stmt = $db->prepare("INSERT INTO activities
@@ -535,8 +542,10 @@ try {
         $ps = $db->prepare("INSERT INTO program_sequence (activity_id,time_slot,segment,description,person_ic,sort_order) VALUES (?,?,?,?,?,?)");
         foreach ($_POST['prog_segment'] as $i => $seg) {
             if (!trim($seg)) continue;
-            $ps->execute([$actId, $_POST['prog_time'][$i]??null, sanitize($seg),
-                sanitize($_POST['prog_desc'][$i]??''), sanitize($_POST['prog_pic'][$i]??''), $i]);
+            $rawPic = $_POST['prog_pic'][$i] ?? '';
+            $pic = function_exists('autoCapitalizeText') ? autoCapitalizeText($rawPic) : $rawPic;
+            $ps->execute([$actId, $_POST['prog_time'][$i]??null, sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($seg) : $seg),
+                sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($_POST['prog_desc'][$i]??'') : ($_POST['prog_desc'][$i]??'')), sanitize($pic), $i]);
         }
     }
 
@@ -547,7 +556,9 @@ try {
             if (!trim($role)) continue;
             $rawMpType = strtolower(trim((string)($_POST['mp_type'][$i] ?? 'faculty')));
             $normMpType = in_array($rawMpType, ['faculty', 'staff', 'student'], true) ? $rawMpType : 'faculty';
-            $mp->execute([$actId, sanitize($role), sanitize($_POST['mp_person'][$i]??''), $normMpType]);
+            $rawPerson = $_POST['mp_person'][$i] ?? '';
+            $person = function_exists('autoCapitalizeText') ? autoCapitalizeText($rawPerson) : $rawPerson;
+            $mp->execute([$actId, sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($role) : $role), sanitize($person), $normMpType]);
         }
     }
 
@@ -556,8 +567,10 @@ try {
         $sc = $db->prepare("INSERT INTO schedules (activity_id,sched_date,event_name,venue,organizer) VALUES (?,?,?,?,?)");
         foreach ($_POST['sched_event'] as $i => $ev) {
             if (!trim($ev)) continue;
-            $sc->execute([$actId, $_POST['sched_date'][$i]??null, sanitize($ev),
-                sanitize($_POST['sched_venue'][$i]??''), sanitize($_POST['sched_organizer'][$i]??'')]);
+            $rawOrg = $_POST['sched_organizer'][$i] ?? '';
+            $org = function_exists('autoCapitalizeText') ? autoCapitalizeText($rawOrg) : $rawOrg;
+            $sc->execute([$actId, $_POST['sched_date'][$i]??null, sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($ev) : $ev),
+                sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($_POST['sched_venue'][$i]??'') : ($_POST['sched_venue'][$i]??'')), sanitize($org)]);
         }
     }
 
@@ -567,6 +580,7 @@ try {
         sanitize($_POST['guidelines_scoring']??''), sanitize($_POST['guidelines_awards']??'')]);
 
     // 7. Faculty Tasks
+    $taskNotificationsToSend = [];
     $taskItems = !empty($_POST['ft_task']) && is_array($_POST['ft_task'])
         ? $_POST['ft_task']
         : (!empty($_POST['ft_name']) && is_array($_POST['ft_name']) ? $_POST['ft_name'] : []);
@@ -580,12 +594,14 @@ try {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Not Started', ?)
         ");
 
-        $facultyLookupStmt = $db->prepare("SELECT id, name FROM users WHERE id = ? AND role IN ('faculty', 'program_head') LIMIT 1");
+        $facultyLookupStmt = $db->prepare("SELECT id, name FROM users WHERE id = ? AND role IN ('faculty', 'program_head', 'admin1', 'admin2') LIMIT 1");
 
         foreach ($taskItems as $i => $itemVal) {
-            $tTitle = sanitize($_POST['ft_task'][$i] ?? '');
+            $rawTaskTitle = $_POST['ft_task'][$i] ?? '';
+            $tTitle = sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($rawTaskTitle) : $rawTaskTitle);
             $rawUserId = isset($_POST['ft_user_id'][$i]) && is_numeric($_POST['ft_user_id'][$i]) ? (int)$_POST['ft_user_id'][$i] : 0;
-            $submittedName = sanitize($_POST['ft_name'][$i] ?? '');
+            $rawSubName = $_POST['ft_name'][$i] ?? '';
+            $submittedName = sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($rawSubName) : $rawSubName);
 
             // Skip row if task title, submitted name, and user ID are all completely empty
             if ($tTitle === '' && $submittedName === '' && $rawUserId === 0) {
@@ -602,15 +618,20 @@ try {
                     $assignedUserId = (int)$fUser['id'];
                     $facultyName = $fUser['name'];
                 } else {
-                    $db->rollBack();
-                    if ($isAjax) {
-                        http_response_code(422);
-                        header('Content-Type: application/json; charset=utf-8');
-                        echo json_encode(['success' => false, 'error_code' => 'invalid_faculty_assignment', 'error' => 'Invalid faculty member assigned.']);
+                    if ($action === 'submit') {
+                        $db->rollBack();
+                        if ($isAjax) {
+                            http_response_code(422);
+                            header('Content-Type: application/json; charset=utf-8');
+                            echo json_encode(['success' => false, 'error_code' => 'invalid_faculty_assignment', 'error' => 'Invalid faculty member assigned.']);
+                            exit;
+                        }
+                        header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_faculty_assignment");
                         exit;
+                    } else {
+                        $assignedUserId = null;
+                        $facultyName = $submittedName !== '' ? $submittedName : null;
                     }
-                    header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_faculty_assignment");
-                    exit;
                 }
             }
 
@@ -641,7 +662,11 @@ try {
             ]);
 
             if ($assignedUserId && $status !== 'draft') {
-                sendTaskAssignmentNotification($db, $assignedUserId, $actId, $tTitle, $dueDate);
+                $taskNotificationsToSend[] = [
+                    'user_id'    => $assignedUserId,
+                    'task_title' => $tTitle,
+                    'due_date'   => $dueDate
+                ];
             }
         }
     }
@@ -806,6 +831,50 @@ try {
         error_log("Collaborator registration notice: " . $collabEx->getMessage());
     }
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // Non-blocking Instant Response Delivery (FastCGI)
+    // ══════════════════════════════════════════════════════════════════════════
+    $targetRedirect = ($status === 'submitted')
+        ? ((($user['role'] ?? '') === 'program_head') ? BASE_URL . "/program_head/dashboard.php?submitted=1" : BASE_URL . "/faculty/proposal-view.php?id={$actId}&submitted=1")
+        : ((($user['role'] ?? '') === 'program_head') ? BASE_URL . "/program_head/dashboard.php?saved=1" : BASE_URL . "/faculty/dashboard.php?saved=1");
+
+    if ($isSendToCollaborators) {
+        $targetRedirect = BASE_URL . "/faculty/proposal-edit.php?id={$actId}&shared=1";
+    }
+
+    $responseSent = false;
+    if ($isAjax) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success'     => true,
+            'activity_id' => $actId,
+            'source'      => $saveSource,
+            'poster_path' => $savedPosterPath,
+            'status'      => $status,
+            'shared'      => $isSendToCollaborators,
+            'message'     => $isSendToCollaborators
+                ? 'Proposal draft saved and shared with collaborators successfully.'
+                : ($status === 'submitted' ? 'Proposal submitted for approval successfully.' : 'Proposal draft saved successfully.'),
+            'redirect'    => $targetRedirect,
+            'updated_at'  => date('Y-m-d H:i:s'),
+            'title'       => sanitize($_POST['title'] ?? '')
+        ]);
+        $responseSent = true;
+    }
+
+    // Flush and finish HTTP response immediately if FastCGI is active!
+    // The browser receives the response in under 50ms and navigates instantly.
+    if (function_exists('fastcgi_finish_request')) {
+        if (!$responseSent) {
+            header("Location: " . $targetRedirect);
+            $responseSent = true;
+        }
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        fastcgi_finish_request();
+    }
+
     // Automatically generate and archive proposal PDF snapshot to OneDrive upon submission
     if ($status === 'submitted') {
         try {
@@ -815,6 +884,16 @@ try {
         }
     }
 
+    // Dispatch task assignment notifications safely after transaction commit
+    if (!empty($taskNotificationsToSend)) {
+        foreach ($taskNotificationsToSend as $tNotif) {
+            try {
+                sendTaskAssignmentNotification($db, (int)$tNotif['user_id'], $actId, $tNotif['task_title'], $tNotif['due_date']);
+            } catch (\Throwable $taskEx) {
+                error_log("Failed to dispatch task assignment notification for user {$tNotif['user_id']}: " . $taskEx->getMessage());
+            }
+        }
+    }
 
     // Send emails after successful commit so failure never impacts database transaction
     if (!empty($emailsToSend)) {
@@ -843,41 +922,23 @@ try {
         }
     }
 
-    if ($isAjax) {
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
-            'success'     => true,
-            'activity_id' => $actId,
-            'source'      => $saveSource,
-            'poster_path' => $savedPosterPath,
-            'status'      => $status,
-            'shared'      => $isSendToCollaborators,
-            'message'     => $isSendToCollaborators
-                ? 'Proposal draft saved and shared with collaborators successfully.'
-                : 'Proposal draft saved successfully.',
-            'redirect'    => $isSendToCollaborators
-                ? BASE_URL . "/faculty/proposal-edit.php?id={$actId}&shared=1"
-                : ((($user['role'] ?? '') === 'program_head') ? BASE_URL . "/program_head/dashboard.php?saved=1" : BASE_URL . "/faculty/dashboard.php?saved=1"),
-            'updated_at'  => date('Y-m-d H:i:s'),
-            'title'       => sanitize($_POST['title'] ?? '')
-        ]);
+    if (!$responseSent) {
+        if ($isSendToCollaborators) {
+            header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$actId}&shared=1");
+            exit;
+        }
+        header("Location: " . $targetRedirect);
         exit;
     }
-
-    if ($isSendToCollaborators) {
-        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$actId}&shared=1");
-        exit;
-    }
-
-    $targetDash = (($user['role'] ?? '') === 'program_head')
-        ? BASE_URL . "/program_head/dashboard.php?saved=1"
-        : BASE_URL . "/faculty/dashboard.php?saved=1";
-    header("Location: " . $targetDash);
     exit;
 
 } catch (\Throwable $e) {
-    if ($db->inTransaction()) {
-        $db->rollBack();
+    if (isset($db) && $db instanceof PDO && $db->inTransaction()) {
+        try {
+            $db->rollBack();
+        } catch (\Throwable $rbEx) {
+            error_log("Rollback error in proposal-save: " . $rbEx->getMessage());
+        }
     }
     // Clean up newly created orphaned floor plan file if creation transaction failed
     if (!empty($newlyCreatedDiskPath) && file_exists($newlyCreatedDiskPath)) {
@@ -898,14 +959,18 @@ try {
     }
     error_log("proposal-save exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
     if ($isAjax) {
-        http_response_code(500);
+        http_response_code(422);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode([
-            'success' => false,
-            'error'   => 'Server error saving proposal: ' . $e->getMessage()
+            'success'    => false,
+            'error_code' => 'server_error',
+            'error'      => 'Server error saving proposal: ' . $e->getMessage()
         ]);
         exit;
     }
-    header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=1");
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['proposal_error'] = 'An unexpected error occurred while saving the proposal. Please verify your data and try again.';
+    }
+    header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=server_error");
     exit;
 }

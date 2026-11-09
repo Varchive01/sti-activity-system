@@ -15,6 +15,9 @@ $act = $db->prepare("SELECT a.*,u.name as faculty_name,u.email as faculty_email 
 $act->execute([$id]);
 $activity = $act->fetch();
 if (!$activity) { die('Activity not found or not accessible.'); }
+if (!canUserAccessActivity((int)$id, 'view', (int)$user['id'], $user['role'], $user['dept'] ?? '')) {
+    renderAccessDenied('You do not have permission to review this activity because it has not reached the Events Committee review stage.');
+}
 
 $materials = $db->prepare("SELECT * FROM materials WHERE activity_id=?");
 $materials->execute([$id]);
@@ -509,6 +512,17 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
 [data-theme="dark"] .modal .form-control {
   background: var(--bg-base);
   border-color: var(--border);
+  color: var(--text-main);
+}
+[data-theme="dark"] .modal .alert-warning {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #FBBF24;
+}
+[data-theme="dark"] .modal .alert-danger {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #F87171;
 }
 </style>
 </head>
@@ -638,54 +652,59 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
       <?php else: ?><p class="text-muted">No materials listed.</p><?php endif; ?>
     <?php renderSectionClose('materials', $stagedComments, $id); ?>
 
-    <?php renderSectionHeader('floor_plan', '🗺️ Floor Plan', $stagedComments); ?>
-      <?php $floorPlanRequired = isset($activity['floor_plan_required']) ? (int)$activity['floor_plan_required'] : 1; ?>
-      <?php if ($floorPlanRequired === 0): ?>
-        <div style="padding:14px 16px; background:var(--bg-base); border:1px dashed var(--border); border-radius:8px; color:var(--text-muted); font-size:0.88rem; margin-bottom:<?= $fp ? '14px' : '0' ?>;">
-          ℹ️ Floor plan not required for this activity.
-        </div>
-      <?php endif; ?>
-      <?php if ($fp): ?>
+    <?php
+      $floorPlanRequired = isset($activity['floor_plan_required']) ? (int)$activity['floor_plan_required'] : 1;
+      $hasFloorPlan = hasValidFloorPlanContent($fp, $activity);
+    ?>
+    <?php if ($hasFloorPlan || $floorPlanRequired !== 0): ?>
+      <?php renderSectionHeader('floor_plan', '🗺️ Floor Plan', $stagedComments); ?>
         <?php if ($floorPlanRequired === 0): ?>
-          <div class="sl" style="margin-bottom:8px;">Saved Floor Plan Record</div>
-        <?php endif; ?>
-        <?php
-          $floorsList = [];
-          if (!empty($fp['canvas_json'])) {
-              $parsedFp = json_decode($fp['canvas_json'], true);
-              if ($parsedFp && !empty($parsedFp['floors'])) {
-                  foreach ($parsedFp['floors'] as $fKey => $fVal) {
-                      $floorsList[] = $fVal['name'] ?? ucfirst($fKey) . ' Floor';
-                  }
-              }
-          }
-          if (empty($floorsList) && (!empty($fp['file_path']) || !empty($fp['canvas_json']))) {
-              $floorsList = ['Ground Floor'];
-          }
-        ?>
-        <?php if (!empty($floorsList)): ?>
-          <div style="margin-bottom:10px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-            <span style="font-size:0.75rem; font-weight:600; color:#64748b;">Included Floors:</span>
-            <?php foreach ($floorsList as $flName): ?>
-              <span class="badge" style="background:#0056b3; color:#fff; font-size:0.75rem; padding:3px 8px; border-radius:4px;">🏢 <?= htmlspecialchars($flName) ?></span>
-            <?php endforeach; ?>
+          <div style="padding:14px 16px; background:var(--bg-base); border:1px dashed var(--border); border-radius:8px; color:var(--text-muted); font-size:0.88rem; margin-bottom:<?= $hasFloorPlan ? '14px' : '0' ?>;">
+            ℹ️ Floor plan was marked optional for this activity.
           </div>
         <?php endif; ?>
-        <?php $ext = strtolower(pathinfo($fp['file_path'] ?? '', PATHINFO_EXTENSION)); $isImg = in_array($ext,['png','jpg','jpeg','gif','webp']); ?>
-        <?php $fpUrl = !empty($fp['file_path']) ? (str_starts_with($fp['file_path'], 'http') ? $fp['file_path'] : BASE_URL . '/api/document-download.php?activity_id=' . $id . '&type=floorplan') : ''; ?>
-        <?php if($isImg && $fpUrl): ?>
-          <img src="<?= htmlspecialchars($fpUrl) ?>" style="max-width:100%;border-radius:8px;margin-bottom:12px;" alt="Floor Plan">
+        <?php if ($hasFloorPlan): ?>
+          <?php if ($floorPlanRequired === 0): ?>
+            <div class="sl" style="margin-bottom:8px;">Saved Floor Plan Record</div>
+          <?php endif; ?>
+          <?php
+            $floorsList = [];
+            if (!empty($fp['canvas_json'])) {
+                $parsedFp = json_decode($fp['canvas_json'], true);
+                if ($parsedFp && !empty($parsedFp['floors'])) {
+                    foreach ($parsedFp['floors'] as $fKey => $fVal) {
+                        $floorsList[] = $fVal['name'] ?? ucfirst($fKey) . ' Floor';
+                    }
+                }
+            }
+            if (empty($floorsList) && (!empty($fp['file_path']) || !empty($fp['canvas_json']))) {
+                $floorsList = ['Ground Floor'];
+            }
+          ?>
+          <?php if (!empty($floorsList)): ?>
+            <div style="margin-bottom:10px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+              <span style="font-size:0.75rem; font-weight:600; color:#64748b;">Included Floors:</span>
+              <?php foreach ($floorsList as $flName): ?>
+                <span class="badge" style="background:#0056b3; color:#fff; font-size:0.75rem; padding:3px 8px; border-radius:4px;">🏢 <?= htmlspecialchars($flName) ?></span>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+          <?php $ext = strtolower(pathinfo($fp['file_path'] ?? '', PATHINFO_EXTENSION)); $isImg = in_array($ext,['png','jpg','jpeg','gif','webp']); ?>
+          <?php $fpUrl = !empty($fp['file_path']) ? (str_starts_with($fp['file_path'], 'http') ? $fp['file_path'] : BASE_URL . '/api/document-download.php?activity_id=' . $id . '&type=floorplan') : ''; ?>
+          <?php if($isImg && $fpUrl): ?>
+            <img src="<?= htmlspecialchars($fpUrl) ?>" style="max-width:100%;border-radius:8px;margin-bottom:12px;" alt="Floor Plan">
+          <?php endif; ?>
+          <?php if($fpUrl): ?>
+            <div style="margin-bottom:12px;">
+              <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm">📎 View Floor Plan File</a>
+            </div>
+          <?php endif; ?>
+          <?php if (!empty($fp['notes'])): ?><div class="sl" style="margin-top:10px;">Notes</div><p><?= nl2br(htmlspecialchars($fp['notes'])) ?></p><?php endif; ?>
+        <?php elseif ($floorPlanRequired !== 0): ?>
+          <p class="text-muted">No floor plan uploaded.</p>
         <?php endif; ?>
-        <?php if($fpUrl): ?>
-          <div style="margin-bottom:12px;">
-            <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm">📎 View Floor Plan File</a>
-          </div>
-        <?php endif; ?>
-        <?php if (!empty($fp['notes'])): ?><div class="sl" style="margin-top:10px;">Notes</div><p><?= nl2br(htmlspecialchars($fp['notes'])) ?></p><?php endif; ?>
-      <?php elseif ($floorPlanRequired !== 0): ?>
-        <p class="text-muted">No floor plan uploaded.</p>
-      <?php endif; ?>
-    <?php renderSectionClose('floor_plan', $stagedComments, $id); ?>
+      <?php renderSectionClose('floor_plan', $stagedComments, $id); ?>
+    <?php endif; ?>
 
     <?php renderSectionHeader('people', '👥 People & Manpower', $stagedComments); ?>
       <?php if (!empty($mp)): ?>

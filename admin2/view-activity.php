@@ -3,7 +3,9 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/ai/kpi_helper.php';
 requireRole('admin2');
+$user = currentUser();
 $db = getDB();
 $id = (int)($_GET['id'] ?? 0);
 if (!$id) { header('Location: '.BASE_URL.'/admin2/dashboard.php'); exit; }
@@ -11,8 +13,15 @@ if (!$id) { header('Location: '.BASE_URL.'/admin2/dashboard.php'); exit; }
 $act  = $db->prepare("SELECT a.*,u.name as fn,u.email as fe FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.id=?");
 $act->execute([$id]); $activity=$act->fetch();
 if (!$activity) die('Not found.');
+if (!canUserAccessActivity((int)$id, 'view', (int)$user['id'], $user['role'], $user['dept'] ?? '')) {
+    renderAccessDenied('You do not have permission to view this activity because it has not reached the Events Committee review stage.');
+}
 
 $mats = $db->prepare("SELECT * FROM materials WHERE activity_id=?"); $mats->execute([$id]); $materials=$mats->fetchAll();
+
+if (function_exists('reconcilePostEventMetrics')) {
+    reconcilePostEventMetrics($db, $id);
+}
 
 // Fetch raw evaluation responses
 $responsesStmt = $db->prepare("
@@ -90,7 +99,10 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
     <div class="topbar-right">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
       <a href="<?= BASE_URL ?>/admin2/activities.php" class="btn btn-outline btn-sm">← Back</a>
-      <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 Print</button>
+      <?php if (in_array($activity['status'], ['draft', 'returned_for_revision'], true) && canUserAccessActivity((int)$id, 'modify', (int)$user['id'], $user['role'], $user['dept'] ?? '')): ?>
+        <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= $id ?>" class="btn btn-primary btn-sm">Edit Proposal</a>
+      <?php endif; ?>
+      <button type="button" id="exportPdfBtn" class="btn btn-outline btn-sm" onclick="exportProposalPdf()" title="Download formal PDF document" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">📄 Export PDF</button>
       <!-- User Profile Control -->
       <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
     </div>
@@ -253,7 +265,7 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
 
     <!-- Task & Role Assignments -->
     <div class="section-title">📋 Task & Role Assignments (<?= count($ftasks) ?>)</div>
-    <div style="margin-bottom: 12px; padding: 10px 16px; background: var(--bg-subtle, #f8f9fa); border: 1px solid var(--border-color, #e5e7eb); border-radius: 6px; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+    <div style="margin-bottom: 12px; padding: 10px 16px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
       <div>
         <span style="font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.5px;">Activity Leader:</span>
         <strong style="color: var(--text-main); margin-left: 4px;"><?= htmlspecialchars($activity['fn']) ?></strong>
@@ -339,14 +351,53 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
       <div>
         <?php if ($postEvent): ?>
-        <div class="info-grid" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="info-grid" style="grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));">
           <?php
           $attPct = ($postEvent['target_attendance'] > 0 && isset($postEvent['actual_attendance'])) ? min(100, round(($postEvent['actual_attendance'] / $postEvent['target_attendance']) * 100)) : 0;
-          foreach(['Actual Attendance'=>$postEvent['actual_attendance'],'Target'=>$postEvent['target_attendance'],'Attendance Rate'=>$attPct.'%','Satisfaction Score'=>number_format($postEvent['satisfaction_score'],1).'/5'] as $l=>$v):
+          $admin2Tiles = [
+            'Actual Attendance' => $postEvent['actual_attendance'],
+            'Target'            => $postEvent['target_attendance'],
+            'Attendance Rate'   => $attPct . '%',
+            'Satisfaction Score'=> (isset($postEvent['satisfaction_score']) && $postEvent['satisfaction_score'] !== null) ? number_format($postEvent['satisfaction_score'], 1) . '/5' : '—'
+          ];
+          if (!empty($postEvent['manual_attendance'])) {
+            $admin2Tiles['Paper-Based Count'] = (int)$postEvent['manual_attendance'];
+          }
+          foreach($admin2Tiles as $l=>$v):
           ?>
           <div class="info-tile"><div class="lbl"><?= $l ?></div><div class="val"><?= $v ?></div></div>
           <?php endforeach; ?>
         </div>
+
+        <?php if (!empty($postEvent['assessment_report_path']) || !empty($postEvent['survey_csv_path'])): ?>
+        <div class="info-tile" style="margin-top:10px;">
+          <div class="lbl" style="margin-bottom:8px;">📑 Core Report Documents</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <?php if (!empty($postEvent['assessment_report_path'])):
+              $vaPdfName = function_exists('getFriendlyDocumentFilename') ? getFriendlyDocumentFilename($db, $id, $postEvent['assessment_report_path']) : basename($postEvent['assessment_report_path']);
+              $vaPdfUrl  = function_exists('resolveUploadedFileUrl') ? resolveUploadedFileUrl($postEvent['assessment_report_path']) : (BASE_URL . '/uploads/' . ltrim($postEvent['assessment_report_path'], '/\\'));
+            ?>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.28);border-radius:6px;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:0.85rem;font-weight:600;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+                <span style="color:#059669;font-weight:bold;">[✓ PDF]</span> Assessment Report: <?= htmlspecialchars($vaPdfName) ?>
+              </span>
+              <a href="<?= htmlspecialchars($vaPdfUrl) ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:0.75rem;">View PDF</a>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($postEvent['survey_csv_path'])):
+              $vaCsvName = function_exists('getFriendlyDocumentFilename') ? getFriendlyDocumentFilename($db, $id, $postEvent['survey_csv_path']) : basename($postEvent['survey_csv_path']);
+              $vaCsvUrl  = function_exists('resolveUploadedFileUrl') ? resolveUploadedFileUrl($postEvent['survey_csv_path']) : (BASE_URL . '/uploads/' . ltrim($postEvent['survey_csv_path'], '/\\'));
+            ?>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(2,132,199,0.06);border:1px solid rgba(2,132,199,0.2);border-radius:6px;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:0.85rem;font-weight:600;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+                <span style="color:#0284c7;font-weight:bold;">[✓ CSV]</span> Survey Results: <?= htmlspecialchars($vaCsvName) ?>
+              </span>
+              <a href="<?= htmlspecialchars($vaCsvUrl) ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:0.75rem;">Download CSV</a>
+            </div>
+            <?php endif; ?>
+          </div>
+        </div>
+        <?php endif; ?>
         <?php if (!empty($postEvent['observations'])): ?>
         <div class="info-tile" style="margin-top:10px;"><div class="lbl">Observations</div><div style="font-size:.82rem;margin-top:6px;"><?= nl2br(htmlspecialchars($postEvent['observations'])) ?></div></div>
         <?php endif; ?>
@@ -360,17 +411,17 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
           <div class="lbl" style="margin-bottom:10px;">📎 Attached Documents & Reports (<?= count($documents) ?>)</div>
           <div style="display:flex;flex-direction:column;gap:8px;">
             <?php foreach ($documents as $doc): ?>
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg-subtle,#f8f9fa);border:1px solid var(--border-color,#e5e7eb);border-radius:6px;">
-              <div style="display:flex;align-items:center;gap:8px;overflow:hidden;min-width:0;">
-                <span style="font-size:1.1rem;flex-shrink:0;">📄</span>
+            <div class="doc-item-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;">
+              <div style="display:flex;align-items:center;gap:10px;overflow:hidden;min-width:0;">
+                <span style="font-size:1.15rem;flex-shrink:0;">📄</span>
                 <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                  <span style="font-size:0.85rem;font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;"><?= htmlspecialchars($doc['file_name'] ?: basename($doc['file_path'])) ?></span>
+                  <span style="font-size:0.85rem;font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;color:var(--text-main);"><?= htmlspecialchars($doc['file_name'] ?: basename($doc['file_path'])) ?></span>
                   <small style="color:var(--text-muted);font-size:0.75rem;"><?= date('M d, Y h:i A', strtotime($doc['uploaded_at'])) ?></small>
                 </div>
               </div>
               <div style="display:flex;gap:6px;flex-shrink:0;margin-left:12px;">
-                <a href="<?= BASE_URL ?>/api/document-download.php?id=<?= $doc['id'] ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:0.75rem;">View</a>
-                <a href="<?= BASE_URL ?>/api/document-download.php?id=<?= $doc['id'] ?>&download=1" class="btn btn-primary btn-sm" style="padding:4px 8px;font-size:0.75rem;">Download</a>
+                <a href="<?= BASE_URL ?>/api/document-download.php?id=<?= $doc['id'] ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:0.75rem;">View</a>
+                <a href="<?= BASE_URL ?>/api/document-download.php?id=<?= $doc['id'] ?>&download=1" class="btn btn-primary btn-sm" style="padding:4px 10px;font-size:0.75rem;">Download</a>
               </div>
             </div>
             <?php endforeach; ?>
@@ -379,9 +430,47 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
         <?php endif; ?>
       </div>
       <div>
+        <?php
+        $actKpiCalc = function_exists('calculateActivityKpis') ? calculateActivityKpis($id, $db) : [];
+        $definedKpiRows = !empty($actKpiCalc['all_kpi_rows']) ? $actKpiCalc['all_kpi_rows'] : [];
+        ?>
+        <?php if (!empty($definedKpiRows)): ?>
+        <div class="info-tile" style="margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div class="lbl" style="margin:0;">Key Performance Indicators (KPIs)</div>
+            <?php if (!empty($actKpiCalc['overall_performance'])): ?>
+              <span class="badge <?= getKpiStatusClass($actKpiCalc['overall_status'] ?? '') ?>"><?= $actKpiCalc['overall_performance'] ?>% Overall</span>
+            <?php endif; ?>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <?php foreach ($definedKpiRows as $dk):
+              $dCls = getKpiStatusClass($dk['status'] ?? 'Insufficient Data');
+            ?>
+            <div style="background:var(--bg-base); border:1px solid var(--border); border-radius:6px; padding:8px 12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                <div>
+                  <strong style="font-size:0.82rem; color:var(--text-main);"><?= htmlspecialchars($dk['indicator'] ?? '') ?></strong>
+                  <small class="badge badge-secondary" style="font-size:0.68rem; margin-left:4px;"><?= htmlspecialchars($dk['evaluation_method'] ?? '') ?></small>
+                </div>
+                <span class="badge <?= $dCls ?>" style="font-size:0.75rem;"><?= htmlspecialchars($dk['achievement'] ?? '') ?> (<?= htmlspecialchars($dk['status'] ?? '') ?>)</span>
+              </div>
+              <div style="font-size:0.75rem; color:var(--text-muted); margin-top:3px;">
+                Target: <strong><?= htmlspecialchars($dk['target'] ?? '—') ?></strong> | Actual: <strong><?= htmlspecialchars($dk['actual'] ?? '—') ?></strong>
+              </div>
+              <?php if (!empty($dk['calculation_details'])): ?>
+                <div style="font-size:0.72rem; color:var(--text-muted); margin-top:3px; line-height:1.3; font-style:italic;">
+                  <?= htmlspecialchars($dk['calculation_details']) ?>
+                </div>
+              <?php endif; ?>
+            </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <?php endif; ?>
+
         <?php if (!empty($kpiData)): ?>
         <div class="info-tile">
-          <div class="lbl" style="margin-bottom:12px;">KPI Breakdown</div>
+          <div class="lbl" style="margin-bottom:12px;">Survey Questions Breakdown</div>
           <?php foreach($kpiData as $k):
             $stars=round($k['avg']); ?>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -596,6 +685,7 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
 
   </div>
 </div>
+<?php include __DIR__ . '/../includes/activity-print-document.php'; ?>
 </body>
 </html>
 

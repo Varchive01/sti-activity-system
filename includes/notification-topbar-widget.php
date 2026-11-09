@@ -388,6 +388,46 @@ if (!function_exists('topbarWidgetTimeAgo')) {
   color: var(--sti-blue-hover, #0369A1);
 }
 
+.notif-see-all {
+  color: var(--sti-blue, #0284C7);
+  background: rgba(2, 132, 199, 0.08);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.notif-see-all:hover {
+  background: rgba(2, 132, 199, 0.16);
+  color: var(--sti-blue-hover, #0369A1);
+}
+
+.notif-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border, #E2E8F0);
+  background: var(--bg-surface-2, rgba(0, 0, 0, 0.02));
+  text-align: center;
+  border-radius: 0 0 16px 16px;
+}
+
+.notif-footer-link {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--sti-blue, #0284C7);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: color 0.15s ease;
+}
+
+.notif-footer-link:hover {
+  color: var(--sti-blue-hover, #0369A1);
+  text-decoration: underline;
+}
+
 .notif-delete-all {
   color: var(--sti-red, #EF4444);
 }
@@ -783,7 +823,9 @@ if (!function_exists('topbarWidgetTimeAgo')) {
       </h3>
       <div class="notif-header-actions">
         <?php if ($topbarUnreadCount > 0): ?>
-          <button type="button" class="notif-action-btn notif-mark-all" id="markAllBtn">Mark all read</button>
+          <button type="button" class="notif-action-btn notif-mark-all" id="markAllBtn" title="Mark all notifications as read">Mark All as Read</button>
+        <?php else: ?>
+          <button type="button" class="notif-action-btn notif-mark-all" id="markAllBtn" title="Mark all notifications as read" style="display:none;">Mark All as Read</button>
         <?php endif; ?>
         <?php if (!empty($topbarNotifications)): ?>
           <button type="button" class="notif-action-btn notif-delete-all" id="deleteAllBtn">Delete all</button>
@@ -845,6 +887,14 @@ if (!function_exists('topbarWidgetTimeAgo')) {
           </div>
       <?php endforeach;
       endif; ?>
+    </div>
+    <div class="notif-footer">
+      <a href="<?= BASE_URL ?>/notifications.php" class="notif-footer-link" id="notifFooterSeeAll">
+        <span>See All Notifications</span>
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 14px; height: 14px;">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
     </div>
   </div>
 </div>

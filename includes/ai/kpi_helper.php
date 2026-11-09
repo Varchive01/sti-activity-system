@@ -63,14 +63,15 @@ if (!function_exists('getKpiStatusClass')) {
 
 if (!function_exists('calculateActivityKpis')) {
     /**
-     * Computes targets, actuals, achievement percentages, and status classifications.
-     * Generates a data hash signature based on the computed inputs for caching.
+     * Computes KPI results using the criteria defined in the proposal (from Step 9).
+     * Attendance is dynamically calculated from paper-based list, survey responses, or both (with deduplication).
+     * Generates a deterministic data hash signature for cache detection.
      */
     function calculateActivityKpis(int $activityId, PDO $db): array
     {
         try {
             // 1. Fetch Activity details
-            $actStmt = $db->prepare("SELECT title, target_participants FROM activities WHERE id = ?");
+            $actStmt = $db->prepare("SELECT title, target_participants, kpi_targets, evaluation_method FROM activities WHERE id = ?");
             $actStmt->execute([$activityId]);
             $activity = $actStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -79,11 +80,21 @@ if (!function_exists('calculateActivityKpis')) {
             }
 
             // 2. Fetch Post-Event details
-            $peStmt = $db->prepare("SELECT target_attendance, actual_attendance, satisfaction_score, recommendations FROM post_event WHERE activity_id = ?");
+            $peStmt = $db->prepare("SELECT * FROM post_event WHERE activity_id = ?");
             $peStmt->execute([$activityId]);
             $postEvent = $peStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-            // 3. Fetch KPI evaluations rating breakdown
+            // 3. Fetch Proposal-defined KPI criteria (from Step 9 of proposal form)
+            $defStmt = $db->prepare("
+                SELECT id, indicator, target_metric, evaluation_method 
+                FROM kpi_evaluations 
+                WHERE activity_id = ? AND indicator IS NOT NULL AND TRIM(indicator) != ''
+                ORDER BY id ASC
+            ");
+            $defStmt->execute([$activityId]);
+            $definedKpis = $defStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // 4. Fetch KPI evaluations rating breakdown (from participant evaluation survey questions)
             $kpiStmt = $db->prepare("
                 SELECT criteria, AVG(rating) as avg_rating, COUNT(id) as response_count 
                 FROM kpi_evaluations 
@@ -92,30 +103,79 @@ if (!function_exists('calculateActivityKpis')) {
             ");
             $kpiStmt->execute([$activityId]);
             $criteriaRatings = $kpiStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // 5. Fetch distinct survey respondents & overall survey rating
+            $respStmt = $db->prepare("
+                SELECT COUNT(DISTINCT CASE WHEN evaluator_name IS NOT NULL AND TRIM(evaluator_name) != '' THEN evaluator_name ELSE id END) as respondent_count,
+                       AVG(rating) as overall_survey_avg
+                FROM kpi_evaluations 
+                WHERE activity_id = ? AND rating IS NOT NULL
+            ");
+            $respStmt->execute([$activityId]);
+            $surveyStats = $respStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            $surveyRespondentCount = (int)($surveyStats['respondent_count'] ?? 0);
+            $overallSurveyAvg = $surveyStats['overall_survey_avg'] !== null ? round((float)$surveyStats['overall_survey_avg'], 2) : null;
+
+            // If respondent count is 0 but a survey CSV exists, inspect the CSV directly
+            if ($surveyRespondentCount === 0 && !empty($postEvent['survey_csv_path'])) {
+                $csvFullPath = dirname(__DIR__, 2) . '/' . ltrim($postEvent['survey_csv_path'], '/\\');
+                if (function_exists('parseEvaluationCsvFile') && file_exists($csvFullPath)) {
+                    $csvData = parseEvaluationCsvFile($csvFullPath);
+                    if (!empty($csvData['respondent_count'])) {
+                        $surveyRespondentCount = (int)$csvData['respondent_count'];
+                    }
+                    if ($csvData['average_rating'] !== null && $overallSurveyAvg === null) {
+                        $overallSurveyAvg = $csvData['average_rating'];
+                    }
+                }
+            }
         } catch (\Throwable $e) {
             error_log("calculateActivityKpis error: " . $e->getMessage());
             return [];
         }
 
+        // Attendance determination & deduplication logic
+        $attMethod = !empty($postEvent['attendance_method']) ? $postEvent['attendance_method'] : 'paper_list';
+        $manualAtt = isset($postEvent['manual_attendance']) && $postEvent['manual_attendance'] !== null ? (int)$postEvent['manual_attendance'] : null;
+        $targetAttendance = !empty($postEvent['target_attendance']) ? (int)$postEvent['target_attendance'] : (!empty($activity['target_participants']) ? (int)$activity['target_participants'] : 0);
+
+        $actualAttendance = null;
+        $attendanceDetails = '';
+        $dedupApplied = false;
+
+        if ($attMethod === 'survey_only') {
+            $actualAttendance = $surveyRespondentCount > 0 ? $surveyRespondentCount : (isset($postEvent['actual_attendance']) ? (int)$postEvent['actual_attendance'] : null);
+            $attendanceDetails = "Actual attendance derived from {$surveyRespondentCount} verified evaluation survey responses.";
+        } elseif ($attMethod === 'both') {
+            $dedupApplied = true;
+            $paperCount = $manualAtt !== null ? $manualAtt : (isset($postEvent['actual_attendance']) ? (int)$postEvent['actual_attendance'] : 0);
+            // Avoid counting the same participants twice when both attendance methods are used:
+            // Since attendees who signed the paper list and also submitted an online survey are the same event cohort,
+            // the combined verified attendance is deduplicated:
+            $actualAttendance = max($paperCount, $surveyRespondentCount);
+            $attendanceDetails = "Combined unique attendees: {$actualAttendance} participants (Paper list: {$paperCount}, Online survey: {$surveyRespondentCount}; overlapping participants deduplicated to avoid counting twice).";
+        } else { // 'paper_list'
+            $actualAttendance = $manualAtt !== null ? $manualAtt : (isset($postEvent['actual_attendance']) ? (int)$postEvent['actual_attendance'] : null);
+            $attendanceDetails = "Actual attendance recorded from physical paper attendance list: " . ($actualAttendance !== null ? "{$actualAttendance} participants." : "No data yet.");
+        }
+
+        // Determine satisfaction score (normalized to 5.0 scale)
+        $actualSat = isset($postEvent['satisfaction_score']) && $postEvent['satisfaction_score'] > 0 
+            ? (float)$postEvent['satisfaction_score'] 
+            : ($overallSurveyAvg !== null ? round(($overallSurveyAvg / 4.0) * 5.0, 1) : null);
+
         $kpis = [];
+        $allKpiRows = [];
         $achievementScores = [];
 
-        // --- A. Attendance KPI ---
-        // School Template: Acceptable attendance benchmark is 95% of expected attendees.
-        // Capped at 100.0% when meeting/exceeding acceptable target.
-        // Example: target = 40, actual = 38 => acceptable target = 38 => achievement = 100.0%.
-        $targetAttendance = !empty($postEvent['target_attendance']) ? (int)$postEvent['target_attendance'] : (!empty($activity['target_participants']) ? (int)$activity['target_participants'] : 0);
-        $actualAttendance = isset($postEvent['actual_attendance']) ? (int)$postEvent['actual_attendance'] : null;
-        
+        // Primary Attendance KPI container (standard contract for downstream services)
         $attPct = null;
         if ($targetAttendance > 0 && $actualAttendance !== null) {
             $attPct = function_exists('calculateAttendanceRate')
                 ? calculateAttendanceRate($actualAttendance, $targetAttendance, 1)
                 : min(100.0, round(($actualAttendance / $targetAttendance) * 100, 1));
-            $achievementScores[] = $attPct;
         }
         $attStatus = getKpiStatus($attPct);
-
         $kpis['attendance'] = [
             'indicator' => 'Participant Attendance',
             'target' => $targetAttendance > 0 ? (string)$targetAttendance : '—',
@@ -123,34 +183,127 @@ if (!function_exists('calculateActivityKpis')) {
             'actual' => $actualAttendance !== null ? (string)$actualAttendance : '—',
             'achievement' => $attPct !== null ? $attPct . '%' : '—',
             'achievement_val' => $attPct,
-            'status' => $attStatus
+            'status' => $attStatus,
+            'evaluation_method' => $attMethod === 'both' ? 'Both Paper & Survey' : ($attMethod === 'survey_only' ? 'Online Survey' : 'Paper Attendance List'),
+            'calculation_details' => $attPct !== null ? "Calculation: Actual ({$actualAttendance}) / Target ({$targetAttendance}) = {$attPct}%. {$attendanceDetails}" : "Insufficient data.",
+            'response_count' => $surveyRespondentCount
         ];
 
-        // --- B. Satisfaction KPI ---
-        $targetSat = 4.0; // Benchmark target out of 5.0
-        $actualSat = isset($postEvent['satisfaction_score']) && $postEvent['satisfaction_score'] > 0 ? (float)$postEvent['satisfaction_score'] : null;
-
+        // Primary Satisfaction KPI container (standard contract for downstream services)
+        $targetSat = 4.0;
         $satPct = null;
         if ($actualSat !== null) {
             $satPct = round(($actualSat / $targetSat) * 100, 1);
-            $achievementScores[] = $satPct;
         }
         $satStatus = getKpiStatus($satPct);
-
         $kpis['satisfaction'] = [
             'indicator' => 'Overall Participant Satisfaction',
             'target' => number_format($targetSat, 1) . ' / 5.0',
             'actual' => $actualSat !== null ? number_format($actualSat, 1) . ' / 5.0' : '—',
             'achievement' => $satPct !== null ? $satPct . '%' : '—',
             'achievement_val' => $satPct,
-            'status' => $satStatus
+            'status' => $satStatus,
+            'evaluation_method' => 'Participant Evaluation Survey',
+            'calculation_details' => $actualSat !== null ? "Calculation: Actual Rating ({$actualSat}/5.0) / Target Rating ({$targetSat}/5.0) = {$satPct}% [Responses: {$surveyRespondentCount}]." : "Pending evaluation survey.",
+            'response_count' => $surveyRespondentCount
         ];
 
-        // --- C. Criteria ratings from evaluations ---
-        // School Template Note: The school template specifies a weighted average for Survey/Feedback.
-        // Legitimate weights are not yet defined by the school, so criteria ratings are currently
-        // calculated as an unweighted average (each weight defaults to 1.0). Weighted formula architecture
-        // is preserved so legitimate weights can be supplied without changing the calculation engine.
+        // Dynamic Proposal Criteria Evaluation
+        if (!empty($definedKpis)) {
+            foreach ($definedKpis as $dk) {
+                $ind = trim($dk['indicator'] ?? '');
+                $targetRaw = trim($dk['target_metric'] ?? '');
+                $methodRaw = trim($dk['evaluation_method'] ?? '');
+                $indLower = strtolower($ind);
+                $methodLower = strtolower($methodRaw);
+
+                $parsed = function_exists('parseKpiTargetMetric') 
+                    ? parseKpiTargetMetric($targetRaw, $targetAttendance)
+                    : ['type' => 'numeric', 'calc_target' => (float)$targetRaw, 'raw' => $targetRaw];
+
+                $targetVal = $parsed['calc_target'];
+                $actualVal = null;
+                $achPct = null;
+                $calcDetails = '';
+
+                $isAttendance = (
+                    str_contains($indLower, 'attend') || str_contains($indLower, 'participant') || 
+                    str_contains($indLower, 'headcount') || str_contains($indLower, 'turnout') ||
+                    str_contains($methodLower, 'attendance') || str_contains($methodLower, 'paper')
+                );
+
+                $isSatisfaction = (
+                    str_contains($indLower, 'satisfact') || str_contains($indLower, 'survey') ||
+                    str_contains($indLower, 'rating') || str_contains($indLower, 'feedback') ||
+                    str_contains($indLower, 'evaluat') || str_contains($methodLower, 'survey') ||
+                    str_contains($methodLower, 'student evaluation')
+                );
+
+                if ($isAttendance) {
+                    $actualVal = $actualAttendance;
+                    $effTarget = ($targetVal && $targetVal > 0) ? $targetVal : $targetAttendance;
+                    if ($actualVal !== null && $effTarget > 0) {
+                        $achPct = round(($actualVal / $effTarget) * 100, 1);
+                        $calcDetails = "Calculation: Actual ({$actualVal}) / Target ({$effTarget}) = {$achPct}%. {$attendanceDetails}";
+                    } else {
+                        $calcDetails = "Insufficient attendance data recorded. Target: {$effTarget}.";
+                    }
+                } elseif ($isSatisfaction) {
+                    $targetRating = ($targetVal && $targetVal > 0) ? $targetVal : 4.0;
+                    $actualVal = $actualSat;
+                    if ($actualVal !== null && $targetRating > 0) {
+                        $achPct = round(($actualVal / $targetRating) * 100, 1);
+                        $calcDetails = "Calculation: Actual Rating ({$actualVal}/5.0) / Target Rating ({$targetRating}/5.0) = {$achPct}% [Survey Responses: {$surveyRespondentCount}].";
+                    } else {
+                        $calcDetails = "Pending participant evaluation survey responses or post-event ratings.";
+                    }
+                } else {
+                    // Check if criterion matches one of the evaluation questions
+                    $matchedQuestion = null;
+                    foreach ($criteriaRatings as $cr) {
+                        if (stripos($cr['criteria'], $ind) !== false || stripos($ind, $cr['criteria']) !== false) {
+                            $matchedQuestion = $cr;
+                            break;
+                        }
+                    }
+                    if ($matchedQuestion) {
+                        $actualVal = (float)$matchedQuestion['avg_rating'];
+                        $targetRating = ($targetVal && $targetVal > 0) ? $targetVal : 3.0;
+                        $achPct = round(($actualVal / $targetRating) * 100, 1);
+                        $calcDetails = "Calculation: Actual Question Score ({$actualVal}/4.0) / Target ({$targetRating}/4.0) = {$achPct}% [Responses: {$matchedQuestion['response_count']}].";
+                    } else {
+                        $calcDetails = "Pending specific criteria verification from post-event documentation or evaluation responses.";
+                    }
+                }
+
+                $status = getKpiStatus($achPct);
+                if ($achPct !== null) {
+                    $achievementScores[] = $achPct;
+                }
+
+                $allKpiRows[] = [
+                    'indicator' => $ind,
+                    'name' => $ind,
+                    'target' => $targetRaw ?: ($targetAttendance > 0 ? (string)$targetAttendance : '—'),
+                    'evaluation_method' => $methodRaw ?: 'Proposal Defined Metric',
+                    'actual' => $actualVal !== null ? (string)$actualVal : '—',
+                    'achievement' => $achPct !== null ? $achPct . '%' : '—',
+                    'achievement_val' => $achPct,
+                    'status' => $status,
+                    'calculation_details' => $calcDetails,
+                    'response_count' => $surveyRespondentCount
+                ];
+            }
+        } else {
+            // Legacy activities fallback: include primary attendance and satisfaction
+            if ($attPct !== null) $achievementScores[] = $attPct;
+            $allKpiRows[] = $kpis['attendance'];
+
+            if ($satPct !== null) $achievementScores[] = $satPct;
+            $allKpiRows[] = $kpis['satisfaction'];
+        }
+
+        // Criteria ratings from evaluation survey questions
         $kpis['criteria'] = [];
         $totalWeight = 0;
         $weightedCriteriaSum = 0;
@@ -158,17 +311,19 @@ if (!function_exists('calculateActivityKpis')) {
             $critName = trim($cr['criteria']);
             $targetRating = 3.0; // Benchmark target out of 4.0 stars
             $actualRating = (float)$cr['avg_rating'];
-            // Smallest safe change: allow weight if provided in data/config, default to 1.0 (unweighted)
             $weight = isset($cr['weight']) && is_numeric($cr['weight']) && (float)$cr['weight'] > 0 ? (float)$cr['weight'] : 1.0;
 
             $critPct = round(($actualRating / $targetRating) * 100, 1);
             $totalWeight += $weight;
             $weightedCriteriaSum += ($critPct * $weight);
-            $achievementScores[] = $critPct;
+            if (empty($definedKpis)) {
+                $achievementScores[] = $critPct;
+            }
             $critStatus = getKpiStatus($critPct);
 
             $kpis['criteria'][] = [
                 'indicator' => 'Survey Metric: ' . $critName,
+                'name' => $critName,
                 'criteria_name' => $critName,
                 'target' => number_format($targetRating, 1) . ' / 4.0',
                 'actual' => number_format($actualRating, 1) . ' / 4.0',
@@ -176,32 +331,31 @@ if (!function_exists('calculateActivityKpis')) {
                 'achievement' => $critPct . '%',
                 'achievement_val' => $critPct,
                 'status' => $critStatus,
-                'response_count' => (int)$cr['response_count']
+                'response_count' => (int)$cr['response_count'],
+                'evaluation_method' => 'Participant Evaluation Survey',
+                'calculation_details' => "Calculation: Average Rating ({$actualRating}/4.0) / Target ({$targetRating}/4.0) = {$critPct}% [Responses: {$cr['response_count']}]."
             ];
         }
+
         $surveyScore = $totalWeight > 0 ? round($weightedCriteriaSum / $totalWeight, 1) : null;
         $kpis['survey_summary'] = [
             'calculation_type' => 'unweighted',
-            'note' => 'Calculated as unweighted average; official survey weights pending confirmation',
+            'note' => 'Calculated as unweighted average of survey evaluation criteria',
             'score' => $surveyScore,
             'status' => getKpiStatus($surveyScore)
         ];
 
-        // Calculate Overall Activity Performance
-        $overallPct = null;
-        $overallStatus = 'Insufficient Data';
-        if (!empty($achievementScores)) {
-            $overallPct = round(array_sum($achievementScores) / count($achievementScores), 1);
-            $overallStatus = getKpiStatus($overallPct);
-        }
+        // Overall Performance Score
+        $overallPct = !empty($achievementScores) ? round(array_sum($achievementScores) / count($achievementScores), 1) : null;
+        $overallStatus = getKpiStatus($overallPct);
 
-        // Generate data signature hash for cache detection
-        // Serializes all numeric calculation inputs to form a deterministic SHA-256 signature
+        // Data signature hash for cache detection
         $hashInput = json_encode([
             'activity_id' => $activityId,
             'target_attendance' => $targetAttendance,
             'actual_attendance' => $actualAttendance,
             'satisfaction_score' => $actualSat,
+            'all_kpi_rows' => $allKpiRows,
             'criteria_data' => $criteriaRatings
         ]);
         $dataHash = hash('sha256', $hashInput);
@@ -210,6 +364,9 @@ if (!function_exists('calculateActivityKpis')) {
             'activity_id' => $activityId,
             'title' => $activity['title'],
             'kpis' => $kpis,
+            'all_kpi_rows' => $allKpiRows,
+            'attendance_method' => $attMethod,
+            'deduplication_applied' => $dedupApplied,
             'overall_performance' => $overallPct,
             'overall_status' => $overallStatus,
             'data_hash' => $dataHash,
@@ -257,44 +414,20 @@ if (!function_exists('getInstitutionalKpiSummary')) {
 
         $rawStats = [];
         try {
-            // 1. Activity Statistics (Scoped to activities that reached the Dean, were approved/completed, or directly acted upon by the Dean)
-            if ($deanId !== null) {
-                $statsStmt = $db->prepare("
-                    SELECT
-                        COUNT(DISTINCT CASE 
-                            WHEN a.status IN ('pending_final_approval', 'approved', 'completed') 
-                                 OR (a.status IN ('returned_for_revision', 'rejected') AND EXISTS (
-                                     SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?
-                                 ))
-                            THEN a.id 
-                        END) as total,
-                        SUM(CASE WHEN a.status = 'pending_final_approval' THEN 1 ELSE 0 END) as pending,
-                        SUM(CASE WHEN a.status = 'approved' THEN 1 ELSE 0 END) as approved,
-                        SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END) as completed,
-                        SUM(CASE WHEN a.status = 'returned_for_revision' AND EXISTS (
-                            SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?
-                        ) THEN 1 ELSE 0 END) as returned,
-                        SUM(CASE WHEN a.status = 'rejected' AND EXISTS (
-                            SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?
-                        ) THEN 1 ELSE 0 END) as rejected
-                    FROM activities a
-                    WHERE {$where} AND a.status != 'draft'
-                ");
-                $statsStmt->execute(array_merge([$deanId, $deanId, $deanId], $params));
-            } else {
-                $statsStmt = $db->prepare("
-                    SELECT
-                        COUNT(*) as total,
-                        SUM(status = 'pending_final_approval') as pending,
-                        SUM(status = 'approved') as approved,
-                        SUM(status = 'completed') as completed,
-                        SUM(status = 'returned_for_revision') as returned,
-                        SUM(status = 'rejected') as rejected
-                    FROM activities a
-                    WHERE {$where} AND a.status != 'draft'
-                ");
-                $statsStmt->execute($params);
-            }
+            // 1. Activity Statistics: Comprehensive institutional oversight across all submitted proposals
+            // Counts all non-draft activities regardless of which approver acted on them (parity with Dean All Activities)
+            $statsStmt = $db->prepare("
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN a.status = 'pending_final_approval' THEN 1 ELSE 0 END) as pending,
+                    SUM(CASE WHEN a.status = 'approved' THEN 1 ELSE 0 END) as approved,
+                    SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN a.status = 'returned_for_revision' THEN 1 ELSE 0 END) as returned,
+                    SUM(CASE WHEN a.status = 'rejected' THEN 1 ELSE 0 END) as rejected
+                FROM activities a
+                WHERE {$where} AND a.status != 'draft'
+            ");
+            $statsStmt->execute($params);
             $rawStats = $statsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
         } catch (\Throwable $e) {
             error_log("getInstitutionalKpiSummary stats error: " . $e->getMessage());
@@ -451,19 +584,11 @@ if (!function_exists('getInstitutionalKpiSummary')) {
 
 if (!function_exists('getApprovalTrends')) {
     /**
-     * Retrieves monthly approval vs returned/rejected proposal trends for the selected period.
+     * Retrieves monthly approval, returned, and rejected proposal trends for the selected period
+     * based on actual decision dates (approved_at, approval_logs.acted_at, or updated_at).
      */
     function getApprovalTrends($year, string $period, PDO $db, ?string $source = null, ?int $reviewerId = null): array
     {
-        $periodBounds = buildPeriodWhereClause($year, $period, 'a.event_date');
-        $where = $periodBounds['where'];
-        $params = $periodBounds['params'];
-
-        if ($source !== null) {
-            $where .= " AND a.source = ?";
-            $params[] = $source;
-        }
-
         // Determine active month range for period
         $activeMonths = range(1, 12);
         if ($period === '1st_sem') {
@@ -472,90 +597,172 @@ if (!function_exists('getApprovalTrends')) {
             $activeMonths = [11, 12, 1, 2, 3];
         }
 
-        // Query approval and return/rejection counts grouped by month
-        // Strictly counts only activities with 'approved' status (completed activities remain classified as completed)
-        $rows = [];
-        try {
-            if ($reviewerId !== null) {
-                $trendStmt = $db->prepare("
-                    SELECT
-                        MONTH(a.event_date) as m,
-                        SUM(a.status = 'approved') as approved_count,
-                        SUM(CASE WHEN a.status IN ('returned_for_revision', 'rejected') AND EXISTS (
-                            SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?
-                        ) THEN 1 ELSE 0 END) as returned_count,
-                        COUNT(DISTINCT CASE 
-                            WHEN a.status IN ('pending_final_approval', 'approved', 'completed') 
-                                 OR (a.status IN ('returned_for_revision', 'rejected') AND EXISTS (
-                                     SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?
-                                 ))
-                            THEN a.id 
-                        END) as total_count
-                    FROM activities a
-                    WHERE {$where} AND a.status != 'draft'
-                    GROUP BY MONTH(a.event_date)
-                    ORDER BY m ASC
-                ");
-                $trendStmt->execute(array_merge([$reviewerId, $reviewerId], $params));
-            } else {
-                $trendStmt = $db->prepare("
-                    SELECT
-                        MONTH(a.event_date) as m,
-                        SUM(a.status = 'approved') as approved_count,
-                        SUM(a.status IN ('returned_for_revision', 'rejected')) as returned_count,
-                        COUNT(*) as total_count
-                    FROM activities a
-                    WHERE {$where} AND a.status != 'draft'
-                    GROUP BY MONTH(a.event_date)
-                    ORDER BY m ASC
-                ");
-                $trendStmt->execute($params);
-            }
-            $rows = $trendStmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (\Throwable $e) {
-            error_log("getApprovalTrends error: " . $e->getMessage());
-            $rows = [];
-        }
-
-        $monthMap = [];
-        foreach ($rows as $r) {
-            $monthMap[(int)$r['m']] = [
-                'approved' => (int)$r['approved_count'],
-                'returned' => (int)$r['returned_count'],
-                'total' => (int)$r['total_count']
+        $monthData = [];
+        foreach ($activeMonths as $m) {
+            $monthData[$m] = [
+                'approved' => 0,
+                'returned' => 0,
+                'rejected' => 0,
+                'total'    => 0
             ];
         }
 
+        // Shared source filter
+        $sourceSql = ($source !== null) ? " AND a.source = ?" : "";
+
+        // 1. Approved proposals (counted by actual approval decision date)
+        try {
+            $appWhere = "a.status IN ('approved', 'completed'){$sourceSql}";
+            $appParams = ($source !== null) ? [$source] : [];
+
+            if ($reviewerId !== null) {
+                $appWhere .= " AND (a.status IN ('approved', 'completed') OR EXISTS (SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?))";
+                $appParams[] = $reviewerId;
+            }
+
+            $appStmt = $db->prepare("
+                SELECT 
+                    MONTH(COALESCE(
+                        a.approved_at,
+                        (SELECT al.acted_at FROM approval_logs al WHERE al.activity_id = a.id AND al.action = 'approved' ORDER BY al.acted_at DESC LIMIT 1),
+                        a.updated_at
+                    )) as m,
+                    YEAR(COALESCE(
+                        a.approved_at,
+                        (SELECT al.acted_at FROM approval_logs al WHERE al.activity_id = a.id AND al.action = 'approved' ORDER BY al.acted_at DESC LIMIT 1),
+                        a.updated_at
+                    )) as y,
+                    COUNT(DISTINCT a.id) as cnt
+                FROM activities a
+                WHERE {$appWhere}
+                GROUP BY y, m
+            ");
+            $appStmt->execute($appParams);
+            $appRows = $appStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($appRows as $r) {
+                $m = (int)$r['m'];
+                $y = (int)$r['y'];
+                if (($year === 'all' || $year === null || $year === '' || $year === 0 || $y === (int)$year) && in_array($m, $activeMonths, true)) {
+                    $monthData[$m]['approved'] += (int)$r['cnt'];
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log("getApprovalTrends approved query error: " . $e->getMessage());
+        }
+
+        // 2. Returned proposals (current status = 'returned_for_revision', counted by return decision date)
+        try {
+            $retWhere = "a.status = 'returned_for_revision'{$sourceSql}";
+            $retParams = ($source !== null) ? [$source] : [];
+
+            if ($reviewerId !== null) {
+                $retWhere .= " AND EXISTS (SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?)";
+                $retParams[] = $reviewerId;
+            }
+
+            $retStmt = $db->prepare("
+                SELECT 
+                    MONTH(COALESCE(
+                        (SELECT al.acted_at FROM approval_logs al WHERE al.activity_id = a.id AND al.action = 'returned_for_revision' ORDER BY al.acted_at DESC LIMIT 1),
+                        a.updated_at
+                    )) as m,
+                    YEAR(COALESCE(
+                        (SELECT al.acted_at FROM approval_logs al WHERE al.activity_id = a.id AND al.action = 'returned_for_revision' ORDER BY al.acted_at DESC LIMIT 1),
+                        a.updated_at
+                    )) as y,
+                    COUNT(DISTINCT a.id) as cnt
+                FROM activities a
+                WHERE {$retWhere}
+                GROUP BY y, m
+            ");
+            $retStmt->execute($retParams);
+            $retRows = $retStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($retRows as $r) {
+                $m = (int)$r['m'];
+                $y = (int)$r['y'];
+                if (($year === 'all' || $year === null || $year === '' || $year === 0 || $y === (int)$year) && in_array($m, $activeMonths, true)) {
+                    $monthData[$m]['returned'] += (int)$r['cnt'];
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log("getApprovalTrends returned query error: " . $e->getMessage());
+        }
+
+        // 3. Rejected proposals (current status = 'rejected', counted by rejection decision date)
+        try {
+            $rejWhere = "a.status = 'rejected'{$sourceSql}";
+            $rejParams = ($source !== null) ? [$source] : [];
+
+            if ($reviewerId !== null) {
+                $rejWhere .= " AND EXISTS (SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?)";
+                $rejParams[] = $reviewerId;
+            }
+
+            $rejStmt = $db->prepare("
+                SELECT 
+                    MONTH(COALESCE(
+                        (SELECT al.acted_at FROM approval_logs al WHERE al.activity_id = a.id AND al.action = 'rejected' ORDER BY al.acted_at DESC LIMIT 1),
+                        a.updated_at
+                    )) as m,
+                    YEAR(COALESCE(
+                        (SELECT al.acted_at FROM approval_logs al WHERE al.activity_id = a.id AND al.action = 'rejected' ORDER BY al.acted_at DESC LIMIT 1),
+                        a.updated_at
+                    )) as y,
+                    COUNT(DISTINCT a.id) as cnt
+                FROM activities a
+                WHERE {$rejWhere}
+                GROUP BY y, m
+            ");
+            $rejStmt->execute($rejParams);
+            $rejRows = $rejStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($rejRows as $r) {
+                $m = (int)$r['m'];
+                $y = (int)$r['y'];
+                if (($year === 'all' || $year === null || $year === '' || $year === 0 || $y === (int)$year) && in_array($m, $activeMonths, true)) {
+                    $monthData[$m]['rejected'] += (int)$r['cnt'];
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log("getApprovalTrends rejected query error: " . $e->getMessage());
+        }
+
+        // Aggregate monthly trends and grand totals
         $trends = [];
         $maxMonthCount = 1;
         $totalApproved = 0;
         $totalReturned = 0;
+        $totalRejected = 0;
 
         foreach ($activeMonths as $m) {
-            $approved = $monthMap[$m]['approved'] ?? 0;
-            $returned = $monthMap[$m]['returned'] ?? 0;
-            $total = $monthMap[$m]['total'] ?? 0;
+            $app = $monthData[$m]['approved'];
+            $ret = $monthData[$m]['returned'];
+            $rej = $monthData[$m]['rejected'];
+            $tot = $app + $ret + $rej;
 
-            if ($total > $maxMonthCount) {
-                $maxMonthCount = $total;
-            }
-            $totalApproved += $approved;
-            $totalReturned += $returned;
+            $maxMonthCount = max($maxMonthCount, $app, $ret, $rej);
+            $totalApproved += $app;
+            $totalReturned += $ret;
+            $totalRejected += $rej;
 
             $trends[] = [
-                'month_num' => $m,
+                'month_num'  => $m,
                 'month_name' => date('M', mktime(0, 0, 0, $m, 1)),
-                'approved' => $approved,
-                'returned' => $returned,
-                'total' => $total
+                'approved'   => $app,
+                'returned'   => $ret,
+                'rejected'   => $rej,
+                'total'      => $tot
             ];
         }
 
         return [
-            'months' => $trends,
-            'max_count' => $maxMonthCount,
+            'months'         => $trends,
+            'max_count'      => $maxMonthCount,
             'total_approved' => $totalApproved,
-            'total_returned' => $totalReturned
+            'total_returned' => $totalReturned,
+            'total_rejected' => $totalRejected
         ];
     }
 }

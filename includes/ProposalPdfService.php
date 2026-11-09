@@ -246,8 +246,11 @@ class ProposalPdfService
         $ins->execute([$activityId, $fileName, $localRelPath, $userId]);
         $docId = (int)$db->lastInsertId();
 
-        // Attempt non-blocking OneDrive archive synchronization
-        $syncMeta = attemptOneDriveArchiveCopy($fullLocalPath, $fileName, 'proposals', $activityId, $service);
+        // Attempt OneDrive archive synchronization only when explicitly requested, in CLI, or when service is injected
+        $syncMeta = null;
+        if ($service !== null || PHP_SAPI === 'cli') {
+            $syncMeta = attemptOneDriveArchiveCopy($fullLocalPath, $fileName, 'proposals', $activityId, $service);
+        }
 
         if ($syncMeta) {
             // Update document row with sync metadata

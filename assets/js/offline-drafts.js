@@ -166,12 +166,40 @@
     // Always ensure action is draft
     data['action'] = 'draft';
 
+    // Capture current wizard step progress (Issue 4)
+    if (typeof window.currentStep !== 'undefined') {
+      data['wizard_current_step'] = window.currentStep;
+    }
+    if (typeof window.maxUnlockedStep !== 'undefined') {
+      data['wizard_max_step'] = window.maxUnlockedStep;
+    }
+
     // Capture evaluation questions array if present in window or hidden field
     if (window.questionsList && Array.isArray(window.questionsList) && window.questionsList.length > 0) {
       data['eval_questions_json'] = JSON.stringify(window.questionsList);
     }
 
     return data;
+  }
+
+  /**
+   * Helper: Check whether draft data contains meaningful user entered content
+   * (Prevents generating or syncing blank/empty dummy drafts)
+   */
+  function hasMeaningfulDraftData(formData) {
+    if (!formData || typeof formData !== 'object') return false;
+    const title = (formData['title'] || formData['activity_title'] || '').trim();
+    if (title.length > 0 && title !== 'Untitled Proposal Draft' && title !== 'Untitled Draft') return true;
+    for (const key in formData) {
+      if (['action', 'faculty_id', 'activity_id', 'proposal_session_token', 'wizard_current_step', 'wizard_max_step', 'csrf_token', 'source', 'staged_collaborators_json', 'eval_questions_json', 'evaluation_questions_json', 'target_participants'].includes(key)) continue;
+      const val = formData[key];
+      if (Array.isArray(val)) {
+        if (val.some(item => item && String(item).trim().length > 0)) return true;
+      } else if (val && String(val).trim().length > 0) {
+        return true;
+      }
+    }
+    return false;
   }
 
   function restoreForm(formEl, draftData) {
@@ -277,7 +305,58 @@
       }
     }
 
-    // 4. Trigger calculations & recalculate summaries
+    // 4. Re-initialize Teacher Multi-Select badges for dynamic participant rows (Issue 4)
+    try {
+      setTimeout(() => {
+        document.querySelectorAll('.teacher-multiselect').forEach(container => {
+          const hiddenInput = container.querySelector('input.part-teacher-input');
+          if (hiddenInput && hiddenInput.value && typeof window.initTeacherMultiSelect === 'function') {
+            container._tmsInitialized = false;
+            window.initTeacherMultiSelect(container, hiddenInput.value);
+          }
+        });
+      }, 50);
+    } catch (tmsErr) {
+      console.warn('[OfflineDrafts] Teacher multi-select restoration notice:', tmsErr);
+    }
+
+    // 5. Restore Floor Plan notes & radio choices
+    try {
+      if (typeof draftData['floor_plan_required'] !== 'undefined') {
+        const fpRadios = formEl.querySelectorAll('input[name="floor_plan_required"]');
+        fpRadios.forEach(r => {
+          r.checked = (String(r.value) === String(draftData['floor_plan_required']));
+        });
+      }
+      if (draftData['floor_plan_notes']) {
+        const fpNotesEl = formEl.querySelector('[name="floor_plan_notes"]');
+        if (fpNotesEl) fpNotesEl.value = draftData['floor_plan_notes'];
+      }
+    } catch (fpErr) {
+      console.warn('[OfflineDrafts] Floor plan restoration notice:', fpErr);
+    }
+
+    // 6. Restore Wizard Step Progress (Issue 4)
+    try {
+      if (draftData['wizard_max_step'] && typeof window.maxUnlockedStep !== 'undefined') {
+        const targetMax = Math.max(window.maxUnlockedStep, parseInt(draftData['wizard_max_step'], 10));
+        window.maxUnlockedStep = targetMax;
+        const maxInput = document.getElementById('maxUnlockedStep');
+        if (maxInput) maxInput.value = targetMax;
+      }
+      if (draftData['wizard_current_step'] && typeof window.showStep === 'function') {
+        const targetStep = parseInt(draftData['wizard_current_step'], 10);
+        if (targetStep >= 1 && targetStep <= 9) {
+          setTimeout(() => {
+            window.showStep(targetStep);
+          }, 100);
+        }
+      }
+    } catch (stepErr) {
+      console.warn('[OfflineDrafts] Wizard step progress restoration notice:', stepErr);
+    }
+
+    // 7. Trigger calculations & recalculate summaries
     try {
       if (typeof window.updateTotal === 'function') window.updateTotal();
       if (typeof window.updateManpowerSummary === 'function') window.updateManpowerSummary();
@@ -348,11 +427,7 @@
     badge.setAttribute('title', message || conf.text);
 
     if (retryBtn) {
-      if (conf.showRetry || statusKey === 'pending_sync' || statusKey === 'sync_failed') {
-        retryBtn.style.display = 'inline-block';
-      } else {
-        retryBtn.style.display = 'none';
-      }
+      retryBtn.style.display = 'none';
     }
 
     // Update banner if online/offline
@@ -441,6 +516,11 @@
     const serverIdVal = formEl.elements['activity_id'] ? parseInt(formEl.elements['activity_id'].value, 10) : null;
     const serverId = (serverIdVal && serverIdVal > 0) ? serverIdVal : null;
 
+    // Guard: Prevent saving completely blank drafts for new proposals
+    if (!serverId && !hasMeaningfulDraftData(formData)) {
+      return null;
+    }
+
     let localId = activeLocalDraftId;
     if (!localId) {
       if (serverId) {
@@ -520,19 +600,20 @@
   async function syncDraft(draft) {
     if (!draft) return false;
 
-    // Check connectivity & auth first
-    const conn = await checkServerConnection();
-    if (!conn.connected) {
-      updateStatusUI('pending_sync', 'Offline. Will sync when reconnected.');
+    // Check offline connectivity first
+    if (!navigator.onLine) {
+      draft.sync_status = 'saved_locally';
+      await putDraft(draft).catch(() => {});
+      const formCheck = document.getElementById('proposalForm');
+      const isCur = Boolean(formCheck && (
+        (draft.server_id && formCheck.elements['activity_id'] && parseInt(formCheck.elements['activity_id'].value, 10) === parseInt(draft.server_id, 10)) ||
+        (!draft.server_id && (!formCheck.elements['activity_id'] || !parseInt(formCheck.elements['activity_id'].value, 10)) && activeLocalDraftId === draft.local_id)
+      ));
+      if (isCur) {
+        updateStatusUI('saved_locally', 'Offline: draft saved locally');
+      }
       return false;
     }
-    if (!conn.authenticated) {
-      updateStatusUI('sync_failed', 'Session unauthenticated. Please log in.');
-      showToast('⚠️ Please log in to synchronize offline drafts.', 'warning');
-      return false;
-    }
-
-    updateStatusUI('syncing');
 
     let endpoint = baseUrl + '/api/proposal-save.php';
     if (draft.server_id && draft.server_id > 0) {
@@ -546,7 +627,14 @@
       'X-Requested-With': 'XMLHttpRequest'
     };
 
-    if (formEl) {
+    // Multi-draft safety: only use live FormData if the open form matches THIS draft (Issue 4)
+    const isFormForThisDraft = Boolean(formEl && (
+      (draft.server_id && formEl.elements['activity_id'] && parseInt(formEl.elements['activity_id'].value, 10) === parseInt(draft.server_id, 10)) ||
+      (!draft.server_id && (!formEl.elements['activity_id'] || !parseInt(formEl.elements['activity_id'].value, 10)) && activeLocalDraftId === draft.local_id)
+    ));
+
+    if (isFormForThisDraft) {
+      updateStatusUI('syncing');
       const fd = new FormData(formEl);
       fd.set('action', 'draft');
       fd.set('is_ajax_sync', '1');
@@ -593,19 +681,34 @@
       const resp = await fetch(endpoint, {
         method: 'POST',
         headers: requestHeaders,
+        credentials: 'same-origin',
         body: requestBody
       });
 
+      // 401: Session unauthenticated / expired
+      if (resp.status === 401) {
+        draft.sync_status = 'pending_sync';
+        draft.sync_error = 'Session expired. Please log in.';
+        await putDraft(draft).catch(() => {});
+        if (isFormForThisDraft) {
+          updateStatusUI('sync_failed', 'Session expired. Please log in.');
+          showToast('⚠️ Please log in to synchronize offline drafts.', 'warning');
+        }
+        return false;
+      }
+
       // 409 Conflict: Server has newer modifications
       if (resp.status === 409) {
-        const confData = await resp.json();
+        const confData = await resp.json().catch(() => ({}));
         draft.sync_status = 'conflict_requires_review';
         draft.sync_error = confData.error || 'Server copy was modified more recently.';
         draft.server_updated_at = confData.server_updated_at || draft.server_updated_at;
         await putDraft(draft);
 
-        updateStatusUI('conflict_requires_review');
-        showConflictModal(draft, confData);
+        if (isFormForThisDraft) {
+          updateStatusUI('conflict_requires_review');
+          showConflictModal(draft, confData);
+        }
         return false;
       }
 
@@ -613,6 +716,21 @@
         const result = await resp.json();
         if (result.success) {
           const newServerId = parseInt(result.activity_id, 10);
+          const wasNewDraft = (!draft.server_id || draft.local_id === 'draft_new_active');
+
+          if (wasNewDraft && newServerId > 0) {
+            // Clean up temporary draft_new_active key from storage to prevent zombie duplicates (Issue 4)
+            await deleteDraft('draft_new_active');
+            try {
+              localStorage.removeItem('sti_active_draft_full_new');
+              localStorage.removeItem('sti_emergency_new_active');
+              localStorage.removeItem('sti_draft_meta_new_active');
+            } catch (e) {}
+
+            draft.local_id = 'draft_srv_' + newServerId;
+            activeLocalDraftId = draft.local_id;
+          }
+
           draft.server_id = newServerId;
           if (draft.form_data) {
             draft.form_data['activity_id'] = String(newServerId);
@@ -624,12 +742,33 @@
           delete draft.force_overwrite;
           await putDraft(draft);
 
-          updateStatusUI('synchronized');
-          showToast('✓ Proposal draft synchronized with server.', 'success');
+          // Update localStorage
+          try {
+            const fullDataKey = `sti_active_draft_full_srv_${newServerId}`;
+            const metaKey = `sti_draft_meta_srv_${newServerId}`;
+            localStorage.setItem(fullDataKey, JSON.stringify(draft));
+            localStorage.setItem(metaKey, JSON.stringify({
+              local_id: draft.local_id,
+              server_id: newServerId,
+              title: draft.title,
+              last_saved_at: draft.last_saved_at,
+              faculty_id: draft.faculty_id
+            }));
+          } catch (e) {}
 
-          // If current form is open on proposal-create, transition it to edit state without losing inputs
-          const formEl = document.getElementById('proposalForm');
-          if (formEl) {
+          if (isFormForThisDraft) {
+            updateStatusUI('synchronized');
+            showToast('✓ Proposal draft synchronized with server.', 'success');
+          }
+
+          // Continuously update client timestamp references to prevent false optimistic locking conflicts
+          if (isFormForThisDraft && formEl) {
+            if (result.updated_at) {
+              formEl.dataset.serverUpdatedAt = result.updated_at;
+              const lastKnownInput = formEl.elements['last_known_updated_at'] || document.getElementById('proposalLastKnownUpdatedAt');
+              if (lastKnownInput) lastKnownInput.value = result.updated_at;
+            }
+
             const actInput = formEl.elements['activity_id'];
             if (actInput && (!actInput.value || actInput.value === '0')) {
               actInput.value = newServerId;
@@ -660,34 +799,77 @@
 
       // Non-ok response
       const errResult = await resp.json().catch(() => ({}));
+      console.warn('[OfflineDrafts] Server response not ok:', resp.status, errResult);
+
+      // If the activity was deleted from the server (404) or user lost permission (403), purge the orphaned draft
+      if (resp.status === 404 || resp.status === 403 || (errResult && (errResult.error_code === 'not_found' || errResult.error_code === 'access_denied'))) {
+        await deleteDraft(draft.local_id).catch(() => {});
+        try {
+          if (draft.server_id) {
+            localStorage.removeItem(`sti_active_draft_full_srv_${draft.server_id}`);
+            localStorage.removeItem(`sti_draft_meta_srv_${draft.server_id}`);
+            localStorage.removeItem(`sti_emergency_srv_${draft.server_id}`);
+          }
+        } catch (e) {}
+        if (isFormForThisDraft) {
+          updateStatusUI('synchronized');
+        }
+        return true;
+      }
+
       draft.sync_status = 'sync_failed';
       draft.sync_error = errResult.error || `Server returned error (${resp.status})`;
       draft.last_sync_attempt = new Date().toISOString();
       await putDraft(draft);
-      updateStatusUI('sync_failed', draft.sync_error);
+      if (isFormForThisDraft) {
+        updateStatusUI('sync_failed', draft.sync_error);
+      }
       return false;
 
     } catch (netErr) {
       console.warn('[OfflineDrafts] Sync network error:', netErr);
-      draft.sync_status = 'pending_sync';
+      draft.sync_status = 'saved_locally';
       draft.sync_error = 'Network connection interrupted during sync.';
       draft.last_sync_attempt = new Date().toISOString();
-      await putDraft(draft);
-      updateStatusUI('pending_sync', 'Offline. Retry scheduled.');
+      await putDraft(draft).catch(() => {});
+      if (isFormForThisDraft) {
+        updateStatusUI('saved_locally', 'Offline. Changes saved locally.');
+      }
       return false;
     }
   }
 
   async function syncAllPendingDrafts() {
     if (isSyncInProgress) return;
+    if (!navigator.onLine) return;
     isSyncInProgress = true;
 
     try {
       const drafts = await getAllDrafts();
-      const pending = drafts.filter(d => ['pending_sync', 'saved_locally', 'sync_failed'].includes(d.sync_status));
+      if (!drafts || drafts.length === 0) return;
 
-      for (const d of pending) {
-        await syncDraft(d);
+      for (const d of drafts) {
+        // Automatically prune empty drafts with no meaningful content (e.g. blank "Untitled Proposal Draft")
+        if (!hasMeaningfulDraftData(d.form_data)) {
+          await deleteDraft(d.local_id);
+          try {
+            if (d.server_id) {
+              localStorage.removeItem(`sti_active_draft_full_srv_${d.server_id}`);
+              localStorage.removeItem(`sti_draft_meta_srv_${d.server_id}`);
+              localStorage.removeItem(`sti_emergency_srv_${d.server_id}`);
+            } else {
+              localStorage.removeItem('sti_active_draft_full_new');
+              localStorage.removeItem('sti_draft_meta_new_active');
+              localStorage.removeItem('sti_emergency_new_active');
+            }
+          } catch (e) {}
+          continue;
+        }
+
+        // Automatically sync drafts that are pending, saved locally, or previously failed
+        if (['pending_sync', 'saved_locally', 'sync_failed'].includes(d.sync_status)) {
+          await syncDraft(d);
+        }
       }
     } finally {
       isSyncInProgress = false;
@@ -776,120 +958,18 @@
   }
 
   /**
-   * 9. Render Local Drafts Widget (for Activities & Dashboards)
+   * 9. Render Local Drafts Widget (Disabled in favor of 100% automatic background synchronization)
    */
   async function renderLocalDraftsWidget(containerId = 'localDraftsContainer') {
     const container = document.getElementById(containerId);
-    if (!container) return;
-
-    const drafts = await getAllDrafts();
-    if (!drafts || drafts.length === 0) {
+    if (container) {
       container.style.display = 'none';
-      return;
+      container.innerHTML = '';
     }
-
-    container.style.display = 'block';
-    let html = `
-      <div class="card" style="margin-bottom:20px;border-left:4px solid #F59E0B;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
-        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:rgba(245,158,11,0.08);">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:1.15rem;">💾</span>
-            <strong style="font-size:0.95rem;color:var(--text-main,#333);">Local Offline Proposal Drafts</strong>
-            <span class="badge" style="background:#F59E0B;color:#fff;font-size:0.75rem;">${drafts.length} stored</span>
-          </div>
-          <button type="button" id="btnSyncAllLocalDrafts" class="btn btn-sm btn-primary" style="padding:4px 10px;font-size:0.78rem;">
-            🔄 Sync All Now
-          </button>
-        </div>
-        <div class="card-body" style="padding:0;">
-          <div class="table-wrap">
-            <table class="activity-table" style="width:100%;margin:0;">
-              <thead>
-                <tr>
-                  <th>Proposal Title</th>
-                  <th>Last Saved Locally</th>
-                  <th>Sync Status</th>
-                  <th style="text-align:right;">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-    `;
-
-    drafts.forEach(d => {
-      const conf = STATUS_CONFIGS[d.sync_status] || STATUS_CONFIGS['saved_locally'];
-      const resumeUrl = d.server_id
-        ? `${baseUrl}/faculty/proposal-edit.php?id=${d.server_id}&local_id=${encodeURIComponent(d.local_id)}`
-        : `${baseUrl}/faculty/proposal-create.php?local_id=${encodeURIComponent(d.local_id)}`;
-
-      html += `
-        <tr>
-          <td>
-            <strong>${escapeHtml(d.title || 'Untitled Draft')}</strong>
-            ${d.sync_error ? `<br><small style="color:#EF4444;">⚠️ ${escapeHtml(d.sync_error)}</small>` : ''}
-          </td>
-          <td><span style="color:var(--text-secondary,#666);font-size:0.82rem;">${new Date(d.last_saved_at).toLocaleString()}</span></td>
-          <td>
-            <span class="badge" style="background:${conf.bg};color:#fff;font-size:0.78rem;padding:4px 8px;border-radius:10px;">
-              ${conf.icon} ${conf.text}
-            </span>
-          </td>
-          <td style="text-align:right;">
-            <div style="display:inline-flex;gap:6px;">
-              <a href="${resumeUrl}" class="btn btn-sm btn-primary" style="padding:3px 10px;font-size:0.78rem;">Resume</a>
-              <button type="button" class="btn btn-sm btn-outline btn-sync-single" data-id="${escapeHtml(d.local_id)}" style="padding:3px 10px;font-size:0.78rem;">Sync</button>
-              <button type="button" class="btn btn-sm btn-outline btn-delete-draft" data-id="${escapeHtml(d.local_id)}" style="padding:3px 8px;font-size:0.78rem;color:#EF4444;" title="Discard local copy">✕</button>
-            </div>
-          </td>
-        </tr>
-      `;
-    });
-
-    html += `
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-
-    container.innerHTML = html;
-
-    // Attach listeners
-    const syncAllBtn = container.querySelector('#btnSyncAllLocalDrafts');
-    if (syncAllBtn) {
-      syncAllBtn.onclick = async () => {
-        syncAllBtn.disabled = true;
-        syncAllBtn.innerText = 'Syncing...';
-        await syncAllPendingDrafts();
-        await renderLocalDraftsWidget(containerId);
-      };
+    // Automatically synchronize any pending drafts in background without manual clicks
+    if (navigator.onLine && !isSyncInProgress) {
+      syncAllPendingDrafts().catch(() => {});
     }
-
-    container.querySelectorAll('.btn-sync-single').forEach(btn => {
-      btn.onclick = async () => {
-        const dId = btn.getAttribute('data-id');
-        const targetDraft = await getDraft(dId);
-        if (targetDraft) {
-          btn.disabled = true;
-          await syncDraft(targetDraft);
-          await renderLocalDraftsWidget(containerId);
-        }
-      };
-    });
-
-    container.querySelectorAll('.btn-delete-draft').forEach(btn => {
-      btn.onclick = async () => {
-        const dId = btn.getAttribute('data-id');
-        const msg = 'Are you sure you want to discard this local draft?';
-        const confirmed = window.STIModal
-          ? await window.STIModal.confirm(msg, { title: 'Discard Local Draft?', confirmText: 'Discard Draft', cancelText: 'Cancel', variant: 'danger' })
-          : confirm(msg);
-        if (confirmed) {
-          await deleteDraft(dId);
-          await renderLocalDraftsWidget(containerId);
-        }
-      };
-    });
   }
 
   function escapeHtml(str) {
@@ -959,79 +1039,63 @@
 
     if (matchingDraft && matchingDraft.form_data) {
       activeLocalDraftId = matchingDraft.local_id;
-      updateStatusUI(matchingDraft.sync_status);
 
-      // Verify draft has non-empty contents
-      const hasMeaningfulContent = Object.keys(matchingDraft.form_data).some(k => {
-        if (['action', 'faculty_id', 'activity_id', 'proposal_session_token'].includes(k)) return false;
-        const v = matchingDraft.form_data[k];
-        if (Array.isArray(v)) return v.some(item => item && String(item).trim().length > 0);
-        return v && String(v).trim().length > 0;
-      });
+      // On initial load of an existing server proposal, initialize with Synchronized (or Saved Locally if offline)
+      if (serverId) {
+        updateStatusUI(navigator.onLine ? 'synchronized' : 'saved_locally');
+        if (matchingDraft.sync_status === 'sync_failed') {
+          matchingDraft.sync_status = navigator.onLine ? 'synchronized' : 'saved_locally';
+          matchingDraft.sync_error = null;
+          await putDraft(matchingDraft).catch(() => {});
+        }
+      } else {
+        updateStatusUI(matchingDraft.sync_status === 'synchronized' ? 'synchronized' : (navigator.onLine ? 'synchronized' : 'saved_locally'));
+      }
 
-      if (hasMeaningfulContent && (paramLocalId || matchingDraft.sync_status !== 'synchronized' || !serverId)) {
-        const resumeNotice = document.createElement('div');
-        resumeNotice.className = 'alert alert-info';
-        resumeNotice.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;background:rgba(2,132,199,0.08);border:1px solid #bae6fd;border-left:4px solid #0284c7;border-radius:10px;padding:12px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.05);';
-        const formattedDate = new Date(matchingDraft.last_saved_at).toLocaleString();
-        resumeNotice.innerHTML = `
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.35rem;">💾</span>
-            <div>
-              <strong style="color:#0369a1;font-size:0.92rem;">Auto-Saved Draft Found:</strong>
-              <div style="font-size:0.82rem;color:#475569;">You have uncommitted edits from <strong>${formattedDate}</strong> (${escapeHtml(matchingDraft.title || 'Untitled Proposal')}).</div>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;flex-shrink:0;">
-            <button type="button" id="btnApplyLocalDraft" class="btn btn-sm btn-primary" style="padding:6px 14px;font-weight:600;font-size:0.82rem;">Resume Draft</button>
-            <button type="button" id="btnDismissLocalDraft" class="btn btn-sm btn-outline" style="padding:6px 12px;font-size:0.82rem;color:#64748b;background:#fff;" title="Discard uncommitted draft and start fresh">Discard Draft</button>
-          </div>
-        `;
-        formEl.parentNode.insertBefore(resumeNotice, formEl);
+      const hasContent = hasMeaningfulDraftData(matchingDraft.form_data);
+      const isSubmissionError = urlParams.has('error');
 
-        document.getElementById('btnApplyLocalDraft').onclick = () => {
-          restoreForm(formEl, matchingDraft.form_data);
-          if (matchingDraft.server_id && parseInt(matchingDraft.server_id, 10) > 0) {
-            const actInput = formEl.elements['activity_id'] || document.getElementById('proposalActivityId');
-            if (actInput) {
-              actInput.value = matchingDraft.server_id;
-            }
-            formEl.action = baseUrl + '/api/proposal-update.php';
+      if (hasContent) {
+        // Automatically restore entered information and wizard step progress without manual button clicks
+        restoreForm(formEl, matchingDraft.form_data);
+        if (matchingDraft.server_id && parseInt(matchingDraft.server_id, 10) > 0) {
+          const actInput = formEl.elements['activity_id'] || document.getElementById('proposalActivityId');
+          if (actInput) actInput.value = matchingDraft.server_id;
+          formEl.action = baseUrl + '/api/proposal-update.php';
+        }
+        isFormDirty = false;
+
+        if (isSubmissionError) {
+          showToast('⚠️ Submission interrupted. Your progress and entered inputs were safely preserved.', 'warning');
+        } else {
+          showToast('✓ Auto-saved proposal progress automatically restored.', 'info');
+        }
+
+        // Automatically synchronize with server in the background if online and there are genuinely pending un-synced edits
+        if (navigator.onLine && ['pending_sync'].includes(matchingDraft.sync_status)) {
+          syncDraft(matchingDraft).catch(() => {});
+        }
+      } else {
+        // Blank or meaningless draft (e.g. untouched "Untitled Proposal Draft"): prune immediately
+        deleteDraft(matchingDraft.local_id).catch(() => {});
+        try {
+          if (matchingDraft.server_id) {
+            localStorage.removeItem(`sti_active_draft_full_srv_${matchingDraft.server_id}`);
+            localStorage.removeItem(`sti_draft_meta_srv_${matchingDraft.server_id}`);
+            localStorage.removeItem(`sti_emergency_srv_${matchingDraft.server_id}`);
+          } else {
+            localStorage.removeItem('sti_active_draft_full_new');
+            localStorage.removeItem('sti_draft_meta_new_active');
+            localStorage.removeItem('sti_emergency_new_active');
           }
-          resumeNotice.remove();
-          isFormDirty = true;
-          showToast('✓ Proposal progress resumed from auto-saved draft.', 'success');
-        };
-
-        document.getElementById('btnDismissLocalDraft').onclick = async () => {
-          const msg = 'Are you sure you want to discard this auto-saved draft? You will start with a fresh blank proposal.';
-          const confirmed = window.STIModal
-            ? await window.STIModal.confirm(msg, {
-                title: 'Discard Auto-Saved Draft?',
-                icon: '🗑️',
-                variant: 'danger',
-                confirmText: 'Discard Draft',
-                cancelText: 'Cancel'
-              })
-            : confirm(msg);
-          if (confirmed) {
-            await deleteDraft(matchingDraft.local_id);
-            await deleteDraft('draft_new_active');
-            try {
-              localStorage.removeItem(serverId ? `sti_draft_meta_srv_${serverId}` : 'sti_draft_meta_new_active');
-              localStorage.removeItem(serverId ? `sti_active_draft_full_srv_${serverId}` : 'sti_active_draft_full_new');
-              localStorage.removeItem(serverId ? `sti_emergency_srv_${serverId}` : 'sti_emergency_new_active');
-            } catch (e) {}
-            activeLocalDraftId = null;
-            isFormDirty = false;
-            resumeNotice.remove();
-            showToast('Auto-saved draft discarded.', 'info');
-          }
-        };
+        } catch (e) {}
+        activeLocalDraftId = null;
       }
     } else {
       updateStatusUI(navigator.onLine ? 'synchronized' : 'saved_locally');
     }
+
+    let autoSyncDebounceTimer = null;
 
     // Debounced automatic draft saver
     function triggerAutoSave() {
@@ -1039,26 +1103,45 @@
       isFormDirty = true;
 
       // 1. Immediately snapshot to localStorage synchronously (0ms delay, rock-solid persistence)
-      saveDraftSynchronously(formEl, { sync_status: 'saved_locally' });
-      updateStatusUI('saved_locally', 'Draft saved locally');
+      saveDraftSynchronously(formEl, { sync_status: navigator.onLine ? 'syncing' : 'saved_locally' });
+      updateStatusUI(navigator.onLine ? 'syncing' : 'saved_locally', navigator.onLine ? 'Auto-saving...' : 'Draft saved locally');
 
       // 2. Debounce heavier IndexedDB commit
       if (autoSaveDebounceTimer) clearTimeout(autoSaveDebounceTimer);
       autoSaveDebounceTimer = setTimeout(async () => {
         try {
-          const rec = await saveDraftLocally(formEl, { sync_status: 'saved_locally' });
-          if (rec) {
-            updateStatusUI('saved_locally', `Draft auto-saved at ${new Date().toLocaleTimeString()}`);
+          const rec = await saveDraftLocally(formEl, { sync_status: navigator.onLine ? 'pending_sync' : 'saved_locally' });
+          if (!navigator.onLine) {
+            updateStatusUI('saved_locally', 'Offline: draft saved locally');
           }
         } catch (err) {
           console.warn('[OfflineDrafts] Auto-save error:', err);
         }
-      }, 1000);
+      }, 800);
+
+      // 3. Debounce automatic server sync in background (2000ms after user pauses typing)
+      if (autoSyncDebounceTimer) clearTimeout(autoSyncDebounceTimer);
+      if (navigator.onLine) {
+        autoSyncDebounceTimer = setTimeout(async () => {
+          if (isSubmitting) return;
+          const currentDraft = await getDraft(activeLocalDraftId || (serverId ? 'draft_srv_' + serverId : 'draft_new_active'));
+          if (currentDraft && hasMeaningfulDraftData(currentDraft.form_data)) {
+            await syncDraft(currentDraft);
+          }
+        }, 2000);
+      }
     }
 
     // Attach input and change listeners for continuous auto-save
     formEl.addEventListener('input', triggerAutoSave);
     formEl.addEventListener('change', triggerAutoSave);
+
+    // Automatically trigger draft save & background sync when navigating wizard steps
+    document.querySelectorAll('#nextStepBtn, #prevStepBtn, .step-item, .wizard-step-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        setTimeout(triggerAutoSave, 50);
+      });
+    });
 
     // Periodic 30-second recurring background backup when form is modified
     if (autoSaveIntervalTimer) clearInterval(autoSaveIntervalTimer);
@@ -1230,26 +1313,32 @@
       });
     }
 
-    // Manual sync button
+    // Ensure any legacy manual sync button is completely removed
     const manualSyncBtn = document.getElementById('btnManualSync');
     if (manualSyncBtn) {
-      manualSyncBtn.onclick = async () => {
+      manualSyncBtn.remove();
+    }
+
+    // Attach click handler on status badge to re-trigger automatic sync on click if ever needed
+    const syncBadge = document.getElementById('offlineSyncBadge');
+    if (syncBadge && !syncBadge._syncAttached) {
+      syncBadge._syncAttached = true;
+      syncBadge.style.cursor = 'pointer';
+      syncBadge.addEventListener('click', async () => {
         if (!navigator.onLine) {
-          const syncAlertMsg = 'Cannot synchronize while offline. Please verify your internet connection.';
-        if (window.STIModal) {
-          window.STIModal.alert(syncAlertMsg, { title: 'Offline Synchronization', variant: 'warning', icon: '📡' });
-        } else {
-          alert(syncAlertMsg);
-        }
+          showToast('📡 You are offline. Changes are saved locally on your device.', 'info');
           return;
         }
-        manualSyncBtn.disabled = true;
-        manualSyncBtn.innerText = 'Syncing...';
-        await saveDraftLocally(formEl, { sync_status: 'pending_sync' });
-        await syncAllPendingDrafts();
-        manualSyncBtn.disabled = false;
-        manualSyncBtn.innerText = 'Sync Now';
-      };
+        updateStatusUI('syncing', 'Synchronizing with server...');
+        const curDraft = await getDraft(activeLocalDraftId || (serverId ? 'draft_srv_' + serverId : 'draft_new_active'));
+        if (curDraft) {
+          curDraft.force_overwrite = true;
+          const ok = await syncDraft(curDraft);
+          if (ok) updateStatusUI('synchronized');
+        } else {
+          await syncAllPendingDrafts();
+        }
+      });
     }
   }
 
@@ -1261,11 +1350,8 @@
     updateStatusUI('syncing', 'Reconnected! Syncing drafts...');
     showToast('🌐 Internet connection restored. Synchronizing pending drafts...', 'info');
 
-    // Run automatic sync
+    // Run automatic sync in background
     await syncAllPendingDrafts();
-
-    // Re-render widget if present
-    await renderLocalDraftsWidget('localDraftsContainer');
   });
 
   window.addEventListener('offline', function () {
@@ -1274,18 +1360,18 @@
     showToast('📡 You are currently offline. Local draft storage active.', 'warning');
   });
 
-  // Periodic heartbeat when tab is active (every 45s)
+  // Periodic heartbeat when tab is active (every 20s)
   function startSyncHeartbeat() {
     if (syncHeartbeatTimer) clearInterval(syncHeartbeatTimer);
     syncHeartbeatTimer = setInterval(async () => {
       if (navigator.onLine && !isSyncInProgress) {
         const drafts = await getAllDrafts();
-        const hasPending = drafts.some(d => ['pending_sync', 'sync_failed'].includes(d.sync_status));
+        const hasPending = drafts.some(d => ['pending_sync', 'saved_locally', 'sync_failed'].includes(d.sync_status));
         if (hasPending) {
           await syncAllPendingDrafts();
         }
       }
-    }, 45000);
+    }, 20000);
   }
 
   // DOM Ready bootstrap
@@ -1293,7 +1379,9 @@
     try {
       await openDB();
       await initProposalForm();
-      await renderLocalDraftsWidget('localDraftsContainer');
+      if (navigator.onLine) {
+        await syncAllPendingDrafts();
+      }
       startSyncHeartbeat();
     } catch (e) {
       console.warn('[OfflineDrafts] Initialization notice:', e);
@@ -1345,6 +1433,95 @@
     checkServerConnection,
     updateStatusUI
   };
+
+  /**
+   * 12. Universal Real-Time Client-Side Auto-Capitalization & Name Autocorrect
+   *
+   * Automatically corrects:
+   * - Common lowercase names such as "john" -> "John"
+   * - Title / Name fields (organizer, pic, person, teacher, etc.) capitalize each word
+   * - General text/textarea sentences: capitalize sentence starters and post-punctuation
+   */
+  function autoCapitalizeValue(val, isNameField) {
+    if (!val || typeof val !== 'string') return val;
+
+    // 1. Correct specific lowercase names (e.g., \bjohn\b -> John)
+    let res = val.replace(/\bjohn\b/gi, 'John');
+
+    if (isNameField) {
+      // Capitalize first letter of each word/name segment
+      res = res.replace(/(?:^|[\s\/\-\.])\p{L}/gu, function(char) {
+        return char.toUpperCase();
+      });
+    } else {
+      // Capitalize first letter of the string (ignoring quotes/bullets)
+      res = res.replace(/^(\s*["'“‘(\[-]*)(\p{L})/u, function(m, p, c) {
+        return p + c.toUpperCase();
+      });
+      // Capitalize after terminal punctuation (. ! ?) followed by whitespace
+      res = res.replace(/([.?!]\s+["'“‘(\[-]*)(\p{L})/gu, function(m, p, c) {
+        return p + c.toUpperCase();
+      });
+      // Capitalize after newlines/bullet points
+      res = res.replace(/([\r\n]+\s*[-*•\d.)\]]*\s*["'“‘(\[-]*)(\p{L})/gu, function(m, p, c) {
+        return p + c.toUpperCase();
+      });
+    }
+    return res;
+  }
+
+  function handleAutoCapitalizeTarget(target) {
+    if (!target || target.readOnly || target.disabled) return;
+    const tagName = target.tagName ? target.tagName.toUpperCase() : '';
+    if (tagName !== 'INPUT' && tagName !== 'TEXTAREA') return;
+
+    const inputType = (target.type || 'text').toLowerCase();
+    if (['password', 'email', 'url', 'number', 'file', 'hidden', 'date', 'time', 'checkbox', 'radio'].includes(inputType)) {
+      return;
+    }
+
+    const fieldName = (target.name || '').toLowerCase();
+    const fieldId = (target.id || '').toLowerCase();
+
+    // Skip evaluation form link or URL-like fields
+    if (fieldName.includes('eval_form_link') || fieldName.includes('url') || fieldId.includes('eval_form_link')) {
+      return;
+    }
+
+    const isName = Boolean(
+      fieldName.includes('organizer') ||
+      fieldName.includes('pic') ||
+      fieldName.includes('person') ||
+      fieldName.includes('teacher') ||
+      fieldName.includes('faculty') ||
+      fieldName.includes('name') ||
+      target.classList.contains('sched-field') ||
+      target.classList.contains('mp-person-field') ||
+      target.classList.contains('prog-field')
+    );
+
+    const original = target.value;
+    const updated = autoCapitalizeValue(original, isName);
+    if (original !== updated) {
+      target.value = updated;
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  // Global blur event listener (capture phase) for immediate correction on field exit
+  document.addEventListener('blur', function (e) {
+    handleAutoCapitalizeTarget(e.target);
+  }, true);
+
+  // Auto-correct all relevant inputs right before form submission
+  document.addEventListener('submit', function (e) {
+    const form = e.target;
+    if (!form || !form.querySelectorAll) return;
+    form.querySelectorAll('input[type="text"], textarea').forEach(inp => {
+      handleAutoCapitalizeTarget(inp);
+    });
+  }, true);
 
 })(window, document);
 

@@ -10,7 +10,7 @@ if(isset($_GET['q']))      $search    =sanitize($_GET['q']);
 if(isset($_GET['status'])) $filterStat=sanitize($_GET['status']);
 if(isset($_GET['page']))   $page      =max(1,(int)$_GET['page']);
 $offset=($page-1)*$perPage;
-$where="a.status != 'draft'"; $params=[];
+$where = buildAdmin2VisibleActivitySql((int)$user['id'], 'a'); $params=[];
 if($search)     {$where.=" AND a.title LIKE ?"; $params[]="%$search%";}
 $hasArchivedCol = hasActivityArchiveColumn($db);
 if ($filterStat === 'archived') {
@@ -137,6 +137,9 @@ $acts=$db->prepare("SELECT a.*,u.name as fn FROM activities a JOIN users u ON a.
                     <td style="text-align:right;">
                       <div style="display:inline-flex;gap:6px;align-items:center;justify-content:flex-end;">
                         <a href="<?= BASE_URL ?>/admin2/view-activity.php?id=<?= $a['id'] ?>" class="btn btn-outline btn-sm">View</a>
+                        <?php if (in_array($a['status'], ['draft', 'returned_for_revision'], true) && canUserAccessActivity((int)$a['id'], 'modify', (int)$user['id'], $user['role'], $user['dept'] ?? '')): ?>
+                          <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= $a['id'] ?>" class="btn btn-primary btn-sm">Edit</a>
+                        <?php endif; ?>
                         <?php if (!empty($a['is_archived'])): ?>
                           <button type="button" class="btn btn-outline btn-sm" onclick="confirmUnarchiveActivity(<?= (int)$a['id'] ?>, '<?= htmlspecialchars(addslashes($a['title']), ENT_QUOTES) ?>')">Unarchive</button>
                         <?php elseif ($a['status'] === 'completed'): ?>

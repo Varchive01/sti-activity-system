@@ -17,9 +17,10 @@ if (empty($user['id'])) {
 $docId = (int)($_GET['id'] ?? 0);
 $deliverableId = (int)($_GET['deliverable_id'] ?? 0);
 $activityId = (int)($_GET['activity_id'] ?? 0);
-$type = $_GET['type'] ?? '';
+$type = strtolower(trim((string)($_GET['type'] ?? '')));
+$validActivityTypes = ['poster', 'floorplan', 'assessment', 'post_event_assessment', 'survey_csv', 'post_event_csv', 'csv'];
 
-if ($docId <= 0 && $deliverableId <= 0 && !($activityId > 0 && in_array($type, ['poster', 'floorplan'], true))) {
+if ($docId <= 0 && $deliverableId <= 0 && !($activityId > 0 && in_array($type, $validActivityTypes, true))) {
     http_response_code(400);
     die('Bad Request: Invalid document, deliverable, or activity ID.');
 }
@@ -126,6 +127,80 @@ if ($deliverableId > 0) {
 
     $storedPath = trim((string)($fp['file_path'] ?? ''));
     $originalName = basename($storedPath);
+} elseif ($activityId > 0 && in_array($type, ['assessment', 'post_event_assessment'], true)) {
+    // 3e. Retrieve post-event assessment report for activity
+    $peStmt = $db->prepare("
+        SELECT pe.assessment_report_path, a.faculty_id, a.title AS activity_title, a.status 
+        FROM post_event pe
+        JOIN activities a ON pe.activity_id = a.id
+        WHERE pe.activity_id = ?
+        LIMIT 1
+    ");
+    $peStmt->execute([$activityId]);
+    $pe = $peStmt->fetch();
+
+    if (!$pe || empty($pe['assessment_report_path'])) {
+        http_response_code(404);
+        die('Assessment report not found.');
+    }
+
+    $isAuthorized = canUserAccessActivity($activityId, 'view', $user['id'], $role, $user['dept'] ?? '');
+    if (!$isAuthorized && in_array($role, ['admin1', 'admin2', 'dean', 'program_head'], true)) {
+        $isAuthorized = true;
+    }
+    if (!$isAuthorized && $role === 'faculty' && (int)$pe['faculty_id'] === (int)$user['id']) {
+        $isAuthorized = true;
+    }
+
+    if (!$isAuthorized) {
+        http_response_code(403);
+        die('Forbidden: You do not have permission to access this assessment report.');
+    }
+
+    $storedPath = trim((string)$pe['assessment_report_path']);
+    $originalName = function_exists('getFriendlyDocumentFilename') 
+        ? getFriendlyDocumentFilename($db, $activityId, $storedPath) 
+        : basename($storedPath);
+    if (!str_ends_with(strtolower($originalName), '.pdf')) {
+        $originalName .= '.pdf';
+    }
+} elseif ($activityId > 0 && in_array($type, ['survey_csv', 'post_event_csv', 'csv'], true)) {
+    // 3f. Retrieve post-event survey CSV for activity
+    $peStmt = $db->prepare("
+        SELECT pe.survey_csv_path, a.faculty_id, a.title AS activity_title, a.status 
+        FROM post_event pe
+        JOIN activities a ON pe.activity_id = a.id
+        WHERE pe.activity_id = ?
+        LIMIT 1
+    ");
+    $peStmt->execute([$activityId]);
+    $pe = $peStmt->fetch();
+
+    if (!$pe || empty($pe['survey_csv_path'])) {
+        http_response_code(404);
+        die('Survey results CSV not found.');
+    }
+
+    $isAuthorized = canUserAccessActivity($activityId, 'view', $user['id'], $role, $user['dept'] ?? '');
+    if (!$isAuthorized && in_array($role, ['admin1', 'admin2', 'dean', 'program_head'], true)) {
+        $isAuthorized = true;
+    }
+    if (!$isAuthorized && $role === 'faculty' && (int)$pe['faculty_id'] === (int)$user['id']) {
+        $isAuthorized = true;
+    }
+
+    if (!$isAuthorized) {
+        http_response_code(403);
+        die('Forbidden: You do not have permission to access this survey file.');
+    }
+
+    $storedPath = trim((string)$pe['survey_csv_path']);
+    $originalName = function_exists('getFriendlyDocumentFilename') 
+        ? getFriendlyDocumentFilename($db, $activityId, $storedPath) 
+        : basename($storedPath);
+    if (!str_ends_with(strtolower($originalName), '.csv')) {
+        $originalName .= '.csv';
+    }
 } else {
     // 3b. Retrieve document record and associated activity
     $stmt = $db->prepare("
@@ -151,9 +226,11 @@ if ($deliverableId > 0) {
         // Faculty can access if they own the activity or uploaded the document
         if ((int)$doc['faculty_id'] === (int)$user['id'] || (int)$doc['uploaded_by'] === (int)$user['id']) {
             $isAuthorized = true;
+        } elseif (canUserAccessActivity((int)$doc['activity_id'], 'view', $user['id'], $role, $user['dept'] ?? '')) {
+            $isAuthorized = true;
         }
     } elseif ($role === 'program_head') {
-        if (canUserAccessActivity((int)$doc['activity_id'], 'view', $user['id'], $role, $user['dept'])) {
+        if (canUserAccessActivity((int)$doc['activity_id'], 'view', $user['id'], $role, $user['dept'] ?? '')) {
             $isAuthorized = true;
         }
     }
@@ -204,6 +281,20 @@ if (!$targetFullPath || !is_file($targetFullPath)) {
         $candidate = realpath($baseUploadDir . DIRECTORY_SEPARATOR . 'floorplans' . DIRECTORY_SEPARATOR . basename($cleanRelative));
         if ($candidate && is_file($candidate)) {
             $targetFullPath = $candidate;
+        }
+    } elseif (in_array($type, ['assessment', 'post_event_assessment', 'survey_csv', 'post_event_csv', 'csv'], true)) {
+        $candidate = realpath($baseUploadDir . DIRECTORY_SEPARATOR . 'post-event' . DIRECTORY_SEPARATOR . basename($cleanRelative));
+        if ($candidate && is_file($candidate)) {
+            $targetFullPath = $candidate;
+        }
+    } else {
+        $bName = basename($cleanRelative);
+        foreach (['post-event', 'documents', 'deliverables', 'materials', 'proposals'] as $sub) {
+            $candidate = realpath($baseUploadDir . DIRECTORY_SEPARATOR . $sub . DIRECTORY_SEPARATOR . $bName);
+            if ($candidate && is_file($candidate)) {
+                $targetFullPath = $candidate;
+                break;
+            }
         }
     }
 }

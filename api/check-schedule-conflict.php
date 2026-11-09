@@ -11,7 +11,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/schedule_conflict.php';
 
-requireRole('faculty', 'program_head');
+requireRole('faculty', 'program_head', 'admin1', 'admin2');
 
 header('Content-Type: application/json');
 

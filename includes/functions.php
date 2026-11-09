@@ -204,6 +204,68 @@ function isValidFloorPlanFile(array $file): bool
     return true;
 }
 
+function isValidPdfFile(array $file): bool
+{
+    if (empty($file['name']) || empty($file['tmp_name']) || !file_exists($file['tmp_name'])) {
+        return false;
+    }
+    if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+        return false;
+    }
+    if ($file['size'] <= 0 || $file['size'] > (15 * 1024 * 1024)) { // 15 MB limit
+        return false;
+    }
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if ($ext !== 'pdf') {
+        return false;
+    }
+    // Verify PDF magic bytes (%PDF-)
+    $handle = @fopen($file['tmp_name'], 'rb');
+    if (!$handle) return false;
+    $header = fread($handle, 5);
+    fclose($handle);
+    return str_starts_with($header, '%PDF-');
+}
+
+function isValidCsvFile(array $file): bool
+{
+    if (empty($file['name']) || empty($file['tmp_name']) || !file_exists($file['tmp_name'])) {
+        return false;
+    }
+    if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+        return false;
+    }
+    if ($file['size'] <= 0 || $file['size'] > (10 * 1024 * 1024)) { // 10 MB limit
+        return false;
+    }
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if ($ext !== 'csv') {
+        return false;
+    }
+    // Verify file is readable as text/csv
+    $handle = @fopen($file['tmp_name'], 'r');
+    if (!$handle) return false;
+    $firstLine = fgets($handle);
+    fclose($handle);
+    return ($firstLine !== false && strlen(trim($firstLine)) > 0);
+}
+
+function isValidDocumentationFile(array $file): bool
+{
+    if (empty($file['name']) || empty($file['tmp_name']) || !file_exists($file['tmp_name'])) {
+        return false;
+    }
+    if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+        return false;
+    }
+    if ($file['size'] <= 0 || $file['size'] > MAX_FILE_SIZE) {
+        return false;
+    }
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    $allowed = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'doc', 'docx', 'xls', 'xlsx', 'csv'];
+    return in_array($ext, $allowed, true);
+}
+
 function uploadFile(array $file, string $subdir, int $activityId, ?OneDriveService $oneDriveService = null): string|false
 {
     $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
@@ -577,6 +639,15 @@ function attemptOneDriveArchiveCopy(
         error_log("OneDrive archive notice: Exception during archive upload [{$safeMsg}]. Local file preserved.");
         return null;
     }
+}
+
+function canonicalizeActivityStatus(string $status): string
+{
+    $status = trim(strtolower($status));
+    if ($status === 'submitted') {
+        return 'under_review';
+    }
+    return $status;
 }
 
 function getStatusBadge(string $status): string
@@ -1794,7 +1865,51 @@ function normalizeDepartmentName(?string $dept): string
  *       Activities belonging exclusively to other departments are DENIED (false).
  *     - 'modify': Allowed ONLY if the activity belongs to their department (created by a faculty in their department
  *       or created by the program head). Modifying another department's activity is DENIED (false).
- *
+ */
+if (!function_exists('buildAdmin2VisibleActivitySql')) {
+    /**
+     * Build SQL visibility filter for Admin 2 (Events Committee Head).
+     * Excludes:
+     * 1. Unsubmitted drafts (unless Admin 2 is creator or active collaborator).
+     * 2. Student Organization proposals still at Stage 1 (submitted, under_review, resubmitted) awaiting Admin 1 endorsement.
+     * 3. Proposals returned for revision or rejected by the first reviewer (Admin 1) that never reached or were returned/rejected at Stage 1.
+     */
+    function buildAdmin2VisibleActivitySql(int $admin2UserId, string $alias = 'a'): string
+    {
+        $uid = (int)$admin2UserId;
+        return "(
+            {$alias}.faculty_id = {$uid}
+            OR EXISTS (
+                SELECT 1 FROM proposal_collaborators pc
+                WHERE pc.activity_id = {$alias}.id AND pc.user_id = {$uid} AND pc.status = 'active'
+            )
+            OR (
+                {$alias}.status IN ('endorsed', 'pending_final_approval', 'pending_dean_approval', 'approved', 'completed')
+                OR ({$alias}.source = 'faculty' AND {$alias}.status IN ('submitted', 'under_review', 'resubmitted'))
+                OR (
+                    {$alias}.status IN ('returned_for_revision', 'rejected')
+                    AND EXISTS (
+                        SELECT 1 FROM approval_logs al
+                        JOIN users u_rev ON al.reviewer_id = u_rev.id
+                        WHERE al.activity_id = {$alias}.id
+                          AND (al.reviewer_id = {$uid} OR u_rev.role IN ('admin2', 'dean'))
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM approval_logs al_last
+                        JOIN users u_last ON al_last.reviewer_id = u_last.id
+                        WHERE al_last.activity_id = {$alias}.id
+                          AND u_last.role = 'admin1'
+                          AND al_last.action IN ('returned', 'rejected', 'returned_for_revision')
+                          AND al_last.id = (SELECT MAX(al_max.id) FROM approval_logs al_max WHERE al_max.activity_id = {$alias}.id)
+                    )
+                )
+            )
+        )";
+    }
+}
+
+/**
+ * Determine if a user has access to view or modify an activity.
  * @param int $activityId
  * @param string $action 'view' or 'modify'
  * @param int|null $userId
@@ -1832,7 +1947,7 @@ function canUserAccessActivity(int $activityId, string $action = 'view', ?int $u
 
     // Fetch activity and creator details (including status for draft privacy enforcement)
     $stmt = $db->prepare("
-        SELECT a.id, a.faculty_id, a.status, u.department AS creator_department
+        SELECT a.id, a.faculty_id, a.status, a.source, u.department AS creator_department
         FROM activities a
         LEFT JOIN users u ON a.faculty_id = u.id
         WHERE a.id = ?
@@ -1847,6 +1962,7 @@ function canUserAccessActivity(int $activityId, string $action = 'view', ?int $u
     $creatorId = (int)$act['faculty_id'];
     $creatorDept = (string)($act['creator_department'] ?? '');
     $actStatus = strtolower(trim((string)($act['status'] ?? 'draft')));
+    $actSource = strtolower(trim((string)($act['source'] ?? 'faculty')));
     $isCreator = ($creatorId === (int)$userId);
 
     // STRICT GLOBAL DRAFT PRIVACY RULE:
@@ -1870,21 +1986,116 @@ function canUserAccessActivity(int $activityId, string $action = 'view', ?int $u
         return false;
     }
 
-        // 1. Admin 1 (Committee Review) and Admin 2 reviewers have access to non-draft proposals
-    if (in_array($userRole, ['admin1', 'admin2'], true)) {
-        return true;
-    }
-
-    // 2. Dean (Final Approver) access rules:
-    // The Dean only has access when the proposal has reached final approval stage ('pending_final_approval'),
-    // has already been institutionalized ('approved', 'completed'), or where Dean was recorded in approval logs.
-    if ($userRole === 'dean') {
-        if (in_array($actStatus, ['pending_final_approval', 'pending_dean_approval', 'approved', 'completed'], true)) {
+    // 1. Admin 1 (Student Organization Head) reviewer access rules:
+    // Admin 1 is strictly restricted to student organization proposals (source = 'student_org').
+    // Faculty-initiated proposals bypass Admin 1 entirely and go straight to Admin 2 (Events Committee Head).
+    // Admin 1 can only access faculty proposals if explicitly added as the creator or an active collaborator.
+    if ($userRole === 'admin1') {
+        if ($isCreator) {
             return true;
         }
-        $deanLogStmt = $db->prepare("SELECT COUNT(*) FROM approval_logs WHERE activity_id = ? AND reviewer_id = ?");
-        $deanLogStmt->execute([$activityId, $userId]);
-        return ((int)$deanLogStmt->fetchColumn() > 0);
+        $isCollab = false;
+        try {
+            $collabStmt = $db->prepare("
+                SELECT COUNT(*) FROM proposal_collaborators 
+                WHERE activity_id = ? AND user_id = ? AND status = 'active'
+            ");
+            $collabStmt->execute([$activityId, $userId]);
+            $isCollab = ((int)$collabStmt->fetchColumn() > 0);
+        } catch (\PDOException $e) {}
+
+        if ($action === 'modify') {
+            return $isCollab;
+        }
+
+        // Action is 'view': strictly allowed only for student_org proposals or explicit collaborators
+        return ($actSource === 'student_org' || $isCollab);
+    }
+
+    // 2. Admin 2 (Events Committee Head) reviewer access rules:
+    // When editing (modify), only permitted if explicitly added as an active collaborator or creator.
+    // When viewing, permitted on proposals that have reached the Events Committee stage (excluding Stage-1 student_org proposals and Stage-1 admin1 returns/rejections).
+    if ($userRole === 'admin2') {
+        if ($isCreator) {
+            return true;
+        }
+        $isCollab = false;
+        try {
+            $collabStmt = $db->prepare("
+                SELECT COUNT(*) FROM proposal_collaborators 
+                WHERE activity_id = ? AND user_id = ? AND status = 'active'
+            ");
+            $collabStmt->execute([$activityId, $userId]);
+            $isCollab = ((int)$collabStmt->fetchColumn() > 0);
+        } catch (\PDOException $e) {
+            $isCollab = false;
+        }
+
+        if ($action === 'modify') {
+            return $isCollab;
+        }
+        if ($isCollab) {
+            return true;
+        }
+
+        if (in_array($actStatus, ['endorsed', 'pending_final_approval', 'pending_dean_approval', 'approved', 'completed'], true)) {
+            return true;
+        }
+        if ($actSource === 'faculty' && in_array($actStatus, ['submitted', 'under_review', 'resubmitted'], true)) {
+            return true;
+        }
+        if (in_array($actStatus, ['returned_for_revision', 'rejected'], true)) {
+            $revStmt = $db->prepare("
+                SELECT COUNT(*) FROM approval_logs al
+                JOIN users u_rev ON al.reviewer_id = u_rev.id
+                WHERE al.activity_id = ? AND (al.reviewer_id = ? OR u_rev.role IN ('admin2', 'dean'))
+            ");
+            $revStmt->execute([$activityId, $userId]);
+            $hasAdmin2OrDeanAction = ((int)$revStmt->fetchColumn() > 0);
+            if (!$hasAdmin2OrDeanAction) {
+                return false;
+            }
+            $lastStmt = $db->prepare("
+                SELECT u_last.role, al_last.action
+                FROM approval_logs al_last
+                JOIN users u_last ON al_last.reviewer_id = u_last.id
+                WHERE al_last.activity_id = ?
+                ORDER BY al_last.id DESC
+                LIMIT 1
+            ");
+            $lastStmt->execute([$activityId]);
+            $lastRow = $lastStmt->fetch(PDO::FETCH_ASSOC);
+            if ($lastRow && $lastRow['role'] === 'admin1' && in_array($lastRow['action'], ['returned', 'rejected', 'returned_for_revision'], true)) {
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // 2. Dean (Final Approver / Academic Head) access rules:
+    // The Dean possesses institutional oversight to view all officially submitted proposals across
+    // every department and activity source, regardless of current approval status.
+    // Unsubmitted private drafts belonging to others remain strictly blocked (handled above at line 1961).
+    if ($userRole === 'dean') {
+        if ($action === 'modify') {
+            if ($isCreator) {
+                return true;
+            }
+            try {
+                $collabStmt = $db->prepare("
+                    SELECT COUNT(*) FROM proposal_collaborators 
+                    WHERE activity_id = ? AND user_id = ? AND status = 'active'
+                ");
+                $collabStmt->execute([$activityId, $userId]);
+                return ((int)$collabStmt->fetchColumn() > 0);
+            } catch (\PDOException $e) {
+                return false;
+            }
+        }
+
+        // Action is 'view': Dean has institutional visibility over all submitted non-draft proposals
+        return true;
     }
 
     // 3. Faculty access rules
@@ -2013,6 +2224,52 @@ if (!function_exists('formatCollaboratorRole')) {
             default:
                 return 'Contributor';
         }
+    }
+}
+
+if (!function_exists('getUserRoleLabel')) {
+    function getUserRoleLabel(?string $role): string {
+        $map = [
+            'admin1'       => 'Student Organization Head',
+            'admin2'       => 'Events Committee Head',
+            'dean'         => 'Dean',
+            'program_head' => 'Program Head',
+            'faculty'      => 'Faculty',
+        ];
+        $norm = strtolower(trim((string)$role));
+        return $map[$norm] ?? (ucwords(str_replace('_', ' ', (string)$role)) ?: 'User');
+    }
+}
+
+if (!function_exists('getRoleOfficeLabel')) {
+    function getRoleOfficeLabel(string $role, string $dept = ''): string {
+        $norm = strtolower(trim($role));
+        if ($norm === 'program_head') {
+            return 'STI College Marikina · ' . ($dept ?: 'Department Head Office');
+        }
+        if ($norm === 'admin1') {
+            return 'STI College Marikina · Student Organizations Office';
+        }
+        if ($norm === 'admin2') {
+            return 'STI College Marikina · Events Committee Office';
+        }
+        return 'STI College Marikina · Office of the Dean';
+    }
+}
+
+if (!function_exists('getRoleReportTitle')) {
+    function getRoleReportTitle(string $role): string {
+        $norm = strtolower(trim($role));
+        if ($norm === 'program_head') {
+            return 'Department Activity Performance and KPI Report';
+        }
+        if ($norm === 'admin1') {
+            return 'Student Organization Activity Performance and Compliance Report';
+        }
+        if ($norm === 'admin2') {
+            return 'Events Committee Activity Performance and Compliance Report';
+        }
+        return 'Institutional Activity Performance and Compliance Report';
     }
 }
 
@@ -2232,8 +2489,9 @@ if (!function_exists('getOfficialFacultyRoster')) {
 if (!function_exists('getEligibleFacultyMembers')) {
     /**
      * Retrieve all eligible faculty members registered in STI-ARMES dynamically.
-     * Includes active faculty and program heads from database records.
-     * Excludes test, dummy, and system administrator accounts.
+     * Includes active faculty, program heads, Student Organization Head (admin1),
+     * and Events Committee Head (admin2) from database records.
+     * Excludes test, dummy, and Dean accounts, and strictly deduplicates each person.
      */
     function getEligibleFacultyMembers(?PDO $db = null): array {
         $db = $db ?? (function_exists('getDB') ? getDB() : null);
@@ -2259,33 +2517,65 @@ if (!function_exists('getEligibleFacultyMembers')) {
         $sql = "
             SELECT id, name, email, department, role" . ($hasStatusCol ? ", status" : "") . "
             FROM users 
-            WHERE role IN ('faculty', 'program_head')
+            WHERE role IN ('faculty', 'program_head', 'admin1', 'admin2')
               AND LOWER(name) NOT LIKE '%bad email%'
               AND LOWER(name) NOT LIKE '%unrelated%'
               AND LOWER(name) NOT LIKE '%placeholder%'
               AND LOWER(name) NOT LIKE '%dummy%'
               AND LOWER(name) NOT LIKE '%test%'
+              AND LOWER(name) NOT LIKE '%frederic%yulo%'
               AND LOWER(TRIM(name)) NOT IN ('van', 'rain', 'hilary', 'shaira')
               AND email NOT LIKE '%@invalid%'
+              AND email NOT LIKE '%@test.com%'
               AND email NOT LIKE 'simulated_%'
-              AND email NOT LIKE 'fac_unrelated_%'
+              AND email NOT LIKE 'fac_%'
         ";
         if ($hasStatusCol) {
             $sql .= " AND (status = 'active' OR status IS NULL) ";
         }
-        $sql .= " ORDER BY name ASC";
+        $sql .= " ORDER BY 
+            CASE WHEN email LIKE '%@marikina.sti.edu.ph' OR email LIKE '%@sti.edu%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN BINARY name = UPPER(name) THEN 1 ELSE 0 END ASC,
+            CHAR_LENGTH(name) DESC,
+            id ASC";
 
         try {
             $stmt = $db->query($sql);
             $rawList = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-            // De-duplicate strictly by unique account ID and normalized faculty name
-            // Ensures every eligible faculty member appears exactly once (e.g. no duplicate Aldwin Alminar)
-            // Excludes non-faculty / test accounts: Van, Rain, Hilary, Shaira
-            $excludedNames = ['van', 'rain', 'hilary', 'shaira'];
+            // Build canonical lookup from official roster for clean display names and departments
+            $rosterMap = [];
+            if (function_exists('getOfficialFacultyRoster')) {
+                foreach (getOfficialFacultyRoster() as $rDept => $rNames) {
+                    foreach ($rNames as $rName) {
+                        $rKey = cleanFacultyNameKey($rName);
+                        if ($rKey !== '') {
+                            $rosterMap[$rKey] = [
+                                'name'       => $rName,
+                                'department' => $rDept
+                            ];
+                        }
+                    }
+                }
+            }
+
+            $rolePriority = [
+                'admin1'       => 4,
+                'admin2'       => 4,
+                'program_head' => 3,
+                'faculty'      => 1
+            ];
+            $roleLabels = [
+                'admin1'       => 'Student Organization Head',
+                'admin2'       => 'Events Committee Head',
+                'program_head' => 'Program Head',
+                'faculty'      => 'Faculty'
+            ];
+
+            $excludedNames = ['van', 'rain', 'hilary', 'shaira', 'fredericyulo', 'drfredericyulo'];
             $uniqueList = [];
             $seenIds    = [];
-            $seenNames  = [];
+            $seenKeys   = []; // cleanKey => index in $uniqueList
 
             foreach ($rawList as $row) {
                 $id = (int)($row['id'] ?? 0);
@@ -2298,30 +2588,97 @@ if (!function_exists('getEligibleFacultyMembers')) {
                     continue;
                 }
 
-                // Normalize name (strip redundant spaces, case-insensitive)
                 $normName = strtolower(preg_replace('/\s+/', ' ', $rawName));
-
-                // Exclude specific test/non-faculty names
-                if (in_array($normName, $excludedNames, true) || in_array(strtolower($rawName), $excludedNames, true)) {
+                $cleanKey = cleanFacultyNameKey($rawName);
+                if ($cleanKey === '' || in_array($normName, $excludedNames, true) || in_array($cleanKey, $excludedNames, true)) {
                     continue;
                 }
 
-                // If this name has already been registered (e.g. separate program_head and faculty rows), keep the canonical one
-                if (isset($seenNames[$normName])) {
+                // Resolve canonical name & department from official roster (supports exact key or >=85% fuzzy match for typos like Agabayani)
+                $canonicalName = $rawName;
+                $canonicalDept = '';
+                if (isset($rosterMap[$cleanKey])) {
+                    $canonicalName = $rosterMap[$cleanKey]['name'];
+                    $canonicalDept = $rosterMap[$cleanKey]['department'];
+                    $cleanKey      = cleanFacultyNameKey($canonicalName);
+                } else {
+                    foreach ($rosterMap as $rKey => $rInfo) {
+                        $pct = 0.0;
+                        similar_text($cleanKey, $rKey, $pct);
+                        if ($pct >= 85.0) {
+                            $canonicalName = $rInfo['name'];
+                            $canonicalDept = $rInfo['department'];
+                            $cleanKey      = $rKey;
+                            break;
+                        }
+                    }
+                }
+
+                // Format ALL-CAPS names gracefully if not in rosterMap
+                if ($canonicalName === strtoupper($canonicalName)) {
+                    $canonicalName = ucwords(strtolower($canonicalName));
+                }
+
+                $rawDept = trim($row['department'] ?? '');
+                if ($canonicalDept === '') {
+                    if ($rawDept !== '' && !preg_match('/(committee|organization|admin|head)/i', $rawDept)) {
+                        $canonicalDept = function_exists('normalizeFacultyDepartment')
+                            ? normalizeFacultyDepartment($rawDept)
+                            : $rawDept;
+                    } else {
+                        $canonicalDept = 'G.E. Department';
+                    }
+                }
+
+                $rowRole = strtolower(trim($row['role'] ?? 'faculty'));
+                if (!isset($roleLabels[$rowRole])) {
+                    $rowRole = 'faculty';
+                }
+
+                // Check if this person is already in $uniqueList (by exact cleanKey or >=85% similarity)
+                $matchedIdx = null;
+                if (isset($seenKeys[$cleanKey])) {
+                    $matchedIdx = $seenKeys[$cleanKey];
+                } else {
+                    foreach ($seenKeys as $existingKey => $idx) {
+                        $pct = 0.0;
+                        similar_text($cleanKey, $existingKey, $pct);
+                        if ($pct >= 85.0) {
+                            $matchedIdx = $idx;
+                            break;
+                        }
+                    }
+                }
+
+                $seenIds[$id] = true;
+
+                if ($matchedIdx !== null) {
+                    // Merge elevated role if a duplicate row holds admin1, admin2, or program_head
+                    $existingRole = $uniqueList[$matchedIdx]['role'];
+                    if (($rolePriority[$rowRole] ?? 0) > ($rolePriority[$existingRole] ?? 0)) {
+                        $uniqueList[$matchedIdx]['role']       = $rowRole;
+                        $uniqueList[$matchedIdx]['role_label'] = $roleLabels[$rowRole];
+                        $uniqueList[$matchedIdx]['id']         = $id;
+                    }
                     continue;
                 }
 
-                $seenIds[$id]         = true;
-                $seenNames[$normName] = true;
+                $idx = count($uniqueList);
+                $seenKeys[$cleanKey] = $idx;
 
                 $uniqueList[] = [
                     'id'         => $id,
-                    'name'       => $rawName,
+                    'name'       => $canonicalName,
                     'email'      => trim($row['email'] ?? ''),
-                    'department' => trim($row['department'] ?? ''),
-                    'role'       => trim($row['role'] ?? 'faculty')
+                    'department' => $canonicalDept,
+                    'role'       => $rowRole,
+                    'role_label' => $roleLabels[$rowRole]
                 ];
             }
+
+            usort($uniqueList, function (array $a, array $b): int {
+                return strcasecmp($a['name'], $b['name']);
+            });
 
             $cachedList = $uniqueList;
             return $cachedList;
@@ -2647,9 +3004,9 @@ if (!function_exists('addProposalCollaborator')) {
             return ['success' => false, 'error' => 'Target user account not found.'];
         }
 
-        // Only valid faculty accounts may be invited as contributors
-        if (!in_array($targetUser['role'], ['faculty', 'program_head'], true)) {
-            return ['success' => false, 'error' => 'Only valid faculty members may be invited as proposal contributors.'];
+        // Only valid faculty, program head, or committee/org head accounts may be invited as contributors
+        if (!in_array($targetUser['role'], ['faculty', 'program_head', 'admin1', 'admin2'], true)) {
+            return ['success' => false, 'error' => 'Only valid faculty members, program heads, or committee/org heads may be invited as proposal contributors.'];
         }
 
         // Target user cannot be the owner (by ID or canonical name)
@@ -3528,3 +3885,653 @@ if (!function_exists('cleanupDuplicateProposals')) {
         return ['deleted_ids' => $deletedIds, 'retained_ids' => $retainedIds];
     }
 }
+
+if (!function_exists('parseKpiTargetMetric')) {
+    /**
+     * Parses human-entered KPI target strings into structured numerical targets and scales.
+     * Handles formats like "500 Participants", "90%", "Rating: 4.5", "4.0 / 5.0", "3.5 out of 4.0".
+     */
+    function parseKpiTargetMetric(string $targetStr, int $defaultParticipants = 0): array
+    {
+        $t = trim($targetStr);
+        if ($t === '') {
+            return ['type' => 'unknown', 'target_val' => null, 'calc_target' => null, 'scale' => null, 'raw' => ''];
+        }
+
+        // Percentage (e.g., "90%", "85% Satisfaction")
+        if (preg_match('/(\d+(?:\.\d+)?)\s*%/i', $t, $m)) {
+            $pct = (float)$m[1];
+            $val = $defaultParticipants > 0 ? round(($pct / 100.0) * $defaultParticipants) : $pct;
+            return ['type' => 'percentage', 'target_val' => $pct, 'calc_target' => $val, 'scale' => 100.0, 'raw' => $t];
+        }
+
+        // Ratio / scale (e.g., "4.0 / 5.0", "3.5 out of 4.0")
+        if (preg_match('/(\d+(?:\.\d+)?)\s*(?:\/|\s*out\s*of)\s*(\d+(?:\.\d+)?)/i', $t, $m)) {
+            $num = (float)$m[1];
+            $scale = (float)$m[2];
+            return ['type' => 'ratio', 'target_val' => $num, 'scale' => $scale, 'calc_target' => $num, 'raw' => $t];
+        }
+
+        // Rating pattern (e.g., "Rating: 4.5", "Rating 4")
+        if (preg_match('/rating:?\s*(\d+(?:\.\d+)?)/i', $t, $m)) {
+            $num = (float)$m[1];
+            $scale = ($num <= 4.0) ? 4.0 : 5.0;
+            return ['type' => 'rating', 'target_val' => $num, 'scale' => $scale, 'calc_target' => $num, 'raw' => $t];
+        }
+
+        // Plain numeric string with optional label (e.g., "50 Participants", "150 attendees", "85")
+        if (preg_match('/(\d+(?:\.\d+)?)/', $t, $m)) {
+            $num = (float)$m[1];
+            return ['type' => 'numeric', 'target_val' => $num, 'scale' => null, 'calc_target' => $num, 'raw' => $t];
+        }
+
+        return ['type' => 'unknown', 'target_val' => null, 'calc_target' => null, 'scale' => null, 'raw' => $t];
+    }
+}
+
+if (!function_exists('resolveUploadedFilePath')) {
+    /**
+     * Resolves a database-stored relative upload path (e.g. 'post-event/file.csv' or 'uploads/post-event/file.csv')
+     * into an existing absolute filesystem path on disk, or null if not found.
+     */
+    function resolveUploadedFilePath(?string $storedPath): ?string
+    {
+        if (empty($storedPath) || preg_match('#^https?://#i', $storedPath)) {
+            return null;
+        }
+        $cleanRel = ltrim(str_replace('\\', '/', trim($storedPath)), '/');
+        if (str_starts_with($cleanRel, 'uploads/')) {
+            $cleanRel = substr($cleanRel, 8);
+        }
+
+        $candidates = [];
+        if (defined('UPLOAD_PATH')) {
+            $candidates[] = rtrim(str_replace('\\', '/', UPLOAD_PATH), '/') . '/' . $cleanRel;
+            $candidates[] = rtrim(str_replace('\\', '/', UPLOAD_PATH), '/') . '/post-event/' . basename($cleanRel);
+        }
+        $projectRoot = str_replace('\\', '/', dirname(__DIR__));
+        $candidates[] = $projectRoot . '/uploads/' . $cleanRel;
+        $candidates[] = $projectRoot . '/' . $cleanRel;
+
+        foreach ($candidates as $cand) {
+            if (is_file($cand) && is_readable($cand)) {
+                return $cand;
+            }
+        }
+        return null;
+    }
+}
+
+if (!function_exists('resolveUploadedFileUrl')) {
+    /**
+     * Resolves a database-stored relative upload path (e.g. 'post-event/file.pdf' or 'uploads/post-event/file.pdf')
+     * into a valid browser-accessible URL under BASE_URL/uploads/.
+     */
+    function resolveUploadedFileUrl(?string $storedPath): string
+    {
+        if (empty($storedPath)) {
+            return '';
+        }
+        $trimmed = trim($storedPath);
+        if (preg_match('#^https?://#i', $trimmed)) {
+            return $trimmed;
+        }
+
+        $cleanRel = ltrim(str_replace('\\', '/', $trimmed), '/');
+        $cleanRelWithUploads = str_starts_with($cleanRel, 'uploads/') ? $cleanRel : ('uploads/' . $cleanRel);
+        $cleanRelWithout = str_starts_with($cleanRel, 'uploads/') ? substr($cleanRel, 8) : $cleanRel;
+        $base = defined('BASE_URL') ? rtrim(BASE_URL, '/') : '';
+
+        try {
+            $db = function_exists('getDB') ? getDB() : ($GLOBALS['testDb'] ?? null);
+            if ($db) {
+                // 1. Check if this file is recorded in documents table
+                $dStmt = $db->prepare("SELECT id FROM documents WHERE file_path = ? OR file_path = ? OR file_path LIKE ? ORDER BY id DESC LIMIT 1");
+                $dStmt->execute([$cleanRelWithUploads, $cleanRelWithout, '%' . basename($cleanRelWithout)]);
+                $docId = (int)$dStmt->fetchColumn();
+                if ($docId > 0) {
+                    return $base . '/api/document-download.php?id=' . $docId;
+                }
+
+                // 2. Check if this file is an assessment report in post_event
+                $peStmt = $db->prepare("SELECT activity_id FROM post_event WHERE assessment_report_path = ? OR assessment_report_path = ? OR assessment_report_path LIKE ? LIMIT 1");
+                $peStmt->execute([$cleanRelWithUploads, $cleanRelWithout, '%' . basename($cleanRelWithout)]);
+                $peActId = (int)$peStmt->fetchColumn();
+                if ($peActId > 0) {
+                    return $base . '/api/document-download.php?activity_id=' . $peActId . '&type=assessment';
+                }
+
+                // 3. Check if this file is a survey CSV in post_event
+                $csvStmt = $db->prepare("SELECT activity_id FROM post_event WHERE survey_csv_path = ? OR survey_csv_path = ? OR survey_csv_path LIKE ? LIMIT 1");
+                $csvStmt->execute([$cleanRelWithUploads, $cleanRelWithout, '%' . basename($cleanRelWithout)]);
+                $csvActId = (int)$csvStmt->fetchColumn();
+                if ($csvActId > 0) {
+                    return $base . '/api/document-download.php?activity_id=' . $csvActId . '&type=survey_csv';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        return $base . '/' . $cleanRelWithUploads;
+    }
+}
+
+if (!function_exists('getFriendlyDocumentFilename')) {
+    /**
+     * Returns the user-friendly original filename from the documents table if recorded,
+     * falling back to basename($storedPath).
+     */
+    function getFriendlyDocumentFilename(PDO $db, int $activityId, ?string $storedPath): string
+    {
+        if (empty($storedPath)) {
+            return '';
+        }
+        try {
+            $cleanRel = ltrim(str_replace('\\', '/', trim($storedPath)), '/');
+            $withoutUploads = str_starts_with($cleanRel, 'uploads/') ? substr($cleanRel, 8) : $cleanRel;
+            $stmt = $db->prepare("SELECT file_name FROM documents WHERE activity_id = ? AND (file_path = ? OR file_path = ? OR file_path LIKE ?) ORDER BY id DESC LIMIT 1");
+            $stmt->execute([$activityId, $cleanRel, $withoutUploads, '%' . basename($cleanRel)]);
+            $name = $stmt->fetchColumn();
+            if (!empty($name)) {
+                $cleanName = preg_replace('/^(Assessment Report - |Survey Results - )/i', '', trim((string)$name));
+                if ($cleanName !== '') {
+                    return $cleanName;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignore lookup errors and fallback to basename
+        }
+        return basename($storedPath);
+    }
+}
+
+if (!function_exists('parseEvaluationCsvFile')) {
+    /**
+     * Parses an evaluation responses CSV file (Google Forms, MS Forms, or standard template)
+     * and returns structured respondent counts, average rating, satisfaction score, criteria averages,
+     * and individual respondent entries (ratings + open-ended comments).
+     */
+    function parseEvaluationCsvFile(string $filePath): array
+    {
+        $resolvedPath = is_file($filePath) ? $filePath : (resolveUploadedFilePath($filePath) ?? $filePath);
+        if (!file_exists($resolvedPath) || !is_readable($resolvedPath)) {
+            return [
+                'respondent_count'    => 0,
+                'average_rating'      => null,
+                'satisfaction_score'  => null,
+                'criteria_averages'   => [],
+                'total_ratings_count' => 0,
+                'individual_entries'  => []
+            ];
+        }
+
+        $handle = @fopen($resolvedPath, 'r');
+        if (!$handle) {
+            return [
+                'respondent_count'    => 0,
+                'average_rating'      => null,
+                'satisfaction_score'  => null,
+                'criteria_averages'   => [],
+                'total_ratings_count' => 0,
+                'individual_entries'  => []
+            ];
+        }
+
+        // Strip UTF-8 BOM
+        $bom = fread($handle, 3);
+        if ($bom !== "\xEF\xBB\xBF") {
+            rewind($handle);
+        }
+
+        // Detect delimiter
+        $firstLine = fgets($handle);
+        rewind($handle);
+        if ($bom === "\xEF\xBB\xBF") {
+            fread($handle, 3);
+        }
+
+        $delimiter = ',';
+        if ($firstLine !== false) {
+            $commaCount = substr_count($firstLine, ',');
+            $semiCount  = substr_count($firstLine, ';');
+            $tabCount   = substr_count($firstLine, "\t");
+            if ($semiCount > $commaCount && $semiCount > $tabCount) {
+                $delimiter = ';';
+            } elseif ($tabCount > $commaCount && $tabCount > $semiCount) {
+                $delimiter = "\t";
+            }
+        }
+
+        $rawHeaders = fgetcsv($handle, 0, $delimiter, '"', '');
+        if (!$rawHeaders || !is_array($rawHeaders)) {
+            fclose($handle);
+            return [
+                'respondent_count'    => 0,
+                'average_rating'      => null,
+                'satisfaction_score'  => null,
+                'criteria_averages'   => [],
+                'total_ratings_count' => 0,
+                'individual_entries'  => []
+            ];
+        }
+
+        $headers = array_map(function ($h) {
+            return trim(str_replace(["\r", "\n"], ' ', (string)$h));
+        }, $rawHeaders);
+
+        $normalizedHeaders = array_map('strtolower', $headers);
+        $metadataKeywords = [
+            'timestamp', 'time stamp', 'start time', 'completion time', 'submission time',
+            'id', 'response id', 'email', 'email address', 'name', 'full name',
+            'username', 'score', 'total score', 'last modified time',
+            'section', 'course', 'program', 'department', 'year', 'year level',
+            'student id', 'student no', 'student number', 'strand', 'grade'
+        ];
+
+        $hasCriteriaCol = in_array('criteria', $normalizedHeaders, true) || in_array('question', $normalizedHeaders, true);
+        $hasRatingCol   = in_array('rating', $normalizedHeaders, true) || in_array('score', $normalizedHeaders, true);
+        $isLongFormat   = $hasCriteriaCol && $hasRatingCol;
+
+        $respondents = 0;
+        $allRatings = [];
+        $criteriaMap = [];
+        $individualEntries = [];
+
+        if ($isLongFormat) {
+            $critIdx = array_search('criteria', $normalizedHeaders) !== false ? array_search('criteria', $normalizedHeaders) : array_search('question', $normalizedHeaders);
+            $rateIdx = array_search('rating', $normalizedHeaders) !== false ? array_search('rating', $normalizedHeaders) : array_search('score', $normalizedHeaders);
+            $evalIdx = array_search('evaluator_name', $normalizedHeaders) !== false ? array_search('evaluator_name', $normalizedHeaders) : array_search('name', $normalizedHeaders);
+            $commIdx = array_search('comments', $normalizedHeaders) !== false ? array_search('comments', $normalizedHeaders) : array_search('comment', $normalizedHeaders);
+
+            $seenEvaluators = [];
+            while (($row = fgetcsv($handle, 0, $delimiter, '"', '')) !== false) {
+                if (empty(array_filter($row, fn($v) => trim((string)$v) !== ''))) continue;
+                $crit = trim((string)($row[$critIdx] ?? ''));
+                $rateRaw = trim((string)($row[$rateIdx] ?? ''));
+                $commRaw = ($commIdx !== false) ? trim((string)($row[$commIdx] ?? '')) : '';
+                $evalName = ($evalIdx !== false && !empty(trim((string)($row[$evalIdx] ?? '')))) ? trim((string)$row[$evalIdx]) : 'Participant_' . (++$respondents);
+                if (!isset($seenEvaluators[$evalName])) {
+                    $seenEvaluators[$evalName] = true;
+                }
+
+                if (is_numeric($rateRaw)) {
+                    $r = (float)$rateRaw;
+                    $allRatings[] = $r;
+                    $criteriaMap[$crit][] = $r;
+                    $individualEntries[] = [
+                        'criteria'       => $crit ?: 'Evaluation Criterion',
+                        'rating'         => min(4, max(1, (int)round($r))),
+                        'comments'       => $commRaw !== '' ? $commRaw : null,
+                        'evaluator_name' => mb_substr($evalName, 0, 150, 'UTF-8'),
+                        'evaluated_at'   => date('Y-m-d H:i:s')
+                    ];
+                } elseif ($commRaw !== '') {
+                    $individualEntries[] = [
+                        'criteria'       => $crit ?: 'General Feedback',
+                        'rating'         => null,
+                        'comments'       => $commRaw,
+                        'evaluator_name' => mb_substr($evalName, 0, 150, 'UTF-8'),
+                        'evaluated_at'   => date('Y-m-d H:i:s')
+                    ];
+                }
+            }
+            $respondents = count($seenEvaluators);
+        } else {
+            // Wide matrix format (Google Forms / MS Forms)
+            $questionIndices = [];
+            $timestampIdx = null;
+            $sectionIdx   = null;
+            $nameIdx      = null;
+
+            foreach ($headers as $idx => $h) {
+                $hLow = strtolower($h);
+                if ($timestampIdx === null && (str_contains($hLow, 'timestamp') || str_contains($hLow, 'time'))) {
+                    $timestampIdx = $idx;
+                }
+                if ($sectionIdx === null && ($hLow === 'section' || str_contains($hLow, 'section') || $hLow === 'course' || $hLow === 'program')) {
+                    $sectionIdx = $idx;
+                }
+                if ($nameIdx === null && ($hLow === 'name' || $hLow === 'full name' || $hLow === 'email' || $hLow === 'email address')) {
+                    $nameIdx = $idx;
+                }
+
+                $isMeta = false;
+                foreach ($metadataKeywords as $kw) {
+                    if ($hLow === $kw || str_starts_with($hLow, $kw . ' ') || str_ends_with($hLow, ' ' . $kw)) {
+                        $isMeta = true;
+                        break;
+                    }
+                }
+                if (!$isMeta && strlen($h) > 2) {
+                    $questionIndices[$idx] = $h;
+                }
+            }
+
+            while (($row = fgetcsv($handle, 0, $delimiter, '"', '')) !== false) {
+                if (empty(array_filter($row, fn($v) => trim((string)$v) !== ''))) continue;
+                $respondents++;
+
+                $rawTs = ($timestampIdx !== null && isset($row[$timestampIdx])) ? trim((string)$row[$timestampIdx]) : '';
+                $cleanTs = preg_replace('/\s+GMT[+-]\d+$/i', '', $rawTs);
+                $parsedTime = $cleanTs ? @strtotime($cleanTs) : false;
+                $evaluatedAt = $parsedTime ? date('Y-m-d H:i:s', $parsedTime) : date('Y-m-d H:i:s');
+
+                $secVal  = ($sectionIdx !== null && isset($row[$sectionIdx])) ? trim((string)$row[$sectionIdx]) : '';
+                $nameVal = ($nameIdx !== null && isset($row[$nameIdx])) ? trim((string)$row[$nameIdx]) : '';
+                $evalBase = $nameVal !== '' ? $nameVal : 'Participant #' . $respondents;
+                if ($secVal !== '') {
+                    $evalBase .= ' (' . $secVal . ')';
+                }
+                $evaluatorName = mb_substr($evalBase . ' [CSV:' . $respondents . ']', 0, 150, 'UTF-8');
+
+                foreach ($questionIndices as $idx => $qTitle) {
+                    $val = trim((string)($row[$idx] ?? ''));
+                    if ($val === '') continue;
+
+                    $cName = mb_substr($qTitle, 0, 195, 'UTF-8');
+                    if (is_numeric($val) && (float)$val >= 1.0 && (float)$val <= 5.0) {
+                        $r = (float)$val;
+                        $allRatings[] = $r;
+                        $criteriaMap[$qTitle][] = $r;
+                        $individualEntries[] = [
+                            'criteria'       => $cName,
+                            'rating'         => min(4, max(1, (int)round($r))),
+                            'comments'       => null,
+                            'evaluator_name' => $evaluatorName,
+                            'evaluated_at'   => $evaluatedAt
+                        ];
+                    } elseif (preg_match('/^([1-5])(?:\s*[\/\-:]|\s+out\s+of|\.0$)/i', $val, $m)) {
+                        $r = (float)$m[1];
+                        $allRatings[] = $r;
+                        $criteriaMap[$qTitle][] = $r;
+                        $individualEntries[] = [
+                            'criteria'       => $cName,
+                            'rating'         => min(4, max(1, (int)round($r))),
+                            'comments'       => null,
+                            'evaluator_name' => $evaluatorName,
+                            'evaluated_at'   => $evaluatedAt
+                        ];
+                    } else {
+                        // Open-ended text response / qualitative comment
+                        $individualEntries[] = [
+                            'criteria'       => $cName,
+                            'rating'         => null,
+                            'comments'       => $val,
+                            'evaluator_name' => $evaluatorName,
+                            'evaluated_at'   => $evaluatedAt
+                        ];
+                    }
+                }
+            }
+        }
+
+        fclose($handle);
+
+        $critAverages = [];
+        foreach ($criteriaMap as $q => $vals) {
+            $critAverages[] = [
+                'criteria'       => $q,
+                'avg_rating'     => !empty($vals) ? round(array_sum($vals) / count($vals), 2) : 0,
+                'response_count' => count($vals)
+            ];
+        }
+
+        $overallAvg = !empty($allRatings) ? round(array_sum($allRatings) / count($allRatings), 2) : null;
+        $satScore = null;
+        if ($overallAvg !== null) {
+            $satScore = ($overallAvg <= 4.0)
+                ? round(($overallAvg / 4.0) * 5.0, 1)
+                : round((float)$overallAvg, 1);
+        }
+
+        return [
+            'respondent_count'    => $respondents,
+            'average_rating'      => $overallAvg,
+            'satisfaction_score'  => $satScore,
+            'criteria_averages'   => $critAverages,
+            'total_ratings_count' => count($allRatings),
+            'individual_entries'  => $individualEntries
+        ];
+    }
+}
+
+if (!function_exists('syncCsvEvaluationsToDatabase')) {
+    /**
+     * Synchronizes parsed CSV respondent ratings and open-ended comments into kpi_evaluations
+     * for a given activity without creating duplicate rows.
+     */
+    function syncCsvEvaluationsToDatabase(PDO $db, int $activityId, array $parsedCsv): void
+    {
+        if ($activityId <= 0) {
+            return;
+        }
+        try {
+            if (!empty($parsedCsv['individual_entries'])) {
+                // Remove old single-row 'Survey Summary (...)' placeholders if present
+                $delSummary = $db->prepare("DELETE FROM kpi_evaluations WHERE activity_id = ? AND evaluator_name LIKE 'Survey Summary (%'");
+                $delSummary->execute([$activityId]);
+
+                $checkStmt = $db->prepare("SELECT id FROM kpi_evaluations WHERE activity_id = ? AND criteria = ? AND evaluator_name = ? LIMIT 1");
+                $insStmt   = $db->prepare("INSERT INTO kpi_evaluations (activity_id, criteria, rating, comments, evaluator_name, evaluated_at) VALUES (?, ?, ?, ?, ?, ?)");
+
+                foreach ($parsedCsv['individual_entries'] as $entry) {
+                    $cName = mb_substr(trim((string)($entry['criteria'] ?? 'Evaluation Criterion')), 0, 195, 'UTF-8');
+                    if ($cName === '') continue;
+                    $evalName = mb_substr(trim((string)($entry['evaluator_name'] ?? 'Participant')), 0, 150, 'UTF-8');
+                    $rating   = $entry['rating'] ?? null;
+                    $comments = $entry['comments'] ?? null;
+                    $evalAt   = $entry['evaluated_at'] ?? date('Y-m-d H:i:s');
+
+                    $checkStmt->execute([$activityId, $cName, $evalName]);
+                    if (!$checkStmt->fetchColumn()) {
+                        $insStmt->execute([$activityId, $cName, $rating, $comments, $evalName, $evalAt]);
+                    }
+                }
+            } elseif (!empty($parsedCsv['criteria_averages'])) {
+                $chkCrit = $db->prepare("SELECT COUNT(*) FROM kpi_evaluations WHERE activity_id = ? AND rating IS NOT NULL");
+                $chkCrit->execute([$activityId]);
+                if ((int)$chkCrit->fetchColumn() === 0) {
+                    $insCrit = $db->prepare("INSERT INTO kpi_evaluations (activity_id, criteria, rating, evaluator_name, evaluated_at) VALUES (?, ?, ?, ?, NOW())");
+                    foreach ($parsedCsv['criteria_averages'] as $ca) {
+                        $cName = mb_substr(trim((string)($ca['criteria'] ?? 'Evaluation Criterion')), 0, 190, 'UTF-8');
+                        if ($cName === '') $cName = 'Evaluation Criterion';
+                        $rVal  = min(4, max(1, (int)round((float)($ca['avg_rating'] ?? 4))));
+                        $insCrit->execute([$activityId, $cName, $rVal, 'Survey Summary (' . (int)($ca['response_count'] ?? 0) . ' responses)']);
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log("syncCsvEvaluationsToDatabase error for activity {$activityId}: " . $e->getMessage());
+        }
+    }
+}
+
+if (!function_exists('reconcilePostEventMetrics')) {
+    /**
+     * Globally reconciles and self-heals post_event attendance and satisfaction scores
+     * from uploaded survey CSV files or kpi_evaluations records.
+     */
+    function reconcilePostEventMetrics(PDO $db, ?int $activityId = null): void
+    {
+        try {
+            if ($activityId !== null && $activityId > 0) {
+                $stmt = $db->prepare("SELECT pe.*, a.title AS act_title, a.target_participants AS act_target FROM post_event pe JOIN activities a ON pe.activity_id = a.id WHERE pe.activity_id = ?");
+                $stmt->execute([$activityId]);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } else {
+                $stmt = $db->query("SELECT pe.*, a.title AS act_title, a.target_participants AS act_target FROM post_event pe JOIN activities a ON pe.activity_id = a.id WHERE pe.actual_attendance = 0 OR pe.actual_attendance IS NULL OR pe.satisfaction_score IS NULL OR pe.survey_csv_path IS NOT NULL");
+                $rows = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+            }
+
+            foreach ($rows as $pe) {
+                $actId = (int)$pe['activity_id'];
+                $surveyPath = $pe['survey_csv_path'] ?? null;
+                $csvFullPath = resolveUploadedFilePath($surveyPath);
+
+                // Fallback 1: Check documents table for a .csv attachment on this activity
+                if (!$csvFullPath) {
+                    $docStmt = $db->prepare("SELECT file_path FROM documents WHERE activity_id = ? AND (file_path LIKE '%.csv' OR file_name LIKE '%.csv') ORDER BY id DESC LIMIT 1");
+                    $docStmt->execute([$actId]);
+                    $docCsvPath = $docStmt->fetchColumn();
+                    if ($docCsvPath) {
+                        $resolvedDocCsv = resolveUploadedFilePath((string)$docCsvPath);
+                        if ($resolvedDocCsv) {
+                            $surveyPath = (string)$docCsvPath;
+                            $csvFullPath = $resolvedDocCsv;
+                        }
+                    }
+                }
+
+                // Fallback 2: Check uploads/post-event/{activity_id}_*.csv on disk
+                if (!$csvFullPath && defined('UPLOAD_PATH')) {
+                    $pattern = rtrim(str_replace('\\', '/', UPLOAD_PATH), '/') . '/post-event/' . $actId . '_*.csv';
+                    $matches = @glob($pattern);
+                    if (!empty($matches)) {
+                        usort($matches, fn($a, $b) => (@filemtime($b) ?: 0) <=> (@filemtime($a) ?: 0));
+                        $csvFullPath = $matches[0];
+                        $surveyPath  = 'post-event/' . basename($csvFullPath);
+                    }
+                }
+
+                // Fallback 3: Match bundled Tech Innovators survey CSV if activity is Tech Innovators and no CSV linked yet
+                if (!$csvFullPath && stripos((string)($pe['act_title'] ?? ''), 'Tech Innovators') !== false) {
+                    $bundledRel = 'post-event/tech_innovators_survey_responses.csv';
+                    $bundledFull = resolveUploadedFilePath($bundledRel);
+                    if ($bundledFull) {
+                        $surveyPath  = $bundledRel;
+                        $csvFullPath = $bundledFull;
+                    }
+                }
+
+                $surveyRespondentCount = 0;
+                $computedSatScore = null;
+
+                if ($csvFullPath) {
+                    $parsed = parseEvaluationCsvFile($csvFullPath);
+                    $surveyRespondentCount = (int)($parsed['respondent_count'] ?? 0);
+                    $computedSatScore      = $parsed['satisfaction_score'] ?? null;
+                    if ($surveyRespondentCount > 0) {
+                        syncCsvEvaluationsToDatabase($db, $actId, $parsed);
+                    }
+                }
+
+                // Fallback to kpi_evaluations table if CSV not present or 0 respondents
+                if ($surveyRespondentCount === 0) {
+                    $kStmt = $db->prepare("
+                        SELECT COUNT(DISTINCT CASE WHEN evaluator_name IS NOT NULL AND TRIM(evaluator_name) != '' AND evaluator_name NOT LIKE 'Survey Summary (%' THEN evaluator_name ELSE id END) AS resp_cnt,
+                               AVG(rating) AS avg_rating
+                        FROM kpi_evaluations
+                        WHERE activity_id = ? AND rating IS NOT NULL
+                    ");
+                    $kStmt->execute([$actId]);
+                    $kRow = $kStmt->fetch(PDO::FETCH_ASSOC);
+                    if ($kRow && (int)$kRow['resp_cnt'] > 0) {
+                        $surveyRespondentCount = (int)$kRow['resp_cnt'];
+                        if ($computedSatScore === null && $kRow['avg_rating'] !== null) {
+                            $avgR = (float)$kRow['avg_rating'];
+                            $computedSatScore = ($avgR <= 4.0) ? round(($avgR / 4.0) * 5.0, 1) : round($avgR, 1);
+                        }
+                    }
+                }
+
+                $attMethod = $pe['attendance_method'] ?? 'paper_list';
+                $manualAtt = isset($pe['manual_attendance']) && $pe['manual_attendance'] !== null ? (int)$pe['manual_attendance'] : null;
+                $currentActual = (int)($pe['actual_attendance'] ?? 0);
+                $newActual = $currentActual;
+
+                if ($attMethod === 'survey_only') {
+                    if ($surveyRespondentCount > 0) {
+                        $newActual = $surveyRespondentCount;
+                    } elseif ($manualAtt !== null && $manualAtt > 0) {
+                        $newActual = $manualAtt;
+                    }
+                } elseif ($attMethod === 'both') {
+                    $newActual = max($manualAtt ?? 0, $surveyRespondentCount, $currentActual);
+                } else {
+                    if ($currentActual === 0 && $surveyRespondentCount > 0 && ($manualAtt === null || $manualAtt === 0)) {
+                        $newActual = $surveyRespondentCount;
+                    }
+                }
+
+                $newSat = $computedSatScore ?? ($pe['satisfaction_score'] ?? null);
+                $newTarget = ((int)($pe['target_attendance'] ?? 0) > 0) ? (int)$pe['target_attendance'] : (int)($pe['act_target'] ?? 0);
+
+                $needsUpdate = (
+                    $newActual !== $currentActual ||
+                    ($newSat !== null && (float)$newSat !== (float)($pe['satisfaction_score'] ?? -1)) ||
+                    ($surveyPath && $surveyPath !== ($pe['survey_csv_path'] ?? null)) ||
+                    ($newTarget > 0 && (int)($pe['target_attendance'] ?? 0) === 0)
+                );
+
+                if ($needsUpdate) {
+                    $upd = $db->prepare("
+                        UPDATE post_event
+                        SET actual_attendance = ?,
+                            target_attendance = ?,
+                            satisfaction_score = ?,
+                            survey_csv_path = COALESCE(?, survey_csv_path)
+                        WHERE id = ?
+                    ");
+                    $upd->execute([$newActual, $newTarget, $newSat, $surveyPath, $pe['id']]);
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log("reconcilePostEventMetrics error: " . $e->getMessage());
+        }
+    }
+}
+
+/**
+ * Determines whether an activity has a valid floor plan with actual content
+ * (an uploaded image/PDF file, drawn canvas shapes, or floor plan notes if required).
+ * If the user skipped the floor plan during submission and provided no file or canvas drawings,
+ * this function returns false.
+ *
+ * @param array|null $floorplan Database row from `floor_plans` or null
+ * @param array|null $activity Database row from `activities` or null
+ * @return bool
+ */
+function hasValidFloorPlanContent(?array $floorplan, ?array $activity = null): bool
+{
+    if (empty($floorplan)) {
+        return false;
+    }
+
+    // 1. If an actual floor plan file was uploaded
+    if (!empty($floorplan['file_path'])) {
+        return true;
+    }
+
+    // 2. If canvas layout was drawn with shapes or rooms
+    if (!empty($floorplan['canvas_json'])) {
+        $cj = is_array($floorplan['canvas_json'])
+            ? $floorplan['canvas_json']
+            : json_decode($floorplan['canvas_json'], true);
+
+        if (is_array($cj)) {
+            // Check top-level shapes
+            if (!empty($cj['shapes']) && is_array($cj['shapes']) && count($cj['shapes']) > 0) {
+                return true;
+            }
+            // Check multi-floor shapes
+            if (!empty($cj['floors']) && is_array($cj['floors'])) {
+                foreach ($cj['floors'] as $fl) {
+                    if (is_array($fl) && !empty($fl['shapes']) && is_array($fl['shapes']) && count($fl['shapes']) > 0) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. If floor plan was required and non-empty notes were provided
+    $floorPlanRequired = true;
+    if ($activity !== null && isset($activity['floor_plan_required'])) {
+        $floorPlanRequired = (int)$activity['floor_plan_required'] === 1;
+    }
+    if ($floorPlanRequired && !empty(trim($floorplan['notes'] ?? ''))) {
+        return true;
+    }
+
+    return false;
+}
+

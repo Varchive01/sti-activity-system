@@ -4,7 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/QrCodeService.php';
-requireRole('faculty', 'program_head');
+requireRole('faculty', 'program_head', 'admin1', 'admin2');
 $user = currentUser();
 $db   = getDB();
 $id   = (int)($_GET['id'] ?? 0);
@@ -648,14 +648,23 @@ $proposalPdfData = [
   </style>
 </head>
 
-<body class="theme-faculty">
+<body class="<?= ($user['role'] === 'admin1') ? 'theme-arjay' : (($user['role'] === 'admin2') ? 'theme-ian' : 'theme-faculty') ?>">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 <div class="main-wrap">
   <!-- Topbar -->
   <header class="topbar">
     <div class="page-title">View Proposal</div>
     <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
-      <a href="<?= BASE_URL ?>/faculty/activities.php" class="btn btn-outline btn-sm">← Back</a>
+      <?php
+      $roleBackMap = [
+          'admin1'       => '/admin1/activities.php',
+          'admin2'       => '/admin2/activities.php',
+          'program_head' => '/program_head/dashboard.php',
+          'faculty'      => '/faculty/activities.php',
+      ];
+      $backUrl = BASE_URL . ($roleBackMap[$user['role']] ?? '/faculty/activities.php');
+      ?>
+      <a href="<?= $backUrl ?>" class="btn btn-outline btn-sm">← Back</a>
       <button type="button" id="exportPdfBtn" class="btn btn-outline btn-sm" onclick="exportProposalPdf()" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
         📄 Export PDF
       </button>
@@ -709,11 +718,6 @@ $proposalPdfData = [
             <span><?= htmlspecialchars($activity['title']) ?></span>
             <?= getStatusBadge($activity['status']) ?>
           </h2>
-          <div>
-            <button type="button" class="btn btn-outline btn-sm" onclick="exportProposalPdf()" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
-              📄 Export PDF
-            </button>
-          </div>
         </div>
         <div class="card-body">
           <div class="info-grid">
@@ -874,7 +878,7 @@ $proposalPdfData = [
       </div>
 
       <!-- Floor Plan -->
-      <?php if ($floorplan): ?>
+      <?php if (hasValidFloorPlanContent($floorplan, $activity)): ?>
         <div class="card">
           <div class="card-header">
             <h2>Floor Plan</h2>
@@ -1133,12 +1137,23 @@ $proposalPdfData = [
               </table>
             </div>
           <?php endif; ?>
-          <div style="padding:16px 20px; font-size:0.88rem; color:var(--text-main); border-top: <?= !empty($kpis) ? '1px solid var(--border)' : 'none' ?>;">
-            <strong>Google Form Link:</strong>
+          <div style="padding:16px 20px; font-size:0.88rem; color:var(--text-main); border-top: <?= !empty($kpis) ? '1px solid var(--border)' : 'none' ?>; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+            <div>
+              <strong>Evaluation Form Link:</strong>
+              <?php if (!empty($activity['evaluation_method'])): ?>
+                <a href="<?= htmlspecialchars($activity['evaluation_method']) ?>" target="_blank" style="color:var(--accent, var(--sti-blue)); text-decoration:none; font-weight:600; word-break:break-all;"><?= htmlspecialchars($activity['evaluation_method']) ?></a>
+              <?php else: ?>
+                <span style="color:var(--text-muted);">—</span>
+              <?php endif; ?>
+            </div>
             <?php if (!empty($activity['evaluation_method'])): ?>
-              <a href="<?= htmlspecialchars($activity['evaluation_method']) ?>" target="_blank" style="color:var(--accent, var(--sti-blue)); text-decoration:none; font-weight:600; word-break:break-all;"><?= htmlspecialchars($activity['evaluation_method']) ?></a>
-            <?php else: ?>
-              <span style="color:var(--text-muted);">—</span>
+              <?php if (str_contains($activity['evaluation_method'], 'forms.office.com') || str_contains($activity['evaluation_method'], 'forms.microsoft.com')): ?>
+                <span class="badge" style="background:#0078D4; color:#fff; font-size:0.75rem; padding:4px 8px; border-radius:4px; font-weight:600;">Microsoft Forms</span>
+              <?php elseif (str_contains($activity['evaluation_method'], 'forms.gle') || str_contains($activity['evaluation_method'], 'google.com')): ?>
+                <span class="badge" style="background:#EA4335; color:#fff; font-size:0.75rem; padding:4px 8px; border-radius:4px; font-weight:600;">Google Forms</span>
+              <?php else: ?>
+                <span class="badge badge-secondary" style="font-size:0.75rem; padding:4px 8px; border-radius:4px;">Online Form</span>
+              <?php endif; ?>
             <?php endif; ?>
           </div>
           <?php if (QrCodeService::isValidUrl($activity['evaluation_method'] ?? '')): ?>
@@ -1151,7 +1166,7 @@ $proposalPdfData = [
                   Evaluation Questionnaire QR Code
                 </div>
                 <p style="font-size: 0.825rem; color: var(--text-muted); margin: 0 0 12px 0; line-height: 1.4;">
-                  Scan this QR code with any mobile device to immediately open the Google Form evaluation questionnaire.
+                  Scan this QR code with any mobile device to immediately open the evaluation questionnaire.
                 </p>
                 <div class="no-print">
                   <button type="button" class="btn btn-outline btn-sm" onclick="printEvaluationFlyer()" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
@@ -2177,6 +2192,25 @@ $proposalPdfData = [
         .replace(/'/g, '&#039;');
     }
   </script>
+  <script src="<?= BASE_URL ?>/assets/js/offline-drafts.js?v=<?= time() ?>"></script>
+  <?php if (!empty($_GET['updated']) || !empty($_GET['submitted'])): ?>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const actId = <?= (int)$id ?>;
+      if (window.OfflineDraftManager && actId > 0) {
+        window.OfflineDraftManager.deleteDraft('draft_srv_' + actId).catch(function() {});
+        try {
+          localStorage.removeItem('sti_active_draft_full_srv_' + actId);
+          localStorage.removeItem('sti_draft_meta_srv_' + actId);
+          localStorage.removeItem('sti_emergency_srv_' + actId);
+          localStorage.removeItem('sti_active_draft_full_new');
+          localStorage.removeItem('sti_draft_meta_new_active');
+          localStorage.removeItem('sti_emergency_new_active');
+        } catch (e) {}
+      }
+    });
+  </script>
+  <?php endif; ?>
 </body>
 
 </html>

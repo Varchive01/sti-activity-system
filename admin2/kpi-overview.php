@@ -6,6 +6,9 @@ require_once __DIR__ . '/../includes/functions.php';
 requireRole('admin2');
 $user = currentUser();
 $db   = getDB();
+if (function_exists('reconcilePostEventMetrics')) {
+    reconcilePostEventMetrics($db);
+}
 
 // KPI by criteria
 $byCriteria = $db->query("

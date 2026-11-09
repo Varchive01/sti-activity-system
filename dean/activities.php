@@ -11,20 +11,35 @@ $deanId = (int)$user['id'];
 $search     = sanitize($_GET['q'] ?? '');
 $filterStat = sanitize($_GET['status'] ?? '');
 $filterSrc  = sanitize($_GET['source'] ?? '');
+$filterDept = sanitize($_GET['department'] ?? '');
+$filterDate = sanitize($_GET['date'] ?? '');
 $page       = max(1, (int)($_GET['page'] ?? 1));
 $perPage    = 15;
 $offset     = ($page - 1) * $perPage;
 
-// Dean scoping: Only activities that have reached the Dean for final approval ('pending_final_approval'),
-// have been approved or completed, or were returned/rejected by the Dean directly.
-// Preliminary review stages (submitted, under_review, endorsed) and pre-Dean rejections are excluded.
-$where  = "(a.status IN ('pending_final_approval', 'approved', 'completed') OR (a.status IN ('returned_for_revision', 'rejected') AND EXISTS (SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?)))";
-$params = [$deanId];
+// Discover available departments from database
+$deptList = [];
+try {
+    $deptStmt = $db->query("
+        SELECT DISTINCT department FROM users 
+        WHERE department IS NOT NULL AND TRIM(department) != ''
+        ORDER BY department ASC
+    ");
+    $deptList = $deptStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+} catch (\Throwable $e) {}
+
+// Dean institutional oversight: The Dean can view all officially submitted proposals across all departments
+// and activity sources, regardless of current status (submitted, under_review, endorsed, pending_final_approval,
+// approved, completed, returned_for_revision, rejected).
+// Private unsubmitted drafts belonging to faculty/program heads remain hidden.
+$where = "(a.status != 'draft' OR a.faculty_id = ? OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active'))";
+$params = [$deanId, $deanId];
 
 if ($search) {
   $where .= " AND a.title LIKE ?";
   $params[] = "%$search%";
 }
+
 $hasArchivedCol = hasActivityArchiveColumn($db);
 if ($filterStat === 'archived') {
   if ($hasArchivedCol) {
@@ -36,35 +51,63 @@ if ($filterStat === 'archived') {
   if ($hasArchivedCol) {
     $where .= " AND (a.is_archived IS NULL OR a.is_archived = 0)";
   }
-if ($filterStat) {
-  $filterStatLower = strtolower($filterStat);
-  if (in_array($filterStatLower, ['draft', 'submitted', 'under_review', 'endorsed', 'resubmitted'], true)) {
-    $where .= " AND 1=0";
-  } elseif (in_array($filterStatLower, ['pending_final_approval', 'approved', 'completed'], true)) {
-    $where .= " AND a.status = ?";
-    $params[] = $filterStat;
-  } elseif (in_array($filterStatLower, ['returned_for_revision', 'rejected'], true)) {
-    $where .= " AND a.status = ? AND EXISTS (SELECT 1 FROM approval_logs al WHERE al.activity_id = a.id AND al.reviewer_id = ?)";
-    $params[] = $filterStat;
-    $params[] = $deanId;
-  } else {
-    $where .= " AND a.status = ?";
-    $params[] = $filterStat;
+  if ($filterStat) {
+    $filterStatLower = strtolower($filterStat);
+    if ($filterStatLower === 'draft') {
+      $where .= " AND a.status = 'draft' AND (a.faculty_id = ? OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = ? AND pc.status = 'active'))";
+      $params[] = $deanId;
+      $params[] = $deanId;
+    } elseif (in_array($filterStatLower, ['under_review', 'submitted'], true)) {
+      $where .= " AND a.status IN ('submitted', 'under_review')";
+    } else {
+      $where .= " AND a.status = ?";
+      $params[] = $filterStat;
+    }
   }
 }
-}
+
 if ($filterSrc) {
   $where .= " AND a.source = ?";
   $params[] = $filterSrc;
 }
 
-$total = $db->prepare("SELECT COUNT(*) FROM activities a WHERE $where");
+if ($filterDept) {
+  $normDeptFilter = function_exists('normalizeDepartmentName') ? normalizeDepartmentName($filterDept) : $filterDept;
+  if ($normDeptFilter === 'IT') {
+    $where .= " AND (u.department = 'IT Department' OR u.department LIKE '%IT%' OR u.department LIKE '%Information Technology%')";
+  } elseif ($normDeptFilter === 'THM') {
+    $where .= " AND (u.department = 'THM Department' OR u.department LIKE '%THM%' OR u.department LIKE '%Hospitality%' OR u.department LIKE '%Tourism%')";
+  } elseif ($normDeptFilter === 'GE') {
+    $where .= " AND (u.department = 'G.E. Department' OR u.department LIKE '%G.E%' OR u.department LIKE '%General Education%')";
+  } else {
+    $where .= " AND u.department = ?";
+    $params[] = $filterDept;
+  }
+}
+
+if ($filterDate) {
+  if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filterDate)) {
+    $where .= " AND a.event_date = ?";
+    $params[] = $filterDate;
+  } elseif (preg_match('/^\d{4}-\d{2}$/', $filterDate)) {
+    $where .= " AND DATE_FORMAT(a.event_date, '%Y-%m') = ?";
+    $params[] = $filterDate;
+  } elseif (preg_match('/^\d{4}$/', $filterDate)) {
+    $where .= " AND YEAR(a.event_date) = ?";
+    $params[] = $filterDate;
+  }
+}
+
+$total = $db->prepare("SELECT COUNT(*) FROM activities a JOIN users u ON a.faculty_id = u.id WHERE $where");
 $total->execute($params);
 $totalCount = (int)$total->fetchColumn();
 $totalPages = ceil($totalCount / $perPage);
 
 $acts = $db->prepare("
-  SELECT a.*, u.name as fn 
+  SELECT a.*, u.name as fn, u.department as dept,
+         (SELECT al.notes FROM approval_logs al WHERE al.activity_id = a.id AND al.action IN ('returned', 'rejected', 'returned_for_revision') ORDER BY al.id DESC LIMIT 1) as last_review_notes,
+         (SELECT u_rev.name FROM approval_logs al JOIN users u_rev ON al.reviewer_id = u_rev.id WHERE al.activity_id = a.id AND al.action IN ('returned', 'rejected', 'returned_for_revision') ORDER BY al.id DESC LIMIT 1) as last_reviewer_name,
+         (SELECT u_rev.role FROM approval_logs al JOIN users u_rev ON al.reviewer_id = u_rev.id WHERE al.activity_id = a.id AND al.action IN ('returned', 'rejected', 'returned_for_revision') ORDER BY al.id DESC LIMIT 1) as last_reviewer_role
   FROM activities a 
   JOIN users u ON a.faculty_id = u.id 
   WHERE $where 
@@ -130,24 +173,40 @@ $activities = $acts->fetchAll();
     <div class="content">
 
       <!-- Search & Filters -->
-      <form method="GET" class="filters">
-        <input type="text" name="q" class="form-control" placeholder="Search title…" value="<?= htmlspecialchars($search) ?>" style="max-width:260px;">
-        <select name="status" class="form-control" style="max-width:190px;">
+      <form method="GET" class="filters" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
+        <input type="text" name="q" class="form-control" placeholder="Search title…" value="<?= htmlspecialchars($search) ?>" style="max-width:220px;">
+        
+        <select name="status" class="form-control" style="max-width:180px;">
           <option value="">All Statuses</option>
-          <option value="archived" <?= ($filterStat==='archived')?'selected':'' ?>>📦 Archived</option>
+          <option value="under_review" <?= in_array($filterStat, ['under_review', 'submitted'], true) ? 'selected' : '' ?>>Under Review</option>
+          <option value="endorsed" <?= $filterStat === 'endorsed' ? 'selected' : '' ?>>Endorsed</option>
           <option value="pending_final_approval" <?= $filterStat === 'pending_final_approval' ? 'selected' : '' ?>>Pending Final Approval</option>
           <option value="approved" <?= $filterStat === 'approved' ? 'selected' : '' ?>>Approved</option>
           <option value="completed" <?= $filterStat === 'completed' ? 'selected' : '' ?>>Completed</option>
           <option value="returned_for_revision" <?= $filterStat === 'returned_for_revision' ? 'selected' : '' ?>>Returned for Revision</option>
           <option value="rejected" <?= $filterStat === 'rejected' ? 'selected' : '' ?>>Rejected</option>
+          <option value="archived" <?= ($filterStat==='archived')?'selected':'' ?>>📦 Archived</option>
         </select>
-        <select name="source" class="form-control" style="max-width:170px;">
+
+        <select name="department" class="form-control" style="max-width:180px;">
+          <option value="">All Departments</option>
+          <?php foreach ($deptList as $dName): ?>
+            <option value="<?= htmlspecialchars($dName) ?>" <?= $filterDept === $dName ? 'selected' : '' ?>><?= htmlspecialchars($dName) ?></option>
+          <?php endforeach; ?>
+        </select>
+
+        <select name="source" class="form-control" style="max-width:150px;">
           <option value="">All Sources</option>
           <option value="student_org" <?= $filterSrc === 'student_org' ? 'selected' : '' ?>>Student Org</option>
           <option value="faculty" <?= $filterSrc === 'faculty' ? 'selected' : '' ?>>Faculty</option>
         </select>
-        <button type="submit" class="btn btn-primary">Filter</button>
-        <?php if ($search || $filterStat || $filterSrc): ?><a href="activities.php" class="btn btn-outline">Clear</a><?php endif; ?>
+
+        <input type="date" name="date" class="form-control" value="<?= htmlspecialchars($filterDate) ?>" style="max-width:150px;" title="Filter by event date">
+
+        <button type="submit" class="btn btn-primary btn-sm" style="height:36px;padding:0 14px;">Filter</button>
+        <?php if ($search || $filterStat || $filterSrc || $filterDept || $filterDate): ?>
+          <a href="activities.php" class="btn btn-outline btn-sm" style="height:36px;display:inline-flex;align-items:center;padding:0 12px;">Clear</a>
+        <?php endif; ?>
         <span class="filters-count" style="margin-left:auto;font-size:0.82rem;color:var(--text-muted);font-weight:500;"><?= number_format($totalCount) ?> total</span>
       </form>
 
@@ -161,20 +220,21 @@ $activities = $acts->fetchAll();
             <table class="activity-table">
               <thead>
                 <tr>
-                  <th style="width:40px;">#</th>
+                  <th style="width:35px;">#</th>
                   <th>Title</th>
-                  <th>Faculty</th>
-                  <th style="width:110px;">Source</th>
-                  <th style="width:115px;">Date</th>
-                  <th style="width:125px;">Status</th>
-                  <th style="width:85px;">KPI</th>
-                  <th style="width:110px;text-align:right;">Actions</th>
+                  <th>Faculty / Proponent</th>
+                  <th style="width:130px;">Department</th>
+                  <th style="width:105px;">Source</th>
+                  <th style="width:110px;">Date</th>
+                  <th style="width:155px;">Status</th>
+                  <th style="width:75px;">KPI</th>
+                  <th style="width:105px;text-align:right;">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <?php if (empty($activities)): ?>
                   <tr>
-                    <td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">No activities found.</td>
+                    <td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">No activities found matching your criteria.</td>
                   </tr>
                 <?php else:
                   $i = ($page - 1) * $perPage;
@@ -188,9 +248,23 @@ $activities = $acts->fetchAll();
                     <td class="text-muted"><?= $i ?></td>
                     <td><strong><a href="<?= BASE_URL ?>/dean/view-activity.php?id=<?= $a['id'] ?>" style="color:var(--text-main);text-decoration:none;"><?= htmlspecialchars($a['title']) ?></a></strong></td>
                     <td><?= htmlspecialchars($a['fn']) ?></td>
+                    <td><?= htmlspecialchars($a['dept'] ?: '—') ?></td>
                     <td><span class="badge badge-secondary"><?= ucfirst(str_replace('_', ' ', $a['source'])) ?></span></td>
                     <td><?= $a['event_date'] ? date('M j, Y', strtotime($a['event_date'])) : '—' ?></td>
-                    <td><?= getStatusBadge($a['status']) ?></td>
+                    <td>
+                      <?= getStatusBadge($a['status']) ?>
+                      <?php if (in_array($a['status'], ['returned_for_revision', 'rejected'], true)): ?>
+                        <?php if (!empty($a['last_reviewer_name'])): ?>
+                          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;line-height:1.2;" title="<?= htmlspecialchars($a['last_review_notes'] ?: $a['revision_notes'] ?: 'No notes provided') ?>">
+                            By <?= htmlspecialchars($a['last_reviewer_name']) ?> <span style="opacity:0.85;">(<?= htmlspecialchars(ucwords(str_replace('_',' ',$a['last_reviewer_role'] ?? ''))) ?>)</span>
+                          </div>
+                        <?php elseif (!empty($a['revision_notes'])): ?>
+                          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;line-height:1.2;" title="<?= htmlspecialchars($a['revision_notes']) ?>">
+                            Has review notes
+                          </div>
+                        <?php endif; ?>
+                      <?php endif; ?>
+                    </td>
                     <td><?= $kpiVal ? '<strong>' . number_format($kpiVal, 1) . '</strong>/4' : '—' ?></td>
                     <td style="text-align:right;">
                       <div style="display:inline-flex;gap:6px;align-items:center;justify-content:flex-end;">
@@ -216,19 +290,29 @@ $activities = $acts->fetchAll();
       </div>
 
       <!-- Pagination -->
-      <?php if ($totalPages > 1): ?>
+      <?php if ($totalPages > 1): 
+        $filterQueryArr = array_filter([
+          'q'          => $search,
+          'status'     => $filterStat,
+          'source'     => $filterSrc,
+          'department' => $filterDept,
+          'date'       => $filterDate,
+        ], fn($v) => $v !== '' && $v !== null);
+        $filterQueryStr = http_build_query($filterQueryArr);
+        $pageUrl = fn($p) => '?page=' . $p . ($filterQueryStr ? '&' . $filterQueryStr : '');
+      ?>
         <div class="pagination">
           <?php if ($page > 1): ?>
-            <a href="?page=<?= $page - 1 ?>&q=<?= urlencode($search) ?>&status=<?= urlencode($filterStat) ?>&source=<?= urlencode($filterSrc) ?>">← Prev</a>
+            <a href="<?= $pageUrl($page - 1) ?>">← Prev</a>
           <?php endif; ?>
           <?php for ($p = 1; $p <= $totalPages; $p++):
             if (abs($p - $page) <= 2 || $p === 1 || $p === $totalPages): ?>
-              <<?= $p === $page ? 'span class="active"' : 'a href="?page=' . $p . '&q=' . urlencode($search) . '&status=' . urlencode($filterStat) . '&source=' . urlencode($filterSrc) . '"' ?>><?= $p ?></<?= $p === $page ? 'span' : 'a' ?>>
+              <<?= $p === $page ? 'span class="active"' : 'a href="' . $pageUrl($p) . '"' ?>><?= $p ?></<?= $p === $page ? 'span' : 'a' ?>>
             <?php elseif (abs($p - $page) === 3): echo '<span>…</span>';
             endif;
           endfor; ?>
           <?php if ($page < $totalPages): ?>
-            <a href="?page=<?= $page + 1 ?>&q=<?= urlencode($search) ?>&status=<?= urlencode($filterStat) ?>&source=<?= urlencode($filterSrc) ?>">Next →</a>
+            <a href="<?= $pageUrl($page + 1) ?>">Next →</a>
           <?php endif; ?>
         </div>
       <?php endif; ?>

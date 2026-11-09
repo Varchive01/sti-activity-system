@@ -70,7 +70,7 @@ $params = $periodBounds['params'];
 // Approval Trends for Selected Period (monitored activities)
 $approvalTrends = ['months' => [], 'max_count' => 1, 'total_approved' => 0, 'total_returned' => 0];
 try {
-    $approvalTrends = getApprovalTrends($selectedYear, $selectedPeriod, $db);
+    $approvalTrends = getApprovalTrends($selectedYear, $selectedPeriod, $db, null, (int)$user['id']);
 } catch (\Throwable $e) {
     error_log("Admin2 dashboard approval trends error: " . $e->getMessage());
 }
@@ -114,6 +114,7 @@ $pending = [];
 $kpi = [];
 $actions = [];
 
+$admin2VisibleSql = buildAdmin2VisibleActivitySql((int)$user['id'], 'a');
 try {
     $statsStmt = $db->prepare("
       SELECT
@@ -124,7 +125,7 @@ try {
         SUM(a.status='completed') as completed,
         COUNT(*) as total
       FROM activities a
-      WHERE {$whereClause} AND a.status != 'draft'
+      WHERE {$whereClause} AND {$admin2VisibleSql}
     ");
     $statsStmt->execute($params);
     $stats = $statsStmt->fetch() ?: [];
@@ -758,73 +759,122 @@ try {
       font-family: 'Plus Jakarta Sans', sans-serif !important;
     }
 
-    /* ── Proposal Approval Trends Chart ── */
-    .month-chart-scroll-wrap {
+    /* ── Proposal Approval Trends Grouped Column Chart ── */
+    .chart-container-wrap {
+      position: relative;
       width: 100%;
+      user-select: none;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: thin;
       padding-bottom: 4px;
     }
-    .month-bar-wrap {
-      display: flex;
-      align-items: flex-end;
-      gap: 8px;
-      height: 130px;
-      margin: 16px 0 10px;
-    }
-    .month-bar-col {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      height: 100%;
-    }
-    .month-bar-inner {
-      flex: 1;
+    .trends-chart-svg {
       width: 100%;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      gap: 3px;
+      height: auto;
+      max-height: 220px;
+      display: block;
+      overflow: visible;
     }
-    .month-bar {
-      width: 14px;
-      border-radius: 4px 4px 0 0;
-      min-width: 0;
-      transition: opacity .18s ease, transform .18s ease;
-      cursor: default;
-      position: relative;
+    .chart-grid-line {
+      stroke: var(--border);
+      stroke-width: 1;
+      shape-rendering: crispEdges;
     }
-    .month-bar.approved {
-      background: #16A34A;
+    .chart-axis-line {
+      stroke: var(--border);
+      stroke-width: 1.5;
+      shape-rendering: crispEdges;
     }
-    .month-bar.returned {
-      background: #DC2626;
-    }
-    .month-bar:hover {
-      opacity: .85;
-      transform: scaleY(1.03);
-      transform-origin: bottom;
-    }
-    .month-label {
-      text-align: center;
-      font-size: .68rem;
-      color: var(--text-muted);
+    .chart-axis-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 10px;
       font-weight: 700;
-      margin-top: 8px;
-      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      fill: var(--text-muted);
     }
-    .month-val {
-      position: absolute;
-      top: -18px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: .62rem;
-      font-weight: 700;
-      white-space: nowrap;
-      color: var(--text-main);
-      font-family: 'Plus Jakarta Sans', sans-serif !important;
+    .chart-axis-text {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      fill: var(--text-muted);
+    }
+    .chart-month-label {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      fill: var(--text-muted);
+      transition: fill 0.15s ease;
+    }
+    .chart-val-text {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      pointer-events: none;
+    }
+    .val-approved {
+      fill: #15803D;
+    }
+    .val-returned {
+      fill: #C2410C;
+    }
+    .val-rejected {
+      fill: #DC2626;
+    }
+    [data-theme="dark"] .val-approved {
+      fill: #4ADE80;
+    }
+    [data-theme="dark"] .val-returned {
+      fill: #FB923C;
+    }
+    [data-theme="dark"] .val-rejected {
+      fill: #F87171;
+    }
+    .chart-bar {
+      transition: opacity 0.15s ease, filter 0.15s ease;
+      cursor: pointer;
+    }
+    .chart-bar:hover {
+      opacity: 0.88;
+      filter: brightness(1.1);
+    }
+    .bar-approved {
+      fill: #16A34A;
+    }
+    .bar-returned {
+      fill: #EA580C;
+    }
+    .bar-rejected {
+      fill: #DC2626;
+    }
+    [data-theme="dark"] .bar-approved {
+      fill: #22C55E;
+    }
+    [data-theme="dark"] .bar-returned {
+      fill: #F97316;
+    }
+    [data-theme="dark"] .bar-rejected {
+      fill: #EF4444;
+    }
+    .chart-bar-zero {
+      fill: var(--border);
+      opacity: 0.6;
+    }
+    [data-theme="dark"] .chart-bar-zero {
+      fill: rgba(255, 255, 255, 0.15);
+    }
+    .chart-hover-slot {
+      cursor: pointer;
+      transition: fill 0.15s ease;
+    }
+    .chart-hover-slot:hover,
+    .chart-hover-slot.active {
+      fill: rgba(2, 132, 199, 0.06);
+    }
+    [data-theme="dark"] .chart-hover-slot:hover,
+    [data-theme="dark"] .chart-hover-slot.active {
+      fill: rgba(56, 189, 248, 0.08);
     }
     .legend-dot {
       width: 10px;
@@ -838,15 +888,70 @@ try {
       background: #16A34A;
     }
     .legend-dot.returned-dot {
+      background: #EA580C;
+    }
+    .legend-dot.rejected-dot {
       background: #DC2626;
     }
-    [data-theme="dark"] .legend-dot.approved-dot,
-    [data-theme="dark"] .month-bar.approved {
+    [data-theme="dark"] .legend-dot.approved-dot {
       background: #22C55E;
     }
-    [data-theme="dark"] .legend-dot.returned-dot,
-    [data-theme="dark"] .month-bar.returned {
+    [data-theme="dark"] .legend-dot.returned-dot {
+      background: #F97316;
+    }
+    [data-theme="dark"] .legend-dot.rejected-dot {
       background: #EF4444;
+    }
+
+    /* Floating Tooltip */
+    .chart-tooltip {
+      position: absolute;
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transform: translate(-50%, -100%);
+      transition: opacity 0.15s ease, visibility 0.15s ease;
+      background: #0A1628;
+      color: #F8FAFC;
+      border: 1px solid #1E2D45;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.75rem;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+      z-index: 50;
+      white-space: nowrap;
+    }
+    .chart-tooltip.show {
+      opacity: 1;
+      visibility: visible;
+    }
+    [data-theme="dark"] .chart-tooltip {
+      background: #15243C;
+      border-color: #1E2D45;
+      color: #F8FAFC;
+    }
+    .chart-tooltip-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+      font-size: 0.78rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      padding-bottom: 3px;
+      color: #FFFFFF;
+    }
+    .chart-tooltip-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 3px;
+      font-size: 0.74rem;
+    }
+    .chart-tooltip-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
     }
 
     /* ── Right Rail: KPI Card, Upcoming Events, Recent Actions ── */
@@ -1324,40 +1429,163 @@ try {
             <h2>📈 Proposal Approval Trends — <?= $selectedYear ?></h2>
             <span class="text-xs text-muted">
               Approved: <strong class="chart-summary-approved" style="color:#16A34A;"><?= $approvalTrends['total_approved'] ?></strong> &bull; 
-              Returned/Rejected: <strong class="chart-summary-returned" style="color:#DC2626;"><?= $approvalTrends['total_returned'] ?></strong>
+              Returned: <strong class="chart-summary-returned" style="color:#EA580C;"><?= $approvalTrends['total_returned'] ?></strong> &bull; 
+              Rejected: <strong class="chart-summary-rejected" style="color:#DC2626;"><?= $approvalTrends['total_rejected'] ?></strong>
             </span>
           </div>
           <div class="card-body chart-body">
-            <div class="month-chart-scroll-wrap">
-              <div class="month-bar-wrap">
-                <?php foreach ($approvalTrends['months'] as $tm): 
-                  $appH = $approvalTrends['max_count'] > 0 ? max(round(($tm['approved'] / $approvalTrends['max_count']) * 100), ($tm['approved'] > 0 ? 8 : 0)) : 0;
-                  $retH = $approvalTrends['max_count'] > 0 ? max(round(($tm['returned'] / $approvalTrends['max_count']) * 100), ($tm['returned'] > 0 ? 8 : 0)) : 0;
+            <?php
+            // Ensure all 12 calendar months (Jan–Dec) are represented for the grouped column chart
+            $trendLookup = [];
+            if (!empty($approvalTrends['months'])) {
+                foreach ($approvalTrends['months'] as $tm) {
+                    $trendLookup[(int)$tm['month_num']] = $tm;
+                }
+            }
+            $chartMaxVal = 0;
+            $chartMonths = [];
+            for ($m = 1; $m <= 12; $m++) {
+                $mName = date('M', mktime(0, 0, 0, $m, 1));
+                $appCount = (int)($trendLookup[$m]['approved'] ?? 0);
+                $retCount = (int)($trendLookup[$m]['returned'] ?? 0);
+                $rejCount = (int)($trendLookup[$m]['rejected'] ?? 0);
+                $chartMaxVal = max($chartMaxVal, $appCount, $retCount, $rejCount);
+                $chartMonths[] = [
+                    'num' => $m,
+                    'name' => $mName,
+                    'approved' => $appCount,
+                    'returned' => $retCount,
+                    'rejected' => $rejCount
+                ];
+            }
+
+            // Automatic Y-axis scaling based on maximum series value
+            if ($chartMaxVal <= 4) {
+                $yMax = 4;
+                $yTicks = [0, 1, 2, 3, 4];
+            } elseif ($chartMaxVal <= 8) {
+                $yMax = (int)(ceil($chartMaxVal / 2) * 2);
+                $yTicks = range(0, $yMax, 2);
+            } elseif ($chartMaxVal <= 20) {
+                $yMax = (int)(ceil($chartMaxVal / 5) * 5);
+                $yTicks = range(0, $yMax, 5);
+            } else {
+                $step = max(5, (int)(ceil($chartMaxVal / 4 / 5) * 5));
+                $yMax = (int)(ceil($chartMaxVal / $step) * $step);
+                $yTicks = range(0, $yMax, $step);
+            }
+
+            $svgW = 720;
+            $svgH = 210;
+            $plotLeft = 45;
+            $plotRight = 700;
+            $plotTop = 25;
+            $plotBottom = 175;
+            $plotW = $plotRight - $plotLeft;
+            $plotH = $plotBottom - $plotTop;
+            $colW = $plotW / 12;
+            $barW = 10;
+            $barGap = 3;
+            ?>
+            <div class="chart-container-wrap">
+              <svg viewBox="0 0 <?= $svgW ?> <?= $svgH ?>" preserveAspectRatio="xMidYMid meet" class="trends-chart-svg" aria-label="Proposal Approval Trends Grouped Column Chart">
+                <!-- Y-Axis Title -->
+                <text x="<?= $plotLeft ?>" y="14" class="chart-axis-title">PROPOSALS</text>
+
+                <!-- Horizontal Grid Lines and Y-Axis Ticks -->
+                <?php foreach ($yTicks as $tick): 
+                  $yPos = $plotBottom - ($tick / $yMax) * $plotH;
                 ?>
-                  <div class="month-bar-col">
-                    <div class="month-bar-inner">
-                      <?php if ($tm['approved'] > 0): ?>
-                        <div class="month-bar approved" style="height:<?= $appH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['approved'] ?> Approved">
-                          <span class="month-val"><?= $tm['approved'] ?></span>
-                        </div>
-                      <?php endif; ?>
-                      <?php if ($tm['returned'] > 0): ?>
-                        <div class="month-bar returned" style="height:<?= $retH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['returned'] ?> Returned/Rejected">
-                          <span class="month-val" style="color:#DC2626;"><?= $tm['returned'] ?></span>
-                        </div>
-                      <?php endif; ?>
-                      <?php if ($tm['approved'] == 0 && $tm['returned'] == 0): ?>
-                        <div style="height:4px;width:10px;background:var(--border);border-radius:2px;"></div>
-                      <?php endif; ?>
-                    </div>
-                    <div class="month-label"><?= $tm['month_name'] ?></div>
-                  </div>
+                  <line x1="<?= $plotLeft ?>" y1="<?= $yPos ?>" x2="<?= $plotRight ?>" y2="<?= $yPos ?>" class="chart-grid-line" stroke-dasharray="<?= $tick > 0 ? '4 4' : 'none' ?>" opacity="<?= $tick > 0 ? '0.6' : '1' ?>" />
+                  <text x="<?= $plotLeft - 9 ?>" y="<?= $yPos + 4 ?>" text-anchor="end" class="chart-axis-text"><?= $tick ?></text>
                 <?php endforeach; ?>
+
+                <!-- Baseline Axis -->
+                <line x1="<?= $plotLeft ?>" y1="<?= $plotBottom ?>" x2="<?= $plotRight ?>" y2="<?= $plotBottom ?>" class="chart-axis-line" />
+
+                <!-- Month Columns (Grouped Bars) -->
+                <?php foreach ($chartMonths as $i => $cm): 
+                  $centerX = $plotLeft + ($i + 0.5) * $colW;
+                  $xApp = $centerX - 1.5 * $barW - $barGap;
+                  $xRet = $centerX - 0.5 * $barW;
+                  $xRej = $centerX + 0.5 * $barW + $barGap;
+                  $slotX = $plotLeft + $i * $colW;
+
+                  // Approved bar height and position
+                  $appH = $cm['approved'] > 0 ? max(6, round(($cm['approved'] / $yMax) * $plotH)) : 0;
+                  $appY = $plotBottom - $appH;
+
+                  // Returned bar height and position
+                  $retH = $cm['returned'] > 0 ? max(6, round(($cm['returned'] / $yMax) * $plotH)) : 0;
+                  $retY = $plotBottom - $retH;
+
+                  // Rejected bar height and position
+                  $rejH = $cm['rejected'] > 0 ? max(6, round(($cm['rejected'] / $yMax) * $plotH)) : 0;
+                  $rejY = $plotBottom - $rejH;
+                ?>
+                  <g class="month-column-group" data-month-index="<?= $i ?>">
+                    <!-- Approved Bar (Green) -->
+                    <?php if ($cm['approved'] > 0): ?>
+                      <rect x="<?= $xApp ?>" y="<?= $appY ?>" width="<?= $barW ?>" height="<?= $appH ?>" rx="3" class="chart-bar bar-approved">
+                        <title><?= $cm['name'] ?>: <?= $cm['approved'] ?> Approved</title>
+                      </rect>
+                      <text x="<?= $xApp + ($barW / 2) ?>" y="<?= $appY - 5 ?>" text-anchor="middle" class="chart-val-text val-approved"><?= $cm['approved'] ?></text>
+                    <?php else: ?>
+                      <rect x="<?= $xApp ?>" y="<?= $plotBottom - 2 ?>" width="<?= $barW ?>" height="2" rx="1" class="chart-bar-zero" />
+                    <?php endif; ?>
+
+                    <!-- Returned Bar (Orange) -->
+                    <?php if ($cm['returned'] > 0): ?>
+                      <rect x="<?= $xRet ?>" y="<?= $retY ?>" width="<?= $barW ?>" height="<?= $retH ?>" rx="3" class="chart-bar bar-returned">
+                        <title><?= $cm['name'] ?>: <?= $cm['returned'] ?> Returned</title>
+                      </rect>
+                      <text x="<?= $xRet + ($barW / 2) ?>" y="<?= $retY - 5 ?>" text-anchor="middle" class="chart-val-text val-returned"><?= $cm['returned'] ?></text>
+                    <?php else: ?>
+                      <rect x="<?= $xRet ?>" y="<?= $plotBottom - 2 ?>" width="<?= $barW ?>" height="2" rx="1" class="chart-bar-zero" />
+                    <?php endif; ?>
+
+                    <!-- Rejected Bar (Red) -->
+                    <?php if ($cm['rejected'] > 0): ?>
+                      <rect x="<?= $xRej ?>" y="<?= $rejY ?>" width="<?= $barW ?>" height="<?= $rejH ?>" rx="3" class="chart-bar bar-rejected">
+                        <title><?= $cm['name'] ?>: <?= $cm['rejected'] ?> Rejected</title>
+                      </rect>
+                      <text x="<?= $xRej + ($barW / 2) ?>" y="<?= $rejY - 5 ?>" text-anchor="middle" class="chart-val-text val-rejected"><?= $cm['rejected'] ?></text>
+                    <?php else: ?>
+                      <rect x="<?= $xRej ?>" y="<?= $plotBottom - 2 ?>" width="<?= $barW ?>" height="2" rx="1" class="chart-bar-zero" />
+                    <?php endif; ?>
+
+                    <!-- Month Label on X-Axis -->
+                    <text x="<?= $centerX ?>" y="<?= $plotBottom + 20 ?>" text-anchor="middle" class="chart-month-label"><?= $cm['name'] ?></text>
+
+                    <!-- Transparent Column Hover Slot for Tooltip Interaction -->
+                    <rect x="<?= $slotX ?>" y="<?= $plotTop ?>" width="<?= $colW ?>" height="<?= $plotH + 28 ?>" class="chart-hover-slot" data-month="<?= $cm['name'] ?>" data-year="<?= $selectedYear ?>" data-approved="<?= $cm['approved'] ?>" data-returned="<?= $cm['returned'] ?>" data-rejected="<?= $cm['rejected'] ?>" fill="rgba(0,0,0,0.0001)" />
+                  </g>
+                <?php endforeach; ?>
+              </svg>
+
+              <!-- Floating Tooltip Popover -->
+              <div class="chart-tooltip" id="chartTooltip" role="tooltip" aria-hidden="true">
+                <div class="chart-tooltip-title" id="ttMonth">Month Year</div>
+                <div class="chart-tooltip-row">
+                  <span class="chart-tooltip-dot" style="background:#16A34A;"></span>
+                  <span>Approved: <strong id="ttApproved">0</strong></span>
+                </div>
+                <div class="chart-tooltip-row">
+                  <span class="chart-tooltip-dot" style="background:#EA580C;"></span>
+                  <span>Returned: <strong id="ttReturned">0</strong></span>
+                </div>
+                <div class="chart-tooltip-row">
+                  <span class="chart-tooltip-dot" style="background:#DC2626;"></span>
+                  <span>Rejected: <strong id="ttRejected">0</strong></span>
+                </div>
               </div>
             </div>
-            <div class="flex gap-3 text-xs" style="margin-top:10px;justify-content:center;">
-              <span><span class="legend-dot approved-dot"></span>Approved Proposals</span>
-              <span><span class="legend-dot returned-dot"></span>Returned / Rejected</span>
+
+            <!-- Legend -->
+            <div class="flex gap-3 text-xs" style="margin-top:12px;justify-content:center;">
+              <span style="display:inline-flex;align-items:center;"><span class="legend-dot approved-dot"></span>Approved Proposals</span>
+              <span style="display:inline-flex;align-items:center;"><span class="legend-dot returned-dot"></span>Returned Proposals</span>
+              <span style="display:inline-flex;align-items:center;"><span class="legend-dot rejected-dot"></span>Rejected Proposals</span>
             </div>
           </div>
         </div>
@@ -1381,7 +1609,7 @@ try {
           <?php endif; ?>
 
           <!-- My Assigned Tasks Card -->
-          <div class="card" style="margin-bottom: 20px;">
+          <div class="card">
             <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
               <h2 style="font-size:0.95rem;margin:0;display:flex;align-items:center;gap:6px;">
                 <span>📋</span> My Assigned Tasks
@@ -1453,5 +1681,60 @@ try {
     </div><!-- dashboard-layout -->
   </div><!-- content -->
 </div><!-- main-wrap -->
+
+  <script>
+    // Proposal Approval Trends Interactive SVG Tooltip Popover
+    (function() {
+      const container = document.querySelector('.chart-container-wrap');
+      const tooltip = document.getElementById('chartTooltip');
+      if (!container || !tooltip) return;
+
+      const slots = container.querySelectorAll('.chart-hover-slot');
+      slots.forEach(slot => {
+        slot.addEventListener('mouseenter', function(e) {
+          const month = this.dataset.month;
+          const year = this.dataset.year;
+          const approved = this.dataset.approved;
+          const returned = this.dataset.returned;
+          const rejected = this.dataset.rejected;
+
+          const ttMonth = document.getElementById('ttMonth');
+          const ttApproved = document.getElementById('ttApproved');
+          const ttReturned = document.getElementById('ttReturned');
+          const ttRejected = document.getElementById('ttRejected');
+
+          if (ttMonth) ttMonth.textContent = month + ' ' + year;
+          if (ttApproved) ttApproved.textContent = approved;
+          if (ttReturned) ttReturned.textContent = returned;
+          if (ttRejected) ttRejected.textContent = rejected;
+
+          tooltip.classList.add('show');
+          tooltip.setAttribute('aria-hidden', 'false');
+        });
+
+        slot.addEventListener('mousemove', function(e) {
+          const rect = container.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          const tooltipWidth = tooltip.offsetWidth || 140;
+          const halfWidth = tooltipWidth / 2;
+          const clampedX = Math.max(halfWidth + 8, Math.min(rect.width - halfWidth - 8, x));
+          tooltip.style.left = clampedX + 'px';
+          if (y < 70) {
+            tooltip.style.top = (y + 16) + 'px';
+            tooltip.style.transform = 'translate(-50%, 0)';
+          } else {
+            tooltip.style.top = (y - 12) + 'px';
+            tooltip.style.transform = 'translate(-50%, -100%)';
+          }
+        });
+
+        slot.addEventListener('mouseleave', function() {
+          tooltip.classList.remove('show');
+          tooltip.setAttribute('aria-hidden', 'true');
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

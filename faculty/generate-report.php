@@ -4,6 +4,10 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('faculty', 'program_head');
+if (!empty($_GET['activity_id']) || !empty($_GET['export'])) {
+    require __DIR__ . '/../dean/generate-report.php';
+    exit;
+}
 $user = currentUser();
 $db   = getDB();
 
@@ -81,7 +85,14 @@ label, .form-label, input, button, select, textarea {
               <td><?= htmlspecialchars($a['faculty_name']) ?></td>
               <td><?= $a['event_date'] ? date('M j, Y', strtotime($a['event_date'])) : '—' ?></td>
               <td><?= getStatusBadge($a['status']) ?></td>
-              <td><a href="<?= BASE_URL ?>/faculty/view-activity.php?id=<?= $a['id'] ?>" class="btn btn-outline btn-sm">View</a></td>
+              <td>
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                  <a href="<?= BASE_URL ?>/faculty/view-activity.php?id=<?= $a['id'] ?>" class="btn btn-outline btn-sm">View</a>
+                  <?php if ($a['status'] === 'completed'): ?>
+                    <a href="<?= BASE_URL ?>/faculty/generate-report.php?activity_id=<?= $a['id'] ?>" class="btn btn-primary btn-sm">📄 Full KPI Report</a>
+                  <?php endif; ?>
+                </div>
+              </td>
             </tr>
             <?php endforeach; endif; ?>
             </tbody>

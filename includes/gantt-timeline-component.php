@@ -29,6 +29,7 @@ $viewActivityBase  = $ganttOptions['viewActivityBase'] ?? (defined('BASE_URL') ?
 $emptyMessage      = $ganttOptions['emptyMessage'] ?? 'No task assignments matching the current filter criteria.';
 $showNotice        = $ganttOptions['showNotice'] ?? true;
 $canManageDeliv    = !empty($ganttOptions['canManageDeliverables']);
+$currentView       = $ganttOptions['currentView'] ?? 'all';
 
 // ── Compute Timeline Window ─────────────────────────────────────────
 $minTimelineDate = date('Y-m-d');
@@ -379,7 +380,7 @@ if ($lastMarker && ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs)
 </style>
 <?php endif; ?>
 
-<div class="gantt-container" id="ganttSection">
+<div class="gantt-container" id="ganttSection" <?= ($currentView === 'table') ? 'style="display:none;"' : '' ?>>
   <div class="gantt-header-title">
     <div style="display:flex;align-items:center;gap:10px;">
       <span style="font-size:1.15rem;">📊</span>

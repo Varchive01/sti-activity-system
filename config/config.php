@@ -1,6 +1,33 @@
 <?php
 date_default_timezone_set('Asia/Manila');
 
+// Universal Fatal Error Shield (Protects all users from raw HTTP 500 white screens)
+register_shutdown_function(function() {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        error_log("FATAL ERROR CAUGHT: " . $err['message'] . " in " . $err['file'] . ":" . $err['line']);
+        if (!headers_sent()) {
+            $isAjaxReq = (
+                (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+                (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json')) ||
+                (isset($_POST['is_ajax_sync']) && $_POST['is_ajax_sync'] === '1')
+            );
+            if ($isAjaxReq) {
+                http_response_code(422);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'success'    => false,
+                    'error_code' => 'server_error',
+                    'error'      => 'A server error occurred. Please try again.'
+                ]);
+            } else {
+                $base = defined('BASE_URL') ? BASE_URL : '';
+                header("Location: " . $base . "/faculty/activities.php?error=server_error");
+            }
+        }
+    }
+});
+
 // 1. Load .env file safely if it exists
 $envFile = dirname(__DIR__) . '/.env';
 $envVars = [];
@@ -80,8 +107,8 @@ if (!empty($explicitAppUrl)) {
 
 define('BASE_URL', $baseUrl);
 define('UPLOAD_PATH', __DIR__ . '/../uploads/');
-define('MAX_FILE_SIZE', 10 * 1024 * 1024); // 10 MB
-define('ALLOWED_EXTENSIONS', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif', 'webp']);
+define('MAX_FILE_SIZE', 15 * 1024 * 1024); // 15 MB
+define('ALLOWED_EXTENSIONS', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'png', 'jpg', 'jpeg', 'gif', 'webp']);
 define('ALLOWED_POSTER_EXTENSIONS', ['jpg', 'jpeg', 'png', 'webp', 'gif']);
 define('ALLOWED_POSTER_MIMES', ['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 define('APP_NAME', 'STI Marikina – Activity System');

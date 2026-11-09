@@ -13,6 +13,7 @@ $acts = $db->prepare("
     JOIN approval_logs al ON a.id = al.activity_id 
     WHERE al.reviewer_id = ? 
       AND al.action IN ('forwarded', 'approved')
+      AND a.source = 'student_org'
       AND a.status NOT IN ('rejected', 'returned_for_revision', 'draft')
     ORDER BY a.updated_at DESC
 ");

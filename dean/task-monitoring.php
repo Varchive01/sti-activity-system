@@ -138,6 +138,10 @@ $filterMember     = trim($_GET['member'] ?? '');
 $filterStatus     = trim($_GET['status'] ?? '');
 $filterTiming     = trim($_GET['timing'] ?? '');
 $searchQuery      = trim($_GET['q'] ?? '');
+$validViews       = ['gantt', 'table', 'all'];
+$currentView      = isset($_GET['view']) && in_array(strtolower(trim($_GET['view'])), $validViews, true)
+    ? strtolower(trim($_GET['view']))
+    : 'all';
 
 // ── Fetch All Tasks with Relational Metadata ────────────────────────
 $query = "
@@ -724,20 +728,30 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 14px 16px;
+      padding: 16px 20px;
       margin-bottom: 20px;
       box-shadow: var(--shadow-sm);
     }
     .filter-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 10px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px 16px;
       align-items: flex-end;
+    }
+    @media (max-width: 1024px) {
+      .filter-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+      .filter-group.filter-group-search,
+      .filter-group[style*="grid-column: span 2"] {
+        grid-column: span 2 !important;
+      }
     }
     @media (max-width: 640px) {
       .filter-grid {
         grid-template-columns: 1fr !important;
       }
+      .filter-group.filter-group-search,
       .filter-group[style*="grid-column: span 2"] {
         grid-column: span 1 !important;
       }
@@ -745,7 +759,7 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
     .filter-group {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 5px;
     }
     .filter-group label {
       font-size: 0.72rem;
@@ -753,18 +767,21 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.4px;
+      margin: 0;
     }
     .filter-group select,
     .filter-group input {
-      height: 34px;
-      padding: 4px 10px;
-      font-size: 0.80rem;
+      height: 38px;
+      padding: 6px 12px;
+      font-size: 0.82rem;
       border: 1px solid var(--border);
-      border-radius: 7px;
+      border-radius: 8px;
       background: var(--bg-card);
       color: var(--text-main);
       outline: none;
       width: 100%;
+      box-sizing: border-box;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .filter-group select:focus,
     .filter-group input:focus {
@@ -1260,21 +1277,40 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
           </div>
 
           <!-- Search Query Input -->
-          <div class="filter-group" style="grid-column: span 2;">
+          <div class="filter-group filter-group-search" style="grid-column: span 2;">
             <label for="filterSearch">Search Task, Activity, Role</label>
-            <div style="display:flex;gap:6px;">
-              <input type="text" name="q" id="filterSearch" value="<?= htmlspecialchars($searchQuery) ?>" placeholder="Type keyword to filter...">
-              <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap;padding:0 14px;">Filter</button>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="hidden" name="view" id="deanFilterViewMode" value="<?= htmlspecialchars($currentView) ?>">
+              <input type="text" name="q" id="filterSearch" value="<?= htmlspecialchars($searchQuery) ?>" placeholder="Type keyword to filter..." style="flex:1;">
+              <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap;padding:0 18px;height:38px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-weight:600;">Filter</button>
               <?php if ($filterActivityId || $filterDeptSource !== '' || $filterCommittee !== '' || $filterMember !== '' || $filterStatus !== '' || $filterTiming !== '' || $searchQuery !== ''): ?>
-                <a href="<?= BASE_URL ?>/dean/task-monitoring.php" class="btn btn-outline btn-sm" style="white-space:nowrap;padding:0 12px;">Reset</a>
+                <a href="<?= BASE_URL ?>/dean/task-monitoring.php<?= $currentView !== 'all' ? '?view=' . urlencode($currentView) : '' ?>" class="btn btn-outline btn-sm" style="white-space:nowrap;padding:0 14px;height:38px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font-weight:600;">Reset</a>
               <?php endif; ?>
             </div>
           </div>
         </form>
       </div>
 
+      <!-- Dean View Switcher Tabs -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <div class="task-view-switcher" role="tablist" aria-label="Task View Modes" style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card);border:1px solid var(--border);padding:4px;border-radius:8px;">
+          <a href="?view=gantt" id="deanBtnViewGantt" class="btn <?= $currentView === 'gantt' ? 'btn-primary' : 'btn-outline' ?> btn-sm" role="tab" aria-selected="<?= $currentView === 'gantt' ? 'true' : 'false' ?>" style="display:inline-flex;align-items:center;gap:4px;border-radius:6px;text-decoration:none;font-size:0.82rem;font-weight:600;">
+            <span>📊</span> Gantt Timeline
+          </a>
+          <a href="?view=table" id="deanBtnViewTable" class="btn <?= $currentView === 'table' ? 'btn-primary' : 'btn-outline' ?> btn-sm" role="tab" aria-selected="<?= $currentView === 'table' ? 'true' : 'false' ?>" style="display:inline-flex;align-items:center;gap:4px;border-radius:6px;text-decoration:none;font-size:0.82rem;font-weight:600;">
+            <span>📋</span> Task Records Table
+          </a>
+          <a href="?view=all" id="deanBtnViewAll" class="btn <?= $currentView === 'all' ? 'btn-primary' : 'btn-outline' ?> btn-sm" role="tab" aria-selected="<?= $currentView === 'all' ? 'true' : 'false' ?>" style="display:inline-flex;align-items:center;gap:4px;border-radius:6px;text-decoration:none;font-size:0.82rem;font-weight:600;">
+            <span>🔀</span> All Views
+          </a>
+        </div>
+        <div style="font-size:0.82rem;color:var(--text-muted);font-weight:600;">
+          <span id="deanTaskCountBadge"><?= count($filteredTasks) ?> <?= count($filteredTasks) === 1 ? 'task' : 'tasks' ?> monitored</span>
+        </div>
+      </div>
+
       <!-- 3. GANTT VISUALIZATION SECTION -->
-      <div class="gantt-container">
+      <div class="gantt-container" id="ganttSection" <?= ($currentView === 'table') ? 'style="display:none;"' : '' ?>>
         <div class="gantt-header-title">
           <div style="display:flex;align-items:center;gap:10px;">
             <h2 style="font-size:1rem;font-weight:700;color:var(--text-main);margin:0;">📅 Task Timeline (Gantt Visualization)</h2>
@@ -1696,7 +1732,7 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
       </div>
 
       <!-- 7. TASK MONITORING TABLE SECTION -->
-      <div class="card" style="box-shadow:var(--shadow-sm);border-radius:12px;overflow:hidden;margin-bottom:30px;">
+      <div class="card" id="tableSection" <?= ($currentView === 'gantt') ? 'style="display:none;box-shadow:var(--shadow-sm);border-radius:12px;overflow:hidden;margin-bottom:30px;"' : 'style="box-shadow:var(--shadow-sm);border-radius:12px;overflow:hidden;margin-bottom:30px;"' ?>>
         <div class="card-header" style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
           <div>
             <h2 style="font-size:1rem;font-weight:700;margin:0;color:var(--text-main);">📋 Task Monitoring Details (<?= count($filteredTasks) ?>)</h2>
@@ -1986,6 +2022,115 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
       if (e.key === 'Escape') {
         closeTaskInspectionDirect();
       }
+    });
+
+    // ── Dean Task View Mode Switcher (Gantt, Table, All) ──
+    function switchDeanTaskView(viewMode, ev, shouldScroll = false) {
+      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+
+      const ganttSection = document.getElementById('ganttSection');
+      const tableSection = document.getElementById('tableSection');
+      const btnGantt = document.getElementById('deanBtnViewGantt');
+      const btnTable = document.getElementById('deanBtnViewTable');
+      const btnAll = document.getElementById('deanBtnViewAll');
+      const filterInput = document.getElementById('deanFilterViewMode');
+
+      if (!ganttSection || !tableSection) return;
+
+      if (!['gantt', 'table', 'all'].includes(viewMode)) {
+        viewMode = 'all';
+      }
+
+      if (viewMode === 'gantt') {
+        ganttSection.style.display = 'block';
+        tableSection.style.display = 'none';
+        if (shouldScroll) {
+          ganttSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } else if (viewMode === 'table') {
+        ganttSection.style.display = 'none';
+        tableSection.style.display = 'block';
+        if (shouldScroll) {
+          tableSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } else {
+        ganttSection.style.display = 'block';
+        tableSection.style.display = 'block';
+      }
+
+      // Update Button State Classes
+      const buttons = [
+        { btn: btnGantt, mode: 'gantt' },
+        { btn: btnTable, mode: 'table' },
+        { btn: btnAll, mode: 'all' }
+      ];
+
+      buttons.forEach(item => {
+        if (!item.btn) return;
+        if (item.mode === viewMode) {
+          item.btn.classList.add('btn-primary');
+          item.btn.classList.remove('btn-outline');
+          item.btn.setAttribute('aria-selected', 'true');
+        } else {
+          item.btn.classList.remove('btn-primary');
+          item.btn.classList.add('btn-outline');
+          item.btn.setAttribute('aria-selected', 'false');
+        }
+      });
+
+      if (filterInput) filterInput.value = viewMode;
+
+      try {
+        localStorage.setItem('dean_task_view_mode', viewMode);
+      } catch (e) {}
+
+      if (window.history && window.history.replaceState) {
+        const url = new URL(window.location.href);
+        if (viewMode === 'all') {
+          url.searchParams.delete('view');
+        } else {
+          url.searchParams.set('view', viewMode);
+        }
+        window.history.replaceState({}, '', url.toString());
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const paramView = urlParams.get('view');
+      const hash = window.location.hash.toLowerCase();
+
+      let activeMode = '<?= $currentView ?>';
+
+      if (paramView && ['gantt', 'table', 'all'].includes(paramView)) {
+        activeMode = paramView;
+      } else if (hash === '#tablesection' || hash === '#table') {
+        activeMode = 'table';
+      } else if (hash === '#ganttsection' || hash === '#gantt') {
+        activeMode = 'gantt';
+      } else {
+        try {
+          const saved = localStorage.getItem('dean_task_view_mode');
+          if (saved && ['gantt', 'table', 'all'].includes(saved)) {
+            activeMode = saved;
+          }
+        } catch (e) {}
+      }
+
+      switchDeanTaskView(activeMode, null, false);
+
+      document.getElementById('deanBtnViewGantt')?.addEventListener('click', function(e) { switchDeanTaskView('gantt', e, true); });
+      document.getElementById('deanBtnViewTable')?.addEventListener('click', function(e) { switchDeanTaskView('table', e, true); });
+      document.getElementById('deanBtnViewAll')?.addEventListener('click', function(e) { switchDeanTaskView('all', e, true); });
+
+      window.addEventListener('hashchange', function() {
+        const h = window.location.hash.toLowerCase();
+        if (h === '#ganttsection' || h === '#gantt') {
+          switchDeanTaskView('gantt', null, true);
+        } else if (h === '#tablesection' || h === '#table') {
+          switchDeanTaskView('table', null, true);
+        }
+      });
     });
   </script>
 </body>

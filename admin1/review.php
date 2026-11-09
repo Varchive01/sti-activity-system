@@ -1035,64 +1035,69 @@ label, input, button, select, textarea {
     <?php renderSectionClose('materials', $stagedComments, $id); ?>
 
     <!-- ── SECTION 4: Floor Plan ── -->
-    <?php renderSectionHeader('floor_plan', '🗺️ Floor Plan', $stagedComments); ?>
-      <?php $floorPlanRequired = isset($activity['floor_plan_required']) ? (int)$activity['floor_plan_required'] : 1; ?>
-      <?php if ($floorPlanRequired === 0): ?>
-        <div style="padding:14px 16px; background:var(--bg-base); border:1px dashed var(--border); border-radius:8px; color:var(--text-muted); font-size:0.88rem; margin-bottom:<?= $fp ? '14px' : '0' ?>;">
-          ℹ️ Floor plan not required for this activity.
-        </div>
-      <?php endif; ?>
-      <?php if ($fp): ?>
+    <?php
+      $floorPlanRequired = isset($activity['floor_plan_required']) ? (int)$activity['floor_plan_required'] : 1;
+      $hasFloorPlan = hasValidFloorPlanContent($fp, $activity);
+    ?>
+    <?php if ($hasFloorPlan || $floorPlanRequired !== 0): ?>
+      <?php renderSectionHeader('floor_plan', '🗺️ Floor Plan', $stagedComments); ?>
         <?php if ($floorPlanRequired === 0): ?>
-          <div class="sl" style="margin-bottom:8px;">Saved Floor Plan Record</div>
-        <?php endif; ?>
-        <?php
-          $floorsList = [];
-          if (!empty($fp['canvas_json'])) {
-              $parsedFp = json_decode($fp['canvas_json'], true);
-              if ($parsedFp && !empty($parsedFp['floors'])) {
-                  foreach ($parsedFp['floors'] as $fKey => $fVal) {
-                      $floorsList[] = $fVal['name'] ?? ucfirst($fKey) . ' Floor';
-                  }
-              }
-          }
-          if (empty($floorsList) && (!empty($fp['file_path']) || !empty($fp['canvas_json']))) {
-              $floorsList = ['Ground Floor'];
-          }
-        ?>
-        <?php if (!empty($floorsList)): ?>
-          <div style="margin-bottom:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <span style="font-size:0.8rem; font-weight:600; color:var(--text-muted);">Included Floors:</span>
-            <?php foreach ($floorsList as $flName): ?>
-              <span class="floor-badge">🏢 <?= htmlspecialchars($flName) ?></span>
-            <?php endforeach; ?>
+          <div style="padding:14px 16px; background:var(--bg-base); border:1px dashed var(--border); border-radius:8px; color:var(--text-muted); font-size:0.88rem; margin-bottom:<?= $hasFloorPlan ? '14px' : '0' ?>;">
+            ℹ️ Floor plan was marked optional for this activity.
           </div>
         <?php endif; ?>
-        <div class="sl">Floor Plan File</div>
-        <?php $ext = strtolower(pathinfo($fp['file_path'] ?? '', PATHINFO_EXTENSION)); $isImg = in_array($ext,['png','jpg','jpeg','gif','webp']); ?>
-        <?php $fpUrl = !empty($fp['file_path']) ? (str_starts_with($fp['file_path'], 'http') ? $fp['file_path'] : BASE_URL . '/api/document-download.php?activity_id=' . $id . '&type=floorplan') : ''; ?>
-        <?php if($isImg && $fpUrl): ?>
-        <div style="text-align:center; padding:16px; background:var(--bg-base); border-radius:10px; border:1px solid var(--border); margin-bottom:12px;">
-          <img src="<?= htmlspecialchars($fpUrl) ?>" style="max-width:100%; max-height:480px; border-radius:8px; object-fit:contain;" alt="Floor Plan">
-        </div>
+        <?php if ($hasFloorPlan): ?>
+          <?php if ($floorPlanRequired === 0): ?>
+            <div class="sl" style="margin-bottom:8px;">Saved Floor Plan Record</div>
+          <?php endif; ?>
+          <?php
+            $floorsList = [];
+            if (!empty($fp['canvas_json'])) {
+                $parsedFp = json_decode($fp['canvas_json'], true);
+                if ($parsedFp && !empty($parsedFp['floors'])) {
+                    foreach ($parsedFp['floors'] as $fKey => $fVal) {
+                        $floorsList[] = $fVal['name'] ?? ucfirst($fKey) . ' Floor';
+                    }
+                }
+            }
+            if (empty($floorsList) && (!empty($fp['file_path']) || !empty($fp['canvas_json']))) {
+                $floorsList = ['Ground Floor'];
+            }
+          ?>
+          <?php if (!empty($floorsList)): ?>
+            <div style="margin-bottom:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <span style="font-size:0.8rem; font-weight:600; color:var(--text-muted);">Included Floors:</span>
+              <?php foreach ($floorsList as $flName): ?>
+                <span class="floor-badge">🏢 <?= htmlspecialchars($flName) ?></span>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+          <div class="sl">Floor Plan File</div>
+          <?php $ext = strtolower(pathinfo($fp['file_path'] ?? '', PATHINFO_EXTENSION)); $isImg = in_array($ext,['png','jpg','jpeg','gif','webp']); ?>
+          <?php $fpUrl = !empty($fp['file_path']) ? (str_starts_with($fp['file_path'], 'http') ? $fp['file_path'] : BASE_URL . '/api/document-download.php?activity_id=' . $id . '&type=floorplan') : ''; ?>
+          <?php if($isImg && $fpUrl): ?>
+          <div style="text-align:center; padding:16px; background:var(--bg-base); border-radius:10px; border:1px solid var(--border); margin-bottom:12px;">
+            <img src="<?= htmlspecialchars($fpUrl) ?>" style="max-width:100%; max-height:480px; border-radius:8px; object-fit:contain;" alt="Floor Plan">
+          </div>
+          <?php endif; ?>
+          <?php if($fpUrl): ?>
+          <div style="margin-bottom:12px;">
+            <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm">📎 View Floor Plan File</a>
+          </div>
+          <?php endif; ?>
+          <?php if (!empty($fp['notes'])): ?>
+            <div class="sl" style="margin-top:12px;">Notes</div>
+            <p><?= nl2br(htmlspecialchars($fp['notes'])) ?></p>
+          <?php endif; ?>
+          <?php if (!empty($fp['canvas_json'])): ?>
+            <div class="sl" style="margin-top:12px;">Interactive Layout Data</div>
+            <p class="text-muted text-sm">Canvas layout saved (<?= strlen($fp['canvas_json']) ?> bytes)</p>
+          <?php endif; ?>
+        <?php elseif ($floorPlanRequired !== 0): ?>
+          <p class="text-muted">No floor plan uploaded.</p>
         <?php endif; ?>
-        <?php if($fpUrl): ?>
-        <div style="margin-bottom:12px;">
-          <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm">📎 View Floor Plan File</a>
-        </div>
-        <?php endif; ?>
-        <?php if (!empty($fp['notes'])): ?>
-          <div class="sl" style="margin-top:12px;">Notes</div>
-          <p><?= nl2br(htmlspecialchars($fp['notes'])) ?></p>
-        <?php endif; ?>
-        <?php if (!empty($fp['canvas_json'])): ?>
-          <div class="sl" style="margin-top:12px;">Interactive Layout Data</div>
-          <p class="text-muted text-sm">Canvas layout saved (<?= strlen($fp['canvas_json']) ?> bytes)</p>
-        <?php endif; ?>
-      <?php elseif ($floorPlanRequired !== 0): ?>
-        <p class="text-muted">No floor plan uploaded.</p>
-      <?php endif; ?>
-    <?php renderSectionClose('floor_plan', $stagedComments, $id); ?>
+      <?php renderSectionClose('floor_plan', $stagedComments, $id); ?>
+    <?php endif; ?>
 
     <!-- ── SECTION 5: People & Manpower ── -->
     <?php renderSectionHeader('people', '👥 People & Manpower', $stagedComments); ?>

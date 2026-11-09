@@ -31,10 +31,11 @@ if ($nextMonth > 12) {
   $nextYear++;
 }
 
+$admin2VisibleSql = buildAdmin2VisibleActivitySql((int)$user['id'], 'a');
 $events = $db->prepare("
     SELECT a.id, a.title, a.event_date, a.status, a.venue, a.source, u.name as faculty_name
     FROM activities a JOIN users u ON a.faculty_id=u.id
-    WHERE a.status != 'draft' AND MONTH(a.event_date)=? AND YEAR(a.event_date)=?
+    WHERE {$admin2VisibleSql} AND MONTH(a.event_date)=? AND YEAR(a.event_date)=?
     ORDER BY a.event_date
 ");
 $events->execute([$month, $year]);

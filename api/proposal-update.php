@@ -1,28 +1,16 @@
 <?php
+@set_time_limit(30);
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/EmailService.php';
 require_once __DIR__ . '/../includes/schedule_conflict.php';
-requireRole('faculty', 'program_head');
+requireRole('faculty', 'program_head', 'admin1', 'admin2');
 
 $user   = currentUser();
 $db     = getDB();
 $id     = (int)($_POST['activity_id'] ?? 0);
-// Apply global automatic capitalization rules (John correction and sentence capitalization)
-$textFieldsToCapitalize = [
-    'title', 'theme', 'venue', 'venue_address',
-    'general_objectives', 'specific_objectives',
-    'involved_subjects', 'rationale', 'description',
-    'floor_plan_notes'
-];
-foreach ($textFieldsToCapitalize as $tf) {
-    if (isset($_POST[$tf]) && is_string($_POST[$tf]) && function_exists('autoCapitalizeText')) {
-        $_POST[$tf] = autoCapitalizeText($_POST[$tf]);
-    }
-}
-
 $action = $_POST['action'] ?? 'draft';
 
 $isAjax = (
@@ -30,6 +18,20 @@ $isAjax = (
     (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json')) ||
     (isset($_POST['is_ajax_sync']) && $_POST['is_ajax_sync'] === '1')
 );
+
+try {
+    // Apply global automatic capitalization rules (John correction and sentence capitalization)
+    $textFieldsToCapitalize = [
+        'title', 'theme', 'venue', 'venue_address',
+        'general_objectives', 'specific_objectives',
+        'involved_subjects', 'rationale', 'description',
+        'floor_plan_notes'
+    ];
+    foreach ($textFieldsToCapitalize as $tf) {
+        if (isset($_POST[$tf]) && is_string($_POST[$tf]) && function_exists('autoCapitalizeText')) {
+            $_POST[$tf] = autoCapitalizeText($_POST[$tf]);
+        }
+    }
 
 // Verify access
 if (!canUserAccessActivity($id, 'modify', $user['id'], $user['role'], $user['dept'])) {
@@ -67,13 +69,18 @@ if ($lastKnown !== '' && !$forceOverwrite && !empty($activity['updated_at'])) {
     if ($serverTime > ($clientTime + 2)) {
         // Determine if other active collaborators exist on this proposal
         $isOwner = ((int)$activity['faculty_id'] === (int)$user['id']);
-        $otherCollabStmt = $db->prepare("
-            SELECT COUNT(*) 
-            FROM proposal_collaborators 
-            WHERE activity_id = ? AND user_id != ? AND status = 'active'
-        ");
-        $otherCollabStmt->execute([$id, (int)$user['id']]);
-        $otherCollabCount = (int)$otherCollabStmt->fetchColumn();
+        $otherCollabCount = 0;
+        try {
+            $otherCollabStmt = $db->prepare("
+                SELECT COUNT(*) 
+                FROM proposal_collaborators 
+                WHERE activity_id = ? AND user_id != ? AND status = 'active'
+            ");
+            $otherCollabStmt->execute([$id, (int)$user['id']]);
+            $otherCollabCount = (int)$otherCollabStmt->fetchColumn();
+        } catch (\Throwable $collabEx) {
+            $otherCollabCount = 0;
+        }
 
         // Other contributors exist if there are active collaborator rows or user is not the proposal owner
         $hasOtherContributors = ($otherCollabCount > 0) || !$isOwner;
@@ -81,26 +88,29 @@ if ($lastKnown !== '' && !$forceOverwrite && !empty($activity['updated_at'])) {
         // Check if the most recent contribution was made by another user
         $lastModifierIsOther = false;
         if ($hasOtherContributors) {
-            $lastLogStmt = $db->prepare("
-                SELECT user_id 
-                FROM proposal_contribution_logs 
-                WHERE activity_id = ? 
-                ORDER BY created_at DESC, id DESC 
-                LIMIT 1
-            ");
-            $lastLogStmt->execute([$id]);
-            $lastLogUserId = $lastLogStmt->fetchColumn();
-            if ($lastLogUserId !== false && $lastLogUserId !== null) {
-                $lastModifierIsOther = ((int)$lastLogUserId !== (int)$user['id']);
-            } else {
-                $lastModifierIsOther = true;
+            try {
+                $lastLogStmt = $db->prepare("
+                    SELECT user_id 
+                    FROM proposal_contribution_logs 
+                    WHERE activity_id = ? 
+                    ORDER BY created_at DESC, id DESC 
+                    LIMIT 1
+                ");
+                $lastLogStmt->execute([$id]);
+                $lastLogUserId = $lastLogStmt->fetchColumn();
+                if ($lastLogUserId !== false && $lastLogUserId !== null) {
+                    $lastModifierIsOther = ((int)$lastLogUserId !== (int)$user['id']);
+                } else {
+                    $lastModifierIsOther = true;
+                }
+            } catch (\Throwable $logEx) {
+                $lastModifierIsOther = false;
             }
         }
 
-        // Trigger conflict only if:
-        // 1. It is an AJAX sync request (offline draft sync detecting server version changes), OR
-        // 2. Other contributors actually exist AND the last modification was made by someone else
-        $isConflict = $isAjax ? true : ($hasOtherContributors && $lastModifierIsOther);
+        // Trigger conflict only if other contributors exist AND the last modification was made by someone else.
+        // Proposal owners or solo editors auto-saving their own edits should never falsely conflict with themselves.
+        $isConflict = ($hasOtherContributors && $lastModifierIsOther);
 
         if ($isConflict) {
             if ($isAjax) {
@@ -203,8 +213,8 @@ if ($s1Editable) {
     }
     if (!empty($eventDate)) {
         $d = DateTime::createFromFormat('Y-m-d', $eventDate);
-        // Rule: event_date > today's date (earliest allowed date is tomorrow)
-        if (!$d || $d->format('Y-m-d') !== $eventDate || $eventDate <= $todayManila) {
+        // Rule: event_date > today's date (earliest allowed date is tomorrow) strictly enforced on submission
+        if ($action === 'submit' && (!$d || $d->format('Y-m-d') !== $eventDate || $eventDate <= $todayManila)) {
             if ($isAjax) {
                 http_response_code(400);
                 header('Content-Type: application/json; charset=utf-8');
@@ -229,19 +239,9 @@ if ($s1Editable) {
             exit;
         }
     } else {
-        // Draft: if both times are provided, validate order (end > start)
+        // Draft: preserve entered time values without throwing HTTP 400
         if ($startTime !== '' && $endTime !== '') {
             $timeCheck = validateScheduleTimeRange($startTime, $endTime, false);
-            if (!$timeCheck['valid']) {
-                if ($isAjax) {
-                    http_response_code(400);
-                    header('Content-Type: application/json; charset=utf-8');
-                    echo json_encode(['success' => false, 'error_code' => 'invalid_time', 'error' => 'Invalid time range.']);
-                    exit;
-                }
-                header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_time");
-                exit;
-            }
         }
     }
     $saveStartTime = $startTime ?: null;
@@ -269,12 +269,18 @@ if ($action === 'submit') {
 }
 
 $s6Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['schedule']);
-if ($s6Editable && !empty($_POST['sched_date']) && is_array($_POST['sched_date'])) {
+if ($s6Editable && $action === 'submit' && !empty($_POST['sched_date']) && is_array($_POST['sched_date'])) {
     foreach ($_POST['sched_date'] as $sDate) {
         $sDate = trim($sDate);
         if (!empty($sDate)) {
             $sd = DateTime::createFromFormat('Y-m-d', $sDate);
             if (!$sd || $sd->format('Y-m-d') !== $sDate || $sDate <= $todayManila) {
+                if ($isAjax) {
+                    http_response_code(400);
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'error_code' => 'past_date', 'error' => 'Schedule date cannot be in the past.']);
+                    exit;
+                }
                 header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=past_date");
                 exit;
             }
@@ -285,8 +291,16 @@ if ($s6Editable && !empty($_POST['sched_date']) && is_array($_POST['sched_date']
 if (!empty($_POST['schedule_rows']) && is_array($_POST['schedule_rows'])) {
     $rowsCheck = validateScheduleRows($_POST['schedule_rows'], ($action === 'submit'));
     if (!$rowsCheck['valid']) {
-        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_time");
-        exit;
+        if ($action === 'submit') {
+            if ($isAjax) {
+                http_response_code(400);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error_code' => 'invalid_time', 'error' => 'Invalid schedule time.']);
+                exit;
+            }
+            header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=invalid_time");
+            exit;
+        }
     }
 }
 
@@ -586,45 +600,91 @@ try {
 $newlyCreatedDiskPath = null;
 $previousFloorPlanPath = null;
 
-try {
-    $db->beginTransaction();
+$db->beginTransaction();
 
-    if ($clearNotes) {
-        $db->prepare("UPDATE activities SET
-            title=?,theme=?,venue=?,venue_address=?,event_date=?,start_time=?,end_time=?,
-            target_participants=?,general_objectives=?,specific_objectives=?,
-            involved_subjects=?,rationale=?,evaluation_method=?,source=?,
-            status=?,evaluation_questions=?,floor_plan_required=?,revision_notes=NULL,revision_sections=NULL,submitted_at=?,updated_at=NOW()
-            WHERE id=?")->execute([
-            sanitize($title), sanitize($theme), sanitize($venue), sanitize($venueAddress),
-            $saveEventDate, $saveStartTime, $saveEndTime,
-            (int)$targetParticipants,
-            sanitize($generalObjectives), sanitize($specificObjectives),
-            sanitize($involvedSubjects), sanitize($rationale),
-            sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? ($activity['evaluation_method'] ?? ''))),
-            $source, $newStatus,
-            $evalQuestions,
-            $fpRequiredInt,
-            date('Y-m-d H:i:s'), $id
-        ]);
-    } else {
-        $db->prepare("UPDATE activities SET
-            title=?,theme=?,venue=?,venue_address=?,event_date=?,start_time=?,end_time=?,
-            target_participants=?,general_objectives=?,specific_objectives=?,
-            involved_subjects=?,rationale=?,evaluation_method=?,source=?,
-            status=?,evaluation_questions=?,floor_plan_required=?,updated_at=NOW()
-            WHERE id=?")->execute([
-            sanitize($title), sanitize($theme), sanitize($venue), sanitize($venueAddress),
-            $saveEventDate, $saveStartTime, $saveEndTime,
-            (int)$targetParticipants,
-            sanitize($generalObjectives), sanitize($specificObjectives),
-            sanitize($involvedSubjects), sanitize($rationale),
-            sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? ($activity['evaluation_method'] ?? ''))),
-            $source, $newStatus,
-            $evalQuestions,
-            $fpRequiredInt,
-            $id
-        ]);
+    // Check optional columns in activities table to guarantee backward/remote database compatibility
+    static $cachedActivitiesCols = null;
+    if ($cachedActivitiesCols === null) {
+        try {
+            $cachedActivitiesCols = $db->query("SHOW COLUMNS FROM activities")->fetchAll(PDO::FETCH_COLUMN);
+        } catch (\Throwable $colEx) {
+            $cachedActivitiesCols = [];
+        }
+    }
+    $hasFpCol       = empty($cachedActivitiesCols) || in_array('floor_plan_required', $cachedActivitiesCols, true);
+    $hasRevSecCol   = empty($cachedActivitiesCols) || in_array('revision_sections', $cachedActivitiesCols, true);
+    $hasEvalQCol    = empty($cachedActivitiesCols) || in_array('evaluation_questions', $cachedActivitiesCols, true);
+    $hasSubmittedCol= empty($cachedActivitiesCols) || in_array('submitted_at', $cachedActivitiesCols, true);
+
+    try {
+        if ($clearNotes) {
+            $setClauses = [
+                "title=?", "theme=?", "venue=?", "venue_address=?", "event_date=?", "start_time=?", "end_time=?",
+                "target_participants=?", "general_objectives=?", "specific_objectives=?",
+                "involved_subjects=?", "rationale=?", "evaluation_method=?", "source=?",
+                "status=?", "revision_notes=NULL"
+            ];
+            $params = [
+                sanitize($title), sanitize($theme), sanitize($venue), sanitize($venueAddress),
+                $saveEventDate, $saveStartTime, $saveEndTime,
+                (int)$targetParticipants,
+                sanitize($generalObjectives), sanitize($specificObjectives),
+                sanitize($involvedSubjects), sanitize($rationale),
+                sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? ($activity['evaluation_method'] ?? ''))),
+                $source, $newStatus
+            ];
+            if ($hasEvalQCol) {
+                $setClauses[] = "evaluation_questions=?";
+                $params[] = $evalQuestions;
+            }
+            if ($hasFpCol) {
+                $setClauses[] = "floor_plan_required=?";
+                $params[] = $fpRequiredInt;
+            }
+            if ($hasRevSecCol) {
+                $setClauses[] = "revision_sections=NULL";
+            }
+            if ($hasSubmittedCol) {
+                $setClauses[] = "submitted_at=?";
+                $params[] = date('Y-m-d H:i:s');
+            }
+            $setClauses[] = "updated_at=NOW()";
+            $params[] = $id;
+
+            $db->prepare("UPDATE activities SET " . implode(', ', $setClauses) . " WHERE id=?")->execute($params);
+        } else {
+            $setClauses = [
+                "title=?", "theme=?", "venue=?", "venue_address=?", "event_date=?", "start_time=?", "end_time=?",
+                "target_participants=?", "general_objectives=?", "specific_objectives=?",
+                "involved_subjects=?", "rationale=?", "evaluation_method=?", "source=?",
+                "status=?"
+            ];
+            $params = [
+                sanitize($title), sanitize($theme), sanitize($venue), sanitize($venueAddress),
+                $saveEventDate, $saveStartTime, $saveEndTime,
+                (int)$targetParticipants,
+                sanitize($generalObjectives), sanitize($specificObjectives),
+                sanitize($involvedSubjects), sanitize($rationale),
+                sanitize($_POST['evaluation_method'] ?? ($_POST['eval_form_link'] ?? ($activity['evaluation_method'] ?? ''))),
+                $source, $newStatus
+            ];
+            if ($hasEvalQCol) {
+                $setClauses[] = "evaluation_questions=?";
+                $params[] = $evalQuestions;
+            }
+            if ($hasFpCol) {
+                $setClauses[] = "floor_plan_required=?";
+                $params[] = $fpRequiredInt;
+            }
+            $setClauses[] = "updated_at=NOW()";
+            $params[] = $id;
+
+            $db->prepare("UPDATE activities SET " . implode(', ', $setClauses) . " WHERE id=?")->execute($params);
+        }
+    } catch (\Throwable $updEx) {
+        error_log("Primary UPDATE activities query failed, retrying minimal update: " . $updEx->getMessage());
+        $db->prepare("UPDATE activities SET title=?, theme=?, venue=?, event_date=?, status=?, updated_at=NOW() WHERE id=?")
+           ->execute([sanitize($title), sanitize($theme), sanitize($venue), $saveEventDate, $newStatus, $id]);
     }
 
     // Replace child tables only if their sections are editable or post-activity KPI values submitted
@@ -770,7 +830,9 @@ try {
             $ps = $db->prepare("INSERT INTO program_sequence(activity_id,time_slot,segment,description,person_ic,sort_order)VALUES(?,?,?,?,?,?)");
             foreach ($_POST['prog_segment'] as $i=>$seg) {
                 if (!trim($seg)) continue;
-                $ps->execute([$id,$_POST['prog_time'][$i]??null,sanitize($seg),sanitize($_POST['prog_desc'][$i]??''),sanitize($_POST['prog_pic'][$i]??''),$i]);
+                $rawPic = $_POST['prog_pic'][$i] ?? '';
+                $pic = function_exists('autoCapitalizeText') ? autoCapitalizeText($rawPic) : $rawPic;
+                $ps->execute([$id,$_POST['prog_time'][$i]??null,sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($seg) : $seg),sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($_POST['prog_desc'][$i]??'') : ($_POST['prog_desc'][$i]??'')),sanitize($pic),$i]);
             }
         }
 
@@ -779,7 +841,9 @@ try {
             $sc = $db->prepare("INSERT INTO schedules(activity_id,sched_date,event_name,venue,organizer)VALUES(?,?,?,?,?)");
             foreach ($_POST['sched_event'] as $i=>$ev) {
                 if (!trim($ev)) continue;
-                $sc->execute([$id,$_POST['sched_date'][$i]??null,sanitize($ev),sanitize($_POST['sched_venue'][$i]??''),sanitize($_POST['sched_organizer'][$i]??'')]);
+                $rawOrg = $_POST['sched_organizer'][$i] ?? '';
+                $org = function_exists('autoCapitalizeText') ? autoCapitalizeText($rawOrg) : $rawOrg;
+                $sc->execute([$id,$_POST['sched_date'][$i]??null,sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($ev) : $ev),sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($_POST['sched_venue'][$i]??'') : ($_POST['sched_venue'][$i]??'')),sanitize($org)]);
             }
         }
     }
@@ -792,7 +856,9 @@ try {
                 if (!trim($role)) continue;
                 $rawMpType = strtolower(trim((string)($_POST['mp_type'][$i] ?? 'faculty')));
                 $normMpType = in_array($rawMpType, ['faculty', 'staff', 'student'], true) ? $rawMpType : 'faculty';
-                $mp->execute([$id,sanitize($role),sanitize($_POST['mp_person'][$i]??''),$normMpType]);
+                $rawPerson = $_POST['mp_person'][$i] ?? '';
+                $person = function_exists('autoCapitalizeText') ? autoCapitalizeText($rawPerson) : $rawPerson;
+                $mp->execute([$id,sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($role) : $role),sanitize($person),$normMpType]);
             }
         }
     }
@@ -841,18 +907,21 @@ try {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Not Started', ?)
         ");
 
-        $facultyLookupStmt = $db->prepare("SELECT id, name FROM users WHERE id = ? AND role IN ('faculty', 'program_head') LIMIT 1");
+        $facultyLookupStmt = $db->prepare("SELECT id, name FROM users WHERE id = ? AND role IN ('faculty', 'program_head', 'admin1', 'admin2') LIMIT 1");
 
+        $taskNotificationsToSend = [];
         $taskItems = !empty($_POST['ft_task']) && is_array($_POST['ft_task'])
             ? $_POST['ft_task']
             : (!empty($_POST['ft_name']) && is_array($_POST['ft_name']) ? $_POST['ft_name'] : []);
 
         if (!empty($taskItems)) {
             foreach ($taskItems as $i => $itemVal) {
-                $tTitle = sanitize($_POST['ft_task'][$i] ?? '');
+                $rawTaskTitle = $_POST['ft_task'][$i] ?? '';
+                $tTitle = sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($rawTaskTitle) : $rawTaskTitle);
                 $rawTaskId = isset($_POST['ft_id'][$i]) ? (int)$_POST['ft_id'][$i] : 0;
                 $rawUserId = isset($_POST['ft_user_id'][$i]) && is_numeric($_POST['ft_user_id'][$i]) ? (int)$_POST['ft_user_id'][$i] : 0;
-                $submittedName = sanitize($_POST['ft_name'][$i] ?? '');
+                $rawSubName = $_POST['ft_name'][$i] ?? '';
+                $submittedName = sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($rawSubName) : $rawSubName);
 
                 if ($tTitle === '' && $submittedName === '' && $rawUserId === 0 && $rawTaskId === 0) {
                     continue;
@@ -868,15 +937,20 @@ try {
                         $assignedUserId = (int)$fUser['id'];
                         $facultyName = $fUser['name'];
                     } else {
-                        $db->rollBack();
-                        if ($isAjax) {
-                            http_response_code(422);
-                            header('Content-Type: application/json; charset=utf-8');
-                            echo json_encode(['success' => false, 'error_code' => 'invalid_faculty_assignment', 'error' => 'Invalid faculty member assigned.']);
+                        if ($action === 'submit') {
+                            $db->rollBack();
+                            if ($isAjax) {
+                                http_response_code(422);
+                                header('Content-Type: application/json; charset=utf-8');
+                                echo json_encode(['success' => false, 'error_code' => 'invalid_faculty_assignment', 'error' => 'Invalid faculty member assigned.']);
+                                exit;
+                            }
+                            header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id=" . $id . "&error=invalid_faculty_assignment");
                             exit;
+                        } else {
+                            $assignedUserId = null;
+                            $facultyName = $submittedName !== '' ? $submittedName : null;
                         }
-                        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id=" . $id . "&error=invalid_faculty_assignment");
-                        exit;
                     }
                 }
 
@@ -891,9 +965,19 @@ try {
                     if ($dObj && $dObj->format('Y-m-d') === $rawDate) {
                         $dueDate = $rawDate;
                     } else {
-                        $db->rollBack();
-                        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id=" . $id . "&error=invalid_task_deadline");
-                        exit;
+                        if ($action === 'submit') {
+                            $db->rollBack();
+                            if ($isAjax) {
+                                http_response_code(400);
+                                header('Content-Type: application/json; charset=utf-8');
+                                echo json_encode(['success' => false, 'error_code' => 'invalid_task_deadline', 'error' => 'Invalid task deadline format.']);
+                                exit;
+                            }
+                            header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id=" . $id . "&error=invalid_task_deadline");
+                            exit;
+                        } else {
+                            $dueDate = null;
+                        }
                     }
                 }
 
@@ -906,14 +990,22 @@ try {
 
                     // Notify new assignee if task was newly assigned or reassigned to a different person (only on non-drafts)
                     if ($assignedUserId && $assignedUserId !== $prevAssignee && $newStatus !== 'draft') {
-                        sendTaskAssignmentNotification($db, $assignedUserId, $id, $tTitle, $dueDate);
+                        $taskNotificationsToSend[] = [
+                            'user_id'    => $assignedUserId,
+                            'task_title' => $tTitle,
+                            'due_date'   => $dueDate
+                        ];
                     }
                 } else {
                     $insertTaskStmt->execute([
                         $id, $assignedUserId, $facultyName, $tTitle, $tTitle, $tDesc, $tDesc, $tRole, $dueDate, $user['id'] ?? null
                     ]);
                     if ($assignedUserId && $newStatus !== 'draft') {
-                        sendTaskAssignmentNotification($db, $assignedUserId, $id, $tTitle, $dueDate);
+                        $taskNotificationsToSend[] = [
+                            'user_id'    => $assignedUserId,
+                            'task_title' => $tTitle,
+                            'due_date'   => $dueDate
+                        ];
                     }
                 }
             }
@@ -1117,6 +1209,44 @@ try {
         }
     }
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // Non-blocking Instant Response Delivery (FastCGI)
+    // ══════════════════════════════════════════════════════════════════════════
+    $redirectStatusParam = ($action === 'submit')
+        ? (($currStatus === 'returned_for_revision') ? 'resubmitted=1' : 'submitted=1')
+        : 'updated=1';
+    $targetRedirect = BASE_URL . "/faculty/proposal-view.php?id={$id}&" . $redirectStatusParam;
+
+    $responseSent = false;
+    if ($isAjax) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success'     => true,
+            'activity_id' => $id,
+            'status'      => $newStatus,
+            'source'      => $source,
+            'poster_path' => $savedPosterPath ?? ($activity['poster_path'] ?? null),
+            'message'     => ($action === 'submit') ? 'Proposal submitted for approval successfully.' : 'Proposal draft updated successfully.',
+            'redirect'    => $targetRedirect,
+            'updated_at'  => date('Y-m-d H:i:s'),
+            'title'       => $title
+        ]);
+        $responseSent = true;
+    }
+
+    // Flush and finish HTTP response immediately if FastCGI is active!
+    // The browser receives the response in under 50ms and navigates instantly.
+    if (function_exists('fastcgi_finish_request')) {
+        if (!$responseSent) {
+            header("Location: " . $targetRedirect);
+            $responseSent = true;
+        }
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        fastcgi_finish_request();
+    }
+
     // Automatically generate and archive proposal PDF snapshot to OneDrive upon submission/resubmission
     if ($action === 'submit') {
         try {
@@ -1124,6 +1254,17 @@ try {
             syncProposalPdfSnapshot($id, $trigger, (int)$user['id']);
         } catch (\Throwable $snapEx) {
             error_log("Failed to create proposal snapshot on update: " . $snapEx->getMessage());
+        }
+    }
+
+    // Dispatch task assignment notifications safely after transaction commit
+    if (!empty($taskNotificationsToSend)) {
+        foreach ($taskNotificationsToSend as $tNotif) {
+            try {
+                sendTaskAssignmentNotification($db, (int)$tNotif['user_id'], $id, $tNotif['task_title'], $tNotif['due_date']);
+            } catch (\Throwable $taskEx) {
+                error_log("Failed to dispatch task assignment notification on update for user {$tNotif['user_id']}: " . $taskEx->getMessage());
+            }
         }
     }
 
@@ -1274,26 +1415,18 @@ try {
         error_log("Failed to log proposal contribution or dispatch notifications: " . $collabLogEx->getMessage());
     }
 
-    if ($isAjax) {
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
-            'success'     => true,
-            'activity_id' => $id,
-            'status'      => $newStatus,
-            'source'      => $source,
-            'poster_path' => $savedPosterPath ?? ($activity['poster_path'] ?? null),
-            'message'     => 'Proposal draft updated successfully.',
-            'updated_at'  => date('Y-m-d H:i:s'),
-            'title'       => $title
-        ]);
+    if (!$responseSent) {
+        header("Location: " . $targetRedirect);
         exit;
     }
-
-    header("Location: ".BASE_URL."/faculty/proposal-view.php?id={$id}&updated=1");
     exit;
 } catch (\Throwable $e) {
-    if ($db->inTransaction()) {
-        $db->rollBack();
+    if (isset($db) && $db instanceof PDO && $db->inTransaction()) {
+        try {
+            $db->rollBack();
+        } catch (\Throwable $rbEx) {
+            error_log("Rollback error in proposal-update: " . $rbEx->getMessage());
+        }
     }
     // Clean up newly created orphaned floor plan file if transaction failed
     if (!empty($newlyCreatedDiskPath) && file_exists($newlyCreatedDiskPath)) {
@@ -1316,15 +1449,20 @@ try {
             error_log("Failed to clean up orphaned floor plan on rollback: " . $rollEx->getMessage());
         }
     }
+    error_log("proposal-update exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
     if ($isAjax) {
-        http_response_code(500);
+        http_response_code(422);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode([
-            'success' => false,
-            'error'   => 'Server error updating proposal: ' . $e->getMessage()
+            'success'    => false,
+            'error_code' => 'server_error',
+            'error'      => 'Server error updating proposal: ' . $e->getMessage()
         ]);
         exit;
     }
-    header("Location: ".BASE_URL."/faculty/proposal-edit.php?id={$id}&error=1");
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['proposal_error'] = 'An unexpected error occurred while updating the proposal. Please verify your data and try again.';
+    }
+    header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$id}&error=server_error");
     exit;
 }

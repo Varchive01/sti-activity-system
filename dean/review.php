@@ -80,7 +80,7 @@ $clrInfo = getActivityClearanceInfo($activity, $totalBudget);
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dean Final Review – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.8">
 <script>
   (function() {
     try {
@@ -463,6 +463,186 @@ label, input, button, select, textarea {
   border-color: var(--border) !important;
   color: var(--text-main) !important;
 }
+[data-theme="dark"] .modal {
+  background: var(--bg-card, #0F1B2E) !important;
+  border-color: var(--border, #1E2D45) !important;
+}
+[data-theme="dark"] .modal .form-control {
+  background: var(--bg-base, #070E18) !important;
+  border-color: var(--border, #1E2D45) !important;
+  color: var(--text-main, #FFFFFF) !important;
+}
+[data-theme="dark"] .modal .alert-warning {
+  background: rgba(245, 158, 11, 0.16) !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+  color: #FBBF24 !important;
+}
+[data-theme="dark"] .modal .alert-danger {
+  background: rgba(239, 68, 68, 0.16) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #F87171 !important;
+}
+
+/* ── Clearance Card & Modal Box UI (Light & Dark Mode) ── */
+.clearance-modal-box,
+#final-approval-clearance-group {
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  background: var(--bg-subtle, #F8FAFC);
+  border: 1px solid var(--border, #E2E8F0);
+  border-radius: 10px;
+  text-align: left;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.clearance-box-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.clearance-box-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.35;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 180px;
+}
+.clearance-req-badge {
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  padding: 3px 10px !important;
+  border-radius: 999px !important;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.clearance-box-desc {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0 0 14px 0;
+}
+.clearance-box-desc strong {
+  color: var(--text-main);
+  font-weight: 700;
+}
+.clearance-radio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.clearance-radio-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border, #E2E8F0);
+  background: var(--bg-card, #FFFFFF);
+  cursor: pointer;
+  font-size: 0.83rem;
+  font-weight: 700;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.clearance-radio-option input[type="radio"] {
+  margin: 0;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.clearance-radio-option.opt-obtained {
+  color: #15803D;
+}
+.clearance-radio-option.opt-obtained input[type="radio"] {
+  accent-color: #16A34A;
+}
+.clearance-radio-option.opt-obtained:hover,
+.clearance-radio-option.opt-obtained:has(input:checked) {
+  border-color: rgba(22, 163, 74, 0.45);
+  background: rgba(22, 163, 74, 0.06);
+}
+.clearance-radio-option.opt-not-obtained {
+  color: #B91C1C;
+}
+.clearance-radio-option.opt-not-obtained input[type="radio"] {
+  accent-color: #DC2626;
+}
+.clearance-radio-option.opt-not-obtained:hover,
+.clearance-radio-option.opt-not-obtained:has(input:checked) {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: rgba(220, 38, 38, 0.06);
+}
+.clearance-notes-input {
+  width: 100%;
+  font-size: 0.82rem !important;
+  padding: 9px 12px !important;
+  border-radius: 8px !important;
+  background: var(--bg-card, #FFFFFF) !important;
+  border: 1px solid var(--border, #CBD5E1) !important;
+  color: var(--text-main) !important;
+}
+[data-theme="dark"] .clearance-modal-box,
+[data-theme="dark"] #final-approval-clearance-group,
+[data-theme="dark"] #clearance-summary-card {
+  background: #0B1524 !important;
+  border-color: #1E2D45 !important;
+  color: #F8FAFC !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+[data-theme="dark"] .clearance-box-title {
+  color: #F8FAFC !important;
+}
+[data-theme="dark"] .clearance-box-desc {
+  color: #94A3B8 !important;
+}
+[data-theme="dark"] .clearance-box-desc strong {
+  color: #F8FAFC !important;
+}
+[data-theme="dark"] .clearance-req-badge {
+  background: rgba(245, 158, 11, 0.16) !important;
+  color: #FBBF24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+}
+[data-theme="dark"] .clearance-radio-option {
+  background: #0F1B2E !important;
+  border-color: #1E2D45 !important;
+}
+[data-theme="dark"] .clearance-radio-option.opt-obtained {
+  color: #4ADE80 !important;
+}
+[data-theme="dark"] .clearance-radio-option.opt-obtained:hover,
+[data-theme="dark"] .clearance-radio-option.opt-obtained:has(input:checked) {
+  border-color: rgba(34, 197, 94, 0.5) !important;
+  background: rgba(34, 197, 94, 0.12) !important;
+}
+[data-theme="dark"] .clearance-radio-option.opt-not-obtained {
+  color: #F87171 !important;
+}
+[data-theme="dark"] .clearance-radio-option.opt-not-obtained:hover,
+[data-theme="dark"] .clearance-radio-option.opt-not-obtained:has(input:checked) {
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+}
+[data-theme="dark"] .clearance-notes-input,
+[data-theme="dark"] #final-approval-clearance-group .form-control,
+[data-theme="dark"] #modal-clearance .form-control {
+  background: #0F1B2E !important;
+  border-color: #243652 !important;
+  color: #F8FAFC !important;
+}
+[data-theme="dark"] .clearance-notes-input::placeholder,
+[data-theme="dark"] #final-approval-clearance-group .form-control::placeholder,
+[data-theme="dark"] #modal-clearance .form-control::placeholder {
+  color: #64748B !important;
+}
 </style>
 </head>
 <body class="theme-dean">
@@ -592,7 +772,7 @@ label, input, button, select, textarea {
       <?php else: ?><p class="text-muted">No materials listed.</p><?php endif; ?>
 
       <!-- School Administrator / President Clearance Record -->
-      <div id="clearance-summary-card" style="margin-top:16px; padding:14px 18px; background:var(--bg-subtle, #f8f9fa); border:1px solid var(--border); border-radius:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+      <div id="clearance-summary-card" style="margin-top:16px; padding:14px 18px; background:var(--bg-subtle, #F8FAFC); border:1px solid var(--border); border-radius:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
         <div>
           <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px;">
             🏛️ School Administrator / President Clearance Record
@@ -615,54 +795,59 @@ label, input, button, select, textarea {
       </div>
     <?php renderSectionClose('materials', $stagedComments, $id); ?>
 
-    <?php renderSectionHeader('floor_plan', '🗺️ Floor Plan', $stagedComments); ?>
-      <?php $floorPlanRequired = isset($activity['floor_plan_required']) ? (int)$activity['floor_plan_required'] : 1; ?>
-      <?php if ($floorPlanRequired === 0): ?>
-        <div style="padding:14px 16px; background:var(--bg-base); border:1px dashed var(--border); border-radius:8px; color:var(--text-muted); font-size:0.88rem; margin-bottom:<?= $fp ? '14px' : '0' ?>;">
-          ℹ️ Floor plan not required for this activity.
-        </div>
-      <?php endif; ?>
-      <?php if ($fp): ?>
+    <?php
+      $floorPlanRequired = isset($activity['floor_plan_required']) ? (int)$activity['floor_plan_required'] : 1;
+      $hasFloorPlan = hasValidFloorPlanContent($fp, $activity);
+    ?>
+    <?php if ($hasFloorPlan || $floorPlanRequired !== 0): ?>
+      <?php renderSectionHeader('floor_plan', '🗺️ Floor Plan', $stagedComments); ?>
         <?php if ($floorPlanRequired === 0): ?>
-          <div class="sl" style="margin-bottom:8px;">Saved Floor Plan Record</div>
-        <?php endif; ?>
-        <?php
-          $floorsList = [];
-          if (!empty($fp['canvas_json'])) {
-              $parsedFp = json_decode($fp['canvas_json'], true);
-              if ($parsedFp && !empty($parsedFp['floors'])) {
-                  foreach ($parsedFp['floors'] as $fKey => $fVal) {
-                      $floorsList[] = $fVal['name'] ?? ucfirst($fKey) . ' Floor';
-                  }
-              }
-          }
-          if (empty($floorsList) && (!empty($fp['file_path']) || !empty($fp['canvas_json']))) {
-              $floorsList = ['Ground Floor'];
-          }
-        ?>
-        <?php if (!empty($floorsList)): ?>
-          <div style="margin-bottom:10px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-            <span style="font-size:0.75rem; font-weight:600; color:#64748b;">Included Floors:</span>
-            <?php foreach ($floorsList as $flName): ?>
-              <span class="badge" style="background:#0056b3; color:#fff; font-size:0.75rem; padding:3px 8px; border-radius:4px;">🏢 <?= htmlspecialchars($flName) ?></span>
-            <?php endforeach; ?>
+          <div style="padding:14px 16px; background:var(--bg-base); border:1px dashed var(--border); border-radius:8px; color:var(--text-muted); font-size:0.88rem; margin-bottom:<?= $hasFloorPlan ? '14px' : '0' ?>;">
+            ℹ️ Floor plan was marked optional for this activity.
           </div>
         <?php endif; ?>
-        <?php $ext = strtolower(pathinfo($fp['file_path'] ?? '', PATHINFO_EXTENSION)); $isImg = in_array($ext,['png','jpg','jpeg','gif','webp']); ?>
-        <?php $fpUrl = !empty($fp['file_path']) ? (str_starts_with($fp['file_path'], 'http') ? $fp['file_path'] : BASE_URL . '/api/document-download.php?activity_id=' . $id . '&type=floorplan') : ''; ?>
-        <?php if($isImg && $fpUrl): ?>
-          <img src="<?= htmlspecialchars($fpUrl) ?>" style="max-width:100%;border-radius:8px;margin-bottom:12px;" alt="Floor Plan">
+        <?php if ($hasFloorPlan): ?>
+          <?php if ($floorPlanRequired === 0): ?>
+            <div class="sl" style="margin-bottom:8px;">Saved Floor Plan Record</div>
+          <?php endif; ?>
+          <?php
+            $floorsList = [];
+            if (!empty($fp['canvas_json'])) {
+                $parsedFp = json_decode($fp['canvas_json'], true);
+                if ($parsedFp && !empty($parsedFp['floors'])) {
+                    foreach ($parsedFp['floors'] as $fKey => $fVal) {
+                        $floorsList[] = $fVal['name'] ?? ucfirst($fKey) . ' Floor';
+                    }
+                }
+            }
+            if (empty($floorsList) && (!empty($fp['file_path']) || !empty($fp['canvas_json']))) {
+                $floorsList = ['Ground Floor'];
+            }
+          ?>
+          <?php if (!empty($floorsList)): ?>
+            <div style="margin-bottom:10px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+              <span style="font-size:0.75rem; font-weight:600; color:#64748b;">Included Floors:</span>
+              <?php foreach ($floorsList as $flName): ?>
+                <span class="badge" style="background:#0056b3; color:#fff; font-size:0.75rem; padding:3px 8px; border-radius:4px;">🏢 <?= htmlspecialchars($flName) ?></span>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+          <?php $ext = strtolower(pathinfo($fp['file_path'] ?? '', PATHINFO_EXTENSION)); $isImg = in_array($ext,['png','jpg','jpeg','gif','webp']); ?>
+          <?php $fpUrl = !empty($fp['file_path']) ? (str_starts_with($fp['file_path'], 'http') ? $fp['file_path'] : BASE_URL . '/api/document-download.php?activity_id=' . $id . '&type=floorplan') : ''; ?>
+          <?php if($isImg && $fpUrl): ?>
+            <img src="<?= htmlspecialchars($fpUrl) ?>" style="max-width:100%;border-radius:8px;margin-bottom:12px;" alt="Floor Plan">
+          <?php endif; ?>
+          <?php if($fpUrl): ?>
+            <div style="margin-bottom:12px;">
+              <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm">📎 View Floor Plan File</a>
+            </div>
+          <?php endif; ?>
+          <?php if (!empty($fp['notes'])): ?><div class="sl" style="margin-top:10px;">Notes</div><p><?= nl2br(htmlspecialchars($fp['notes'])) ?></p><?php endif; ?>
+        <?php elseif ($floorPlanRequired !== 0): ?>
+          <p class="text-muted">No floor plan uploaded.</p>
         <?php endif; ?>
-        <?php if($fpUrl): ?>
-          <div style="margin-bottom:12px;">
-            <a href="<?= htmlspecialchars($fpUrl) ?>" target="_blank" class="btn btn-outline btn-sm">📎 View Floor Plan File</a>
-          </div>
-        <?php endif; ?>
-        <?php if (!empty($fp['notes'])): ?><div class="sl" style="margin-top:10px;">Notes</div><p><?= nl2br(htmlspecialchars($fp['notes'])) ?></p><?php endif; ?>
-      <?php elseif ($floorPlanRequired !== 0): ?>
-        <p class="text-muted">No floor plan uploaded.</p>
-      <?php endif; ?>
-    <?php renderSectionClose('floor_plan', $stagedComments, $id); ?>
+      <?php renderSectionClose('floor_plan', $stagedComments, $id); ?>
+    <?php endif; ?>
 
     <?php renderSectionHeader('people', '👥 People & Manpower', $stagedComments); ?>
       <?php if (!empty($mp)): ?>
@@ -777,26 +962,29 @@ label, input, button, select, textarea {
       <?php else: ?>
         <p class="text-sm" style="margin-bottom:16px;">Are you sure you want to approve this proposal? No comment is required.</p>
         <?php if ($clrInfo['required']): ?>
-        <div class="form-group" id="final-approval-clearance-group" style="margin-bottom:16px; padding:12px 14px; background:var(--bg-subtle, #f8f9fa); border:1px solid var(--border); border-radius:6px; text-align:left;">
-          <label class="form-label" style="font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-            🏛️ School Administrator / President Clearance
-            <span class="badge badge-warning" style="font-size:0.7rem;">Required for Budgeted Event</span>
-          </label>
-          <p class="text-sm text-muted" style="margin-bottom:10px;">
-            This event requires a budget (₱<?= number_format($totalBudget, 2) ?>). Please record whether clearance from the school administrator or president has been obtained.
+        <div class="form-group clearance-modal-box" id="final-approval-clearance-group">
+          <div class="clearance-box-header">
+            <div class="clearance-box-title">
+              <span>🏛️</span>
+              <span>School Administrator / President Clearance</span>
+            </div>
+            <span class="badge badge-warning clearance-req-badge">Required for Budgeted Event</span>
+          </div>
+          <p class="clearance-box-desc">
+            This event requires a budget (<strong>₱<?= number_format($totalBudget, 2) ?></strong>). Please record whether clearance from the school administrator or president has been obtained.
           </p>
-          <div style="display:flex; gap:18px; align-items:center; margin-bottom:10px;">
-            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.88rem;">
+          <div class="clearance-radio-grid">
+            <label class="clearance-radio-option opt-obtained">
               <input type="radio" name="clearance_obtained" value="1" <?= ($activity['clearance_obtained'] === 1 || $activity['clearance_obtained'] === '1' || $activity['clearance_obtained'] === null) ? 'checked' : '' ?> required>
-              <strong style="color:var(--success, #16a34a);">✓ Clearance Obtained</strong>
+              <span>✓ Clearance Obtained</span>
             </label>
-            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.88rem;">
+            <label class="clearance-radio-option opt-not-obtained">
               <input type="radio" name="clearance_obtained" value="0" <?= ($activity['clearance_obtained'] === 0 || $activity['clearance_obtained'] === '0') ? 'checked' : '' ?>>
-              <strong style="color:var(--danger, #dc2626);">✕ Clearance Not Obtained</strong>
+              <span>✕ Clearance Not Obtained</span>
             </label>
           </div>
           <input type="hidden" name="clearance_required" value="1">
-          <input type="text" name="clearance_notes" class="form-control" style="font-size:0.82rem;" placeholder="Optional clearance remarks (e.g. Cleared by School Administrator)" value="<?= htmlspecialchars($activity['clearance_notes'] ?? '') ?>">
+          <input type="text" name="clearance_notes" class="form-control clearance-notes-input" placeholder="Optional remarks (e.g., Cleared by School Administrator)" value="<?= htmlspecialchars($activity['clearance_notes'] ?? '') ?>">
         </div>
         <?php endif; ?>
       <?php endif; ?>
@@ -823,20 +1011,23 @@ label, input, button, select, textarea {
       <input type="hidden" name="reviewer_id" value="<?= $user['id'] ?>">
       <input type="hidden" name="action" value="record_clearance">
       <input type="hidden" name="clearance_required" value="1">
-      <div class="form-group" style="margin-bottom:16px; padding:12px 14px; background:var(--bg-subtle, #f8f9fa); border:1px solid var(--border); border-radius:6px; text-align:left;">
-        <label class="form-label" style="font-weight:700; margin-bottom:8px;">Clearance Status</label>
-        <div style="display:flex; gap:18px; align-items:center; margin-bottom:12px;">
-          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.88rem;">
+      <div class="form-group clearance-modal-box">
+        <div class="clearance-box-header" style="margin-bottom:10px;">
+          <div class="clearance-box-title">Clearance Status</div>
+          <span class="badge badge-warning clearance-req-badge">Required for Budgeted Event</span>
+        </div>
+        <div class="clearance-radio-grid">
+          <label class="clearance-radio-option opt-obtained">
             <input type="radio" name="clearance_obtained" value="1" <?= ($activity['clearance_obtained'] === 1 || $activity['clearance_obtained'] === '1' || $activity['clearance_obtained'] === null) ? 'checked' : '' ?> required>
-            <strong style="color:var(--success, #16a34a);">✓ Clearance Obtained</strong>
+            <span>✓ Clearance Obtained</span>
           </label>
-          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.88rem;">
+          <label class="clearance-radio-option opt-not-obtained">
             <input type="radio" name="clearance_obtained" value="0" <?= ($activity['clearance_obtained'] === 0 || $activity['clearance_obtained'] === '0') ? 'checked' : '' ?>>
-            <strong style="color:var(--danger, #dc2626);">✕ Clearance Not Obtained</strong>
+            <span>✕ Clearance Not Obtained</span>
           </label>
         </div>
-        <label class="form-label" style="font-weight:700; margin-bottom:4px;">Clearance Notes / Remarks</label>
-        <input type="text" name="clearance_notes" class="form-control" style="font-size:0.82rem;" placeholder="e.g. Cleared by President on memo dated ..." value="<?= htmlspecialchars($activity['clearance_notes'] ?? '') ?>">
+        <label class="form-label" style="font-weight:700; margin-bottom:6px; font-size:0.8rem;">Clearance Notes / Remarks</label>
+        <input type="text" name="clearance_notes" class="form-control clearance-notes-input" placeholder="e.g., Cleared by President on memo dated ..." value="<?= htmlspecialchars($activity['clearance_notes'] ?? '') ?>">
       </div>
       <div class="flex gap-2" style="justify-content:flex-end;">
         <button type="button" class="btn btn-outline" onclick="closeModal('clearance')">Cancel</button>

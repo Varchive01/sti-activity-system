@@ -59,7 +59,8 @@ try {
             SUM(CASE WHEN a.status = 'approved' THEN 1 ELSE 0 END) as approved,
             SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END) as completed,
             SUM(CASE WHEN a.status = 'draft' AND a.faculty_id = {$userId} THEN 1 ELSE 0 END) as drafts,
-            SUM(CASE WHEN a.status = 'returned_for_revision' AND (a.faculty_id = {$userId} OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$userId} AND pc.status = 'active')) THEN 1 ELSE 0 END) as revisions
+            SUM(CASE WHEN a.status = 'returned_for_revision' AND (a.faculty_id = {$userId} OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$userId} AND pc.status = 'active')) THEN 1 ELSE 0 END) as revisions,
+            SUM(CASE WHEN a.status = 'rejected' AND (a.faculty_id = {$userId} OR ({$deptSqlU}) OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$userId} AND pc.status = 'active')) THEN 1 ELSE 0 END) as rejected
         FROM activities a
         JOIN users u ON a.faculty_id = u.id
         WHERE (
@@ -84,6 +85,7 @@ $approvedActivities = (int)($stats['approved'] ?? 0);
 $completedActivities = (int)($stats['completed'] ?? 0);
 $draftProposals = (int)($stats['drafts'] ?? 0);
 $returnedProposals = (int)($stats['revisions'] ?? 0);
+$rejectedProposals = (int)($stats['rejected'] ?? 0);
 
 // 3. Department Proposals & Activities (Section B — Strictly Scoped to Program Head's Department)
 $departmentActivities = [];
@@ -467,14 +469,42 @@ function renderActivityStatusBadge(string $status): string {
       background: rgba(255, 255, 255, 0.2);
     }
 
-    /* Stat Cards Grid (Replicating Faculty Original Summary Card Styling) */
+    /* Stat Cards Grid (Single Horizontal Row) */
+    .stat-row-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      margin-bottom: 24px;
+      padding-bottom: 6px;
+    }
+    .stat-row-wrapper::-webkit-scrollbar {
+      height: 5px;
+    }
+    .stat-row-wrapper::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .stat-row-wrapper::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.25);
+      border-radius: 4px;
+    }
+
     .stat-grid {
-      display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 12px;
+      display: grid !important;
+      grid-template-columns: repeat(7, minmax(130px, 1fr)) !important;
+      gap: 10px !important;
       align-items: stretch;
       width: 100%;
-      margin-bottom: 24px;
+      min-width: 960px;
+      margin-bottom: 0 !important;
+    }
+
+    @media (min-width: 1360px) {
+      .stat-grid {
+        min-width: 100% !important;
+        grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+      }
     }
 
     .stat-card {
@@ -483,14 +513,14 @@ function renderActivityStatusBadge(string $status): string {
       border: 1px solid var(--border, #E2E8F0) !important;
       border-radius: 12px !important;
       box-shadow: 0 1px 3px rgba(10, 22, 40, 0.04) !important;
-      padding: 14px 16px 13px !important;
+      padding: 12px 10px 11px !important;
       display: flex !important;
       flex-direction: column !important;
       justify-content: flex-start !important;
       align-items: flex-start !important;
       text-decoration: none !important;
       color: inherit !important;
-      min-height: 114px;
+      min-height: 108px;
       box-sizing: border-box;
       overflow: hidden !important;
       transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
@@ -532,18 +562,24 @@ function renderActivityStatusBadge(string $status): string {
 
     /* 4. Completed: purple accent */
     .stat-card.stat-card-completed::after {
-      background: #8B5CF6 !important;
+      background: #0284C7 !important;
     }
     .stat-card.stat-card-draft::after {
       background: #94A3B8 !important;
     }
     .stat-card.stat-card-returned::after {
-      background: #EF4444 !important;
+      background: #F59E0B !important;
     }
+    .stat-card.stat-card-rejected::after {
+      background: #DC2626 !important;
+    }
+
     .stat-card-draft .stat-icon     { background: rgba(148, 163, 184, 0.15) !important; color: #64748B !important; }
-    .stat-card-returned .stat-icon  { background: rgba(239, 68, 68, 0.12) !important; color: #DC2626 !important; }
+    .stat-card-returned .stat-icon  { background: rgba(245, 158, 11, 0.14) !important; color: #D97706 !important; }
+    .stat-card-rejected .stat-icon  { background: rgba(220, 38, 38, 0.12) !important; color: #DC2626 !important; }
     [data-theme="dark"] .stat-card-draft .stat-icon     { background: rgba(148, 163, 184, 0.20) !important; color: #94a3b8 !important; }
-    [data-theme="dark"] .stat-card-returned .stat-icon  { background: rgba(239, 68, 68, 0.18) !important; color: #f87171 !important; }
+    [data-theme="dark"] .stat-card-returned .stat-icon  { background: rgba(251, 191, 36, 0.18) !important; color: #fbbf24 !important; }
+    [data-theme="dark"] .stat-card-rejected .stat-icon  { background: rgba(239, 68, 68, 0.18) !important; color: #f87171 !important; }
 
     /* Dark Mode Card Background & Borders */
     [data-theme="dark"] .stat-card {
@@ -565,7 +601,7 @@ function renderActivityStatusBadge(string $status): string {
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
-      margin-bottom: 10px !important;
+      margin-bottom: 8px !important;
       flex-shrink: 0 !important;
     }
 
@@ -577,12 +613,12 @@ function renderActivityStatusBadge(string $status): string {
     .stat-card-total .stat-icon     { background: rgba(2, 132, 199, 0.12) !important; color: #0284C7 !important; }
     .stat-card-pending .stat-icon   { background: rgba(245, 158, 11, 0.14) !important; color: #D97706 !important; }
     .stat-card-approved .stat-icon  { background: rgba(16, 185, 129, 0.14) !important; color: #059669 !important; }
-    .stat-card-completed .stat-icon { background: rgba(139, 92, 246, 0.14) !important; color: #7C3AED !important; }
+    .stat-card-completed .stat-icon { background: rgba(2, 132, 199, 0.12) !important; color: #0284C7 !important; }
 
     [data-theme="dark"] .stat-card-total .stat-icon     { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; }
     [data-theme="dark"] .stat-card-pending .stat-icon   { background: rgba(251, 191, 36, 0.18) !important; color: #fbbf24 !important; }
     [data-theme="dark"] .stat-card-approved .stat-icon  { background: rgba(52, 211, 153, 0.15) !important; color: #34d399 !important; }
-    [data-theme="dark"] .stat-card-completed .stat-icon { background: rgba(196, 181, 253, 0.18) !important; color: #c4b5fd !important; }
+    [data-theme="dark"] .stat-card-completed .stat-icon { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; }
 
     .stat-card-info {
       display: flex !important;
@@ -696,17 +732,21 @@ function renderActivityStatusBadge(string $status): string {
     .table-wrap {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
       width: 100%;
     }
 
     .data-table {
       width: 100%;
+      min-width: 860px;
       border-collapse: collapse;
+      table-layout: fixed;
       font-size: 0.82rem;
+      box-sizing: border-box;
     }
 
     .data-table th {
-      padding: 10px 16px;
+      padding: 10px 14px;
       background: var(--border-light, #F8FAFD);
       color: var(--text-muted, #64748B);
       font-weight: 700;
@@ -718,8 +758,12 @@ function renderActivityStatusBadge(string $status): string {
       white-space: nowrap;
     }
 
+    [data-theme="dark"] .data-table th {
+      background: rgba(255, 255, 255, 0.025);
+    }
+
     .data-table td {
-      padding: 12px 16px;
+      padding: 11px 14px;
       border-bottom: 1px solid var(--border, #E2E8F0);
       vertical-align: middle;
       color: var(--text-main, #0A1628);
@@ -731,6 +775,34 @@ function renderActivityStatusBadge(string $status): string {
 
     .data-table tr:hover td {
       background: rgba(2, 132, 199, 0.02);
+    }
+
+    .data-table td .btn {
+      padding: 4px 10px;
+      height: 27px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      border-radius: 6px;
+      gap: 4px;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      transition: all 0.16s ease;
+      white-space: nowrap;
+    }
+
+    .data-table td .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .ph-table-actions {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 5px;
+      flex-wrap: nowrap;
     }
 
     .item-title {
@@ -796,12 +868,6 @@ function renderActivityStatusBadge(string $status): string {
     }
 
     /* Responsive adjustments */
-    @media (max-width: 1024px) {
-      .stat-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        gap: 10px;
-      }
-    }
     @media (max-width: 768px) {
       .content {
         padding: 16px;
@@ -818,18 +884,10 @@ function renderActivityStatusBadge(string $status): string {
         width: 100%;
         justify-content: center;
       }
-      .stat-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        gap: 10px;
-      }
     }
     @media (max-width: 480px) {
-      .stat-grid {
-        grid-template-columns: 1fr !important;
-        gap: 8px;
-      }
       .stat-card {
-        padding: 12px 14px !important;
+        padding: 10px 10px !important;
       }
     }
   </style>
@@ -852,103 +910,121 @@ function renderActivityStatusBadge(string $status): string {
       <!-- Section A: Department Overview Banner (Shared Role Banner) -->
       <?php include __DIR__ . '/../includes/dashboard-welcome-banner.php'; ?>
 
-      <!-- Stat Cards: Department Overview -->
-      <div class="stat-grid">
-        <!-- 1. Total Department Activities -->
-        <a href="<?= BASE_URL ?>/faculty/activities.php" class="stat-card stat-card-total" style="cursor:pointer;">
-          <div class="stat-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-          </div>
-          <div class="stat-card-info">
-            <div class="stat-card-meta"><?= htmlspecialchars($deptLabel) ?> Activities</div>
-            <div class="stat-card-row">
-              <div class="stat-val"><?= number_format($totalActivities) ?></div>
+      <!-- Stat Cards: Department Overview (Single Horizontal Row) -->
+      <div class="stat-row-wrapper">
+        <div class="stat-grid">
+          <!-- 1. Total Department Activities -->
+          <a href="<?= BASE_URL ?>/faculty/activities.php" class="stat-card stat-card-total" style="cursor:pointer;">
+            <div class="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
             </div>
-            <div class="stat-sub"><?= htmlspecialchars($deptLabel) ?> proposals &amp; activities</div>
-          </div>
-        </a>
+            <div class="stat-card-info">
+              <div class="stat-card-meta">ALL TIME</div>
+              <div class="stat-card-row">
+                <div class="stat-val"><?= number_format($totalActivities) ?></div>
+              </div>
+              <div class="stat-sub"><?= htmlspecialchars($deptLabel) ?> Activities</div>
+            </div>
+          </a>
 
-        <!-- 2. Pending Proposals -->
-        <a href="<?= BASE_URL ?>/faculty/pending.php" class="stat-card stat-card-pending" style="cursor:pointer;">
-          <div class="stat-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div class="stat-card-info">
-            <div class="stat-card-meta">Pending Proposals</div>
-            <div class="stat-card-row">
-              <div class="stat-val"><?= number_format($pendingProposals) ?></div>
+          <!-- 2. Draft Proposals -->
+          <a href="<?= BASE_URL ?>/faculty/activities.php?status=draft" class="stat-card stat-card-draft" style="cursor:pointer;">
+            <div class="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
             </div>
-            <div class="stat-sub">Proposals under review</div>
-          </div>
-        </a>
+            <div class="stat-card-info">
+              <div class="stat-card-meta">DRAFTS</div>
+              <div class="stat-card-row">
+                <div class="stat-val"><?= number_format($draftProposals) ?></div>
+              </div>
+              <div class="stat-sub">Unsubmitted Drafts</div>
+            </div>
+          </a>
 
-        <!-- 3. Approved Activities -->
-        <a href="<?= BASE_URL ?>/faculty/approved.php" class="stat-card stat-card-approved" style="cursor:pointer;">
-          <div class="stat-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div class="stat-card-info">
-            <div class="stat-card-meta">Approved</div>
-            <div class="stat-card-row">
-              <div class="stat-val"><?= number_format($approvedActivities) ?></div>
+          <!-- 3. Pending Proposals -->
+          <a href="<?= BASE_URL ?>/faculty/pending.php" class="stat-card stat-card-pending" style="cursor:pointer;">
+            <div class="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
-            <div class="stat-sub"><?= htmlspecialchars($deptLabel) ?> approved events</div>
-          </div>
-        </a>
+            <div class="stat-card-info">
+              <div class="stat-card-meta">IN REVIEW</div>
+              <div class="stat-card-row">
+                <div class="stat-val"><?= number_format($pendingProposals) ?></div>
+              </div>
+              <div class="stat-sub">Under Review</div>
+            </div>
+          </a>
 
-        <!-- 4. Completed Activities -->
-        <a href="<?= BASE_URL ?>/faculty/activities.php?status=completed" class="stat-card stat-card-completed" style="cursor:pointer;">
-          <div class="stat-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <div class="stat-card-info">
-            <div class="stat-card-meta">Completed</div>
-            <div class="stat-card-row">
-              <div class="stat-val"><?= number_format($completedActivities) ?></div>
+          <!-- 4. Approved Activities -->
+          <a href="<?= BASE_URL ?>/faculty/approved.php" class="stat-card stat-card-approved" style="cursor:pointer;">
+            <div class="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
-            <div class="stat-sub"><?= htmlspecialchars($deptLabel) ?> concluded events</div>
-          </div>
-        </a>
+            <div class="stat-card-info">
+              <div class="stat-card-meta">APPROVED</div>
+              <div class="stat-card-row">
+                <div class="stat-val"><?= number_format($approvedActivities) ?></div>
+              </div>
+              <div class="stat-sub">Approved Events</div>
+            </div>
+          </a>
 
-        <!-- 5. Draft Proposals -->
-        <a href="<?= BASE_URL ?>/faculty/activities.php?status=draft" class="stat-card stat-card-draft" style="cursor:pointer;">
-          <div class="stat-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </div>
-          <div class="stat-card-info">
-            <div class="stat-card-meta">Draft Proposals</div>
-            <div class="stat-card-row">
-              <div class="stat-val"><?= number_format($draftProposals) ?></div>
+          <!-- 5. Returned Proposals (Replaces Action Required) -->
+          <a href="<?= BASE_URL ?>/faculty/returned.php" class="stat-card stat-card-returned" style="cursor:pointer;">
+            <div class="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
             </div>
-            <div class="stat-sub">Unsubmitted drafts</div>
-          </div>
-        </a>
+            <div class="stat-card-info">
+              <div class="stat-card-meta" style="color: #d97706;">RETURNED</div>
+              <div class="stat-card-row">
+                <div class="stat-val"><?= number_format($returnedProposals) ?></div>
+              </div>
+              <div class="stat-sub">Returned for Revision</div>
+            </div>
+          </a>
 
-        <!-- 6. Returned Proposals -->
-        <a href="<?= BASE_URL ?>/faculty/returned.php" class="stat-card stat-card-returned" style="cursor:pointer;">
-          <div class="stat-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div class="stat-card-info">
-            <div class="stat-card-meta">Returned Proposals</div>
-            <div class="stat-card-row">
-              <div class="stat-val"><?= number_format($returnedProposals) ?></div>
+          <!-- 6. Rejected Proposals -->
+          <a href="<?= BASE_URL ?>/faculty/rejected.php" class="stat-card stat-card-rejected" style="cursor:pointer;">
+            <div class="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
-            <div class="stat-sub">Needs revision</div>
-          </div>
-        </a>
+            <div class="stat-card-info">
+              <div class="stat-card-meta" style="color: #dc2626;">REJECTED</div>
+              <div class="stat-card-row">
+                <div class="stat-val"><?= number_format($rejectedProposals) ?></div>
+              </div>
+              <div class="stat-sub" style="color: #dc2626;">Rejected Proposals</div>
+            </div>
+          </a>
+
+          <!-- 7. Completed Activities -->
+          <a href="<?= BASE_URL ?>/faculty/activities.php?status=completed" class="stat-card stat-card-completed" style="cursor:pointer;">
+            <div class="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div class="stat-card-info">
+              <div class="stat-card-meta">FINISHED</div>
+              <div class="stat-card-row">
+                <div class="stat-val"><?= number_format($completedActivities) ?></div>
+              </div>
+              <div class="stat-sub">Completed Events</div>
+            </div>
+          </a>
+        </div>
       </div>
 
       <!-- Local Offline Drafts Container -->
@@ -985,11 +1061,11 @@ function renderActivityStatusBadge(string $status): string {
             <table class="data-table">
               <thead>
                 <tr>
-                  <th style="width:36%;">Activity Title &amp; Proponent</th>
-                  <th style="width:22%;">Schedule &amp; Venue</th>
-                  <th style="width:14%;">Status</th>
-                  <th style="width:16%;">Task Progress</th>
-                  <th style="width:12%;text-align:right;">Actions</th>
+                  <th style="width:32%;min-width:180px;">Activity Title &amp; Proponent</th>
+                  <th style="width:20%;min-width:130px;">Schedule &amp; Venue</th>
+                  <th style="width:14%;min-width:105px;">Status</th>
+                  <th style="width:14%;min-width:105px;">Task Progress</th>
+                  <th style="width:20%;min-width:175px;text-align:right;">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1041,14 +1117,13 @@ function renderActivityStatusBadge(string $status): string {
                       <?php endif; ?>
                     </td>
                     <td style="text-align:right;">
-                      <div style="display:inline-flex;gap:6px;">
+                      <div class="ph-table-actions">
                         <a href="<?= BASE_URL ?>/faculty/view-activity.php?id=<?= (int)$act['id'] ?>" class="btn btn-sm btn-outline">View</a>
                         <?php if (in_array($act['status'], ['draft', 'returned_for_revision'], true)): ?>
+                          <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= (int)$act['id'] ?>" class="btn btn-sm btn-primary">Edit</a>
+                        <?php endif; ?>
                         <?php if ($act['status'] === 'draft'): ?>
                           <button type="button" class="btn btn-sm btn-danger" onclick="confirmDeleteDraft(<?= (int)$act['id'] ?>, '<?= htmlspecialchars(addslashes($act['title']), ENT_QUOTES) ?>')">Delete</button>
-                        <?php endif; ?>
-                        
-                          <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= (int)$act['id'] ?>" class="btn btn-sm btn-primary">Edit</a>
                         <?php endif; ?>
                       </div>
                     </td>
@@ -1091,11 +1166,11 @@ function renderActivityStatusBadge(string $status): string {
             <table class="data-table">
               <thead>
                 <tr>
-                  <th style="width:30%;">Task &amp; Parent Activity</th>
-                  <th style="width:22%;">Assigned <?= htmlspecialchars($deptLabel) ?> Faculty</th>
-                  <th style="width:16%;">Due Date &amp; Timing</th>
-                  <th style="width:18%;">Progress</th>
-                  <th style="width:14%;text-align:right;">Actions</th>
+                  <th style="width:30%;min-width:170px;">Task &amp; Parent Activity</th>
+                  <th style="width:22%;min-width:130px;">Assigned <?= htmlspecialchars($deptLabel) ?> Faculty</th>
+                  <th style="width:18%;min-width:110px;">Due Date &amp; Timing</th>
+                  <th style="width:15%;min-width:100px;">Progress</th>
+                  <th style="width:15%;min-width:125px;text-align:right;">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1133,7 +1208,9 @@ function renderActivityStatusBadge(string $status): string {
                       </div>
                     </td>
                     <td style="text-align:right;">
-                      <a href="<?= BASE_URL ?>/faculty/view-activity.php?id=<?= (int)$task['activity_id'] ?>" class="btn btn-sm btn-outline">View Activity</a>
+                      <div class="ph-table-actions">
+                        <a href="<?= BASE_URL ?>/faculty/view-activity.php?id=<?= (int)$task['activity_id'] ?>" class="btn btn-sm btn-outline">View Activity</a>
+                      </div>
                     </td>
                   </tr>
                 <?php endforeach; ?>

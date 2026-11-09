@@ -34,7 +34,7 @@ if ($nextMonth > 12) {
 $events = $db->prepare("
     SELECT a.id, a.title, a.event_date, a.status, a.venue, a.source, u.name as faculty_name
     FROM activities a JOIN users u ON a.faculty_id=u.id
-    WHERE a.status != 'draft' AND MONTH(a.event_date)=? AND YEAR(a.event_date)=?
+    WHERE a.source = 'student_org' AND a.status != 'draft' AND MONTH(a.event_date)=? AND YEAR(a.event_date)=?
     ORDER BY a.event_date
 ");
 $events->execute([$month, $year]);
@@ -48,7 +48,7 @@ foreach ($events->fetchAll() as $e) {
 $upcoming = $db->prepare("
     SELECT a.id, a.title, a.event_date, a.status, a.venue, u.name as faculty_name 
     FROM activities a JOIN users u ON a.faculty_id=u.id
-    WHERE a.status = 'approved' AND a.event_date >= CURDATE()
+    WHERE a.source = 'student_org' AND a.status = 'approved' AND a.event_date >= CURDATE()
     ORDER BY a.event_date ASC LIMIT 8
 ");
 $upcoming->execute();

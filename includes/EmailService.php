@@ -14,6 +14,29 @@ class EmailService {
     private $mail = null;
     private $config;
     private $db;
+    private static ?bool $smtpReachable = null;
+
+    private function isSmtpReachable(): bool {
+        if (self::$smtpReachable !== null) {
+            return self::$smtpReachable;
+        }
+        $host = $this->config['SMTP_HOST'] ?? '';
+        $port = (int)($this->config['SMTP_PORT'] ?? 587);
+        if (empty($host)) {
+            self::$smtpReachable = false;
+            return false;
+        }
+        // Fast 1.0-second preflight check avoids blocking web server on egress-restricted hosts
+        $fp = @fsockopen($host, $port, $errno, $errstr, 1.0);
+        if ($fp) {
+            @fclose($fp);
+            self::$smtpReachable = true;
+            return true;
+        }
+        error_log("EmailService Notice: Outbound SMTP port {$port} to {$host} is unreachable or firewalled. Seamlessly bypassing to Microsoft Graph API.");
+        self::$smtpReachable = false;
+        return false;
+    }
 
     public function __construct() {
         $this->config = getMailConfig();
@@ -52,7 +75,7 @@ class EmailService {
             }
 
             $this->mail->Port       = (int)$this->config['SMTP_PORT'];
-            $this->mail->Timeout    = 10;
+            $this->mail->Timeout    = 3; // Tight 3-second timeout prevents web server HTTP 500 timeouts on egress-restricted hosts
 
             // Recipients
             $this->mail->setFrom($this->config['FROM_EMAIL'], $this->config['FROM_NAME']);
@@ -117,8 +140,8 @@ class EmailService {
         $hasSmtp    = !empty($this->config['SMTP_HOST']) && !empty($this->config['SMTP_USERNAME']) && !empty($this->config['SMTP_PASSWORD']);
         $hasGraph   = !empty($this->config['OAUTH_REFRESH_TOKEN']);
 
-        // 1. Primary: Brevo SMTP (if configured or explicit driver)
-        if ($mailDriver === 'smtp' || ($hasSmtp && $mailDriver !== 'graph')) {
+        // 1. Primary: Brevo SMTP (if configured, reachable, or explicit driver)
+        if (($mailDriver === 'smtp' || ($hasSmtp && $mailDriver !== 'graph')) && $this->isSmtpReachable()) {
             $sent = $this->sendViaPHPMailer($recipientEmail, $recipientName, $subject, $body, $altBody, $activityId, $notificationType);
             if ($sent) {
                 return true;
@@ -131,22 +154,25 @@ class EmailService {
             return false;
         }
 
-        // 2. Secondary: Microsoft Graph API as primary driver
+        // 2. Secondary: Microsoft Graph API as primary driver or when SMTP is firewalled
         if ($hasGraph) {
             $sent = $this->sendViaGraphAPI($recipientEmail, $recipientName, $subject, $body, $activityId, $notificationType);
             if ($sent) {
                 return true;
             }
-            // Fallback to Brevo SMTP
-            if ($hasSmtp) {
+            // Fallback to Brevo SMTP only if reachable
+            if ($hasSmtp && $this->isSmtpReachable()) {
                 error_log("Microsoft Graph API sending failed for {$recipientEmail}. Initiating Brevo SMTP fallback...");
                 return $this->sendViaPHPMailer($recipientEmail, $recipientName, $subject, $body, $altBody, $activityId, $notificationType);
             }
             return false;
         }
 
-        // 3. Fallback: PHPMailer standalone
-        return $this->sendViaPHPMailer($recipientEmail, $recipientName, $subject, $body, $altBody, $activityId, $notificationType);
+        // 3. Fallback: PHPMailer standalone (if reachable)
+        if ($this->isSmtpReachable()) {
+            return $this->sendViaPHPMailer($recipientEmail, $recipientName, $subject, $body, $altBody, $activityId, $notificationType);
+        }
+        return false;
     }
 
     /**
@@ -256,7 +282,11 @@ class EmailService {
                 $verifyCa = 'C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem';
             }
 
-            $guzzle = new \GuzzleHttp\Client(['verify' => $verifyCa]);
+            $guzzle = new \GuzzleHttp\Client([
+                'verify'          => $verifyCa,
+                'timeout'         => 4.0,
+                'connect_timeout' => 2.0
+            ]);
 
             $provider = new \Greew\OAuth2\Client\Provider\Azure([
                 'clientId'     => $this->config['OAUTH_CLIENT_ID'],
@@ -311,7 +341,11 @@ class EmailService {
                 'saveToSentItems' => 'true'
             ];
 
-            $client = new \GuzzleHttp\Client(['verify' => $verifyCa]);
+            $client = new \GuzzleHttp\Client([
+                'verify'          => $verifyCa,
+                'timeout'         => 4.0,
+                'connect_timeout' => 2.0
+            ]);
             $response = $client->post($graphUrl, [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $accessToken,

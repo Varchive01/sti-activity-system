@@ -480,6 +480,10 @@ foreach ($rawResponses as $respIdx => $resp) {
     }
 }
 
+if (function_exists('reconcilePostEventMetrics')) {
+    reconcilePostEventMetrics($db, $activityId);
+}
+
 sendSyncJsonResponse(200, [
     'success'           => true,
     'total_responses'   => $totalResponses,

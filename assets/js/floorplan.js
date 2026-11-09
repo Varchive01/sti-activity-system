@@ -306,6 +306,7 @@
             points: [drawStart.x, drawStart.y, pt.x, pt.y],
             stroke: '#1e2a3a',
             strokeWidth,
+            hitStrokeWidth: Math.max(strokeWidth + 14, 18),
             lineCap: 'round',
             draggable: true,
             name: 'shape'
@@ -316,6 +317,7 @@
             stroke: '#1e2a3a',
             fill: '#1e2a3a',
             strokeWidth,
+            hitStrokeWidth: Math.max(strokeWidth + 14, 18),
             pointerLength: 10,
             pointerWidth: 8,
             draggable: true,
@@ -403,10 +405,10 @@
         },
         restroom: {
           label: 'Restroom',
-          fill: '#f3f4f6',
-          stroke: '#4b5563',
-          w: 50,
-          h: 50,
+          fill: '#f0fdf4',
+          stroke: '#16a34a',
+          w: 80,
+          h: 40,
           shape: 'rect'
         },
       };
@@ -477,6 +479,11 @@
       }
 
       function wireShape(node) {
+        const cls = node.getClassName();
+        if (cls === 'Line' || cls === 'Arrow') {
+          const sw = node.strokeWidth() || 2;
+          node.hitStrokeWidth(Math.max(sw + 14, 18));
+        }
         node.on('click tap', e => {
           e.cancelBubble = true;
           selectNode(node);
@@ -495,6 +502,19 @@
               mainLayer.batchDraw();
               saveHistory();
               saveToHidden();
+            }
+          } else if (node.getClassName() === 'Group') {
+            const innerText = node.findOne('Text');
+            if (innerText) {
+              const nv = window.STIModal
+                ? await window.STIModal.prompt('Edit label:', innerText.text(), { title: 'Edit Floor Plan Label', confirmText: 'Save Label' })
+                : prompt('Edit label:', innerText.text());
+              if (nv !== null) {
+                innerText.text(nv);
+                mainLayer.batchDraw();
+                saveHistory();
+                saveToHidden();
+              }
             }
           }
         });
@@ -544,12 +564,33 @@
         if (rotEl) rotEl.value = Math.round(node.rotation() || 0);
         if (opacEl) opacEl.value = node.opacity() || 1;
 
-        if (cls === 'Rect' || cls === 'Group') {
+        if (cls === 'Rect') {
           if (wEl) wEl.value = Math.round(typeof node.width === 'function' ? node.width() : 0);
           if (hEl) hEl.value = Math.round(typeof node.height === 'function' ? node.height() : 0);
+        } else if (cls === 'Group') {
+          // For groups (like presets), find inner shape width & height if group width/height not explicitly set
+          const innerShape = node.findOne('Rect') || node.findOne('Ellipse');
+          if (innerShape && innerShape.getClassName() === 'Rect') {
+            if (wEl) wEl.value = Math.round(innerShape.width());
+            if (hEl) hEl.value = Math.round(innerShape.height());
+          } else if (innerShape && innerShape.getClassName() === 'Ellipse') {
+            if (wEl) wEl.value = Math.round(innerShape.radiusX() * 2);
+            if (hEl) hEl.value = Math.round(innerShape.radiusY() * 2);
+          } else {
+            if (wEl) wEl.value = Math.round(typeof node.width === 'function' ? node.width() : 0);
+            if (hEl) hEl.value = Math.round(typeof node.height === 'function' ? node.height() : 0);
+          }
+          const innerText = node.findOne('Text');
+          if (innerText && labelEl) labelEl.value = innerText.text();
         } else if (cls === 'Ellipse') {
           if (wEl) wEl.value = Math.round((node.radiusX ? node.radiusX() : 0) * 2);
           if (hEl) hEl.value = Math.round((node.radiusY ? node.radiusY() : 0) * 2);
+        } else if (cls === 'Line' || cls === 'Arrow') {
+          const pts = node.points() || [];
+          if (pts.length >= 4) {
+            if (wEl) wEl.value = Math.round(Math.abs(pts[2] - pts[0]));
+            if (hEl) hEl.value = Math.round(Math.abs(pts[3] - pts[1]));
+          }
         }
         if (cls === 'Text' && labelEl) labelEl.value = node.text();
       }
@@ -564,11 +605,20 @@
       const pLabel = document.getElementById('propLabel');
       if (pLabel) {
         pLabel.addEventListener('change', e => {
-          if (selectedNode && selectedNode.getClassName() === 'Text') {
+          if (!selectedNode) return;
+          if (selectedNode.getClassName() === 'Text') {
             selectedNode.text(e.target.value);
             mainLayer.batchDraw();
             saveHistory();
             saveToHidden();
+          } else if (selectedNode.getClassName() === 'Group') {
+            const innerText = selectedNode.findOne('Text');
+            if (innerText) {
+              innerText.text(e.target.value);
+              mainLayer.batchDraw();
+              saveHistory();
+              saveToHidden();
+            }
           }
         });
       }

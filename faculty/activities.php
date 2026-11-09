@@ -572,9 +572,6 @@ try {
     <div class="alert alert-success">✓ Proposal saved successfully!</div>
     <?php endif; ?>
 
-    <!-- Local Offline Drafts Container -->
-    <div id="localDraftsContainer" style="display:none;"></div>
-
     <div class="card activities-card">
       <div class="card-body" style="padding:0;">
         <div class="table-wrap">

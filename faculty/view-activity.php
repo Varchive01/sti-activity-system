@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/ai/kpi_helper.php';
 requireRole('faculty', 'program_head');
 $db = getDB();
 $id = (int)($_GET['id'] ?? 0);
@@ -27,6 +28,10 @@ if (!canUserAccessActivity($id, 'view', $user['id'], $user['role'], $user['dept'
 
 // Check task progress reminders for this activity
 checkTaskProgressReminders($db, $user['id'], $user['role'], $id);
+
+if (function_exists('reconcilePostEventMetrics')) {
+    reconcilePostEventMetrics($db, $id);
+}
 
 // Fetch raw evaluation responses
 $responsesStmt = $db->prepare("
@@ -626,9 +631,9 @@ label, input, button, select, textarea {
     <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
       <a href="<?= BASE_URL ?>/faculty/activities.php" class="btn btn-outline btn-sm">← Back</a>
       <?php if ($activity['status'] === 'completed'): ?>
-        <a href="<?= BASE_URL ?>/dean/generate-report.php?activity_id=<?= $id ?>" target="_blank" class="btn btn-outline btn-sm">📊 KPI Report</a>
+        <a href="<?= BASE_URL ?>/faculty/generate-report.php?activity_id=<?= $id ?>" class="btn btn-outline btn-sm">📊 KPI Report</a>
       <?php endif; ?>
-      <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 Print</button>
+      <button type="button" id="exportPdfBtn" class="btn btn-outline btn-sm" onclick="exportProposalPdf()" title="Download formal PDF document" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">📄 Export PDF</button>
       <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
       <!-- User Profile Control -->
       <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
@@ -1001,7 +1006,7 @@ label, input, button, select, textarea {
                           $rBadge = ($dl['review_status'] === 'approved') ? 'badge-success' : (($dl['review_status'] === 'returned_for_improvement') ? 'badge-danger' : 'badge-warning');
                           $rLabel = ($dl['review_status'] === 'approved') ? 'Approved' : (($dl['review_status'] === 'returned_for_improvement') ? 'Returned' : 'Pending');
                         ?>
-                          <div style="font-size:0.73rem;background:var(--bg-subtle,#f8f9fa);padding:5px 7px;border-radius:6px;border:1px solid var(--border-color,#e5e7eb);">
+                          <div style="font-size:0.73rem;background:var(--bg-base);padding:5px 7px;border-radius:6px;border:1px solid var(--border);">
                             <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
                               <a href="<?= BASE_URL ?>/api/document-download.php?deliverable_id=<?= (int)$dl['id'] ?>" target="_blank" style="font-weight:700;color:#0284c7;text-decoration:none;" title="Download / Open file">
                                 📎 <?= htmlspecialchars(mb_strimwidth($dl['file_name'], 0, 18, '...')) ?>
@@ -1559,7 +1564,7 @@ label, input, button, select, textarea {
           <input type="hidden" id="reviewDeliverableId" name="deliverable_id" value="">
           <div id="reviewErrorBanner" style="display: none; padding: 10px 14px; background: rgba(220,38,38,0.1); border: 1px solid rgba(220,38,38,0.3); border-radius: 8px; color: var(--danger, #dc2626); font-size: 0.84rem; font-weight: 600;"></div>
 
-          <div style="background: var(--bg-subtle, #f8f9fa); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color, #e5e7eb);">
+          <div style="background: var(--bg-base); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);">
             <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Deliverable File</div>
             <div id="reviewFileName" style="font-weight: 700; color: var(--text-main); font-size: 0.90rem; margin-top: 2px;">—</div>
             <div id="reviewUploaderInfo" style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">—</div>
@@ -1664,21 +1669,63 @@ label, input, button, select, textarea {
     <!-- Post-Event -->
     <?php if ($postEvent || !empty($documents)): ?>
     <div class="card detail-section-card">
-      <div class="card-header">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
         <h2><span>📊</span> Post-Event Results & Documentation</h2>
+        <?php if (!empty($canModify)): ?>
+          <a href="<?= BASE_URL ?>/faculty/post-event.php?activity_id=<?= (int)$id ?>" class="btn btn-outline btn-sm" style="padding:5px 12px;font-size:0.8rem;">✏️ Edit Post-Event Report</a>
+        <?php endif; ?>
       </div>
       <div class="card-body">
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:20px;">
           <div>
             <?php if ($postEvent): ?>
-            <div class="info-grid" style="grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));">
+            <div class="info-grid" style="grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));">
               <?php
               $attPct = ($postEvent['target_attendance'] > 0 && isset($postEvent['actual_attendance'])) ? min(100, round(($postEvent['actual_attendance'] / $postEvent['target_attendance']) * 100)) : 0;
-              foreach(['Actual Attendance'=>$postEvent['actual_attendance'],'Target'=>$postEvent['target_attendance'],'Attendance Rate'=>$attPct.'%','Satisfaction Score'=>number_format($postEvent['satisfaction_score'],1).'/5'] as $l=>$v):
+              $displayTiles = [
+                'Actual Attendance' => $postEvent['actual_attendance'],
+                'Target'            => $postEvent['target_attendance'],
+                'Attendance Rate'   => $attPct . '%',
+                'Satisfaction Score'=> (isset($postEvent['satisfaction_score']) && $postEvent['satisfaction_score'] !== null) ? number_format($postEvent['satisfaction_score'], 1) . '/5' : '—'
+              ];
+              if (!empty($postEvent['manual_attendance'])) {
+                $displayTiles['Paper-Based Count'] = (int)$postEvent['manual_attendance'];
+              }
+              foreach($displayTiles as $l=>$v):
               ?>
               <div class="info-tile"><div class="lbl"><?= $l ?></div><div class="val"><?= $v ?></div></div>
               <?php endforeach; ?>
             </div>
+
+            <?php if (!empty($postEvent['assessment_report_path']) || !empty($postEvent['survey_csv_path'])): ?>
+            <div class="info-tile" style="margin-top:12px;">
+              <div class="lbl" style="margin-bottom:8px;">📑 Core Report Documents</div>
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <?php if (!empty($postEvent['assessment_report_path'])):
+                  $vaPdfName = function_exists('getFriendlyDocumentFilename') ? getFriendlyDocumentFilename($db, $id, $postEvent['assessment_report_path']) : basename($postEvent['assessment_report_path']);
+                  $vaPdfUrl  = function_exists('resolveUploadedFileUrl') ? resolveUploadedFileUrl($postEvent['assessment_report_path']) : (BASE_URL . '/uploads/' . ltrim($postEvent['assessment_report_path'], '/\\'));
+                ?>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.28);border-radius:6px;gap:8px;flex-wrap:wrap;">
+                  <span style="font-size:0.85rem;font-weight:600;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+                    <span style="color:#059669;font-weight:bold;">[✓ PDF]</span> Assessment Report: <?= htmlspecialchars($vaPdfName) ?>
+                  </span>
+                  <a href="<?= htmlspecialchars($vaPdfUrl) ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:0.75rem;">View PDF</a>
+                </div>
+                <?php endif; ?>
+                <?php if (!empty($postEvent['survey_csv_path'])):
+                  $vaCsvName = function_exists('getFriendlyDocumentFilename') ? getFriendlyDocumentFilename($db, $id, $postEvent['survey_csv_path']) : basename($postEvent['survey_csv_path']);
+                  $vaCsvUrl  = function_exists('resolveUploadedFileUrl') ? resolveUploadedFileUrl($postEvent['survey_csv_path']) : (BASE_URL . '/uploads/' . ltrim($postEvent['survey_csv_path'], '/\\'));
+                ?>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(2,132,199,0.06);border:1px solid rgba(2,132,199,0.2);border-radius:6px;gap:8px;flex-wrap:wrap;">
+                  <span style="font-size:0.85rem;font-weight:600;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+                    <span style="color:#0284c7;font-weight:bold;">[✓ CSV]</span> Survey Results: <?= htmlspecialchars($vaCsvName) ?>
+                  </span>
+                  <a href="<?= htmlspecialchars($vaCsvUrl) ?>" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:0.75rem;">Download CSV</a>
+                </div>
+                <?php endif; ?>
+              </div>
+            </div>
+            <?php endif; ?>
             <?php if (!empty($postEvent['observations'])): ?>
             <div class="info-tile" style="margin-top:12px;">
               <div class="lbl">Observations</div>
@@ -1717,9 +1764,47 @@ label, input, button, select, textarea {
             <?php endif; ?>
           </div>
           <div>
+            <?php
+            $actKpiCalc = function_exists('calculateActivityKpis') ? calculateActivityKpis($id, $db) : [];
+            $definedKpiRows = !empty($actKpiCalc['all_kpi_rows']) ? $actKpiCalc['all_kpi_rows'] : [];
+            ?>
+            <?php if (!empty($definedKpiRows)): ?>
+            <div class="info-tile" style="margin-bottom:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <div class="lbl" style="margin:0;">Key Performance Indicators (KPIs)</div>
+                <?php if (!empty($actKpiCalc['overall_performance'])): ?>
+                  <span class="badge <?= getKpiStatusClass($actKpiCalc['overall_status'] ?? '') ?>"><?= $actKpiCalc['overall_performance'] ?>% Overall</span>
+                <?php endif; ?>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <?php foreach ($definedKpiRows as $dk):
+                  $dCls = getKpiStatusClass($dk['status'] ?? 'Insufficient Data');
+                ?>
+                <div style="background:var(--bg-base); border:1px solid var(--border); border-radius:6px; padding:8px 12px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                    <div>
+                      <strong style="font-size:0.82rem; color:var(--text-main);"><?= htmlspecialchars($dk['indicator'] ?? '') ?></strong>
+                      <small class="badge badge-secondary" style="font-size:0.68rem; margin-left:4px;"><?= htmlspecialchars($dk['evaluation_method'] ?? '') ?></small>
+                    </div>
+                    <span class="badge <?= $dCls ?>" style="font-size:0.75rem;"><?= htmlspecialchars($dk['achievement'] ?? '') ?> (<?= htmlspecialchars($dk['status'] ?? '') ?>)</span>
+                  </div>
+                  <div style="font-size:0.75rem; color:var(--text-muted); margin-top:3px;">
+                    Target: <strong><?= htmlspecialchars($dk['target'] ?? '—') ?></strong> | Actual: <strong><?= htmlspecialchars($dk['actual'] ?? '—') ?></strong>
+                  </div>
+                  <?php if (!empty($dk['calculation_details'])): ?>
+                    <div style="font-size:0.72rem; color:var(--text-muted); margin-top:3px; line-height:1.3; font-style:italic;">
+                      <?= htmlspecialchars($dk['calculation_details']) ?>
+                    </div>
+                  <?php endif; ?>
+                </div>
+                <?php endforeach; ?>
+              </div>
+            </div>
+            <?php endif; ?>
+
             <?php if (!empty($kpiData)): ?>
             <div class="info-tile">
-              <div class="lbl" style="margin-bottom:14px;">KPI Breakdown</div>
+              <div class="lbl" style="margin-bottom:14px;">Survey Questions Breakdown</div>
               <?php foreach($kpiData as $k):
                 $stars=round($k['avg']); ?>
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);">
@@ -1934,7 +2019,7 @@ label, input, button, select, textarea {
               
               <div id="csvImportStatusBanner" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 0.84rem; font-weight: 600;"></div>
 
-              <div style="background: var(--bg-subtle, #f8f9fa); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-color, #e5e7eb);">
+              <div style="background: var(--bg-base); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border);">
                 <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-main); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
                   <span>ℹ️</span> Supported CSV Formats
                 </div>
@@ -2080,5 +2165,6 @@ label, input, button, select, textarea {
 
   </div>
 </div>
+<?php include __DIR__ . '/../includes/activity-print-document.php'; ?>
 </body>
 </html>

@@ -71,6 +71,10 @@ $searchFilter   = sanitize($_GET['q'] ?? '');
 $statusFilter   = sanitize($_GET['status'] ?? '');
 $timingFilter   = sanitize($_GET['timing'] ?? '');
 $activityFilter = (int)($_GET['activity_id'] ?? 0);
+$validViews     = ['gantt', 'table', 'all'];
+$currentView    = isset($_GET['view']) && in_array(strtolower(trim($_GET['view'])), $validViews, true)
+    ? strtolower(trim($_GET['view']))
+    : 'all';
 
 $isPH = (($user['role'] ?? '') === 'program_head');
 if ($isPH) {
@@ -372,6 +376,71 @@ $allActivitiesBase = $allActivitiesBase ?? (BASE_URL . '/' . $role . '/activitie
     justify-content: flex-end;
     gap: 6px;
   }
+  /* ── Filter Bar Styling ── */
+  .filter-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-sm);
+  }
+  .filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px 16px;
+    align-items: flex-end;
+  }
+  @media (max-width: 1024px) {
+    .filter-grid {
+      grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .filter-group.filter-group-search,
+    .filter-group[style*="grid-column: span 2"] {
+      grid-column: span 2 !important;
+    }
+  }
+  @media (max-width: 640px) {
+    .filter-grid {
+      grid-template-columns: 1fr !important;
+    }
+    .filter-group.filter-group-search,
+    .filter-group[style*="grid-column: span 2"] {
+      grid-column: span 1 !important;
+    }
+  }
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .filter-group label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin: 0;
+  }
+  .filter-group select,
+  .filter-group input {
+    height: 38px;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-main);
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .filter-group select:focus,
+  .filter-group input:focus {
+    border-color: var(--accent, #0284c7);
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+  }
 </style>
 </head>
 <body class="<?= htmlspecialchars($themeClass) ?>">
@@ -406,57 +475,77 @@ $allActivitiesBase = $allActivitiesBase ?? (BASE_URL . '/' . $role . '/activitie
       </div>
     </div>
 
-    <!-- Filters & View Jump Bar -->
+    <!-- View Switcher Tabs & Count -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <a href="#ganttSection" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:4px;">
+      <div class="task-view-switcher" role="tablist" aria-label="Task View Modes" style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card);border:1px solid var(--border);padding:4px;border-radius:8px;">
+        <a href="?view=gantt" id="btnViewGantt" class="btn <?= $currentView === 'gantt' ? 'btn-primary' : 'btn-outline' ?> btn-sm" role="tab" aria-selected="<?= $currentView === 'gantt' ? 'true' : 'false' ?>" style="display:inline-flex;align-items:center;gap:4px;border-radius:6px;text-decoration:none;font-size:0.82rem;font-weight:600;">
           <span>📊</span> Gantt Timeline
         </a>
-        <a href="#tableSection" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:4px;">
+        <a href="?view=table" id="btnViewTable" class="btn <?= $currentView === 'table' ? 'btn-primary' : 'btn-outline' ?> btn-sm" role="tab" aria-selected="<?= $currentView === 'table' ? 'true' : 'false' ?>" style="display:inline-flex;align-items:center;gap:4px;border-radius:6px;text-decoration:none;font-size:0.82rem;font-weight:600;">
           <span>📋</span> Task Records Table
+        </a>
+        <a href="?view=all" id="btnViewAll" class="btn <?= $currentView === 'all' ? 'btn-primary' : 'btn-outline' ?> btn-sm" role="tab" aria-selected="<?= $currentView === 'all' ? 'true' : 'false' ?>" style="display:inline-flex;align-items:center;gap:4px;border-radius:6px;text-decoration:none;font-size:0.82rem;font-weight:600;">
+          <span>🔀</span> All Views
         </a>
       </div>
       <div style="font-size:0.82rem;color:var(--text-muted);font-weight:600;">
-        <?= count($tasks) ?> <?= count($tasks) === 1 ? 'task' : 'tasks' ?> listed
+        <span id="taskCountBadge"><?= count($tasks) ?> <?= count($tasks) === 1 ? 'task' : 'tasks' ?> listed</span>
       </div>
     </div>
 
     <!-- Filters -->
-    <form method="GET" class="filters" style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
-      <input type="text" name="q" class="form-control" placeholder="Search tasks or activities…" value="<?= htmlspecialchars($searchFilter) ?>" style="max-width:220px;">
-      
-      <?php if (!empty($activitiesList)): ?>
-        <select name="activity_id" class="form-control" style="max-width:190px;">
-          <option value="">All Activities</option>
-          <?php foreach ($activitiesList as $aId => $aTitle): ?>
-            <option value="<?= $aId ?>" <?= $activityFilter === $aId ? 'selected' : '' ?>>
-              <?= htmlspecialchars(mb_strimwidth($aTitle, 0, 24, '...')) ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
-      <?php endif; ?>
+    <div class="filter-card">
+      <form method="GET" class="filter-grid" id="myTasksFilterForm">
+        <input type="hidden" name="view" id="filterViewMode" value="<?= htmlspecialchars($currentView) ?>">
 
-      <select name="status" class="form-control" style="max-width:140px;">
-        <option value="">All Statuses</option>
-        <option value="Not Started" <?= $statusFilter === 'Not Started' ? 'selected' : '' ?>>Not Started</option>
-        <option value="In Progress" <?= $statusFilter === 'In Progress' ? 'selected' : '' ?>>In Progress</option>
-        <option value="Completed" <?= $statusFilter === 'Completed' ? 'selected' : '' ?>>Completed</option>
-        <option value="Delayed" <?= $statusFilter === 'Delayed' ? 'selected' : '' ?>>Delayed</option>
-      </select>
+        <?php if (!empty($activitiesList)): ?>
+          <div class="filter-group">
+            <label for="filterActivity">Activity</label>
+            <select name="activity_id" id="filterActivity" onchange="this.form.submit()">
+              <option value="">All Activities (<?= count($activitiesList) ?>)</option>
+              <?php foreach ($activitiesList as $aId => $aTitle): ?>
+                <option value="<?= $aId ?>" <?= $activityFilter === $aId ? 'selected' : '' ?>>
+                  <?= htmlspecialchars(mb_strimwidth($aTitle, 0, 36, '...')) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        <?php endif; ?>
 
-      <select name="timing" class="form-control" style="max-width:140px;">
-        <option value="">All Timing</option>
-        <option value="Completed" <?= $timingFilter === 'Completed' ? 'selected' : '' ?>>Completed</option>
-        <option value="On Track" <?= $timingFilter === 'On Track' ? 'selected' : '' ?>>On Track</option>
-        <option value="At Risk" <?= $timingFilter === 'At Risk' ? 'selected' : '' ?>>At Risk</option>
-        <option value="Delayed" <?= $timingFilter === 'Delayed' ? 'selected' : '' ?>>Delayed</option>
-      </select>
+        <div class="filter-group">
+          <label for="filterStatus">Status</label>
+          <select name="status" id="filterStatus" onchange="this.form.submit()">
+            <option value="">All Statuses</option>
+            <option value="Not Started" <?= $statusFilter === 'Not Started' ? 'selected' : '' ?>>Not Started</option>
+            <option value="In Progress" <?= $statusFilter === 'In Progress' ? 'selected' : '' ?>>In Progress</option>
+            <option value="Completed" <?= $statusFilter === 'Completed' ? 'selected' : '' ?>>Completed</option>
+            <option value="Delayed" <?= $statusFilter === 'Delayed' ? 'selected' : '' ?>>Delayed</option>
+          </select>
+        </div>
 
-      <button type="submit" class="btn btn-primary btn-sm">Filter</button>
-      <?php if ($searchFilter !== '' || $statusFilter !== '' || $timingFilter !== '' || $activityFilter > 0): ?>
-        <a href="tasks.php" class="btn btn-outline btn-sm">Clear</a>
-      <?php endif; ?>
-    </form>
+        <div class="filter-group">
+          <label for="filterTiming">Timing Indicator</label>
+          <select name="timing" id="filterTiming" onchange="this.form.submit()">
+            <option value="">All Timing Indicators</option>
+            <option value="Completed" <?= $timingFilter === 'Completed' ? 'selected' : '' ?>>Completed</option>
+            <option value="On Track" <?= $timingFilter === 'On Track' ? 'selected' : '' ?>>On Track</option>
+            <option value="At Risk" <?= $timingFilter === 'At Risk' ? 'selected' : '' ?>>At Risk</option>
+            <option value="Delayed" <?= $timingFilter === 'Delayed' ? 'selected' : '' ?>>Delayed</option>
+          </select>
+        </div>
+
+        <div class="filter-group filter-group-search" <?= empty($activitiesList) ? 'style="grid-column: span 2;"' : '' ?>>
+          <label for="filterSearch">Search Task, Activity, Role</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="text" name="q" id="filterSearch" placeholder="Type keyword to filter..." value="<?= htmlspecialchars($searchFilter) ?>" style="flex:1;">
+            <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap;padding:0 18px;height:38px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-weight:600;">Filter</button>
+            <?php if ($searchFilter !== '' || $statusFilter !== '' || $timingFilter !== '' || $activityFilter > 0): ?>
+              <a href="tasks.php<?= $currentView !== 'all' ? '?view=' . urlencode($currentView) : '' ?>" class="btn btn-outline btn-sm" style="white-space:nowrap;padding:0 14px;height:38px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font-weight:600;">Reset</a>
+            <?php endif; ?>
+          </div>
+        </div>
+      </form>
+    </div>
 
     <!-- ── Task Timeline (Gantt Visualization) ── -->
     <?php
@@ -467,13 +556,14 @@ $allActivitiesBase = $allActivitiesBase ?? (BASE_URL . '/' . $role . '/activitie
         'viewActivityBase'      => $viewActivityBase,
         'emptyMessage'          => ($searchFilter !== '' || $statusFilter !== '' || $timingFilter !== '' || $activityFilter > 0) ? 'No task assignments matching the current filter criteria.' : ($isPH ? 'No department task assignments found.' : 'You currently have no tasks assigned to you across any activity proposals.'),
         'showNotice'            => true,
-        'canManageDeliverables' => true
+        'canManageDeliverables' => true,
+        'currentView'           => $currentView
     ];
     include __DIR__ . '/gantt-timeline-component.php';
     ?>
 
     <!-- Table Card -->
-    <div class="tasks-table-card" id="tableSection">
+    <div class="tasks-table-card" id="tableSection" <?= ($currentView === 'gantt') ? 'style="display:none;"' : '' ?>>
       <?php if (empty($tasks)): ?>
         <div class="empty-state-box">
           <div style="font-size: 2.6rem; margin-bottom: 10px;">📋</div>
@@ -770,6 +860,116 @@ $allActivitiesBase = $allActivitiesBase ?? (BASE_URL . '/' . $role . '/activitie
   });
   document.getElementById('deliverablesModal')?.addEventListener('click', (e) => {
     if (e.target.id === 'deliverablesModal') closeDeliverablesModal();
+  });
+
+  // ── Switch Task View Modes (Gantt, Table, All) ──
+  function switchTaskView(viewMode, ev, shouldScroll = false) {
+    if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+
+    const ganttSection = document.getElementById('ganttSection');
+    const tableSection = document.getElementById('tableSection');
+    const btnGantt = document.getElementById('btnViewGantt');
+    const btnTable = document.getElementById('btnViewTable');
+    const btnAll = document.getElementById('btnViewAll');
+    const filterInput = document.getElementById('filterViewMode');
+
+    if (!ganttSection || !tableSection) return;
+
+    if (!['gantt', 'table', 'all'].includes(viewMode)) {
+      viewMode = 'all';
+    }
+
+    if (viewMode === 'gantt') {
+      ganttSection.style.display = 'block';
+      tableSection.style.display = 'none';
+      if (shouldScroll) {
+        ganttSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } else if (viewMode === 'table') {
+      ganttSection.style.display = 'none';
+      tableSection.style.display = 'block';
+      if (shouldScroll) {
+        tableSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } else {
+      ganttSection.style.display = 'block';
+      tableSection.style.display = 'block';
+    }
+
+    // Toggle active button classes
+    const buttons = [
+      { btn: btnGantt, mode: 'gantt' },
+      { btn: btnTable, mode: 'table' },
+      { btn: btnAll, mode: 'all' }
+    ];
+
+    buttons.forEach(item => {
+      if (!item.btn) return;
+      if (item.mode === viewMode) {
+        item.btn.classList.add('btn-primary');
+        item.btn.classList.remove('btn-outline');
+        item.btn.setAttribute('aria-selected', 'true');
+      } else {
+        item.btn.classList.remove('btn-primary');
+        item.btn.classList.add('btn-outline');
+        item.btn.setAttribute('aria-selected', 'false');
+      }
+    });
+
+    if (filterInput) filterInput.value = viewMode;
+
+    try {
+      localStorage.setItem('task_view_mode', viewMode);
+    } catch (e) {}
+
+    // Update URL query state cleanly without full reload
+    if (window.history && window.history.replaceState) {
+      const url = new URL(window.location.href);
+      if (viewMode === 'all') {
+        url.searchParams.delete('view');
+      } else {
+        url.searchParams.set('view', viewMode);
+      }
+      window.history.replaceState({}, '', url.toString());
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramView = urlParams.get('view');
+    const hash = window.location.hash.toLowerCase();
+
+    let activeMode = '<?= $currentView ?>';
+
+    if (paramView && ['gantt', 'table', 'all'].includes(paramView)) {
+      activeMode = paramView;
+    } else if (hash.startsWith('#task-row-') || hash === '#tablesection' || hash === '#table') {
+      activeMode = 'table';
+    } else if (hash === '#ganttsection' || hash === '#gantt') {
+      activeMode = 'gantt';
+    } else {
+      try {
+        const saved = localStorage.getItem('task_view_mode');
+        if (saved && ['gantt', 'table', 'all'].includes(saved)) {
+          activeMode = saved;
+        }
+      } catch (e) {}
+    }
+
+    switchTaskView(activeMode, null, false);
+
+    document.getElementById('btnViewGantt')?.addEventListener('click', (e) => switchTaskView('gantt', e, true));
+    document.getElementById('btnViewTable')?.addEventListener('click', (e) => switchTaskView('table', e, true));
+    document.getElementById('btnViewAll')?.addEventListener('click', (e) => switchTaskView('all', e, true));
+
+    window.addEventListener('hashchange', () => {
+      const h = window.location.hash.toLowerCase();
+      if (h === '#ganttsection' || h === '#gantt') {
+        switchTaskView('gantt', null, true);
+      } else if (h === '#tablesection' || h === '#table' || h.startsWith('#task-row-')) {
+        switchTaskView('table', null, true);
+      }
+    });
   });
 </script>
 </body>

@@ -96,10 +96,10 @@ $pDeanCompleted = round(((int)($stats['completed'] ?? 0) / $dTot) * 100, 1);
 $pDeanReturned = round(((int)($stats['returned'] ?? 0) / $dTot) * 100, 1);
 $pDeanRejected = round(((int)($stats['rejected'] ?? 0) / $dTot) * 100, 1);
 
-// 2. Approval Trends for Selected Period
+// 2. Approval Trends for Selected Period (Institutional view across all reviewers)
 $approvalTrends = ['months' => [], 'max_count' => 1, 'total_approved' => 0, 'total_returned' => 0];
 try {
-    $approvalTrends = getApprovalTrends($selectedYear, $selectedPeriod, $db, null, (int)$user['id']);
+    $approvalTrends = getApprovalTrends($selectedYear, $selectedPeriod, $db, null, null);
 } catch (\Throwable $e) {
     error_log("Dean dashboard approval trends error: " . $e->getMessage());
 }
@@ -115,22 +115,77 @@ $recent_all = [];
 
 try {
     $statusStmt = $db->prepare("
-      SELECT status, COUNT(*) as cnt FROM activities a WHERE {$whereClause} AND a.status IN ('pending_final_approval', 'approved', 'completed') GROUP BY status ORDER BY cnt DESC
+      SELECT 
+        CASE WHEN a.status = 'submitted' THEN 'under_review' ELSE a.status END as status,
+        COUNT(*) as cnt 
+      FROM activities a 
+      WHERE {$whereClause} AND a.status != 'draft' 
+      GROUP BY CASE WHEN a.status = 'submitted' THEN 'under_review' ELSE a.status END 
+      ORDER BY cnt DESC
     ");
     $statusStmt->execute($params);
-    $by_status = $statusStmt->fetchAll();
+    $rawStatus = $statusStmt->fetchAll();
+
+    // PHP consolidation defense: combine any statuses that map to the same canonical status
+    $consolidated = [];
+    foreach ($rawStatus as $bs) {
+        $canonical = function_exists('canonicalizeActivityStatus') 
+            ? canonicalizeActivityStatus($bs['status'] ?? '') 
+            : (($bs['status'] === 'submitted') ? 'under_review' : ($bs['status'] ?? ''));
+        if (!isset($consolidated[$canonical])) {
+            $consolidated[$canonical] = [
+                'status' => $canonical,
+                'cnt'    => 0
+            ];
+        }
+        $consolidated[$canonical]['cnt'] += (int)($bs['cnt'] ?? 0);
+    }
+    usort($consolidated, fn($a, $b) => $b['cnt'] <=> $a['cnt']);
+    $by_status = array_values($consolidated);
 } catch (\Throwable $e) {
     error_log("Dean dashboard status breakdown error: " . $e->getMessage());
 }
 
 try {
     $sourceStmt = $db->prepare("
-      SELECT source, COUNT(*) as cnt FROM activities a WHERE {$whereClause} AND a.status IN ('pending_final_approval', 'approved', 'completed') GROUP BY source
+      SELECT source, COUNT(*) as cnt FROM activities a WHERE {$whereClause} AND a.status != 'draft' GROUP BY source
     ");
     $sourceStmt->execute($params);
     $by_source = $sourceStmt->fetchAll();
 } catch (\Throwable $e) {
     error_log("Dean dashboard source breakdown error: " . $e->getMessage());
+}
+
+$by_department = [
+    'IT Department' => 0,
+    'THM Department' => 0,
+    'G.E. Department' => 0,
+    'Other' => 0
+];
+try {
+    $deptStmt = $db->prepare("
+        SELECT u.department, COUNT(*) as cnt
+        FROM activities a
+        JOIN users u ON a.faculty_id = u.id
+        WHERE {$whereClause} AND a.status != 'draft'
+        GROUP BY u.department
+    ");
+    $deptStmt->execute($params);
+    $deptRows = $deptStmt->fetchAll();
+    foreach ($deptRows as $dr) {
+        $norm = normalizeDepartmentName($dr['department'] ?? '');
+        if ($norm === 'IT') {
+            $by_department['IT Department'] += (int)$dr['cnt'];
+        } elseif ($norm === 'THM') {
+            $by_department['THM Department'] += (int)$dr['cnt'];
+        } elseif ($norm === 'GE') {
+            $by_department['G.E. Department'] += (int)$dr['cnt'];
+        } else {
+            $by_department['Other'] += (int)$dr['cnt'];
+        }
+    }
+} catch (\Throwable $e) {
+    error_log("Dean dashboard department breakdown error: " . $e->getMessage());
 }
 
 // 4. Recent Activities (System-wide View - Excludes Private Unsubmitted Drafts)
@@ -139,7 +194,7 @@ try {
       SELECT a.*, u.name as fname 
       FROM activities a 
       JOIN users u ON a.faculty_id=u.id 
-      WHERE {$whereClause} AND a.status IN ('pending_final_approval', 'approved', 'completed')
+      WHERE {$whereClause} AND a.status != 'draft'
       ORDER BY a.updated_at DESC LIMIT 10
     ");
     $recentStmt->execute($params);
@@ -148,7 +203,7 @@ try {
         // If no activities in the filtered period, show latest 10 non-draft overall
         $recent_all = $db->query("
           SELECT a.*, u.name as fname FROM activities a JOIN users u ON a.faculty_id=u.id
-          WHERE a.status IN ('pending_final_approval', 'approved', 'completed')
+          WHERE a.status != 'draft'
           ORDER BY a.updated_at DESC LIMIT 10
         ")->fetchAll();
     }
@@ -246,15 +301,44 @@ try {
       align-items: stretch;
     }
 
+    /* Side-by-side balanced counterpart row for KPI Overview & Source Breakdown */
+    .dashboard-kpi-split {
+      display: grid;
+      grid-template-columns: minmax(0, 68fr) minmax(0, 32fr);
+      gap: 20px;
+      align-items: stretch;
+      width: 100%;
+      margin-top: 20px;
+      box-sizing: border-box;
+    }
+
+    .dashboard-kpi-split > .card {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-width: 0;
+      margin: 0;
+    }
+
+    .dashboard-kpi-split > .card > .card-body {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
     .dashboard-main {
       gap: 16px;
       min-width: 0;
+      display: flex;
+      flex-direction: column;
     }
 
     .dashboard-rail {
       gap: 16px;
       display: flex;
       flex-direction: column;
+      height: 100%;
     }
 
     .dashboard-rail-sticky {
@@ -262,22 +346,36 @@ try {
       display: flex;
       flex-direction: column;
       gap: 16px;
-      flex: 1 1 auto;
       height: 100%;
     }
 
-    .card-source-breakdown {
+    .card-status-breakdown {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      margin: 0;
+    }
+
+    .card-status-breakdown .card-body {
       flex: 1 1 auto;
       display: flex;
       flex-direction: column;
-      min-height: 220px;
+      justify-content: space-between;
+      padding: 18px 20px;
+    }
+
+    .card-source-breakdown {
+      display: flex;
+      flex-direction: column;
     }
 
     .card-source-breakdown .card-body {
-      flex: 1 1 auto;
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
+      gap: 16px;
+      padding: 16px 20px;
     }
 
     .dashboard-full-width {
@@ -789,24 +887,27 @@ try {
     .source-bar .seg-fac { background: var(--accent, #0284C7); }
     .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
 
-    .kpi-target-strip { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 18px; }
-    .kpi-metrics-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    .kpi-target-strip { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+    .kpi-metrics-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 
     /* ── 6. Dark Mode Overrides ── */
     [data-theme="dark"] .dashboard-main .card,
     [data-theme="dark"] .dashboard-rail .card,
+    [data-theme="dark"] .dashboard-kpi-split .card,
     [data-theme="dark"] .dashboard-full-width .card {
       background: var(--bg-card);
       border-color: var(--border);
     }
     [data-theme="dark"] .dashboard-main .card-header,
     [data-theme="dark"] .dashboard-rail .card-header,
+    [data-theme="dark"] .dashboard-kpi-split .card-header,
     [data-theme="dark"] .dashboard-full-width .card-header {
       background: var(--bg-card);
       border-color: var(--border);
     }
     [data-theme="dark"] .dashboard-main .card-body,
     [data-theme="dark"] .dashboard-rail .card-body,
+    [data-theme="dark"] .dashboard-kpi-split .card-body,
     [data-theme="dark"] .dashboard-full-width .card-body {
       background: var(--bg-card);
     }
@@ -845,10 +946,15 @@ try {
         grid-template-columns: 1fr;
         gap: 20px;
       }
+      .dashboard-kpi-split {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
       .dashboard-rail-sticky {
         position: static;
         height: auto;
       }
+      .card-status-breakdown,
       .card-source-breakdown {
         flex: none;
         height: auto;
@@ -1073,6 +1179,9 @@ try {
       background: #16A34A;
     }
     .month-bar.returned {
+      background: #EA580C;
+    }
+    .month-bar.rejected {
       background: #DC2626;
     }
     .month-bar.zero-bar {
@@ -1087,6 +1196,9 @@ try {
       background: #16A34A;
     }
     .month-bar.returned.zero-bar:hover {
+      background: #EA580C;
+    }
+    .month-bar.rejected.zero-bar:hover {
       background: #DC2626;
     }
     .month-bar.zero-bar .month-val {
@@ -1123,12 +1235,18 @@ try {
       color: #16A34A;
     }
     .month-val.returned {
+      color: #EA580C;
+    }
+    .month-val.rejected {
       color: #DC2626;
     }
     [data-theme="dark"] .month-bar.approved {
       background: #22C55E;
     }
     [data-theme="dark"] .month-bar.returned {
+      background: #F97316;
+    }
+    [data-theme="dark"] .month-bar.rejected {
       background: #EF4444;
     }
     [data-theme="dark"] .month-bar.zero-bar {
@@ -1138,12 +1256,18 @@ try {
       background: #22C55E;
     }
     [data-theme="dark"] .month-bar.returned.zero-bar:hover {
+      background: #F97316;
+    }
+    [data-theme="dark"] .month-bar.rejected.zero-bar:hover {
       background: #EF4444;
     }
     [data-theme="dark"] .month-val.approved {
       color: #22C55E;
     }
     [data-theme="dark"] .month-val.returned {
+      color: #F97316;
+    }
+    [data-theme="dark"] .month-val.rejected {
       color: #EF4444;
     }
   </style>
@@ -1223,7 +1347,7 @@ try {
             </div>
             <div class="stat-strip stat-strip-completed"></div>
           </a>
-          <a href="<?= BASE_URL ?>/dean/activities.php?status=returned_for_revision" class="stat-card stat-card-returned">
+          <a href="<?= BASE_URL ?>/dean/returned.php" class="stat-card stat-card-returned">
             <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></div>
             <div>
               <div class="stat-val"><?= (int)($stats['returned'] ?? 0) ?></div>
@@ -1231,7 +1355,7 @@ try {
             </div>
             <div class="stat-strip stat-strip-returned"></div>
           </a>
-          <a href="<?= BASE_URL ?>/dean/activities.php?status=rejected" class="stat-card stat-card-rejected">
+          <a href="<?= BASE_URL ?>/dean/rejected.php" class="stat-card stat-card-rejected">
             <div class="stat-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
             <div>
               <div class="stat-val"><?= (int)($stats['rejected'] ?? 0) ?></div>
@@ -1247,14 +1371,15 @@ try {
             <h2>📈 Proposal Approval Trends — <?= $selectedYear ?></h2>
             <span class="text-xs text-muted">
               Approved: <strong style="color:#16A34A;"><?= $approvalTrends['total_approved'] ?></strong> &bull; 
-              Returned/Rejected: <strong style="color:#DC2626;"><?= $approvalTrends['total_returned'] ?></strong>
+              Returned: <strong style="color:#EA580C;"><?= $approvalTrends['total_returned'] ?></strong> &bull; 
+              Rejected: <strong style="color:#DC2626;"><?= $approvalTrends['total_rejected'] ?></strong>
             </span>
           </div>
           <div class="card-body">
             <?php
               $chartMaxVal = 0;
               foreach ($approvalTrends['months'] as $tm) {
-                $chartMaxVal = max($chartMaxVal, (int)$tm['approved'], (int)$tm['returned']);
+                $chartMaxVal = max($chartMaxVal, (int)$tm['approved'], (int)$tm['returned'], (int)$tm['rejected']);
               }
               $plotMax = max(1, $chartMaxVal);
             ?>
@@ -1263,6 +1388,7 @@ try {
                 <?php foreach ($approvalTrends['months'] as $tm): 
                   $appH = $tm['approved'] > 0 ? max(round(($tm['approved'] / $plotMax) * 88), 10) : 0;
                   $retH = $tm['returned'] > 0 ? max(round(($tm['returned'] / $plotMax) * 88), 10) : 0;
+                  $rejH = $tm['rejected'] > 0 ? max(round(($tm['rejected'] / $plotMax) * 88), 10) : 0;
                 ?>
                   <div class="month-bar-col">
                     <div class="month-bar-inner">
@@ -1276,12 +1402,21 @@ try {
                         </div>
                       <?php endif; ?>
                       <?php if ($tm['returned'] > 0): ?>
-                        <div class="month-bar returned" style="height:<?= $retH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['returned'] ?> Returned/Rejected">
+                        <div class="month-bar returned" style="height:<?= $retH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['returned'] ?> Returned">
                           <span class="month-val returned"><?= $tm['returned'] ?></span>
                         </div>
                       <?php else: ?>
-                        <div class="month-bar returned zero-bar" title="<?= $tm['month_name'] ?>: 0 Returned/Rejected">
+                        <div class="month-bar returned zero-bar" title="<?= $tm['month_name'] ?>: 0 Returned">
                           <span class="month-val returned">0</span>
+                        </div>
+                      <?php endif; ?>
+                      <?php if ($tm['rejected'] > 0): ?>
+                        <div class="month-bar rejected" style="height:<?= $rejH ?>%;" title="<?= $tm['month_name'] ?>: <?= $tm['rejected'] ?> Rejected">
+                          <span class="month-val rejected"><?= $tm['rejected'] ?></span>
+                        </div>
+                      <?php else: ?>
+                        <div class="month-bar rejected zero-bar" title="<?= $tm['month_name'] ?>: 0 Rejected">
+                          <span class="month-val rejected">0</span>
                         </div>
                       <?php endif; ?>
                     </div>
@@ -1292,73 +1427,8 @@ try {
             </div>
             <div class="flex gap-3 text-xs" style="margin-top:10px;justify-content:center;">
               <span><span class="legend-dot" style="background:#16A34A;"></span>Approved Proposals</span>
-              <span><span class="legend-dot" style="background:#DC2626;"></span>Returned / Rejected</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. KPI Performance Overview -->
-        <div class="card">
-          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-            <div>
-              <h2>📊 KPI Performance Overview</h2>
-              <span class="text-xs text-muted">Evaluated from <?= $kpiPerf['completed_with_kpi'] ?> completed activity report(s) with KPI data</span>
-            </div>
-            <a href="<?= BASE_URL ?>/dean/kpi-reports.php?year=<?= $selectedYear ?>" class="btn btn-primary btn-sm">
-              View KPI Reports &rarr;
-            </a>
-          </div>
-          <div class="card-body">
-            <!-- Target Achievement Strip -->
-            <div class="kpi-target-strip">
-              <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
-                <div>
-                  <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Attendance KPI (95% Target)</div>
-                  <div style="font-size:1.8rem;font-weight:800;color:var(--accent);margin-top:2px;">
-                    <?= $kpiPerf['attendance_rate'] ?>
-                  </div>
-                </div>
-                <div>
-                  <span class="badge <?= getKpiStatusClass($kpiPerf['attendance_status'] ?? $kpiPerf['overall_status']) ?>"><?= $kpiPerf['attendance_status'] ?? $kpiPerf['overall_status'] ?></span>
-                </div>
-              </div>
-              <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center;">
-                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Met the Target</div>
-                <div style="font-size:1.6rem;font-weight:800;color:#16A34A;margin-top:2px;">
-                  <?= $kpiPerf['meeting_targets'] ?>
-                </div>
-                <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">activities</div>
-              </div>
-              <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center;">
-                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Closed to the target</div>
-                <div style="font-size:1.6rem;font-weight:800;color:#D97706;margin-top:2px;">
-                  <?= $kpiPerf['near_targets'] ?>
-                </div>
-                <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">activities</div>
-              </div>
-              <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center;">
-                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Did not meet the target</div>
-                <div style="font-size:1.6rem;font-weight:800;color:#DC2626;margin-top:2px;">
-                  <?= $kpiPerf['below_targets'] ?>
-                </div>
-                <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">activities</div>
-              </div>
-            </div>
-
-            <!-- Metric Cards -->
-            <div class="kpi-metrics-row">
-              <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
-                <div style="font-size:2rem;font-weight:800;color:var(--accent);"><?= $kpiPerf['avg_kpi_rating'] ?></div>
-                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;margin-top:4px;">Avg Survey Rating (out of 4.0, Unweighted)</div>
-              </div>
-              <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
-                <div style="font-size:2rem;font-weight:800;color:var(--accent);"><?= $kpiPerf['avg_satisfaction'] ?></div>
-                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;margin-top:4px;">Avg Participant Satisfaction (out of 5.0)</div>
-              </div>
-              <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
-                <div style="font-size:2rem;font-weight:800;color:var(--accent);"><?= $kpiPerf['raw_attendance_rate'] ?? $kpiPerf['attendance_rate'] ?></div>
-                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;margin-top:4px;">Actual Turnout vs Expected Headcount</div>
-              </div>
+              <span><span class="legend-dot" style="background:#EA580C;"></span>Returned Proposals</span>
+              <span><span class="legend-dot" style="background:#DC2626;"></span>Rejected Proposals</span>
             </div>
           </div>
         </div>
@@ -1369,54 +1439,22 @@ try {
       <div class="dashboard-rail">
         <div class="dashboard-rail-sticky">
 
-          <!-- Quick Actions -->
-          <div class="card">
-            <div class="card-header"><h2>Institutional Quick Actions</h2></div>
-            <div class="card-body" style="display:flex;flex-direction:column;gap:10px;padding:20px;">
-              <a href="<?= BASE_URL ?>/dean/pending.php" class="btn btn-outline btn-sm" style="justify-content:center;">Review Pending Proposals</a>
-              <a href="<?= BASE_URL ?>/dean/approved.php" class="btn btn-outline btn-sm" style="justify-content:center;">Approved Activities</a>
-              <a href="<?= BASE_URL ?>/dean/kpi-reports.php?year=<?= $selectedYear ?>" class="btn btn-outline btn-sm" style="justify-content:center;">Individual KPI Analyzer</a>
-              <a href="<?= BASE_URL ?>/dean/generate-report.php?year=<?= $selectedYear ?>" class="btn btn-outline btn-sm" style="justify-content:center;">Export Institutional Report</a>
-            </div>
-          </div>
-
-          <!-- Status Breakdown Card -->
-          <div class="card">
+          <!-- Status Breakdown Card (Elongated to match main content height and eliminate blank gap) -->
+          <div class="card card-status-breakdown">
             <div class="card-header"><h2>Status Breakdown</h2></div>
-            <div class="card-body" style="padding:0;">
-              <table><tbody>
-              <?php if (empty($by_status)): ?>
-                <tr><td colspan="2" style="text-align:center;padding:24px;color:var(--text-muted);">No records in period.</td></tr>
-              <?php else: foreach ($by_status as $bs): ?>
-              <tr>
-                <td><?= getStatusBadge($bs['status']) ?></td>
-                <td style="text-align:right;font-weight:700;"><?= $bs['cnt'] ?></td>
-              </tr>
-              <?php endforeach; endif; ?>
-              </tbody></table>
-            </div>
-          </div>
-
-          <!-- Source Breakdown -->
-          <div class="card card-source-breakdown">
-            <div class="card-header"><h2>Activities by Source — <?= $selectedYear ?></h2></div>
             <div class="card-body">
-              <?php
-              $soCount  = 0; $facCount = 0;
-              foreach ($by_source as $bs) {
-                if ($bs['source'] === 'student_org') $soCount = $bs['cnt'];
-                else $facCount = $bs['cnt'];
-              }
-              $total = max($soCount + $facCount, 1);
-              ?>
-              <div class="source-bar">
-                <div class="seg-so" style="width:<?= ($soCount/$total)*100 ?>%"></div>
-                <div class="seg-fac" style="flex:1"></div>
-              </div>
-              <div class="flex gap-3 text-sm" style="margin-top:10px;flex-direction:column;gap:6px;">
-                <span><span class="legend-dot" style="background:#16A34A;"></span>Student Org: <strong><?= $soCount ?></strong></span>
-                <span><span class="legend-dot" style="background:#0284C7;"></span>Faculty: <strong><?= $facCount ?></strong></span>
-              </div>
+              <?php if (empty($by_status)): ?>
+                <div style="text-align:center;padding:24px;color:var(--text-muted);margin:auto;">No records in period.</div>
+              <?php else: ?>
+                <div style="display:grid;grid-template-columns:repeat(2, 1fr);grid-auto-rows:1fr;gap:12px;flex:1 1 auto;">
+                  <?php foreach ($by_status as $bs): ?>
+                    <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 2px rgba(0,0,0,0.03);min-height:64px;">
+                      <div><?= getStatusBadge($bs['status']) ?></div>
+                      <div style="font-size:1.45rem;font-weight:700;color:var(--text-main);"><?= $bs['cnt'] ?></div>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
 
@@ -1424,6 +1462,154 @@ try {
       </div><!-- dashboard-rail -->
 
     </div><!-- dashboard-layout -->
+
+    <!-- Side-by-Side Balanced Split: KPI Performance Overview (Left ~68%) & Activities by Source & Department (Right ~32%) -->
+    <div class="dashboard-kpi-split">
+
+      <!-- Left Column: KPI Performance Overview (~68%) -->
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <h2>📊 KPI Performance Overview</h2>
+            <span class="text-xs text-muted">Evaluated from <?= $kpiPerf['completed_with_kpi'] ?> completed activity report(s) with KPI data</span>
+          </div>
+          <a href="<?= BASE_URL ?>/dean/kpi-reports.php?year=<?= $selectedYear ?>" class="btn btn-primary btn-sm">
+            View KPI Reports &rarr;
+          </a>
+        </div>
+        <div class="card-body" style="padding: 16px 20px;">
+          <!-- Target Achievement Strip -->
+          <div class="kpi-target-strip">
+            <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Attendance KPI (95% Target)</div>
+                <div style="font-size:1.8rem;font-weight:800;color:var(--accent);margin-top:2px;">
+                  <?= $kpiPerf['attendance_rate'] ?>
+                </div>
+              </div>
+              <div>
+                <span class="badge <?= getKpiStatusClass($kpiPerf['attendance_status'] ?? $kpiPerf['overall_status']) ?>"><?= $kpiPerf['attendance_status'] ?? $kpiPerf['overall_status'] ?></span>
+              </div>
+            </div>
+            <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center;">
+              <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Met the Target</div>
+              <div style="font-size:1.6rem;font-weight:800;color:#16A34A;margin-top:2px;">
+                <?= $kpiPerf['meeting_targets'] ?>
+              </div>
+              <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">activities</div>
+            </div>
+            <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center;">
+              <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Closed to the target</div>
+              <div style="font-size:1.6rem;font-weight:800;color:#D97706;margin-top:2px;">
+                <?= $kpiPerf['near_targets'] ?>
+              </div>
+              <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">activities</div>
+            </div>
+            <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center;">
+              <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Did not meet the target</div>
+              <div style="font-size:1.6rem;font-weight:800;color:#DC2626;margin-top:2px;">
+                <?= $kpiPerf['below_targets'] ?>
+              </div>
+              <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">activities</div>
+            </div>
+          </div>
+
+          <!-- Metric Cards -->
+          <div class="kpi-metrics-row">
+            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+              <div style="font-size:1.85rem;font-weight:800;color:var(--accent);"><?= $kpiPerf['avg_kpi_rating'] ?></div>
+              <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;margin-top:4px;">Avg Survey Rating (out of 4.0, Unweighted)</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+              <div style="font-size:1.85rem;font-weight:800;color:var(--accent);"><?= $kpiPerf['avg_satisfaction'] ?></div>
+              <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;margin-top:4px;">Avg Participant Satisfaction (out of 5.0)</div>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+              <div style="font-size:1.85rem;font-weight:800;color:var(--accent);"><?= $kpiPerf['raw_attendance_rate'] ?? $kpiPerf['attendance_rate'] ?></div>
+              <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;margin-top:4px;">Actual Turnout vs Expected Headcount</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Activities by Source and Department (~32%) -->
+      <div class="card card-source-breakdown">
+        <div class="card-header"><h2>Activities by Source &amp; Department — <?= $selectedYear ?></h2></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:18px;">
+          <?php
+          $soCount  = 0; $facCount = 0;
+          foreach ($by_source as $bs) {
+            if ($bs['source'] === 'student_org') $soCount = (int)$bs['cnt'];
+            else $facCount = (int)$bs['cnt'];
+          }
+          $totalSource = max($soCount + $facCount, 1);
+
+          $itCount  = $by_department['IT Department'] ?? 0;
+          $thmCount = $by_department['THM Department'] ?? 0;
+          $geCount  = $by_department['G.E. Department'] ?? 0;
+          $totalDept = max($itCount + $thmCount + $geCount, 1);
+          ?>
+
+          <!-- Section A: Activities by Source -->
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted, #64748b);">By Source</span>
+              <span style="font-size:0.8rem;color:var(--text-muted, #64748b);"><?= $soCount + $facCount ?> total</span>
+            </div>
+            <div class="source-bar" style="margin:4px 0 10px 0;">
+              <div class="seg-so" style="width:<?= ($soCount/$totalSource)*100 ?>%"></div>
+              <div class="seg-fac" style="flex:1"></div>
+            </div>
+            <div class="flex gap-3 text-sm" style="flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span><span class="legend-dot" style="background:#16A34A;"></span>Student Org</span>
+                <strong><?= $soCount ?></strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span><span class="legend-dot" style="background:#0284C7;"></span>Faculty</span>
+                <strong><?= $facCount ?></strong>
+              </div>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid var(--border-color, #e2e8f0);"></div>
+
+          <!-- Section B: Activities by Department (3 Departments) -->
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted, #64748b);">By Department</span>
+              <span style="font-size:0.8rem;color:var(--text-muted, #64748b);"><?= $itCount + $thmCount + $geCount ?> total</span>
+            </div>
+            <div class="dept-bar" style="display:flex;height:14px;border-radius:999px;overflow:hidden;margin:4px 0 10px 0;background:var(--border-color, #e2e8f0);">
+              <?php if ($itCount > 0): ?>
+                <div style="width:<?= ($itCount/$totalDept)*100 ?>%;background:#2563EB;" title="IT Department: <?= $itCount ?>"></div>
+              <?php endif; ?>
+              <?php if ($thmCount > 0): ?>
+                <div style="width:<?= ($thmCount/$totalDept)*100 ?>%;background:#F59E0B;" title="THM Department: <?= $thmCount ?>"></div>
+              <?php endif; ?>
+              <?php if ($geCount > 0): ?>
+                <div style="width:<?= ($geCount/$totalDept)*100 ?>%;background:#8B5CF6;" title="G.E. Department: <?= $geCount ?>"></div>
+              <?php endif; ?>
+            </div>
+            <div class="flex gap-3 text-sm" style="flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span><span class="legend-dot" style="background:#2563EB;"></span>IT Department</span>
+                <strong><?= $itCount ?></strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span><span class="legend-dot" style="background:#F59E0B;"></span>THM Department</span>
+                <strong><?= $thmCount ?></strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span><span class="legend-dot" style="background:#8B5CF6;"></span>G.E. Department</span>
+                <strong><?= $geCount ?></strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- dashboard-kpi-split -->
 
     <!-- Full-Width Cards Section -->
     <div class="dashboard-full-width">

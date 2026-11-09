@@ -53,6 +53,42 @@
     return 'default';
   }
 
+  function getRoleInfo(faculty) {
+    const rawRole = String(faculty.role || 'faculty').toLowerCase().trim();
+    const customLabel = String(faculty.role_label || '').trim();
+    if (rawRole === 'admin1' || customLabel.toLowerCase().includes('student organization')) {
+      return { key: 'admin1', label: customLabel || 'Student Organization Head', badgeClass: 'org-head' };
+    }
+    if (rawRole === 'admin2' || customLabel.toLowerCase().includes('events committee')) {
+      return { key: 'admin2', label: customLabel || 'Events Committee Head', badgeClass: 'committee-head' };
+    }
+    if (rawRole === 'program_head' || customLabel.toLowerCase().includes('program head')) {
+      return { key: 'program_head', label: customLabel || 'Program Head', badgeClass: 'prog-head' };
+    }
+    return { key: 'faculty', label: customLabel || 'Faculty', badgeClass: 'faculty' };
+  }
+
+  function cleanNameKey(name) {
+    if (!name) return '';
+    let clean = String(name)
+      .replace(/\b(Mr|Ms|Mrs|Dr|Prof|Dean|Atty|Engr|LPT|MAEd|PE|RN|MBA)\b\.?/gi, '')
+      .replace(/\b[a-zA-Z]\b\.?/g, ' ');
+    if (typeof clean.normalize === 'function') {
+      clean = clean.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+    return clean.replace(/[^a-zA-Z]/g, '').toLowerCase();
+  }
+
+  function isSamePersonName(nameA, nameB) {
+    const a = String(nameA || '').trim().toLowerCase();
+    const b = String(nameB || '').trim().toLowerCase();
+    if (!a || !b) return false;
+    if (a === b) return true;
+    const keyA = cleanNameKey(a);
+    const keyB = cleanNameKey(b);
+    return keyA !== '' && keyA === keyB;
+  }
+
   window.initTeacherMultiSelect = function (container, initialValue = null) {
     if (!container || container._tmsInitialized) return;
     container._tmsInitialized = true;
@@ -109,7 +145,7 @@
     }
 
     function removeTeacher(name) {
-      selectedNames = selectedNames.filter(n => n.toLowerCase() !== name.toLowerCase());
+      selectedNames = selectedNames.filter(n => !isSamePersonName(n, name));
       renderTags();
       if (dropdown && dropdown.style.display !== 'none') {
         renderDropdownOptions(searchInput ? searchInput.value : '');
@@ -119,7 +155,7 @@
     function addTeacher(name) {
       const cleanName = (name || '').trim();
       if (!cleanName) return;
-      const exists = selectedNames.some(n => n.toLowerCase() === cleanName.toLowerCase());
+      const exists = selectedNames.some(n => isSamePersonName(n, cleanName));
       if (!exists) {
         selectedNames.push(cleanName);
         renderTags();
@@ -137,35 +173,43 @@
       const roster = getRoster();
       const term   = (searchTerm || '').trim().toLowerCase();
 
-      // Strict de-duplication by account ID and normalized name
-      const seenIds   = new Set();
-      const seenNames = new Set();
-      let visibleCount = 0;
+      // Strict de-duplication by account ID, normalized name, and stripped name key
+      const seenIds       = new Set();
+      const seenNames     = new Set();
+      const seenCleanKeys = new Set();
+      let visibleCount    = 0;
 
       roster.forEach(faculty => {
-        const id   = faculty.id ? String(faculty.id) : null;
-        const name = (faculty.name || '').trim();
-        const dept = (faculty.department || '').trim();
+        const id       = faculty.id ? String(faculty.id) : null;
+        const name     = (faculty.name || '').trim();
+        const dept     = (faculty.department || '').trim();
+        const roleInfo = getRoleInfo(faculty);
         if (!name) return;
 
         const normName = name.toLowerCase();
+        const cKey     = cleanNameKey(name);
 
-        // Exclude test/non-faculty accounts: Van, Rain, Hilary, Shaira
-        const excludedNames = ['van', 'rain', 'hilary', 'shaira'];
-        if (excludedNames.includes(normName)) return;
+        // Exclude test/non-faculty accounts: Van, Rain, Hilary, Shaira, Frederic Yulo
+        const excludedNames = ['van', 'rain', 'hilary', 'shaira', 'fredericyulo', 'drfredericyulo'];
+        if (excludedNames.includes(normName) || (cKey && excludedNames.includes(cKey))) return;
 
         // Prevent duplicate entries
         if (id && seenIds.has(id)) return;
         if (seenNames.has(normName)) return;
+        if (cKey && seenCleanKeys.has(cKey)) return;
 
         if (id) seenIds.add(id);
         seenNames.add(normName);
+        if (cKey) seenCleanKeys.add(cKey);
 
-        const isMatch = !term || normName.includes(term) || dept.toLowerCase().includes(term);
+        const isMatch = !term
+          || normName.includes(term)
+          || dept.toLowerCase().includes(term)
+          || roleInfo.label.toLowerCase().includes(term);
         if (!isMatch) return;
 
         visibleCount++;
-        const isSelected = selectedNames.some(n => n.toLowerCase() === normName);
+        const isSelected = selectedNames.some(n => isSamePersonName(n, name));
         const initials   = getInitials(name);
         const deptClass  = getDeptClass(dept);
 
@@ -173,15 +217,24 @@
         opt.className = 'tms-option' + (isSelected ? ' tms-selected' : '');
         opt.setAttribute('data-name', name);
         if (id) opt.setAttribute('data-id', id);
+        opt.setAttribute('data-role', roleInfo.key);
         opt.setAttribute('role', 'option');
         opt.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+
+        const showRoleBadge = roleInfo.label && roleInfo.label.toLowerCase() !== (dept || '').toLowerCase();
+        const roleBadgeHtml = showRoleBadge
+          ? `<span class="tms-role-badge tms-role-${roleInfo.badgeClass}">${escapeHtml(roleInfo.label)}</span>`
+          : '';
 
         opt.innerHTML = `
           <div class="tms-opt-left">
             <div class="tms-opt-avatar">${initials}</div>
             <div class="tms-opt-info">
               <span class="tms-opt-name">${escapeHtml(name)}</span>
-              <span class="tms-dept-badge tms-dept-${deptClass}">${escapeHtml(dept || 'Faculty')}</span>
+              <div class="tms-opt-badges">
+                <span class="tms-dept-badge tms-dept-${deptClass}">${escapeHtml(dept || 'Faculty')}</span>
+                ${roleBadgeHtml}
+              </div>
             </div>
           </div>
           <div class="tms-opt-status">
@@ -211,7 +264,7 @@
 
     function openDropdown() {
       if (isReadonly || !dropdown) return;
-      // Close other open multi-select dropdowns
+      // Close other open multi-select dropups
       document.querySelectorAll('.teacher-multiselect.tms-open').forEach(other => {
         if (other !== container && other._tms) {
           other._tms.closeDropdown();
@@ -253,6 +306,12 @@
     renderTags();
 
     document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) {
+        closeDropdown();
+      }
+    });
+
+    document.addEventListener('focusin', (e) => {
       if (!container.contains(e.target)) {
         closeDropdown();
       }

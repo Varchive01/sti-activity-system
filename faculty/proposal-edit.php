@@ -3,11 +3,11 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('faculty', 'program_head');
+requireRole('faculty', 'program_head', 'admin1', 'admin2');
 $user = currentUser();
 $db   = getDB();
 $eligibleFacultyList = function_exists('getEligibleFacultyMembers') ? getEligibleFacultyMembers($db) : [];
-$facultyUsersStmt = $db->query("SELECT id, name, department FROM users WHERE role IN ('faculty', 'program_head') ORDER BY name ASC");
+$facultyUsersStmt = $db->query("SELECT id, name, department, role FROM users WHERE role IN ('faculty', 'program_head', 'admin1', 'admin2') ORDER BY name ASC");
 $facultyUsers = $facultyUsersStmt ? $facultyUsersStmt->fetchAll(PDO::FETCH_ASSOC) : [];
 
 $facultyDepartmentGroups = [
@@ -305,8 +305,17 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       overflow-x: hidden;
       overflow-y: auto;
       outline: 0;
-      background: rgba(10, 22, 40, 0.6) !important;
+      background: rgba(10, 22, 40, 0.65) !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
       animation: none !important;
+    }
+    [data-theme="dark"] .modal,
+    html[data-theme="dark"] .modal,
+    body.dark-mode .modal {
+      background: rgba(4, 9, 20, 0.72) !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
     }
     .modal.fade {
       transition: opacity 0.15s linear;
@@ -387,13 +396,22 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       z-index: 1050;
       width: 100vw;
       height: 100vh;
-      background-color: #000;
+      background-color: rgba(10, 22, 40, 0.65);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
     }
     .modal-backdrop.fade {
       opacity: 0;
     }
     .modal-backdrop.show {
-      opacity: 0.5;
+      opacity: 1;
+    }
+    [data-theme="dark"] .modal-backdrop,
+    html[data-theme="dark"] .modal-backdrop,
+    body.dark-mode .modal-backdrop {
+      background-color: rgba(4, 9, 20, 0.72) !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
     }
 
     .field-error {
@@ -432,8 +450,13 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
 
     /* ── Wizard step navigation ── */
     .wizard-steps {
+      display: flex !important;
+      align-items: stretch !important;
+      gap: 0 !important;
+      padding: 0 !important;
       background: var(--bg-card) !important;
       border: 1px solid var(--border) !important;
+      border-radius: var(--radius, 12px) !important;
       max-width: 100%;
       overflow-x: auto;
       overflow-y: hidden;
@@ -449,7 +472,25 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       white-space: nowrap;
       flex: 1 0 auto;
       min-width: 72px;
+      margin: 0 !important;
+      padding: 12px 10px;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 4px;
       box-sizing: border-box;
+    }
+
+    .wizard-step:first-child {
+      border-top-left-radius: calc(var(--radius, 12px) - 1px) !important;
+      border-bottom-left-radius: calc(var(--radius, 12px) - 1px) !important;
+    }
+
+    .wizard-step:last-child {
+      border-right: none !important;
+      border-top-right-radius: calc(var(--radius, 12px) - 1px) !important;
+      border-bottom-right-radius: calc(var(--radius, 12px) - 1px) !important;
     }
 
     .wizard-step .step-num {
@@ -458,8 +499,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     }
 
     .wizard-step.active {
-      background: var(--sti-blue-lt, #E0F2FE) !important;
+      background: rgba(2, 132, 199, 0.12) !important;
       color: var(--sti-blue) !important;
+      font-weight: 600;
+      box-shadow: none !important;
     }
 
     .wizard-step.active .step-num {
@@ -500,8 +543,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     .reviewer-comment-banner .rc-label { font-weight: 700; display: block; margin-bottom: 3px; }
 
     [data-theme="dark"] .wizard-step.active {
-      background: rgba(2, 132, 199, 0.18) !important;
+      background: rgba(2, 132, 199, 0.22) !important;
       color: #38BDF8 !important;
+      font-weight: 600;
+      box-shadow: none !important;
     }
 
     [data-theme="dark"] .wizard-step.active .step-num {
@@ -1414,7 +1459,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/floorplan.css?v=<?= filemtime(__DIR__ . '/../assets/css/floorplan.css') ?>">
 </head>
 
-<body class="theme-faculty">
+<body class="<?= ($user['role'] === 'admin1') ? 'theme-arjay' : (($user['role'] === 'admin2') ? 'theme-ian' : 'theme-faculty') ?>">
   <?php include __DIR__ . '/../includes/sidebar.php'; ?>
   <div class="main-wrap">
     <header class="topbar">
@@ -1423,7 +1468,6 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       </div>
       <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
         <span id="offlineSyncBadge" class="badge" style="font-size:0.75rem;padding:5px 10px;border-radius:12px;background:#10B981;color:#fff;display:inline-flex;align-items:center;gap:5px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.1);"><span class="sync-icon">✓</span> <span class="sync-text">Synchronized</span></span>
-        <button type="button" id="btnManualSync" class="btn btn-outline btn-sm" style="display:none;font-size:0.75rem;padding:4px 8px;">Sync Now</button>
         <a href="<?= BASE_URL ?>/faculty/proposal-view.php?id=<?= $id ?>" class="btn btn-outline btn-sm">← Cancel</a>
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <!-- User Profile Control -->
@@ -1756,7 +1800,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           </div>
 
           <!-- Target Participants Panel -->
-          <div class="card target-participants-panel <?= (!empty($revisionSections['event_details'])) ? 'section-flagged' : '' ?>" id="target-participants-card" style="margin-top: 20px;">
+          <div class="card target-participants-panel <?= (!empty($revisionSections['event_details'])) ? 'section-flagged' : '' ?>" id="target-participants-card" style="margin-top: 20px; overflow: visible;">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
               <h2 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 6px;">
                 👥 Target Participants <span class="text-danger">*</span>
@@ -1771,7 +1815,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 </div>
               </div>
             </div>
-            <div class="card-body" style="padding: 20px;">
+            <div class="card-body" style="padding: 20px; overflow: visible;">
               <input type="hidden" name="target_participants" id="f1_target_participants" value="<?= (int)($activity['target_participants'] ?? 0) ?>">
               <span class="field-error" id="e_target_participants" style="margin-bottom: 12px;">Target participants is required and must have at least 1 participant.</span>
 
@@ -2153,12 +2197,12 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                       </tr>
                     </tbody>
                     <tfoot id="manpower-summary-foot" style="background: var(--bg-card); border-top: 1px solid var(--border);">
-                      <tr style="border-top: 1px solid #e2e8f0; background: #ffffff; font-weight: 600;">
-                        <td style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: left; background: #ffffff;">Total</td>
-                        <td id="mp-sum-faculty" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; background: #ffffff;">0</td>
-                        <td id="mp-sum-staff" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; background: #ffffff;">0</td>
-                        <td id="mp-sum-students" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; background: #ffffff;">0</td>
-                        <td id="mp-sum-total" style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; font-weight: 700; background: #ffffff;">0</td>
+                      <tr style="border-top: 1px solid var(--border); background: var(--bg-card); font-weight: 600;">
+                        <td style="padding: 10px 14px; font-size: 0.82rem; color: var(--text-main); text-align: left; background: var(--bg-card);">Total</td>
+                        <td id="mp-sum-faculty" style="padding: 10px 14px; font-size: 0.82rem; color: var(--text-main); text-align: center; background: var(--bg-card);">0</td>
+                        <td id="mp-sum-staff" style="padding: 10px 14px; font-size: 0.82rem; color: var(--text-main); text-align: center; background: var(--bg-card);">0</td>
+                        <td id="mp-sum-students" style="padding: 10px 14px; font-size: 0.82rem; color: var(--text-main); text-align: center; background: var(--bg-card);">0</td>
+                        <td id="mp-sum-total" style="padding: 10px 14px; font-size: 0.82rem; color: var(--text-main); text-align: center; font-weight: 700; background: var(--bg-card);">0</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -2569,12 +2613,12 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
             <div class="flex gap-2" style="align-items:center;">
-              <button type="submit" name="action" value="draft" class="btn btn-outline" formnovalidate onclick="document.getElementById('proposalFormAction').value='draft'; serializeEvaluationQuestions();">💾 Save as Draft</button>
+              <button type="submit" name="action" value="draft" class="btn btn-outline" formnovalidate onclick="document.getElementById('proposalFormAction').value='draft'; try{serializeEvaluationQuestions();}catch(e){};">💾 Save as Draft</button>
               <?php if ($activity['status'] === 'draft' && $isOwner): ?>
                 <button type="button" class="btn btn-danger" onclick="confirmDeleteDraft(<?= (int)$id ?>, '<?= htmlspecialchars(addslashes($activity['title']), ENT_QUOTES) ?>')">🗑️ Delete Draft</button>
               <?php endif; ?>
               <?php if ($isOwner): ?>
-                <button type="submit" name="action" value="submit" class="btn btn-primary" id="submitBtn" onclick="document.getElementById('proposalFormAction').value='submit'; serializeEvaluationQuestions();"><?= ($activity['status'] === 'returned_for_revision') ? '🚀 Resubmit for Approval' : '🚀 Submit for Approval' ?></button>
+                <button type="submit" name="action" value="submit" class="btn btn-primary" id="submitBtn" onclick="document.getElementById('proposalFormAction').value='submit'; try{serializeEvaluationQuestions();}catch(e){};"><?= ($activity['status'] === 'returned_for_revision') ? '🚀 Resubmit for Approval' : '🚀 Submit for Approval' ?></button>
               <?php else: ?>
                 <button type="button" class="btn btn-secondary" disabled title="Only the Proposal Owner can submit this proposal for formal approval" style="cursor:not-allowed; opacity:0.75; display:inline-flex; align-items:center; gap:6px;">
                   🔒 Owner Submission Only
@@ -3674,9 +3718,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     const proposalFormEl = document.getElementById('proposalForm');
     if (proposalFormEl) {
       proposalFormEl.addEventListener('submit', function(e) {
-        serializeEvaluationQuestions();
+        try { serializeEvaluationQuestions(); } catch(err) { console.warn('serializeEvaluationQuestions notice:', err); }
         if (window.fpSaveToHidden) {
-          window.fpSaveToHidden();
+          try { window.fpSaveToHidden(); } catch(err) { console.warn('fpSaveToHidden notice:', err); }
         }
 
         const actionInputEl = document.getElementById('proposalFormAction');
@@ -3855,11 +3899,24 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           return;
         }
 
+        // Synchronously snapshot entered data and progress to offline storage before submit dispatch (Issue 4)
+        if (window.OfflineDraftManager && typeof window.OfflineDraftManager.saveDraftSynchronously === 'function') {
+          try {
+            window.OfflineDraftManager.saveDraftSynchronously(proposalFormEl, { sync_status: 'pending_sync' });
+          } catch (odmErr) {
+            console.warn('[OfflineDrafts] Pre-submission snapshot notice:', odmErr);
+          }
+        }
+
         isSubmittingEditProposal = true;
         const submitBtn = document.getElementById('submitBtn');
         if (submitBtn) {
-          submitBtn.disabled = true;
+          submitBtn.style.pointerEvents = 'none';
+          submitBtn.classList.add('loading');
           submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Submitting Proposal...';
+          setTimeout(() => {
+            if (submitBtn) submitBtn.disabled = true;
+          }, 100);
         }
       });
     }
@@ -4062,7 +4119,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       if (presentRoles.length === 0) {
         summaryBody.innerHTML = `
           <tr>
-            <td colspan="5" style="text-align: center; color: #64748b; font-size: 0.82rem; padding: 14px; background: #ffffff;">
+            <td colspan="5" style="text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 14px; background: var(--bg-card);">
               No manpower assigned yet.
             </td>
           </tr>
@@ -4080,14 +4137,14 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           colTotal += rTotal;
 
           const tr = document.createElement('tr');
-          tr.style.borderBottom = '1px solid #f1f5f9';
-          tr.style.background = '#ffffff';
+          tr.style.borderBottom = '1px solid var(--border)';
+          tr.style.background = 'var(--bg-card)';
           tr.innerHTML = `
-            <td style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; background: #ffffff;">${escapeHtml(role)}</td>
-            <td style="padding: 10px 14px; font-size: 0.82rem; color: #334155; text-align: center; background: #ffffff;">${fCount}</td>
-            <td style="padding: 10px 14px; font-size: 0.82rem; color: #334155; text-align: center; background: #ffffff;">${sCount}</td>
-            <td style="padding: 10px 14px; font-size: 0.82rem; color: #334155; text-align: center; background: #ffffff;">${stuCount}</td>
-            <td style="padding: 10px 14px; font-size: 0.82rem; color: #1e293b; text-align: center; font-weight: 600; background: #ffffff;">${rTotal}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: var(--text-main); background: var(--bg-card);">${escapeHtml(role)}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: var(--text-main); text-align: center; background: var(--bg-card);">${fCount}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: var(--text-main); text-align: center; background: var(--bg-card);">${sCount}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: var(--text-main); text-align: center; background: var(--bg-card);">${stuCount}</td>
+            <td style="padding: 10px 14px; font-size: 0.82rem; color: var(--text-main); text-align: center; font-weight: 600; background: var(--bg-card);">${rTotal}</td>
           `;
           summaryBody.appendChild(tr);
         });
@@ -6191,6 +6248,88 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       }
     }
 
+    // Helper to copy all evaluation questions in a clean, structured format for Microsoft Forms
+    function copyEvaluationQuestionsForMicrosoftForms() {
+      let questions = (typeof questionsList !== 'undefined' && Array.isArray(questionsList) && questionsList.length > 0) ? questionsList : [];
+      if (questions.length === 0) {
+        const hiddenInput = document.getElementById('f10_evaluation_questions');
+        if (hiddenInput && hiddenInput.value) {
+          try { questions = JSON.parse(hiddenInput.value); } catch (e) {}
+        }
+      }
+      if (questions.length === 0) {
+        const titleEl = document.getElementById('f1_title') || document.querySelector('[name="title"]');
+        const themeEl = document.getElementById('f1_theme') || document.querySelector('[name="theme"]');
+        const genEl = document.getElementById('f2_general_objectives') || document.querySelector('[name="general_objectives"]');
+        const specEl = document.getElementById('f2_specific_objectives') || document.querySelector('[name="specific_objectives"]');
+        questions = generateClientSideFallbackQuestions(titleEl?.value || '', themeEl?.value || '', genEl?.value || '', specEl?.value || '');
+      }
+
+      const actTitle = (document.getElementById('f1_title')?.value || document.querySelector('[name="title"]')?.value || 'Activity Evaluation').trim();
+      const actTheme = (document.getElementById('f1_theme')?.value || document.querySelector('[name="theme"]')?.value || '').trim();
+
+      let text = `STI COLLEGE - ACTIVITY EVALUATION FORM (MICROSOFT FORMS)\n`;
+      text += `Activity Title: ${actTitle}\n`;
+      if (actTheme) text += `Theme: ${actTheme}\n`;
+      text += `\nSETUP INSTRUCTIONS FOR MICROSOFT FORMS (forms.office.com):\n`;
+      text += `1. Sign in to https://forms.office.com using your STI Microsoft 365 Account (@sti.edu.ph).\n`;
+      text += `2. Click "+ New Form" and set Title to: "${actTitle}".\n`;
+      text += `3. Add the following questions:\n\n`;
+      text += `[QUESTION 1 - TEXT (Required)]\n`;
+      text += `Title: Section / Class Code\n`;
+      text += `Type: Text (Short Answer)\n`;
+      text += `Required: Yes\n\n`;
+      text += `[EVALUATION QUESTIONS - RATING (Likert Scale 1 to 4: 1=Strongly Disagree, 2=Disagree, 3=Agree, 4=Strongly Agree)]\n`;
+
+      let ratingNum = 1;
+      let textNum = 1;
+      questions.forEach(q => {
+        const qText = (q.question || q.title || '').trim();
+        if (!qText || qText.toLowerCase() === 'section') return;
+        const qType = (q.type || 'rating').toLowerCase();
+        if (qType === 'rating') {
+          text += `Q${ratingNum++} [Rating - 4 Levels]: ${qText}\n`;
+        } else {
+          text += `Q${textNum++} [Text / Long Feedback]: ${qText}\n`;
+        }
+      });
+
+      text += `\n4. In Microsoft Forms, click "Collect responses" -> Copy Link (e.g. https://forms.office.com/r/...) and paste into the evaluation link field.\n`;
+
+      function showCopiedNotice() {
+        const fb = document.getElementById('copyQuestionsFeedback');
+        if (fb) {
+          fb.style.display = 'inline';
+          fb.textContent = '✓ Questions copied for Microsoft Forms!';
+          setTimeout(() => { fb.style.display = 'none'; }, 4000);
+        } else {
+          alert('Evaluation questions copied for Microsoft Forms!');
+        }
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showCopiedNotice).catch(() => fallbackCopyText(text));
+      } else {
+        fallbackCopyText(text);
+      }
+
+      function fallbackCopyText(str) {
+        const ta = document.createElement('textarea');
+        ta.value = str;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          showCopiedNotice();
+        } catch (e) {
+          alert('Please copy questions manually:\n\n' + str);
+        }
+        ta.remove();
+      }
+    }
+
     // Helper to copy all evaluation questions in a clean, structured format for Google Forms
     function copyEvaluationQuestionsForGoogleForm() {
       let questions = (typeof questionsList !== 'undefined' && Array.isArray(questionsList) && questionsList.length > 0) ? questionsList : [];
@@ -6381,6 +6520,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     }
 
     if (typeof AIProposalGuidance !== 'undefined') {
+      window.ACTIVITY_TITLE = <?= json_encode($activity['title'] ?? '') ?>;
       AIProposalGuidance.init({
         baseUrl:      '<?= BASE_URL ?>',
         formSelector: '#proposalForm'
@@ -6389,7 +6529,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
   </script>
 
   <!-- ── Floor Plan Requirement Modal ── -->
-  <div class="modal fade" id="floorPlanRequirementModal" tabindex="-1" aria-labelledby="fpReqModalLabel" aria-hidden="true" style="display:none; background:rgba(10,22,40,0.6); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);">
+  <div class="modal fade" id="floorPlanRequirementModal" tabindex="-1" aria-labelledby="fpReqModalLabel" aria-hidden="true" style="display:none;">
     <div class="modal-dialog modal-dialog-centered" style="margin: 1.75rem auto; max-width: 520px;">
       <div class="modal-content" style="border-radius:12px; overflow:hidden; border:1px solid var(--border, #cbd5e1); box-shadow:0 16px 40px rgba(0,0,0,0.3); background:var(--bg-card, #fff);">
         <div class="modal-header" style="padding: 16px 20px; border-bottom:1px solid var(--border, #e2e8f0); display:flex; align-items:center; justify-content:space-between;">
@@ -6419,7 +6559,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
   </div>
 
   <!-- ── Collaborators Modal (Task 14) ── -->
-  <div class="modal fade" id="collaboratorsModal" tabindex="-1" aria-labelledby="collaboratorsModalLabel" aria-hidden="true" style="display:none; background:rgba(10,22,40,0.6); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); z-index:9999;">
+  <div class="modal fade" id="collaboratorsModal" tabindex="-1" aria-labelledby="collaboratorsModalLabel" aria-hidden="true" style="display:none; z-index:9999;">
     <div class="modal-dialog modal-dialog-centered modal-lg" style="margin: 1.75rem auto; max-width: 680px;">
       <div class="modal-content" style="border-radius:12px; overflow:hidden; border:1px solid var(--border, #cbd5e1); box-shadow:0 16px 40px rgba(0,0,0,0.3); background:var(--bg-card, #fff);">
         <div class="modal-header" style="padding: 16px 20px; border-bottom:1px solid var(--border, #e2e8f0); display:flex; align-items:center; justify-content:space-between;">
@@ -6615,9 +6755,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
 
           rowsHtml += `
             <tr style="border-bottom:1px solid var(--border, #e2e8f0);">
-              <td style="padding:10px 12px;font-weight:600;">
+              <td style="padding:10px 12px;font-weight:600;color:var(--text-main);">
                 ${escapeHtml(c.name)}
-                ${c.user_id === <?= (int)$user['id'] ?> ? ' <span style="font-size:0.72rem;background:#E2E8F0;padding:2px 5px;border-radius:4px;font-weight:normal;">(You)</span>' : ''}
+                ${c.user_id === <?= (int)$user['id'] ?> ? ' <span style="font-size:0.72rem;background:var(--bg-base);color:var(--text-muted);border:1px solid var(--border);padding:2px 6px;border-radius:4px;font-weight:500;">(You)</span>' : ''}
               </td>
               <td style="padding:10px 12px;color:var(--text-muted);">${escapeHtml(c.department || '—')}</td>
               <td style="padding:10px 12px;">
@@ -6830,6 +6970,26 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
     }
+
+    // Dismiss modals on backdrop click or ESC key without blocking interactions
+    ['floorPlanRequirementModal', 'collaboratorsModal'].forEach(function(modalId) {
+      const modalEl = document.getElementById(modalId);
+      if (modalEl) {
+        modalEl.addEventListener('click', function(e) {
+          if (e.target === this) {
+            if (modalId === 'floorPlanRequirementModal') closeFloorPlanRequirementModal();
+            else if (modalId === 'collaboratorsModal') closeCollaboratorsModal();
+          }
+        });
+      }
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeFloorPlanRequirementModal();
+        closeCollaboratorsModal();
+      }
+    });
   </script>
 </body>
 

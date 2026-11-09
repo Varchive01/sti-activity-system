@@ -25,10 +25,10 @@ if (empty($_SESSION['user_id'])) {
     exit;
 }
 
-if (empty($_SESSION['user_role']) || !in_array($_SESSION['user_role'], ['faculty', 'program_head'], true)) {
+if (empty($_SESSION['user_role']) || !in_array($_SESSION['user_role'], ['faculty', 'program_head', 'admin1', 'admin2'], true)) {
     http_response_code(403);
     ob_clean();
-    echo json_encode(['error' => 'Forbidden: Only faculty can request theme suggestions.']);
+    echo json_encode(['error' => 'Forbidden: Only authorized proposal authors and collaborators can request theme suggestions.']);
     exit;
 }
 
