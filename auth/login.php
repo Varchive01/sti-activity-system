@@ -5,114 +5,26 @@ require_once __DIR__ . '/../includes/auth.php';
 
 startSession();
 
-// Already logged in? Redirect.
+// Already logged in? Redirect to role dashboard.
 if (!empty($_SESSION['user_id'])) {
   $isSso = (($_SESSION['auth_method'] ?? '') === 'microsoft');
   if (!empty($_SESSION['must_change_password']) && !$isSso) {
     header("Location: " . BASE_URL . "/auth/change-password.php");
     exit;
   }
-  $role = $_SESSION['user_role'];
-  $map  = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean', 'program_head' => 'program_head'];
+  $role = $_SESSION['user_role'] ?? 'faculty';
+  $map  = [
+    'faculty'      => 'faculty',
+    'admin1'       => 'admin1',
+    'admin2'       => 'admin2',
+    'dean'         => 'dean',
+    'program_head' => 'program_head'
+  ];
   $dir  = $map[$role] ?? 'faculty';
   header("Location: " . BASE_URL . "/{$dir}/dashboard.php");
   exit;
 }
 
-// Failed-login throttle configuration
-$maxThrottleAttempts = 5;
-$throttleLockoutSeconds = 60;
-$throttleDecaySeconds = 300;
-
-$error = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $emailInput = trim($_POST['email'] ?? '');
-  $passwordInput = $_POST['password'] ?? '';
-
-  // Composite key per client IP and submitted email
-  $clientIp = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
-  $throttleKey = hash('sha256', $clientIp . '|' . strtolower($emailInput));
-  $throttleDir = session_save_path();
-  if (empty($throttleDir) || !is_dir($throttleDir) || !is_writable($throttleDir)) {
-    $throttleDir = (is_dir('C:/xampp/tmp') && is_writable('C:/xampp/tmp')) ? 'C:/xampp/tmp' : sys_get_temp_dir();
-  }
-  $throttleFile = rtrim($throttleDir, '/\\') . DIRECTORY_SEPARATOR . 'sti_throttle_' . $throttleKey . '.json';
-
-  // Read current throttle state
-  $throttleData = ['count' => 0, 'locked_until' => 0, 'last_attempt' => 0];
-  if (file_exists($throttleFile)) {
-    $raw = @file_get_contents($throttleFile);
-    if ($raw) {
-      $parsed = @json_decode($raw, true);
-      if (is_array($parsed)) {
-        $throttleData = array_merge($throttleData, $parsed);
-      }
-    }
-  }
-  if (!empty($_SESSION['login_throttle'][$throttleKey]) && is_array($_SESSION['login_throttle'][$throttleKey])) {
-    if (($_SESSION['login_throttle'][$throttleKey]['count'] ?? 0) > $throttleData['count']) {
-      $throttleData = array_merge($throttleData, $_SESSION['login_throttle'][$throttleKey]);
-    }
-  }
-
-  $now = time();
-  $isLocked = false;
-
-  // Check lockout or decay expiry
-  if ($throttleData['locked_until'] > 0) {
-    if ($now < $throttleData['locked_until']) {
-      $isLocked = true;
-    } else {
-      $throttleData = ['count' => 0, 'locked_until' => 0, 'last_attempt' => 0];
-      if (file_exists($throttleFile)) {
-        @unlink($throttleFile);
-      }
-      unset($_SESSION['login_throttle'][$throttleKey]);
-    }
-  } elseif ($throttleData['last_attempt'] > 0 && ($now - $throttleData['last_attempt']) > $throttleDecaySeconds) {
-    $throttleData = ['count' => 0, 'locked_until' => 0, 'last_attempt' => 0];
-    if (file_exists($throttleFile)) {
-      @unlink($throttleFile);
-    }
-    unset($_SESSION['login_throttle'][$throttleKey]);
-  }
-
-  if ($isLocked) {
-    http_response_code(429);
-    $error = 'Too many failed login attempts. Please try again later.';
-  } else {
-    $user = login($emailInput, $passwordInput);
-    if ($user) {
-      // Clear throttle on successful login
-      if (file_exists($throttleFile)) {
-        @unlink($throttleFile);
-      }
-      unset($_SESSION['login_throttle'][$throttleKey]);
-
-      if (!empty($user['must_change_password'])) {
-        header("Location: " . BASE_URL . "/auth/change-password.php");
-        exit;
-      }
-      $map = ['faculty' => 'faculty', 'admin1' => 'admin1', 'admin2' => 'admin2', 'dean' => 'dean', 'program_head' => 'program_head'];
-      $dir = $map[$user['role']] ?? 'faculty';
-      header("Location: " . BASE_URL . "/{$dir}/dashboard.php");
-      exit;
-    }
-
-    // Record failed attempt
-    $throttleData['count'] = ($throttleData['count'] ?? 0) + 1;
-    $throttleData['last_attempt'] = $now;
-    if ($throttleData['count'] >= $maxThrottleAttempts) {
-      $throttleData['locked_until'] = $now + $throttleLockoutSeconds;
-      http_response_code(429);
-      $error = 'Too many failed login attempts. Please try again later.';
-    } else {
-      $error = 'Invalid email or password.';
-    }
-    @file_put_contents($throttleFile, json_encode($throttleData), LOCK_EX);
-    $_SESSION['login_throttle'][$throttleKey] = $throttleData;
-  }
-}
 $timeout = false;
 if (isset($_GET['timeout'])) {
   if (empty($_SESSION['shown_timeout'])) {
@@ -124,39 +36,35 @@ if (isset($_GET['timeout'])) {
 }
 
 // Flash message handler for OAuth errors
-if (empty($error)) {
-  $unmatchedMsEmail = $_SESSION['unmatched_ms_email'] ?? '';
-  unset($_SESSION['unmatched_ms_email']);
-  $notFoundMsg = $unmatchedMsEmail !== ''
-    ? 'Your Microsoft account (' . htmlspecialchars($unmatchedMsEmail) . ') is not registered in the system. Please contact your administrator.'
-    : 'Your Microsoft account is not registered in the system. Please contact your administrator.';
+$error = '';
+$unmatchedMsEmail = $_SESSION['unmatched_ms_email'] ?? '';
+unset($_SESSION['unmatched_ms_email']);
+$notFoundMsg = $unmatchedMsEmail !== ''
+  ? 'Your Microsoft account (' . htmlspecialchars($unmatchedMsEmail) . ') is not registered in the system. Please contact your administrator.'
+  : 'Your Microsoft account is not registered in the system. Please contact your administrator.';
 
-  $errorMap = [
-    'microsoft_account_not_found' => $notFoundMsg,
-    'microsoft_oauth_failed'      => 'Microsoft authentication was cancelled or encountered an error. Please try again.',
-    'invalid_state'               => 'Security verification failed (invalid OAuth state). Please try again.',
-    'missing_email'               => 'Unable to retrieve an email address from your Microsoft profile.',
-    'missing_config'              => 'Microsoft login is not currently configured on this server.',
-  ];
+$errorMap = [
+  'microsoft_account_not_found' => $notFoundMsg,
+  'microsoft_oauth_failed'      => 'Microsoft authentication was cancelled or encountered an error. Please try again.',
+  'invalid_state'               => 'Security verification failed (invalid OAuth state). Please try again.',
+  'missing_email'               => 'Unable to retrieve an email address from your Microsoft profile.',
+  'missing_config'              => 'Microsoft login is not currently configured on this server.',
+];
 
-  if (isset($_GET['error'])) {
-    $errCode = (string)$_GET['error'];
-    // Display error once, then mark as flashed in session
-    if (empty($_SESSION['shown_oauth_error']) || $_SESSION['shown_oauth_error'] !== $errCode) {
-      $error = $errorMap[$errCode] ?? htmlspecialchars($errCode);
-      $_SESSION['shown_oauth_error'] = $errCode;
-    } else {
-      // Re-requesting the same error parameter on refresh: suppress and clear
-      unset($_SESSION['shown_oauth_error']);
-    }
-  } elseif (!empty($_SESSION['flash_error'])) {
-    $errCode = (string)$_SESSION['flash_error'];
+if (isset($_GET['error'])) {
+  $errCode = (string)$_GET['error'];
+  if (empty($_SESSION['shown_oauth_error']) || $_SESSION['shown_oauth_error'] !== $errCode) {
     $error = $errorMap[$errCode] ?? htmlspecialchars($errCode);
-    unset($_SESSION['flash_error']);
+    $_SESSION['shown_oauth_error'] = $errCode;
   } else {
-    // Normal visit without error parameter: ensure flash state is reset
     unset($_SESSION['shown_oauth_error']);
   }
+} elseif (!empty($_SESSION['flash_error'])) {
+  $errCode = (string)$_SESSION['flash_error'];
+  $error = $errorMap[$errCode] ?? htmlspecialchars($errCode);
+  unset($_SESSION['flash_error']);
+} else {
+  unset($_SESSION['shown_oauth_error']);
 }
 ?>
 <!DOCTYPE html>
@@ -166,78 +74,112 @@ if (empty($error)) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login – STI Marikina Activity System</title>
-  <!-- Load Bootstrap 5.3.3 -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Load Font Awesome 6.4.0 -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-  <!-- Load App Custom CSS -->
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=<?= filemtime(__DIR__ . '/../assets/css/main.css') ?>">
+  
+  <!-- Preconnect & Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Syne:wght@800&display=swap" rel="stylesheet">
   
   <style>
     :root {
-      --primary-color: var(--sti-blue, #0072CE);
-      --primary-hover: var(--sti-blue-hover, #005FA3);
-      --bg-color: var(--bg-page, #F4F6FA);
-      --card-bg: #ffffff;
-      --text-main: var(--text-main, #1A202C);
-      --text-muted: var(--text-muted, #718096);
-      --border-color: var(--border, #E2E8F0);
-      --radius: var(--radius-md, 12px);
-      --shadow-lg: 0 20px 40px rgba(10, 22, 40, 0.25);
+      --sti-navy: #0A1628;
+      --sti-gold: #F5A623;
+      --sti-blue: #0078D4;
+      --text-main: #1A202C;
+      --text-muted: #556987;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
 
     body {
-      background-color: var(--sti-navy, #0A1628);
+      background-color: var(--sti-navy);
       background-image: 
-        linear-gradient(rgba(10, 22, 40, 0.72), rgba(10, 22, 40, 0.72)),
+        linear-gradient(rgba(10, 24, 48, 0.70), rgba(10, 24, 48, 0.70)),
         url('<?= BASE_URL ?>/assets/img/sti-marikina-building.jpg');
       background-size: cover;
-      background-position: center 32%;
+      background-position: center 26%;
       background-repeat: no-repeat;
       background-attachment: fixed;
-      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: var(--text-main);
       display: flex;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      margin: 0;
       padding: 20px;
     }
 
     @media (max-width: 768px) {
       body {
-        background-position: center 12%;
+        background-position: center 15%;
+        padding: 16px;
       }
     }
 
     .auth-page-body {
       width: 100%;
-      max-width: 390px;
+      max-width: 430px;
       margin: auto;
     }
 
     .auth-card {
-      background: var(--card-bg);
-      border-radius: var(--radius-md, 12px);
-      box-shadow: 0 20px 40px rgba(10, 22, 40, 0.25);
-      padding: 38px 28px !important;
-      border: 1px solid var(--border-color);
+      position: relative;
+      background: #ffffff;
+      border-radius: 24px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.32), 0 4px 16px rgba(0, 0, 0, 0.1);
+      padding: 36px 36px 32px 36px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    /* Subtle decorative light-blue wave across card bottom */
+    .card-bottom-wave {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 88px;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .card-bottom-wave svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .card-content {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
     .auth-brand {
-      font-family: 'Syne', sans-serif;
-      font-size: clamp(1.75rem, 8vw, 2.1rem);
+      font-family: 'Syne', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: clamp(1.9rem, 5.5vw, 2.2rem);
       font-weight: 800;
-      letter-spacing: -0.02em;
-      color: var(--sti-navy, #0A1628);
+      letter-spacing: -0.015em;
+      color: #0A192F;
       white-space: nowrap;
       display: inline-block;
       line-height: 1.15;
+      margin-bottom: 5px;
     }
 
     .auth-brand span {
-      color: var(--sti-gold, #F4A900);
+      color: var(--sti-gold);
     }
 
     .auth-tagline {
@@ -245,183 +187,84 @@ if (empty($error)) {
       font-size: 0.82rem;
       font-weight: 500;
       line-height: 1.45;
+      margin-bottom: 20px;
+      letter-spacing: -0.01em;
     }
 
-    .form-label {
-      color: var(--sti-navy, #0A1628);
-      font-weight: 600;
-      font-size: 0.82rem;
-      margin-bottom: 6px;
-    }
-
-    .form-control {
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm, 6px);
-      padding: 10px 14px;
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 0.88rem;
-      color: var(--text-main);
-      background: #ffffff;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .form-control:focus {
-      border-color: var(--primary-color);
-      box-shadow: 0 0 0 3px rgba(0, 114, 206, 0.15);
-      outline: none;
-    }
-
-    .auth-password-wrapper {
-      position: relative;
-    }
-
-    .auth-password-input {
-      padding-right: 48px;
-    }
-
-    .auth-password-toggle {
-      position: absolute;
-      right: 6px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--text-muted);
-      border: none;
-      background: transparent;
-      padding: 8px 10px;
-      font-size: 1rem;
-      cursor: pointer;
+    /* Illustration container */
+    .illustration-wrap {
+      width: 100%;
+      max-width: 240px;
+      height: 152px;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: color 0.15s ease;
-      text-decoration: none;
+      margin-bottom: 22px;
     }
 
-    .auth-password-toggle:hover {
-      color: var(--sti-navy, #0A1628);
+    .illustration-wrap svg {
+      width: 100%;
+      height: 100%;
+      display: block;
     }
 
-    .login-form-link {
-      font-size: 0.8rem;
-      color: var(--primary-color);
-      text-decoration: none;
+    /* Prominent Microsoft button matching reference */
+    .btn-microsoft {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      padding: 12px 20px;
+      background: #ffffff;
+      border: 1px solid #D5DAE2;
+      border-radius: 11px;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 0.94rem;
       font-weight: 600;
-      transition: color 0.15s ease;
-    }
-
-    .login-form-link:hover {
-      color: var(--primary-hover);
-      text-decoration: underline;
-    }
-
-    .auth-submit {
-      background: var(--primary-color);
-      border: none;
-      border-radius: var(--radius-sm, 6px);
-      padding: 10px 16px;
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 0.92rem;
-      font-weight: 700;
-      color: #ffffff;
+      color: #111827;
+      text-decoration: none;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
       transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      width: 100%;
-      box-shadow: 0 2px 6px rgba(0, 114, 206, 0.25);
       cursor: pointer;
     }
 
-    .auth-submit:hover {
-      background: var(--primary-hover);
-      color: #ffffff;
+    .btn-microsoft:hover {
+      background-color: #F9FAFB;
+      border-color: #9CA3AF;
+      color: #111827;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 114, 206, 0.35);
+      text-decoration: none;
     }
 
-    .auth-submit:active {
+    .btn-microsoft:active {
+      background-color: #F3F4F6;
       transform: translateY(0);
-      box-shadow: 0 2px 4px rgba(0, 114, 206, 0.2);
-    }
-
-    .auth-divider {
-      display: flex;
-      align-items: center;
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 0.78rem;
-      font-weight: 600;
-      letter-spacing: 0.3px;
-      margin: 18px 0;
-    }
-
-    .auth-divider::before,
-    .auth-divider::after {
-      content: '';
-      flex: 1;
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    .auth-divider:not(:empty)::before {
-      margin-right: 0.75rem;
-    }
-
-    .auth-divider:not(:empty)::after {
-      margin-left: 0.75rem;
-    }
-
-    #btnMicrosoftLogin {
-      background: #ffffff;
-      border: 1px solid #d1d5db;
-      border-radius: var(--radius-sm, 6px);
-      padding: 10px 16px;
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 0.92rem;
-      font-weight: 600;
-      color: #24292f;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      text-decoration: none;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      cursor: pointer;
-      transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
     }
 
-    #btnMicrosoftLogin:hover {
-      background-color: #f8fafc;
-      border-color: #8c8c8c;
-      color: #0f172a;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-      transform: translateY(-1px);
-      text-decoration: none;
-    }
-
-    #btnMicrosoftLogin:focus-visible,
-    #btnMicrosoftLogin:focus {
+    .btn-microsoft:focus-visible {
       outline: none;
-      border-color: #0078d4;
+      border-color: #0078D4;
       box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.25);
     }
 
-    #btnMicrosoftLogin:active {
-      background-color: #f1f5f9;
-      transform: translateY(0);
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    }
-
-    #btnMicrosoftLogin svg {
+    .btn-microsoft svg {
       flex-shrink: 0;
-      width: 20px;
-      height: 20px;
+      width: 21px;
+      height: 21px;
     }
 
+    /* Notification & Alert Banners */
     .alert {
-      border-radius: var(--radius-sm, 6px);
-      font-size: 0.82rem;
+      border-radius: 10px;
+      font-size: 0.83rem;
       line-height: 1.45;
+      padding: 11px 16px;
+      margin-bottom: 20px;
+      width: 100%;
+      text-align: left;
     }
 
     .alert-danger {
@@ -431,149 +274,129 @@ if (empty($error)) {
     }
 
     .alert-warning {
-      background: var(--sti-gold-lt, #FEF9E7);
+      background: #FEF9E7;
       border: 1px solid rgba(244, 169, 0, 0.4);
       color: #78350F;
     }
 
-    .auth-footer {
-      font-size: 0.8rem;
-      color: var(--text-muted);
+    @media (max-width: 480px) {
+      .auth-card {
+        padding: 36px 24px 32px 24px;
+        border-radius: 22px;
+      }
+      .illustration-wrap {
+        max-width: 235px;
+        height: 155px;
+        margin-bottom: 24px;
+      }
+      .btn-microsoft {
+        padding: 12px 18px;
+        font-size: 0.92rem;
+      }
     }
-
-    .auth-footer-nav {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .auth-footer-icons {
-      display: flex;
-      gap: 16px;
-    }
-
-    .auth-footer-icon-link,
-    .auth-footer-portal-link {
-      color: var(--text-muted);
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: color 0.15s ease;
-    }
-
-    .auth-footer-icon-link:hover,
-    .auth-footer-portal-link:hover {
-      color: var(--text-main);
-    }
-
-    .login-policy-note {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: 16px;
-      line-height: 1.45;
-    }
-
-    .login-policy-note a {
-      color: var(--primary-color);
-      text-decoration: none;
-      margin-left: 4px;
-      font-weight: 500;
-    }
-
-    .login-policy-note a:hover {
-      text-decoration: underline;
-    }
-
   </style>
 </head>
 
 <body>
-  <div class="auth-page-body" data-label-id="0">
-    <main class="auth-card auth-form-container">
-      <header class="mb-3 text-center">
-        <!-- Brand Title and Subtitle -->
-        <h1 class="auth-brand mb-1"><span>STI</span>&#8209;ARMES</h1>
-        <p class="auth-tagline mb-0 small">Activity Request, Monitoring, and Evaluation System</p>
-      </header>
-
-      <?php if ($error): ?>
-        <div class="alert alert-danger py-2 px-3 small mb-3"><?= htmlspecialchars($error) ?></div>
-      <?php endif; ?>
-      <?php if ($timeout): ?>
-        <div class="alert alert-warning py-2 px-3 small mb-3">Session expired. Please log in again.</div>
-      <?php endif; ?>
-
-      <form novalidate="" class="" method="POST" id="loginForm">
-        <!-- Email Input -->
-        <div class="mb-3">
-          <label class="fw-bold small mb-1 form-label" for="loginEmail">Email</label>
-          <input autocomplete="email" type="email" id="loginEmail" name="email" class="form-control" placeholder="you@sti.edu" required value="">
-        </div>
-
-        <!-- Password Input -->
-        <div class="mb-3">
-          <label class="fw-bold small mb-1 form-label" for="loginPassword">Password</label>
-          <div class="auth-password-wrapper position-relative">
-            <input autocomplete="current-password" type="password" id="loginPassword" name="password" class="auth-password-input form-control" placeholder="••••••••" required value="">
-            <button type="button" id="togglePasswordBtn" aria-label="Show password" aria-pressed="false" tabindex="-1" class="auth-password-toggle btn btn-link">
-              <i aria-hidden="true" id="togglePasswordIcon" class="fa-solid fa-eye-slash"></i>
-            </button>
-          </div>
-          <div class="d-flex justify-content-end mt-1">
-            <a class="login-form-link" href="#">Forgot your password?</a>
-          </div>
-        </div>
-
-        <!-- Primary Sign In Button -->
-        <button type="submit" id="btnSignIn" aria-busy="false" class="auth-submit w-100 btn btn-primary">Sign In</button>
-      </form>
-
-      <!-- Centered "or" Divider -->
-      <div class="auth-divider">
-        <span>or</span>
+  <div class="auth-page-body">
+    <main class="auth-card">
+      
+      <!-- Subtle decorative bottom wave matching the reference design -->
+      <div class="card-bottom-wave">
+        <svg viewBox="0 0 450 110" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M0,45 C120,85 240,15 450,55 L450,110 L0,110 Z" fill="#E8F3FD" opacity="0.85"/>
+          <path d="M0,70 C160,35 300,95 450,65 L450,110 L0,110 Z" fill="#D7ECFB" opacity="0.6"/>
+        </svg>
       </div>
 
-      <!-- Secondary Sign in with Microsoft Button -->
-      <a href="<?= BASE_URL ?>/auth/microsoft-login.php" id="btnMicrosoftLogin" class="btn w-100" role="button" aria-label="Sign in with Microsoft">
-        <svg class="me-2" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 21 21" aria-hidden="true" focusable="false">
-          <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-          <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-          <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-          <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-        </svg>
-        <span>Sign in with Microsoft</span>
-      </a>
+      <div class="card-content">
+        <!-- Brand Title and Subtitle -->
+        <h1 class="auth-brand"><span>STI</span>-ARMES</h1>
+        <p class="auth-tagline">Activity Request, Monitoring, and Evaluation System</p>
+
+        <!-- OAuth Error / Timeout Alerts -->
+        <?php if ($error): ?>
+          <div class="alert alert-danger" role="alert"><?= htmlspecialchars($error) ?></div>
+        <?php endif; ?>
+        <?php if ($timeout): ?>
+          <div class="alert alert-warning" role="alert">Session expired. Please sign in again.</div>
+        <?php endif; ?>
+
+        <!-- Illustration: Laptop with Calendar, Bar Chart & Team Avatars inside organic cloud blob -->
+        <div class="illustration-wrap" aria-hidden="true">
+          <svg viewBox="0 0 280 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Soft organic cloud / blob background in light sky blue -->
+            <path d="M52 108C38 108 26 96 26 82C26 71 33 61 43 57C42 54 41 50 41 47C41 31 54 18 70 18C75 18 80 19 84 22C92 10 106 2 122 2C143 2 161 16 166 35C171 32 177 30 184 30C202 30 216 44 216 62C216 65 215 68 214 71C226 75 234 86 234 99C234 115 221 128 205 128C201 128 198 127 194 126C186 137 173 144 158 144C151 144 145 142 139 139C132 147 121 152 110 152C94 152 80 143 74 130C67 133 60 135 52 135C33 135 18 120 18 101C18 97 19 93 21 89C19 95 18 101 18 108Z" fill="#E8F4FE"/>
+            <path d="M72 130C52 130 36 114 36 94C36 78 47 64 62 60C61 56 60 52 60 48C60 30 75 15 93 15C99 15 105 17 110 20C119 8 134 0 151 0C174 0 194 15 199 36C205 33 212 31 220 31C240 31 256 47 256 67C256 70 255 73 254 76C267 81 276 93 276 107C276 125 261 140 243 140C239 140 235 139 231 138C222 150 208 158 191 158C183 158 176 156 169 152C161 161 149 166 137 166C119 166 103 156 96 142C89 145 81 147 72 147Z" fill="#E2F1FD" opacity="0.75"/>
+
+            <!-- Laptop Shadow -->
+            <ellipse cx="140" cy="182" rx="90" ry="6" fill="#0078D4" fill-opacity="0.12"/>
+
+            <!-- Laptop Screen Outer Shell -->
+            <rect x="52" y="38" width="176" height="118" rx="8" fill="#0088DD"/>
+            <rect x="54" y="40" width="172" height="114" rx="6" fill="#0082D3"/>
+
+            <!-- Laptop Inner Screen Display (White canvas) -->
+            <rect x="58" y="44" width="164" height="106" rx="4" fill="#FFFFFF"/>
+
+            <!-- Screen Content: Calendar (Top Left) -->
+            <g transform="translate(74, 56)">
+              <rect x="0" y="2" width="38" height="34" rx="4" stroke="#0088DD" stroke-width="2.5" fill="none"/>
+              <line x1="0" y1="11" x2="38" y2="11" stroke="#0088DD" stroke-width="2.5"/>
+              <rect x="7" y="0" width="3" height="4" rx="1.5" fill="#0088DD"/>
+              <rect x="28" y="0" width="3" height="4" rx="1.5" fill="#0088DD"/>
+              <path d="M11 22L16 27L27 16" stroke="#0088DD" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+
+            <!-- Screen Content: Bar Chart (Top Right) -->
+            <g transform="translate(162, 58)">
+              <line x1="0" y1="32" x2="42" y2="32" stroke="#0088DD" stroke-width="2" stroke-linecap="round"/>
+              <rect x="6" y="20" width="6" height="12" rx="1" fill="#0088DD"/>
+              <rect x="18" y="11" width="6" height="21" rx="1" fill="#0088DD"/>
+              <rect x="30" y="2" width="6" height="30" rx="1" fill="#0088DD"/>
+            </g>
+
+            <!-- Screen Content: Team / People Avatars (Center Bottom) -->
+            <g transform="translate(140, 115)">
+              <!-- Center Person (Leader) -->
+              <circle cx="0" cy="-6" r="6" fill="#0088DD"/>
+              <path d="M-10 14 C-10 6, 10 6, 10 14 Z" fill="#0088DD"/>
+
+              <!-- Left Teammate -->
+              <circle cx="-16" cy="-2" r="5" fill="#0088DD"/>
+              <path d="M-24 14 C-24 8, -8 8, -8 14 Z" fill="#0088DD"/>
+
+              <!-- Right Teammate -->
+              <circle cx="16" cy="-2" r="5" fill="#0088DD"/>
+              <path d="M8 14 C8 8, 24 8, 24 14 Z" fill="#0088DD"/>
+            </g>
+
+            <!-- Laptop Base & Keyboard Lower Half -->
+            <path d="M38 156 L242 156 L226 172 L54 172 Z" fill="#0077C8"/>
+            <path d="M40 157 L240 157 L225 171 L55 171 Z" fill="#0088DD"/>
+
+            <!-- Front Lip & Trackpad Notch -->
+            <path d="M36 172 L244 172 C245 172, 246 173, 245 175 L242 178 C241.5 179, 240 179.5, 238 179.5 L42 179.5 C40 179.5, 38.5 179, 38 178 L35 175 C34 173, 35 172, 36 172 Z" fill="#0071BF"/>
+            <rect x="124" y="171.5" width="32" height="3" rx="1.5" fill="#FFFFFF" fill-opacity="0.8"/>
+          </svg>
+        </div>
+
+        <!-- Single Primary Action: Sign in with Microsoft -->
+        <a href="<?= BASE_URL ?>/auth/microsoft-login.php" id="btnMicrosoftLogin" class="btn-microsoft" role="button" aria-label="Sign in with Microsoft">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 21 21" aria-hidden="true" focusable="false">
+            <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+            <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+            <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+            <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+          </svg>
+          <span>Sign in with Microsoft</span>
+        </a>
+      </div>
 
     </main>
   </div>
 
   <script>
-
-    // Show/Hide password toggle logic
-    const togglePasswordBtn = document.getElementById('togglePasswordBtn');
-    const passwordInput = document.getElementById('loginPassword');
-    const togglePasswordIcon = document.getElementById('togglePasswordIcon');
-
-    if (togglePasswordBtn && passwordInput && togglePasswordIcon) {
-      togglePasswordBtn.addEventListener('click', function () {
-        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-        passwordInput.setAttribute('type', type);
-        
-        // Toggle icon class between eye and eye-slash
-        if (type === 'password') {
-          togglePasswordIcon.classList.remove('fa-eye');
-          togglePasswordIcon.classList.add('fa-eye-slash');
-          togglePasswordBtn.setAttribute('aria-pressed', 'false');
-        } else {
-          togglePasswordIcon.classList.remove('fa-eye-slash');
-          togglePasswordIcon.classList.add('fa-eye');
-          togglePasswordBtn.setAttribute('aria-pressed', 'true');
-        }
-      });
-    }
-
     // Space key activation for Microsoft Sign-In button (WAI-ARIA button pattern)
     const btnMicrosoftLogin = document.getElementById('btnMicrosoftLogin');
     if (btnMicrosoftLogin) {

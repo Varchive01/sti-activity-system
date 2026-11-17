@@ -11,13 +11,21 @@ $db   = getDB();
 $id = (int)($_GET['id'] ?? 0);
 if (!$id) { header('Location: '.BASE_URL.'/admin2/dashboard.php'); exit; }
 
-$act = $db->prepare("SELECT a.*,u.name as faculty_name,u.email as faculty_email FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.id=?");
+$act = $db->prepare("SELECT a.*,u.name as faculty_name,u.email as faculty_email,u.role as author_role FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.id=?");
 $act->execute([$id]);
 $activity = $act->fetch();
 if (!$activity) { die('Activity not found or not accessible.'); }
 if (!canUserAccessActivity((int)$id, 'view', (int)$user['id'], $user['role'], $user['dept'] ?? '')) {
     renderAccessDenied('You do not have permission to review this activity because it has not reached the Events Committee review stage.');
 }
+
+$currStatus = trim(strtolower($activity['status'] ?? ''));
+$authorRole = trim(strtolower($activity['author_role'] ?? ''));
+$isProgramHeadAuthor = ($authorRole === 'program_head');
+$isReviewable = (
+    $currStatus === 'endorsed' ||
+    ((($activity['source'] ?? '') === 'faculty') && !$isProgramHeadAuthor && in_array($currStatus, ['submitted', 'under_review', 'resubmitted'], true))
+);
 
 $materials = $db->prepare("SELECT * FROM materials WHERE activity_id=?");
 $materials->execute([$id]);
@@ -552,15 +560,50 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
         <?php endif; ?>
       </div>
     </div>
-    <div class="flex gap-2">
+    <div class="flex gap-2" style="align-items:center;">
       <a href="<?= BASE_URL ?>/admin2/dashboard.php" class="btn btn-outline btn-sm">← Back</a>
-      <button class="btn btn-outline" onclick="openModal('return')">↩ Return for Revision</button>
-      <button class="btn btn-danger"  onclick="openModal('reject')">✕ Reject</button>
-      <button class="btn btn-success" onclick="openModal('forward')">✓ Approve Activity</button>
+      <?php if ($isReviewable): ?>
+        <button class="btn btn-outline" onclick="openModal('return')">↩ Return for Revision</button>
+        <button class="btn btn-danger"  onclick="openModal('reject')">✕ Reject</button>
+        <button class="btn btn-success" onclick="openModal('forward')">✓ Approve Activity</button>
+      <?php else: ?>
+        <?php if ($currStatus === 'pending_final_approval'): ?>
+          <span class="badge badge-info" style="font-size:0.82rem; padding:7px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:600;">
+            ⏳ Forwarded — Pending Final Approval by Dean
+          </span>
+        <?php elseif ($currStatus === 'approved'): ?>
+          <span class="badge badge-success" style="font-size:0.82rem; padding:7px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:600;">
+            ✓ Fully Approved
+          </span>
+        <?php elseif ($currStatus === 'returned_for_revision'): ?>
+          <span class="badge badge-warning" style="font-size:0.82rem; padding:7px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:600;">
+            ↩ Returned for Revision (Awaiting Resubmission)
+          </span>
+        <?php elseif ($currStatus === 'rejected'): ?>
+          <span class="badge badge-danger" style="font-size:0.82rem; padding:7px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:600;">
+            ✕ Proposal Rejected
+          </span>
+        <?php else: ?>
+          <span class="badge badge-secondary" style="font-size:0.82rem; padding:7px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:600;">
+            <?= htmlspecialchars(ucwords(str_replace('_', ' ', $activity['status']))) ?>
+          </span>
+        <?php endif; ?>
+      <?php endif; ?>
     </div>
   </div>
 
   <div class="content">
+
+    <?php if (!empty($_GET['error'])): ?>
+      <div class="alert alert-danger" style="margin-bottom: 20px; padding: 14px 18px; border-radius: 8px; font-weight: 500; font-size: 0.9rem; display: flex; align-items: center; gap: 8px;">
+        ⚠️ <?= htmlspecialchars($_GET['error']) ?>
+      </div>
+    <?php endif; ?>
+    <?php if (!empty($_GET['msg'])): ?>
+      <div class="alert alert-success" style="margin-bottom: 20px; padding: 14px 18px; border-radius: 8px; font-weight: 500; font-size: 0.9rem; display: flex; align-items: center; gap: 8px;">
+        ✓ <?= htmlspecialchars($_GET['msg']) ?>
+      </div>
+    <?php endif; ?>
 
     <?php renderSectionHeader('event_details', '📋 Event Details', $stagedComments); ?>
       <div class="info-grid" style="margin-bottom:14px;">
@@ -784,6 +827,7 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
   </div><!-- content -->
 </div><!-- main-wrap -->
 
+<?php if ($isReviewable): ?>
 <?php foreach ([
   'forward' => ['Approve Activity',     'success', 'approved', false],
   'return'  => ['Return for Revision',  'warning', 'returned', false],
@@ -831,6 +875,7 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
   </div>
 </div>
 <?php endforeach; ?>
+<?php endif; ?>
 
 <script>
 const BASE_URL = '<?= BASE_URL ?>';
@@ -966,33 +1011,43 @@ function updateFlaggedBadge() {
 
 <?php
 function renderSectionHeader(string $key, string $title, array $staged): void {
+    global $isReviewable;
+    $canEdit = $isReviewable ?? true;
     $hasCmt = isset($staged[$key]);
     echo "<div class=\"review-section" . ($hasCmt ? ' flagged' : '') . "\" id=\"section-card-{$key}\">";
     echo "<div class=\"review-section-header\">";
     echo "<h2>{$title}</h2>";
-    $btnCls   = $hasCmt ? ' has-comment' : '';
-    $btnLabel = $hasCmt ? '✏️ Comment Added' : '📝 Request Revision';
-    echo "<button class=\"btn-request-revision{$btnCls}\" id=\"revbtn-{$key}\" data-section=\"{$key}\">{$btnLabel}</button>";
+    if ($canEdit) {
+        $btnCls   = $hasCmt ? ' has-comment' : '';
+        $btnLabel = $hasCmt ? '✏️ Comment Added' : '📝 Request Revision';
+        echo "<button class=\"btn-request-revision{$btnCls}\" id=\"revbtn-{$key}\" data-section=\"{$key}\">{$btnLabel}</button>";
+    }
     echo "</div>";
     // Existing staged banner
     $bannerStyle = $hasCmt ? 'display:flex;' : 'display:none;';
     $cmt = $hasCmt ? htmlspecialchars($staged[$key]) : '';
     echo "<div class=\"section-flagged-banner\" id=\"flagged-banner-{$key}\" style=\"{$bannerStyle}\">";
     echo "⚠️ <span id=\"flagged-text-{$key}\">{$cmt}</span>";
-    echo "&nbsp;<button class=\"btn-remove-comment\" data-section=\"{$key}\" style=\"margin-left:auto;background:none;border:none;cursor:pointer;color:#92400E;font-size:.75rem;font-weight:700;\">✕ Remove</button>";
+    if ($canEdit) {
+        echo "&nbsp;<button class=\"btn-remove-comment\" data-section=\"{$key}\" style=\"margin-left:auto;background:none;border:none;cursor:pointer;color:#92400E;font-size:.75rem;font-weight:700;\">✕ Remove</button>";
+    }
     echo "</div>";
     echo "<div class=\"review-section-body\">";
 }
 
 function renderSectionClose(string $key, array $staged, int $actId): void {
+    global $isReviewable;
+    $canEdit = $isReviewable ?? true;
     $existing = htmlspecialchars($staged[$key] ?? '', ENT_QUOTES);
     echo "</div>"; // close review-section-body
-    echo "<div class=\"section-comment-box\" id=\"cbox-{$key}\">";
-    echo "<textarea id=\"ctxt-{$key}\" placeholder=\"Describe what needs to be revised in this section...\">{$existing}</textarea>";
-    echo "<div style=\"display:flex;flex-direction:column;gap:6px;\">";
-    echo "<button class=\"btn btn-sm btn-warning btn-save-comment\" data-section=\"{$key}\">💾 Save Comment</button>";
-    echo "</div>";
-    echo "</div>";
+    if ($canEdit) {
+        echo "<div class=\"section-comment-box\" id=\"cbox-{$key}\">";
+        echo "<textarea id=\"ctxt-{$key}\" placeholder=\"Describe what needs to be revised in this section...\">{$existing}</textarea>";
+        echo "<div style=\"display:flex;flex-direction:column;gap:6px;\">";
+        echo "<button class=\"btn btn-sm btn-warning btn-save-comment\" data-section=\"{$key}\">💾 Save Comment</button>";
+        echo "</div>";
+        echo "</div>";
+    }
     echo "</div>"; // close review-section
 }
 ?>

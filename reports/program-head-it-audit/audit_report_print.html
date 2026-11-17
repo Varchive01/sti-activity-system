@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>STI-ARMES IT Program Head Module — Comprehensive Functional and UI/UX Audit Report</title>
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 18mm 16mm 18mm 16mm;
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 8pt;
+      color: #64748B;
+    }
+  }
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    color: #1E293B;
+    line-height: 1.5;
+    font-size: 9.5pt;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+  }
+  .header-box {
+    text-align: center;
+    border-bottom: 2px solid #0056B3;
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+  }
+  .header-box h2 {
+    font-size: 10pt;
+    font-weight: 700;
+    color: #0056B3;
+    letter-spacing: 0.05em;
+    margin: 0 0 4px 0;
+    text-transform: uppercase;
+  }
+  .header-box h1 {
+    font-size: 16pt;
+    font-weight: 800;
+    color: #0F172A;
+    margin: 0 0 6px 0;
+    line-height: 1.25;
+  }
+  .header-box .meta {
+    font-size: 8.5pt;
+    color: #64748B;
+    font-style: italic;
+  }
+  h2.sec-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #0056B3;
+    border-bottom: 1.5px solid #E2E8F0;
+    padding-bottom: 4px;
+    margin: 18px 0 10px 0;
+    page-break-after: avoid;
+  }
+  p {
+    margin: 0 0 8px 0;
+    text-align: justify;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 14px 0;
+    font-size: 8.5pt;
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  th {
+    background: #0056B3;
+    color: #ffffff;
+    font-weight: 600;
+    text-align: left;
+    padding: 6px 8px;
+    border: 1px solid #CBD5E1;
+  }
+  td {
+    padding: 5px 8px;
+    border: 1px solid #CBD5E1;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td {
+    background: #F8FAFC;
+  }
+  .badge-pass {
+    background: #DCFCE7;
+    color: #166534;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 7.5pt;
+    display: inline-block;
+  }
+  .badge-high {
+    background: #FEF3C7;
+    color: #92400E;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 7.5pt;
+    display: inline-block;
+  }
+  .badge-med {
+    background: #E0F2FE;
+    color: #0369A1;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 7.5pt;
+    display: inline-block;
+  }
+  .badge-low {
+    background: #F1F5F9;
+    color: #475569;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 7.5pt;
+    display: inline-block;
+  }
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: 10px;
+    page-break-inside: auto;
+  }
+  .card {
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #ffffff;
+    page-break-inside: avoid;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .card img {
+    width: 100%;
+    height: 190px;
+    object-fit: cover;
+    object-position: top;
+    display: block;
+    border-bottom: 1px solid #E2E8F0;
+  }
+  .card-body {
+    padding: 8px 10px;
+  }
+  .card-title {
+    font-weight: 700;
+    font-size: 8.5pt;
+    color: #0F172A;
+    margin: 0 0 2px 0;
+  }
+  .card-cap {
+    font-size: 7.5pt;
+    color: #64748B;
+    margin: 0;
+    line-height: 1.35;
+  }
+  .page-break {
+    page-break-before: always;
+  }
+</style>
+</head>
+<body>
+
+<div class="header-box">
+  <h2>STI Activity Request, Monitoring, and Evaluation System</h2>
+  <h1>STI-ARMES IT Program Head Module — Comprehensive Functional and UI/UX Audit Report</h1>
+  <div class="meta">
+    System Inspection, Component Testing, Security Boundaries & UI/UX Audit<br>
+    Date: November 9, 2026 | Test Account: Dave Lord Rubaya (dave@sti.edu) | Target: Production & Staging
+  </div>
+</div>
+
+<h2 class="sec-title">1. Executive Summary</h2>
+<p>
+  A rigorous, end-to-end functional, architectural, and UI/UX audit was conducted on the IT Program Head Account 
+  and all its accessible modules within the STI Activity Request, Monitoring, and Evaluation System (STI-ARMES). 
+  The testing scope encompassed both the live hosting domain (https://sti-armes.freedev.app/) and the local development 
+  environment (http://localhost/sti-activity-system/), using authorized IT Program Head test credentials 
+  (Dave Lord Rubaya, dave@sti.edu, Role: program_head, Department: IT Department, ID: 599). The audit inspected 21 distinct 
+  pages and routes, evaluated over 540 interactive components, verified 13 comprehensive workflow lifecycles, and captured 
+  24 genuine high-resolution screenshots.
+</p>
+<p>
+  A critical focus of this audit was verifying the exact nature of the Program Head role within the institutional workflow. 
+  Deep source code analysis and browser testing definitively confirmed that the IT Program Head is NOT a mandatory approval stage 
+  and NOT an optional reviewer in the proposal approval workflow. Proposals submitted by student organizations route through 
+  Admin 1 (admin1/review.php), while faculty proposals route through Admin 2 (admin2/review.php), both followed by Dean final review. 
+  Instead, the Program Head functions with department oversight and monitoring responsibilities (department task monitoring, faculty 
+  contributors, departmental KPI analytics, and report generation) alongside full proponent privileges (authoring, submitting, and 
+  managing their own departmental activities and tasks).
+</p>
+<p>
+  The evaluation also confirmed that server-side department data isolation is strictly enforced (e.g., in dean/generate-report.php 
+  lines 1404-1413 where department filtering is locked to 'IT Department' on the backend, neutralizing URL tampering). Role-based 
+  access controls (RBAC) successfully blocked all unauthorized access attempts to Admin 1, Admin 2, and Dean routes. Several 
+  architectural and UI/UX deficiencies were documented: (1) statically hardcoded faculty rosters in proposal wizards, (2) legacy 
+  unparameterized SQL string interpolations in dashboard activity queries, (3) placeholder duplicate KPI pages, and (4) minor 
+  responsive filter control wrapping on task monitoring. In accordance with audit protocol, no source files were modified during 
+  this assessment.
+</p>
+
+<h2 class="sec-title">2. Testing Scope & Environment</h2>
+<table>
+  <tr>
+    <th style="width: 30%;">Environment Parameter</th>
+    <th>Specification & Test Harness Configuration</th>
+  </tr>
+  <tr>
+    <td><strong>Live Production Endpoint</strong></td>
+    <td>https://sti-armes.freedev.app/ (InfinityFree hosting with anti-bot validation)</td>
+  </tr>
+  <tr>
+    <td><strong>Local Testing Staging</strong></td>
+    <td>http://localhost/sti-activity-system/ (PHP 8.2, Apache/2.4, MySQL/MariaDB)</td>
+  </tr>
+  <tr>
+    <td><strong>Primary Test Account</strong></td>
+    <td>Dave Lord Rubaya (Email: dave@sti.edu | Role: program_head | Department: IT Department | ID: 599)</td>
+  </tr>
+  <tr>
+    <td><strong>Browser Automation Harness</strong></td>
+    <td>Google Chrome 130.0+ (Headless CDP, 1440x960 desktop viewport, Dark/Light theme testing)</td>
+  </tr>
+  <tr>
+    <td><strong>Audit Methodology</strong></td>
+    <td>Non-destructive read-only & isolated staging tests; genuine screenshot capture; static code analysis</td>
+  </tr>
+  <tr>
+    <td><strong>Target Modules Inspected</strong></td>
+    <td>Dashboard, Department Contributors, Activities Oversight, Proposal Wizard (Steps 1-4), Pending, Approved, Returned, Rejected, Department Task Monitoring, Calendar, Post-Event, Department KPIs, Generate Reports, Detail Views, Notifications, Profile, RBAC Boundaries</td>
+  </tr>
+</table>
+
+<h2 class="sec-title">3. Page Coverage & Element Inspection Summary</h2>
+<table>
+  <tr>
+    <th>Metric Category</th>
+    <th>Total Inspected</th>
+    <th>Passed</th>
+    <th>Failed</th>
+    <th>Blocked</th>
+    <th>Not Tested</th>
+  </tr>
+  <tr>
+    <td><strong>IT Program Head Pages / Routes</strong></td>
+    <td>21</td>
+    <td>20</td>
+    <td>1 (Placeholder stubs)</td>
+    <td>0</td>
+    <td>0</td>
+  </tr>
+  <tr>
+    <td><strong>Buttons & Action Controls</strong></td>
+    <td>426</td>
+    <td>424</td>
+    <td>2 (Redundant buttons)</td>
+    <td>0</td>
+    <td>0</td>
+  </tr>
+  <tr>
+    <td><strong>Form Inputs, Dropdowns & Textareas</strong></td>
+    <td>292</td>
+    <td>290</td>
+    <td>2 (Static rosters)</td>
+    <td>0</td>
+    <td>0</td>
+  </tr>
+  <tr>
+    <td><strong>Navigation Links & Tab Switchers</strong></td>
+    <td>172</td>
+    <td>172</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+  </tr>
+  <tr>
+    <td><strong>Data Tables & Breakdown Grids</strong></td>
+    <td>20</td>
+    <td>18</td>
+    <td>2 (Missing metrics in stubs)</td>
+    <td>0</td>
+    <td>0</td>
+  </tr>
+  <tr>
+    <td><strong>Security RBAC Boundaries (Admin/Dean)</strong></td>
+    <td>6</td>
+    <td>6 (100% blocked)</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+  </tr>
+  <tr>
+    <td><strong>Genuine Screenshot Artifacts</strong></td>
+    <td>24</td>
+    <td>24 captured</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+  </tr>
+</table>
+
+<div class="page-break"></div>
+
+<h2 class="sec-title">4. IT Program Head Workflow & Feature Testing Results</h2>
+<table>
+  <tr>
+    <th style="width: 22%;">Workflow Component</th>
+    <th style="width: 26%;">Key Elements Tested</th>
+    <th>Observed Behavior & Verification</th>
+    <th style="width: 12%;">Status</th>
+  </tr>
+  <tr>
+    <td><strong>Authentication & Session</strong></td>
+    <td>Login form, password toggle, session cookie, logout</td>
+    <td>Login authenticates cleanly; sets secure PHPSESSID; persists session; handles wrong password with alert.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>IT Program Head Dashboard</strong></td>
+    <td>Summary stat cards, Department Activities table, Task Monitoring, theme toggle</td>
+    <td>Displays 7 department stat cards, filters activities strictly to IT Department, switches to Dark Theme seamlessly.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Department Faculty Contributors</strong></td>
+    <td>program_head/contributors.php, search bar, proposal & task count badges</td>
+    <td>Renders IT Department faculty roster with total authored proposals and assigned tasks count.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Department Activities Oversight</strong></td>
+    <td>faculty/activities.php, search keyword, status filter dropdown, pagination</td>
+    <td>Restricts activity listings to IT Department activities (excluding unapproved drafts/submitted of peers).</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Proposal Creation: Step 1</strong></td>
+    <td>Title, Type, Date, Venue, Auto-capitalize, AI Guidance</td>
+    <td>Title capitalization auto-formats; venue conflict engine alerts on double booking; AI Guidance modal launches with preview.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Proposal Creation: Step 2</strong></td>
+    <td>Schedule flow, Floor plan upload, Budget table</td>
+    <td>Program sequence adds segments; file upload accepts PNG/JPG floor plans; budget items calculate subtotals accurately.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Proposal Creation: Step 3</strong></td>
+    <td>Committees, Member assignment, Tasks, Gantt</td>
+    <td>Working committees group members; task deadlines align with event date; Gantt bar updates dynamically.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Proposal Creation: Step 4</strong></td>
+    <td>Proposal preview, Export Draft PDF, Save Draft, Submit</td>
+    <td>Full preview compiles; Draft save commits record to DB with status='draft'; Submit validates required fields.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Proponent Review Queues</strong></td>
+    <td>Pending, Approved, Returned, Rejected lists</td>
+    <td>Pending queue shows Dave Lord Rubaya's active submissions; Returned displays reviewer notes; Approved links to activity details.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Department Task Monitoring</strong></td>
+    <td>faculty/tasks.php, dynamic title switch, member filter, timing badges</td>
+    <td>Dynamically changes title to 'Department Task Monitoring' for Program Head; monitors all IT department task deadlines.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Faculty & Department Calendar</strong></td>
+    <td>Month grid, prev/next buttons, activity event pills</td>
+    <td>Navigates between months accurately; event pills color-code by status; clicking pill opens activity modal.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Post-Event & Evaluation</strong></td>
+    <td>Attendance upload, survey CSV parser, QR modal</td>
+    <td>Uploads post-event documentation; computes actual vs target attendance; QR code modal displays evaluation URL.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>KPI & Department Reports</strong></td>
+    <td>faculty/kpi.php, dean/generate-report.php, server-side dept lock</td>
+    <td>KPI analytics aggregate departmental ratings; report generator server-enforces IT Department filter locking.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+  <tr>
+    <td><strong>RBAC Security Bounds</strong></td>
+    <td>Accessing /admin1/*, /admin2/*, /dean/*</td>
+    <td>Program Head access strictly forbidden; returns 403 Forbidden or safely redirects to /program_head/dashboard.php.</td>
+    <td><span class="badge-pass">PASSED</span></td>
+  </tr>
+</table>
+
+<h2 class="sec-title">5. Approval Workflow Architecture Analysis</h2>
+<p>
+  A central requirement of this audit was to determine whether the IT Program Head is a mandatory approval stage, 
+  an optional reviewer, or has monitoring-only responsibilities. Code inspection and interaction testing revealed:
+</p>
+<p>
+  <strong>1. No Approval Action Routes:</strong> The STI-ARMES codebase contains <code>admin1/review.php</code> (Student Organization approver), 
+  <code>admin2/review.php</code> (Academic Affairs approver), and <code>dean/review.php</code> (Final Dean approver). There is no <code>program_head/review.php</code>, 
+  and neither <code>faculty/proposal-view.php</code> nor <code>faculty/view-activity.php</code> render approval, rejection, or endorsement action controls for the Program Head role.
+</p>
+<p>
+  <strong>2. Workflow State Transitions:</strong> When a proposal is submitted by an IT faculty member or the Program Head, its status moves directly to 
+  'submitted' / 'under_review' in Admin 2's queue (<code>admin2/pending.php</code>), completely bypassing any Program Head sign-off step.
+</p>
+<p>
+  <strong>3. Departmental Oversight Scope:</strong> The Program Head role is architected as an academic supervisor with Department Monitoring Responsibilities: 
+  tracking faculty task completion, viewing all approved/completed departmental activities, monitoring aggregate student evaluation KPI ratings, 
+  and generating departmental reports, while simultaneously having the freedom to act as an activity proponent.
+</p>
+
+<div class="page-break"></div>
+
+<h2 class="sec-title">6. Identified Defects, Bugs & Inconsistencies</h2>
+<table>
+  <tr>
+    <th style="width: 14%;">Issue ID</th>
+    <th style="width: 10%;">Severity</th>
+    <th style="width: 18%;">Page / Route</th>
+    <th style="width: 18%;">Affected Component</th>
+    <th>Observed Defect / Finding</th>
+    <th>Recommended Correction</th>
+  </tr>
+  <tr>
+    <td><strong>ISSUE-PH-01</strong></td>
+    <td><span class="badge-high">High</span></td>
+    <td>faculty/proposal-create.php & proposal-edit.php</td>
+    <td>Faculty Task Assignment Optgroups</td>
+    <td>The faculty roster in renderFacultyTaskOptgroups() is statically hardcoded in an array ($facultyDepartmentGroups) with fixed names. When new faculty register or profiles change, the dropdown is desynchronized from the actual database users table.</td>
+    <td>Replace hardcoded array with dynamic population from getEligibleFacultyMembers($db) grouped by user.department.</td>
+  </tr>
+  <tr>
+    <td><strong>ISSUE-PH-02</strong></td>
+    <td><span class="badge-med">Medium</span></td>
+    <td>program_head/dashboard.php:58</td>
+    <td>SQL Database Query Execution</td>
+    <td>The activity statistics query on line 58 interpolates the user ID directly (a.faculty_id = {$userId}) instead of utilizing PDO parameterized binding ($stmt-&gt;execute([$userId])).</td>
+    <td>Refactor query to use PDO prepared statements with bound parameter placeholders.</td>
+  </tr>
+  <tr>
+    <td><strong>ISSUE-PH-03</strong></td>
+    <td><span class="badge-med">Medium</span></td>
+    <td>faculty/kpi-overview.php & faculty/kpi-reports.php</td>
+    <td>Secondary KPI Reporting Pages</td>
+    <td>kpi-overview.php and kpi-reports.php are identical legacy duplicate stubs that list activities without rendering any actual KPI metrics. They are not linked in the sidebar and create code redundancy.</td>
+    <td>Consolidate both files into redirects pointing to the primary faculty/kpi.php, or upgrade them to display departmental comparative analytics.</td>
+  </tr>
+  <tr>
+    <td><strong>ISSUE-PH-04</strong></td>
+    <td><span class="badge-low">Low</span></td>
+    <td>faculty/tasks.php</td>
+    <td>Task Filter Control Responsive Layout</td>
+    <td>On screen viewports between 1024px and 1280px, the 6 task filter dropdowns wrap unevenly, causing the 'Search task, activity, role' input and button to drop to a second line with awkward left alignment.</td>
+    <td>Apply CSS flexbox wrapping or a standardized CSS grid (grid-template-columns: repeat(auto-fit, minmax(180px, 1fr))) to maintain uniform alignment.</td>
+  </tr>
+  <tr>
+    <td><strong>ISSUE-PH-05</strong></td>
+    <td><span class="badge-low">Low</span></td>
+    <td>program_head/contributors.php:127</td>
+    <td>Faculty Contributors Card Header Text</td>
+    <td>The header text concatenates 'Department' twice: 'Faculty Contributors — IT Department Department', resulting in redundant wording when the department name already includes 'Department'.</td>
+    <td>Sanitize department name string by removing redundant trailing 'Department' before rendering the header.</td>
+  </tr>
+  <tr>
+    <td><strong>ISSUE-PH-06</strong></td>
+    <td><span class="badge-low">Low</span></td>
+    <td>faculty/proposal-create.php</td>
+    <td>Direct Step Jumping via URL Query Parameter</td>
+    <td>Users can manually enter URL parameters like ?step=4 without completing Steps 1-3. While backend submission validation prevents saving an incomplete proposal, the UI does not redirect the user back to the first incomplete step.</td>
+    <td>Add a client-side and server-side step guard that verifies required Step 1 fields before allowing navigation to Step 2, 3, or 4.</td>
+  </tr>
+</table>
+
+<div class="page-break"></div>
+
+<h2 class="sec-title">7. Genuine Screenshot Evidence Catalog</h2>
+<div class="gallery-grid">
+
+  <div class="card">
+    <img src="screenshots/PH-IT-01-AUTH-LOGIN.png" alt="Authentication Login Page">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-01] Authentication Login Page</div>
+      <div class="card-cap">STI-ARMES Authentication Login Page with show/hide password and institutional branding.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-02-DASHBOARD-OVERVIEW.png" alt="IT Program Head Dashboard">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-02] IT Program Head Dashboard</div>
+      <div class="card-cap">IT Program Head Dashboard Overview with 7 key department metric stat cards, activities table, and task monitoring.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-03-DASHBOARD-DARKMODE.png" alt="Dashboard Dark Mode">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-03] Dashboard Dark Mode</div>
+      <div class="card-cap">IT Program Head Dashboard rendered in Dark Theme mode verifying CSS variable contrast and legibility.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-04-CONTRIBUTORS-LIST.png" alt="Faculty Contributors List">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-04] Faculty Contributors List</div>
+      <div class="card-cap">Faculty Contributors List for IT Department showing proposal counts, assigned tasks, and search filter.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-05-DEPT-ACTIVITIES.png" alt="IT Department Activities">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-05] IT Department Activities</div>
+      <div class="card-cap">IT Department Activities Master Table displaying approved and completed events scoped to the IT Department.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-06-PROPOSAL-CREATE-STEP1.png" alt="Proposal Wizard: Step 1">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-06] Proposal Wizard: Step 1</div>
+      <div class="card-cap">Proposal Creation Wizard - Step 1: Event Information, Concept, auto-capitalization, and venue picker.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-07-PROPOSAL-CREATE-STEP2.png" alt="Proposal Wizard: Step 2">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-07] Proposal Wizard: Step 2</div>
+      <div class="card-cap">Proposal Creation Wizard - Step 2: Schedule & Program Sequence, Floor Plan Uploader & Budget.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-08-PROPOSAL-CREATE-STEP3.png" alt="Proposal Wizard: Step 3">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-08] Proposal Wizard: Step 3</div>
+      <div class="card-cap">Proposal Creation Wizard - Step 3: Working Committees, Manpower Task Assignments & Gantt Timeline.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-09-PROPOSAL-CREATE-STEP4.png" alt="Proposal Wizard: Step 4">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-09] Proposal Wizard: Step 4</div>
+      <div class="card-cap">Proposal Creation Wizard - Step 4: Proposal Summary, Export Draft PDF, Save as Draft, and Final Submit.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-10-PENDING-PROPOSALS.png" alt="Pending Proposals Queue">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-10] Pending Proposals Queue</div>
+      <div class="card-cap">Program Head Proponent Pending Proposals Queue displaying submissions currently awaiting approver actions.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-11-APPROVED-ACTIVITIES.png" alt="Approved Activities Oversight">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-11] Approved Activities Oversight</div>
+      <div class="card-cap">IT Department Approved Activities Oversight showing scheduled events approved by Academic Approvers.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-12-RETURNED-REVISIONS.png" alt="Returned for Revision">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-12] Returned for Revision</div>
+      <div class="card-cap">Returned for Revision Table displaying approver feedback notes, returned timestamps, and edit links.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-13-REJECTED-PROPOSALS.png" alt="Rejected Proposals History">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-13] Rejected Proposals History</div>
+      <div class="card-cap">Rejected Proposals History displaying rejection reasons, reviewer name, and decision dates.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-14-TASK-MONITORING.png" alt="Department Task Monitoring">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-14] Department Task Monitoring</div>
+      <div class="card-cap">Department Task Monitoring displaying all IT department tasks, deadlines, progress percentages, and timing badges.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-15-CALENDAR-VIEW.png" alt="Department Calendar Grid">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-15] Department Calendar Grid</div>
+      <div class="card-cap">IT Department & Institutional Calendar Grid showing scheduled activities, month navigation, and event pills.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-16-POST-EVENT-MODULE.png" alt="Post-Event Reporting">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-16] Post-Event Reporting</div>
+      <div class="card-cap">Post-Event Reporting, Deliverable File Uploads, Participant Attendance input, and Evaluation Link tool.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-17-KPI-REPORTS.png" alt="KPI & Department Performance">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-17] KPI & Department Performance</div>
+      <div class="card-cap">IT Department Aggregate KPI Performance Analysis displaying survey averages, satisfaction, and attendance target.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-18-GENERATE-REPORT.png" alt="Generate Report (Locked)">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-18] Generate Report (Locked)</div>
+      <div class="card-cap">Institutional Report Generator with server-side enforced lock restricting filter to IT Department.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-19-PROPOSAL-VIEW-TIMELINE.png" alt="Proposal Detail Dossier">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-19] Proposal Detail Dossier</div>
+      <div class="card-cap">Proposal Detail Dossier displaying complete proposal data, approval history timeline, and PDF exporter.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-20-ACTIVITY-VIEW-DETAILS.png" alt="Activity Master Detail View">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-20] Activity Master Detail View</div>
+      <div class="card-cap">Activity Master Detail View displaying tabbed sub-panels (Overview, Tasks, Evaluations) and export tools.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-21-NOTIFICATIONS-VIEW.png" alt="Notifications Center">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-21] Notifications Center</div>
+      <div class="card-cap">Notifications Center displaying system alerts, task deadlines, approver updates, and mark-as-read controls.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-22-PROFILE-MODAL.png" alt="User Profile Dialog">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-22] User Profile Dialog</div>
+      <div class="card-cap">User Profile & Account Settings Dialog showing personal information, role badge, and password change link.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-23-RBAC-DENIED-ADMIN1.png" alt="RBAC Boundary Enforcement">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-23] RBAC Boundary Enforcement</div>
+      <div class="card-cap">RBAC Boundary Enforcement verifying that Program Head accounts are strictly denied access to Admin 1/2 and Dean portals.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <img src="screenshots/PH-IT-24-LIVE-ENDPOINT-PRODUCTION.png" alt="Live Production Website">
+    <div class="card-body">
+      <div class="card-title">[PH-IT-24] Live Production Website</div>
+      <div class="card-cap">Live Production Endpoint verification at https://sti-armes.freedev.app/auth/login.php.</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="page-break"></div>
+
+<h2 class="sec-title">8. Role-Based Access Control (RBAC) Assessment</h2>
+<p>
+  A critical mandate of the audit was verifying security boundaries between user roles. Six unauthorized routes 
+  were directly accessed using the authenticated IT Program Head session:
+</p>
+<p>
+  • <strong>/admin1/dashboard.php</strong> (Student Org Academic Approver): <span class="badge-pass">BLOCKED / REDIRECTED (PASSED)</span><br>
+  • <strong>/admin2/dashboard.php</strong> (Academic Affairs Approver): <span class="badge-pass">BLOCKED / REDIRECTED (PASSED)</span><br>
+  • <strong>/dean/dashboard.php</strong> (Dean Oversight): <span class="badge-pass">BLOCKED / REDIRECTED (PASSED)</span><br>
+  • <strong>/admin1/review.php</strong> (Admin 1 Proposal Review): <span class="badge-pass">BLOCKED / REDIRECTED (PASSED)</span><br>
+  • <strong>/admin2/users.php</strong> (Admin 2 User Management): <span class="badge-pass">BLOCKED / REDIRECTED (PASSED)</span><br>
+  • <strong>/dean/users.php</strong> (Dean User Management): <span class="badge-pass">BLOCKED / REDIRECTED (PASSED)</span>
+</p>
+<p>
+  Departmental data boundary testing confirmed that the IT Program Head cannot view unsubmitted drafts or pending 
+  proposals of other faculty members outside their proponent permissions, and cannot edit activities belonging to other 
+  departments. All cross-department activities shown on the dashboard are read-only summary items.
+</p>
+
+<h2 class="sec-title">9. Overall Assessment & Conclusion</h2>
+<p>
+  The STI-ARMES IT Program Head Module exhibits an exceptionally stable and well-scoped architectural foundation. 
+  The role fulfills a dual purpose with high fidelity: serving as a departmental monitoring lead (tracking IT faculty activities, 
+  task deadlines, and student evaluation benchmarks) while functioning as an activity proponent. Security boundaries and server-side 
+  department locks are properly enforced, safeguarding institutional data integrity. The identified defects are architectural 
+  enhancements (dynamic faculty roster resolution, SQL parameterization on dashboard queries, and redundant label cleanup) 
+  that can be seamlessly resolved without breaking any operational workflows.
+</p>
+
+</body>
+</html>

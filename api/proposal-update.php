@@ -1061,6 +1061,9 @@ $db->beginTransaction();
         $newlyCreatedDiskPath = $uploadDir . $filename;
         $path = 'uploads/floorplans/' . $filename;
         $hasNewImage = true;
+        if (function_exists('attemptOneDriveArchiveCopy')) {
+            attemptOneDriveArchiveCopy($newlyCreatedDiskPath, $filename, 'floorplans', $id);
+        }
     }
 
     $saveFpNotes = sanitize($_POST['floor_plan_notes'] ?? '');
@@ -1129,24 +1132,25 @@ $db->beginTransaction();
         $lastReturn = $logStmt->fetch();
 
         $currSource = $activity['source'] ?? $source ?? 'faculty';
+        $isProgramHeadSubmitter = (($user['role'] ?? '') === 'program_head');
         if ($lastReturn) {
             if ($lastReturn['role'] === 'admin1') {
                 $nextStatus = 'under_review';
                 $notifyRole = 'admin1';
             } elseif ($lastReturn['role'] === 'admin2') {
-                $nextStatus = ($currSource === 'student_org') ? 'endorsed' : 'submitted';
+                $nextStatus = ($currSource === 'student_org' || $isProgramHeadSubmitter) ? 'endorsed' : 'submitted';
                 $notifyRole = 'admin2';
             } elseif ($lastReturn['role'] === 'dean') {
                 $nextStatus = 'pending_final_approval';
                 $notifyRole = 'dean';
             } else {
-                $nextStatus = ($currSource === 'student_org') ? 'under_review' : 'submitted';
-                $notifyRole = ($currSource === 'student_org') ? 'admin1' : 'admin2';
+                $nextStatus = ($currSource === 'student_org' || $isProgramHeadSubmitter) ? 'under_review' : 'submitted';
+                $notifyRole = ($currSource === 'student_org' || $isProgramHeadSubmitter) ? 'admin1' : 'admin2';
             }
         } else {
-            // Default routing by source if no previous return log
-            $nextStatus = ($currSource === 'student_org') ? 'under_review' : 'submitted';
-            $notifyRole = ($currSource === 'student_org') ? 'admin1' : 'admin2';
+            // Default routing by source or submitter role if no previous return log
+            $nextStatus = ($currSource === 'student_org' || $isProgramHeadSubmitter) ? 'under_review' : 'submitted';
+            $notifyRole = ($currSource === 'student_org' || $isProgramHeadSubmitter) ? 'admin1' : 'admin2';
         }
 
         $db->prepare("UPDATE activities SET status=?, revision_sections=NULL WHERE id=?")->execute([$nextStatus,$id]);
@@ -1234,19 +1238,6 @@ $db->beginTransaction();
         $responseSent = true;
     }
 
-    // Flush and finish HTTP response immediately if FastCGI is active!
-    // The browser receives the response in under 50ms and navigates instantly.
-    if (function_exists('fastcgi_finish_request')) {
-        if (!$responseSent) {
-            header("Location: " . $targetRedirect);
-            $responseSent = true;
-        }
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            session_write_close();
-        }
-        fastcgi_finish_request();
-    }
-
     // Automatically generate and archive proposal PDF snapshot to OneDrive upon submission/resubmission
     if ($action === 'submit') {
         try {
@@ -1290,6 +1281,24 @@ $db->beginTransaction();
                     $reviewLink,
                     $id,
                     "proposal_resubmitted"
+                );
+            }
+
+            // Also notify author with confirmation that their resubmitted proposal was received successfully
+            if (!empty($user['email'])) {
+                $authorViewLink = (($user['role'] ?? '') === 'program_head')
+                    ? BASE_URL . "/program_head/dashboard.php"
+                    : BASE_URL . "/faculty/proposal-view.php?id=" . $id;
+                $emailService->sendNotification(
+                    $user['email'],
+                    $user['name'],
+                    "Proposal Resubmitted Successfully: " . $proposalTitle,
+                    $proposalTitle,
+                    'Under Review',
+                    "Your revised activity proposal '" . $proposalTitle . "' has been resubmitted successfully and is currently awaiting review.",
+                    $authorViewLink,
+                    $id,
+                    "proposal_resubmitted_author_confirm"
                 );
             }
         } catch (\Throwable $mailEx) {

@@ -118,13 +118,14 @@ $admin2VisibleSql = buildAdmin2VisibleActivitySql((int)$user['id'], 'a');
 try {
     $statsStmt = $db->prepare("
       SELECT
-        SUM((a.source = 'faculty' AND a.status IN ('submitted','under_review','resubmitted')) OR a.status = 'endorsed') as pending,
+        SUM((a.source = 'faculty' AND u.role != 'program_head' AND a.status IN ('submitted','under_review','resubmitted')) OR a.status = 'endorsed') as pending,
         SUM(a.status='approved') as approved,
         SUM(a.status='returned_for_revision') as returned,
         SUM(a.status='rejected') as rejected,
         SUM(a.status='completed') as completed,
         COUNT(*) as total
       FROM activities a
+      JOIN users u ON a.faculty_id = u.id
       WHERE {$whereClause} AND {$admin2VisibleSql}
     ");
     $statsStmt->execute($params);
@@ -137,7 +138,7 @@ try {
     $pendingStmt = $db->prepare("
       SELECT a.*, u.name as faculty_name FROM activities a
       JOIN users u ON a.faculty_id=u.id
-      WHERE ((a.source = 'faculty' AND a.status IN ('submitted','under_review','resubmitted')) OR a.status = 'endorsed') AND {$whereClause}
+      WHERE ((a.source = 'faculty' AND u.role != 'program_head' AND a.status IN ('submitted','under_review','resubmitted')) OR a.status = 'endorsed') AND {$whereClause}
       ORDER BY a.submitted_at DESC LIMIT 10
     ");
     $pendingStmt->execute($params);

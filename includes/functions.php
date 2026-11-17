@@ -1885,7 +1885,7 @@ if (!function_exists('buildAdmin2VisibleActivitySql')) {
             )
             OR (
                 {$alias}.status IN ('endorsed', 'pending_final_approval', 'pending_dean_approval', 'approved', 'completed')
-                OR ({$alias}.source = 'faculty' AND {$alias}.status IN ('submitted', 'under_review', 'resubmitted'))
+                OR ({$alias}.source = 'faculty' AND NOT EXISTS (SELECT 1 FROM users u_ph WHERE u_ph.id = {$alias}.faculty_id AND u_ph.role = 'program_head') AND {$alias}.status IN ('submitted', 'under_review', 'resubmitted'))
                 OR (
                     {$alias}.status IN ('returned_for_revision', 'rejected')
                     AND EXISTS (
@@ -1947,7 +1947,7 @@ function canUserAccessActivity(int $activityId, string $action = 'view', ?int $u
 
     // Fetch activity and creator details (including status for draft privacy enforcement)
     $stmt = $db->prepare("
-        SELECT a.id, a.faculty_id, a.status, a.source, u.department AS creator_department
+        SELECT a.id, a.faculty_id, a.status, a.source, u.department AS creator_department, u.role AS creator_role
         FROM activities a
         LEFT JOIN users u ON a.faculty_id = u.id
         WHERE a.id = ?
@@ -1961,6 +1961,7 @@ function canUserAccessActivity(int $activityId, string $action = 'view', ?int $u
 
     $creatorId = (int)$act['faculty_id'];
     $creatorDept = (string)($act['creator_department'] ?? '');
+    $creatorRole = (string)($act['creator_role'] ?? '');
     $actStatus = strtolower(trim((string)($act['status'] ?? 'draft')));
     $actSource = strtolower(trim((string)($act['source'] ?? 'faculty')));
     $isCreator = ($creatorId === (int)$userId);
@@ -2008,8 +2009,8 @@ function canUserAccessActivity(int $activityId, string $action = 'view', ?int $u
             return $isCollab;
         }
 
-        // Action is 'view': strictly allowed only for student_org proposals or explicit collaborators
-        return ($actSource === 'student_org' || $isCollab);
+        // Action is 'view': allowed for student_org proposals, proposals authored by Program Heads, or explicit collaborators
+        return ($actSource === 'student_org' || $creatorRole === 'program_head' || $isCollab);
     }
 
     // 2. Admin 2 (Events Committee Head) reviewer access rules:
@@ -2041,7 +2042,7 @@ function canUserAccessActivity(int $activityId, string $action = 'view', ?int $u
         if (in_array($actStatus, ['endorsed', 'pending_final_approval', 'pending_dean_approval', 'approved', 'completed'], true)) {
             return true;
         }
-        if ($actSource === 'faculty' && in_array($actStatus, ['submitted', 'under_review', 'resubmitted'], true)) {
+        if ($actSource === 'faculty' && $creatorRole !== 'program_head' && in_array($actStatus, ['submitted', 'under_review', 'resubmitted'], true)) {
             return true;
         }
         if (in_array($actStatus, ['returned_for_revision', 'rejected'], true)) {

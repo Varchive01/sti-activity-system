@@ -694,6 +694,9 @@ $db->beginTransaction();
             file_put_contents($uploadDir . $filename, $data);
             $newlyCreatedDiskPath = $uploadDir . $filename;
             $path = 'uploads/floorplans/' . $filename;
+            if (function_exists('attemptOneDriveArchiveCopy')) {
+                attemptOneDriveArchiveCopy($newlyCreatedDiskPath, $filename, 'floorplans', $actId);
+            }
         }
     }
     
@@ -761,11 +764,12 @@ $db->beginTransaction();
     $emailsToSend = [];
     if ($status === 'submitted') {
         $source = $_POST['source'] ?? 'faculty';
-        $nextStatus = ($source === 'student_org') ? 'under_review' : 'submitted';
+        $isProgramHeadSubmitter = (($user['role'] ?? '') === 'program_head');
+        $nextStatus = ($source === 'student_org' || $isProgramHeadSubmitter) ? 'under_review' : 'submitted';
         $db->prepare("UPDATE activities SET status=? WHERE id=?")->execute([$nextStatus, $actId]);
 
-        // Notify appropriate admin: student_org goes to admin1, faculty goes straight to admin2
-        $notifyRole = ($source === 'student_org') ? 'admin1' : 'admin2';
+        // Notify appropriate admin: student_org and program_head go to admin1, regular faculty goes straight to admin2
+        $notifyRole = ($source === 'student_org' || $isProgramHeadSubmitter) ? 'admin1' : 'admin2';
         $admins = $db->prepare("SELECT id, email, name FROM users WHERE role=?");
         $admins->execute([$notifyRole]);
         $adminRows = $admins->fetchAll();
@@ -842,39 +846,6 @@ $db->beginTransaction();
         $targetRedirect = BASE_URL . "/faculty/proposal-edit.php?id={$actId}&shared=1";
     }
 
-    $responseSent = false;
-    if ($isAjax) {
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
-            'success'     => true,
-            'activity_id' => $actId,
-            'source'      => $saveSource,
-            'poster_path' => $savedPosterPath,
-            'status'      => $status,
-            'shared'      => $isSendToCollaborators,
-            'message'     => $isSendToCollaborators
-                ? 'Proposal draft saved and shared with collaborators successfully.'
-                : ($status === 'submitted' ? 'Proposal submitted for approval successfully.' : 'Proposal draft saved successfully.'),
-            'redirect'    => $targetRedirect,
-            'updated_at'  => date('Y-m-d H:i:s'),
-            'title'       => sanitize($_POST['title'] ?? '')
-        ]);
-        $responseSent = true;
-    }
-
-    // Flush and finish HTTP response immediately if FastCGI is active!
-    // The browser receives the response in under 50ms and navigates instantly.
-    if (function_exists('fastcgi_finish_request')) {
-        if (!$responseSent) {
-            header("Location: " . $targetRedirect);
-            $responseSent = true;
-        }
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            session_write_close();
-        }
-        fastcgi_finish_request();
-    }
-
     // Automatically generate and archive proposal PDF snapshot to OneDrive upon submission
     if ($status === 'submitted') {
         try {
@@ -917,19 +888,53 @@ $db->beginTransaction();
                     "proposal_submitted"
                 );
             }
+
+            // Also notify author with confirmation that their proposal was submitted successfully
+            if (!empty($user['email'])) {
+                $authorViewLink = (($user['role'] ?? '') === 'program_head')
+                    ? BASE_URL . "/program_head/dashboard.php"
+                    : BASE_URL . "/faculty/proposal-view.php?id=" . $actId;
+                $emailService->sendNotification(
+                    $user['email'],
+                    $user['name'],
+                    "Proposal Submitted Successfully: " . $proposalTitle,
+                    $proposalTitle,
+                    'Under Review',
+                    "Your activity proposal '" . $proposalTitle . "' has been submitted successfully and is currently under review.",
+                    $authorViewLink,
+                    $actId,
+                    "proposal_submitted_author_confirm"
+                );
+            }
         } catch (\Throwable $mailEx) {
             error_log("Failed to dispatch submission email for activity {$actId}: " . $mailEx->getMessage());
         }
     }
 
-    if (!$responseSent) {
-        if ($isSendToCollaborators) {
-            header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$actId}&shared=1");
-            exit;
-        }
-        header("Location: " . $targetRedirect);
+    if ($isAjax) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success'     => true,
+            'activity_id' => $actId,
+            'source'      => $saveSource,
+            'poster_path' => $savedPosterPath,
+            'status'      => $status,
+            'shared'      => $isSendToCollaborators,
+            'message'     => $isSendToCollaborators
+                ? 'Proposal draft saved and shared with collaborators successfully.'
+                : ($status === 'submitted' ? 'Proposal submitted for approval successfully.' : 'Proposal draft saved successfully.'),
+            'redirect'    => $targetRedirect,
+            'updated_at'  => date('Y-m-d H:i:s'),
+            'title'       => sanitize($_POST['title'] ?? '')
+        ]);
         exit;
     }
+
+    if ($isSendToCollaborators) {
+        header("Location: " . BASE_URL . "/faculty/proposal-edit.php?id={$actId}&shared=1");
+        exit;
+    }
+    header("Location: " . $targetRedirect);
     exit;
 
 } catch (\Throwable $e) {

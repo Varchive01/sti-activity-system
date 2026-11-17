@@ -18,10 +18,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sent = $emailService->sendNotification(
             $testEmail,
             "Test User",
-            "STI Activity System - SMTP Test",
+            "STI Activity System - Mail Test",
             "Test Proposal",
             "Testing",
-            "This is a test notification to verify that the Outlook SMTP configuration is working correctly.",
+            "This is a test notification to verify that the Microsoft 365 Exchange configuration is working correctly.",
             BASE_URL,
             null,
             "test_email"

@@ -13,7 +13,7 @@ $page       = max(1, (int)($_GET['page'] ?? 1));
 $perPage    = 15;
 $offset     = ($page - 1) * $perPage;
 
-$where  = "(a.source = 'student_org' OR a.faculty_id = {$user['id']} OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$user['id']} AND pc.status = 'active')) AND (a.status != 'draft' OR a.faculty_id = {$user['id']} OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$user['id']} AND pc.status = 'active'))";
+$where  = "(a.source = 'student_org' OR EXISTS (SELECT 1 FROM users u_ph WHERE u_ph.id = a.faculty_id AND u_ph.role = 'program_head') OR a.faculty_id = {$user['id']} OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$user['id']} AND pc.status = 'active')) AND (a.status != 'draft' OR a.faculty_id = {$user['id']} OR EXISTS (SELECT 1 FROM proposal_collaborators pc WHERE pc.activity_id = a.id AND pc.user_id = {$user['id']} AND pc.status = 'active'))";
 $params = [];
 if ($search) {
   $where .= " AND a.title LIKE ?";
@@ -48,7 +48,7 @@ $totalCount = (int)$total->fetchColumn();
 $totalPages = ceil($totalCount / $perPage);
 
 $acts = $db->prepare("
-  SELECT a.*, u.name as fn 
+  SELECT a.*, u.name as fn, u.role as author_role 
   FROM activities a 
   JOIN users u ON a.faculty_id = u.id 
   WHERE $where 
@@ -149,7 +149,7 @@ $activities = $acts->fetchAll();
                         <?php elseif ($a['status'] === 'completed'): ?>
                           <button type="button" class="btn btn-outline btn-sm" onclick="confirmArchiveSingleActivity(<?= (int)$a['id'] ?>, '<?= htmlspecialchars(addslashes($a['title']), ENT_QUOTES) ?>')">Archive</button>
                         <?php endif; ?>
-                        <?php if (in_array($a['status'], ['under_review', 'submitted', 'resubmitted'], true) && ($a['source'] ?? '') === 'student_org'): ?>
+                        <?php if (in_array($a['status'], ['under_review', 'submitted', 'resubmitted'], true) && (($a['source'] ?? '') === 'student_org' || ($a['author_role'] ?? '') === 'program_head')): ?>
                           <a href="<?= BASE_URL ?>/admin1/review.php?id=<?= $a['id'] ?>" class="btn btn-primary btn-sm">Review</a>
                         <?php endif; ?>
                       </div>

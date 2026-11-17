@@ -86,16 +86,41 @@ class MicrosoftOAuthService
 
     /**
      * Generates the authorization URL to redirect the user to Microsoft login.
+     * Includes prompt=select_account so users are prompted to choose an account,
+     * preventing automatic silent reuse of a previously authenticated browser session.
      *
      * @param string $state Secure CSRF state token
+     * @param array $customOptions Additional options to merge into authorization parameters
      * @return string
      */
-    public function getAuthorizationUrl(string $state): string
+    public function getAuthorizationUrl(string $state, array $customOptions = []): string
     {
-        return $this->provider->getAuthorizationUrl([
-            'state' => $state,
-            'scope' => ['openid', 'profile', 'email', 'User.Read'],
-        ]);
+        $options = array_merge([
+            'state'  => $state,
+            'scope'  => ['openid', 'profile', 'email', 'User.Read'],
+            'prompt' => 'select_account',
+        ], $customOptions);
+
+        return $this->provider->getAuthorizationUrl($options);
+    }
+
+    /**
+     * Generates the Microsoft Entra ID v2.0 logout URL with a post-logout redirect.
+     *
+     * @param string|null $postLogoutRedirectUri URL to redirect back to after Microsoft logout
+     * @return string
+     */
+    public function getLogoutUrl(?string $postLogoutRedirectUri = null): string
+    {
+        $tenantId = !empty($this->config['tenant_id']) ? $this->config['tenant_id'] : 'common';
+        $endpoint = "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/logout";
+
+        if ($postLogoutRedirectUri === null) {
+            $baseUrl = defined('BASE_URL') ? BASE_URL : 'http://localhost/sti-activity-system';
+            $postLogoutRedirectUri = rtrim($baseUrl, '/') . '/auth/login.php';
+        }
+
+        return $endpoint . '?post_logout_redirect_uri=' . urlencode($postLogoutRedirectUri);
     }
 
     /**

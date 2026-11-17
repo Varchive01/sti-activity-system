@@ -118,12 +118,13 @@ try {
     $statsStmt = $db->prepare("
       SELECT
         COUNT(*) as total,
-        SUM(a.status IN ('under_review','resubmitted')) as pending,
-        SUM(a.status='approved') as approved,
+        SUM(a.status IN ('under_review','submitted','resubmitted')) as pending,
+        SUM(a.status IN ('approved','endorsed','pending_final_approval','completed')) as approved,
         SUM(a.status='returned_for_revision') as returned,
         SUM(a.status='rejected') as rejected
       FROM activities a
-      WHERE a.source='student_org' AND {$whereClause}
+      JOIN users u ON a.faculty_id = u.id
+      WHERE (a.source='student_org' OR u.role='program_head') AND {$whereClause}
     ");
     $statsStmt->execute($params);
     $stats = $statsStmt->fetch() ?: [];
@@ -135,7 +136,7 @@ try {
     $pendingStmt = $db->prepare("
       SELECT a.*, u.name as faculty_name FROM activities a
       JOIN users u ON a.faculty_id=u.id
-      WHERE a.source='student_org' AND a.status IN ('under_review','resubmitted') AND {$whereClause}
+      WHERE (a.source='student_org' OR u.role='program_head') AND a.status IN ('under_review','submitted','resubmitted') AND {$whereClause}
       ORDER BY a.submitted_at DESC LIMIT 10
     ");
     $pendingStmt->execute($params);

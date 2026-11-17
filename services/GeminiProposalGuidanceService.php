@@ -46,11 +46,9 @@
             $prompt = $this->buildGuidancePrompt($proposal);
 
             $modelsToTry = [
-                'gemini-2.5-flash',
-                'gemini-flash-latest',
-                'gemini-3.5-flash',
-                'gemini-3.7-flash',
-                'gemini-flash-lite-latest'
+                'gemini-3.5-flash-lite',
+                'gemini-3.1-flash-lite',
+                'gemini-flash-latest'
             ];
 
             $payloadData = [
@@ -76,17 +74,16 @@
 
             foreach ($modelsToTry as $modelName) {
                 $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $modelName . ':generateContent?key=' . urlencode($this->apiKey);
-                $maxAttempts = 2;
                 $attempt = 0;
 
-                while ($attempt < $maxAttempts) {
+                while ($attempt < 1) {
                     $attempt++;
                     $ch = curl_init($url);
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
                     curl_setopt($ch, CURLOPT_POST, true);
                     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payloadData));
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
                     curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 
                     // Windows CA Bundle detection
@@ -819,11 +816,9 @@ Return STRICTLY a valid JSON object without markdown fences matching this schema
 PROMPT;
 
             $modelsToTry = [
-                'gemini-2.5-flash',
-                'gemini-flash-latest',
-                'gemini-3.5-flash',
-                'gemini-3.7-flash',
-                'gemini-flash-lite-latest'
+                'gemini-3.5-flash-lite',
+                'gemini-3.1-flash-lite',
+                'gemini-flash-latest'
             ];
 
             $payloadData = [
@@ -851,7 +846,7 @@ PROMPT;
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payloadData));
-                curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 6);
                 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 
                 if (file_exists('C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem')) {

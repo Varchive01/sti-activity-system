@@ -1011,13 +1011,25 @@ const AIProposalGuidance = (function () {
       const baseUrl = getBaseUrl();
       const resp = await fetch(`${baseUrl}/api/ai-proposal-guidance.php`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
         body: JSON.stringify(payload)
       });
 
-      const data = await resp.json();
-      if (!resp.ok || !data.success || !data.suggestions) {
-        throw new Error(data.error || `HTTP ${resp.status}: Failed to generate section suggestions.`);
+      const rawText = await resp.text();
+      let data = null;
+      try {
+        data = JSON.parse(rawText);
+      } catch (parseErr) {
+        console.warn('AIProposalGuidance received non-JSON response:', rawText);
+        throw new Error('AI guidance service is momentarily busy or returned an invalid response. Please try again.');
+      }
+
+      if (!resp.ok || !data || !data.success || !data.suggestions) {
+        throw new Error((data && data.error) || `HTTP ${resp.status}: Failed to generate section suggestions.`);
       }
 
       // Merge new suggestions into session cache

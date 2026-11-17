@@ -11,12 +11,30 @@ function startSession(): void
 function requireLogin(): void
 {
     startSession();
+
+    $isApi = (!empty($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'))
+        || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+        || (str_contains(str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? ''), '/api/'))
+        || (str_contains(str_replace('\\', '/', $_SERVER['REQUEST_URI'] ?? ''), '/api/'));
+
     if (empty($_SESSION['user_id'])) {
+        if ($isApi) {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error' => 'Session expired. Please log in again.']);
+            exit;
+        }
         header('Location: ' . BASE_URL . '/auth/login.php');
         exit;
     }
     if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > SESSION_TIMEOUT) {
         session_destroy();
+        if ($isApi) {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error' => 'Session timed out. Please log in again.']);
+            exit;
+        }
         header('Location: ' . BASE_URL . '/auth/login.php?timeout=1');
         exit;
     }
@@ -28,6 +46,12 @@ function requireLogin(): void
         $currentScript = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? $_SERVER['PHP_SELF'] ?? '');
         if (!str_ends_with($currentScript, '/auth/change-password.php') &&
             !str_ends_with($currentScript, '/auth/logout.php')) {
+            if ($isApi) {
+                http_response_code(403);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Password change required before accessing API.']);
+                exit;
+            }
             header('Location: ' . BASE_URL . '/auth/change-password.php');
             exit;
         }
@@ -189,10 +213,31 @@ function login(string $email, string $password): array|false
     return $user;
 }
 
-function logout(): void
+function logout(?string $redirectUrl = null): void
 {
     startSession();
+    $authMethod = $_SESSION['auth_method'] ?? 'local';
+
+    // Construct Microsoft logout URL if this session authenticated via Microsoft SSO
+    $msLogoutUrl = null;
+    if ($authMethod === 'microsoft') {
+        try {
+            require_once __DIR__ . '/MicrosoftOAuthService.php';
+            $oauth = new MicrosoftOAuthService();
+            $configCheck = $oauth->validateConfig();
+            if ($configCheck['valid']) {
+                $postLogoutUri = $redirectUrl ?: ((defined('BASE_URL') ? BASE_URL : 'http://localhost/sti-activity-system') . '/auth/login.php');
+                $msLogoutUrl = $oauth->getLogoutUrl($postLogoutUri);
+            }
+        } catch (\Throwable $e) {
+            error_log("Microsoft logout URL generation error: " . $e->getMessage());
+        }
+    }
+
+    // Completely clear PHP session superglobal
     $_SESSION = [];
+
+    // Expire and clear session cookie in the client browser
     if (ini_get('session.use_cookies')) {
         $p = session_get_cookie_params();
         setcookie(
@@ -205,8 +250,23 @@ function logout(): void
             $p['httponly']
         );
     }
+
+    // Expire any authentication / remember tokens if present
+    if (isset($_COOKIE['remember_token'])) {
+        setcookie('remember_token', '', time() - 42000, '/');
+    }
+
+    // Destroy server-side session storage
     session_destroy();
-    header('Location: ' . BASE_URL . '/auth/login.php');
+
+    // If authenticated via Microsoft, redirect through Microsoft logout endpoint
+    if (!empty($msLogoutUrl)) {
+        header('Location: ' . $msLogoutUrl);
+        exit;
+    }
+
+    $finalDest = $redirectUrl ?: ((defined('BASE_URL') ? BASE_URL : '') . '/auth/login.php');
+    header('Location: ' . $finalDest);
     exit;
 }
 

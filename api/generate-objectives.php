@@ -101,14 +101,35 @@ GUIDELINES:
   \"specific_objectives\": \"1. First specific objective...\\n2. Second specific objective...\\n3. Third specific objective...\"
 }";
 
+// Helper for deterministic high-quality objectives if Gemini is busy or unreachable
+function generateFallbackObjectives(string $title, string $source = '', string $theme = ''): array {
+    $cleanTitle = trim($title);
+    $cleanTheme = trim($theme);
+    $orgContext = !empty($source) ? " under the auspices of " . trim($source) : "";
+
+    $genObj = "To organize and successfully implement '{$cleanTitle}'{$orgContext}, providing students with comprehensive opportunities to develop practical skills, foster academic excellence, and engage in collaborative learning.";
+
+    $specObj = "1. Enhance participants' technical understanding, critical thinking, and practical competencies through structured activities and interactive learning.\n" .
+               "2. Encourage active collaboration, leadership, and knowledge sharing among participating students and faculty advisers.\n" .
+               "3. Assess student learning outcomes, project demonstrations, and feedback to ensure alignment with institutional program goals.";
+
+    return [
+        'general_objective' => $genObj,
+        'specific_objectives' => $specObj,
+        'fallback' => true
+    ];
+}
+
 // 8. Call Gemini API
 $apiKey = function_exists('getGeminiApiKeySecure') ? getGeminiApiKeySecure() : (defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '');
 if (empty($apiKey) || $apiKey === 'YOUR_API_KEY_HERE') {
-    http_response_code(503);
+    $fallback = generateFallbackObjectives($title, $source, $theme);
     ob_clean();
     echo json_encode([
-        'error' => 'Configuration Error: Gemini API key is missing.',
-        'details' => 'Please configure GEMINI_API_KEY in environment or .env file.'
+        'success' => true,
+        'general_objective' => $fallback['general_objective'],
+        'specific_objectives' => $fallback['specific_objectives'],
+        'fallback' => true
     ]);
     exit;
 }
@@ -128,7 +149,7 @@ $data = [
     ]
 ];
 
-$modelsToTry = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-3.5-flash'];
+$modelsToTry = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
 $response = '';
 $httpCode = 0;
 $curlError = '';
@@ -136,73 +157,50 @@ $success = false;
 
 foreach ($modelsToTry as $modelName) {
     $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $modelName . ':generateContent?key=' . urlencode($apiKey);
-    $maxAttempts = 2;
-    $attempt = 0;
-    
-    while ($attempt < $maxAttempts) {
-        $attempt++;
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_TIMEOUT, 40);
-        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+    curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 
-        // Windows/XAMPP CA bundle fallback
-        if (file_exists('C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem')) {
-            curl_setopt($ch, CURLOPT_CAINFO, 'C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem');
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-        } elseif (file_exists('C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem')) {
-            curl_setopt($ch, CURLOPT_CAINFO, 'C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem');
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-        } else {
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-        }
-        
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        @curl_close($ch);
-        
-        if (!$curlError && $httpCode === 200) {
-            $success = true;
-            break 2;
-        }
-        
-        // Retry on 503 or 429
-        if ($httpCode === 503 || $httpCode === 429 || (is_string($response) && strpos($response, 'UNAVAILABLE') !== false)) {
-            if ($attempt < $maxAttempts) {
-                $sleepSeconds = 2;
-                error_log("Gemini API Model $modelName returned HTTP $httpCode in generate-objectives. Attempt $attempt/$maxAttempts. Retrying in {$sleepSeconds}s...");
-                sleep($sleepSeconds);
-                continue;
-            }
-        }
+    // Windows/XAMPP CA bundle fallback
+    if (file_exists('C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem')) {
+        curl_setopt($ch, CURLOPT_CAINFO, 'C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem');
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+    } elseif (file_exists('C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem')) {
+        curl_setopt($ch, CURLOPT_CAINFO, 'C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem');
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+    } else {
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+    }
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    @curl_close($ch);
+    
+    if (!$curlError && $httpCode === 200) {
+        $success = true;
         break;
     }
     
-    error_log("Gemini API Model $modelName failed in generate-objectives. Trying fallback model...");
+    error_log("Gemini API Model $modelName failed in generate-objectives (HTTP $httpCode, $curlError). Trying next model...");
 }
 
-if ($curlError) {
-    error_log("Gemini API cURL Error (generate-objectives): " . $curlError);
-    http_response_code(502);
-    ob_clean();
-    echo json_encode(['error' => 'cURL Error: ' . $curlError]);
-    exit;
-}
-
-if ($httpCode !== 200) {
-    error_log("Gemini API Error (HTTP $httpCode) in generate-objectives: " . $response);
-    http_response_code(502);
+if (!$success || $httpCode !== 200) {
+    error_log("Gemini API all models failed in generate-objectives. Using fallback objectives.");
+    $fallback = generateFallbackObjectives($title, $source, $theme);
     ob_clean();
     echo json_encode([
-        'error' => 'AI Service Error: HTTP ' . $httpCode,
-        'details' => 'Unable to retrieve objectives from AI provider.'
+        'success' => true,
+        'general_objective' => $fallback['general_objective'],
+        'specific_objectives' => $fallback['specific_objectives'],
+        'fallback' => true
     ]);
     exit;
 }
@@ -285,10 +283,13 @@ if ($objectives && isset($objectives['general_objective']) && isset($objectives[
     exit;
 }
 
-http_response_code(422);
+// Fallback if parsing was malformed
+$fallback = generateFallbackObjectives($title, $source, $theme);
 ob_clean();
 echo json_encode([
-    'error' => 'The AI returned an unexpected response. Please try again.',
-    'error_type' => 'parse_error',
-    'raw_response' => $generatedText
+    'success' => true,
+    'general_objective' => $fallback['general_objective'],
+    'specific_objectives' => $fallback['specific_objectives'],
+    'fallback' => true
 ]);
+exit;

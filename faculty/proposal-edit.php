@@ -5454,7 +5454,11 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         try {
           const res = await fetch('<?= BASE_URL ?>/api/generate-objectives.php', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            },
             body: JSON.stringify(payload),
             signal: currentObjAbortController.signal
           });
@@ -5471,8 +5475,16 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             return null;
           }
 
-          const data = await res.json();
-          if (res.ok && data.success && data.general_objective && data.specific_objectives) {
+          const rawText = await res.text();
+          let data = null;
+          try {
+            data = JSON.parse(rawText);
+          } catch (parseErr) {
+            console.warn('Objectives API returned non-JSON:', rawText);
+            throw new Error('Objectives service is busy. Please try again.');
+          }
+
+          if (res.ok && data && data.success && data.general_objective && data.specific_objectives) {
             // Check manual edit protection again before writing (in case user edited while fetch was in flight)
             if (isObjectivesProtected && !forced) {
               renderObjectivesStatus('OUTDATED');
@@ -5850,7 +5862,11 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         try {
           const res = await fetch('<?= BASE_URL ?>/api/generate-theme.php', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            },
             body: JSON.stringify(payload),
             signal: currentThemeAbortController.signal
           });
@@ -5860,8 +5876,16 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             return null;
           }
 
-          const data = await res.json();
-          if (res.ok && data.success && data.theme) {
+          const rawText = await res.text();
+          let data = null;
+          try {
+            data = JSON.parse(rawText);
+          } catch (parseErr) {
+            console.warn('Theme API returned non-JSON:', rawText);
+            throw new Error('Theme generation service is busy. You can enter your theme manually or retry.');
+          }
+
+          if (res.ok && data && data.success && data.theme) {
             // Check again: if user manually edited the theme while fetch was in flight, do not overwrite!
             if (isThemeManuallyEdited && !forced) {
               renderThemeStatus('OUTDATED');

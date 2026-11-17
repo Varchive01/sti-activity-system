@@ -11,10 +11,15 @@ $db   = getDB();
 $id = (int)($_GET['id'] ?? 0);
 if (!$id) { header('Location: '.BASE_URL.'/admin1/dashboard.php'); exit; }
 
-$act = $db->prepare("SELECT a.*,u.name as faculty_name,u.email as faculty_email FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.id=? AND a.source='student_org'");
+$act = $db->prepare("SELECT a.*,u.name as faculty_name,u.email as faculty_email,u.role as author_role FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.id=? AND (a.source='student_org' OR u.role='program_head')");
 $act->execute([$id]);
 $activity = $act->fetch();
 if (!$activity) { die('Activity not found or not accessible.'); }
+
+$currStatus = trim(strtolower($activity['status'] ?? ''));
+$isStudentOrg = (($activity['source'] ?? '') === 'student_org');
+$isProgramHeadAuthor = (trim(strtolower($activity['author_role'] ?? '')) === 'program_head');
+$isReviewable = ($isStudentOrg || $isProgramHeadAuthor) && in_array($currStatus, ['under_review', 'submitted', 'resubmitted'], true);
 
 $materials = $db->prepare("SELECT * FROM materials WHERE activity_id=?");
 $materials->execute([$id]);
@@ -919,15 +924,54 @@ label, input, button, select, textarea {
         <?php endif; ?>
       </div>
     </div>
-    <div class="flex gap-2">
+    <div class="flex gap-2" style="align-items:center;">
       <a href="<?= BASE_URL ?>/admin1/dashboard.php" class="btn btn-outline btn-sm">← Back</a>
-      <button class="btn btn-outline" onclick="openModal('return')">↩ Return for Revision</button>
-      <button class="btn btn-danger"  onclick="openModal('reject')">✕ Reject</button>
-      <button class="btn btn-success" onclick="openModal('forward')">✓ Approve &amp; Forward to Dean</button>
+      <?php if ($isReviewable): ?>
+        <button class="btn btn-outline" onclick="openModal('return')">↩ Return for Revision</button>
+        <button class="btn btn-danger"  onclick="openModal('reject')">✕ Reject</button>
+        <button class="btn btn-success" onclick="openModal('forward')">✓ Approve &amp; Forward</button>
+      <?php else: ?>
+        <?php if ($currStatus === 'endorsed'): ?>
+          <span class="badge badge-info" style="font-size:0.82rem; padding:7px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:600;">
+            ✓ Endorsed — Awaiting Events Committee Review
+          </span>
+        <?php elseif ($currStatus === 'pending_final_approval'): ?>
+          <span class="badge badge-info" style="font-size:0.82rem; padding:7px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:600;">
+            ⏳ Forwarded — Pending Final Approval by Dean
+          </span>
+        <?php elseif ($currStatus === 'approved'): ?>
+          <span class="badge badge-success" style="font-size:0.82rem; padding:7px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:600;">
+            ✓ Fully Approved
+          </span>
+        <?php elseif ($currStatus === 'returned_for_revision'): ?>
+          <span class="badge badge-warning" style="font-size:0.82rem; padding:7px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:600;">
+            ↩ Returned for Revision (Awaiting Resubmission)
+          </span>
+        <?php elseif ($currStatus === 'rejected'): ?>
+          <span class="badge badge-danger" style="font-size:0.82rem; padding:7px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:600;">
+            ✕ Proposal Rejected
+          </span>
+        <?php else: ?>
+          <span class="badge badge-secondary" style="font-size:0.82rem; padding:7px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:600;">
+            <?= htmlspecialchars(ucwords(str_replace('_', ' ', $activity['status']))) ?>
+          </span>
+        <?php endif; ?>
+      <?php endif; ?>
     </div>
   </div>
 
   <div class="content">
+
+    <?php if (!empty($_GET['error'])): ?>
+      <div class="alert alert-danger" style="margin-bottom: 20px; padding: 14px 18px; border-radius: 8px; font-weight: 500; font-size: 0.9rem; display: flex; align-items: center; gap: 8px;">
+        ⚠️ <?= htmlspecialchars($_GET['error']) ?>
+      </div>
+    <?php endif; ?>
+    <?php if (!empty($_GET['msg'])): ?>
+      <div class="alert alert-success" style="margin-bottom: 20px; padding: 14px 18px; border-radius: 8px; font-weight: 500; font-size: 0.9rem; display: flex; align-items: center; gap: 8px;">
+        ✓ <?= htmlspecialchars($_GET['msg']) ?>
+      </div>
+    <?php endif; ?>
 
     <!-- ── SECTION 1: Event Details ── -->
     <?php renderSectionHeader('event_details', '📋 Event Details', $stagedComments); ?>
@@ -1259,10 +1303,11 @@ label, input, button, select, textarea {
 </div><!-- main-wrap -->
 
 <!-- Action Modals -->
+<?php if ($isReviewable): ?>
 <?php foreach ([
-  'forward' => ['Approve & Forward to Dean',   'success', 'approved', false],
-  'return'  => ['Return for Revision',          'warning', 'returned', false],
-  'reject'  => ['Reject Proposal',              'danger',  'rejected', true],
+  'forward' => ['Approve & Forward to Events Committee Head', 'success', 'approved', false],
+  'return'  => ['Return for Revision',                      'warning', 'returned', false],
+  'reject'  => ['Reject Proposal',                          'danger',  'rejected', true],
 ] as $key => [$label, $cls, $action, $required]): ?>
 <div class="modal-overlay" id="modal-<?= $key ?>">
   <div class="modal">
@@ -1292,7 +1337,7 @@ label, input, button, select, textarea {
       <?php elseif ($action === 'returned'): ?>
         <p class="text-sm" style="margin-bottom:16px;">Are you sure you want to return this proposal for revision?</p>
       <?php else: ?>
-        <p class="text-sm" style="margin-bottom:16px;">Are you sure you want to approve this proposal? No comment is required.</p>
+        <p class="text-sm" style="margin-bottom:16px;">Are you sure you want to approve this proposal and forward it to Events Committee Head (Sir Ian)? No comment is required.</p>
       <?php endif; ?>
       <div class="flex gap-2" style="justify-content:flex-end;">
         <button type="button" class="btn btn-outline" onclick="closeModal('<?= $key ?>')">Cancel</button>
@@ -1306,6 +1351,7 @@ label, input, button, select, textarea {
   </div>
 </div>
 <?php endforeach; ?>
+<?php endif; ?>
 
 <script>
 const BASE_URL = '<?= BASE_URL ?>';
@@ -1460,41 +1506,53 @@ function updateFlaggedBadge() {
 <?php
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function renderSectionHeader(string $key, string $title, array $staged): void {
+    global $isReviewable;
+    $canEdit = $isReviewable ?? true;
     $hasCmt = isset($staged[$key]);
     $cardCls = $hasCmt ? ' flagged' : '';
     echo "<div class=\"review-section{$cardCls}\" id=\"section-card-{$key}\">";
     echo "<div class=\"review-section-header\">";
     echo "<h2>{$title}</h2>";
-    $btnCls = $hasCmt ? ' has-comment' : '';
-    $btnLabel = $hasCmt ? '✏️ Comment Added' : '📝 Request Revision';
-    echo "<button class=\"btn-request-revision{$btnCls}\" id=\"revbtn-{$key}\" data-section=\"{$key}\">{$btnLabel}</button>";
+    if ($canEdit) {
+        $btnCls = $hasCmt ? ' has-comment' : '';
+        $btnLabel = $hasCmt ? '✏️ Comment Added' : '📝 Request Revision';
+        echo "<button class=\"btn-request-revision{$btnCls}\" id=\"revbtn-{$key}\" data-section=\"{$key}\">{$btnLabel}</button>";
+    }
     echo "</div>";
     // Pre-existing staged comment banner
     if ($hasCmt) {
         $cmt = htmlspecialchars($staged[$key]);
         echo "<div class=\"section-flagged-banner\" id=\"flagged-banner-{$key}\" style=\"display:flex;\">";
         echo "⚠️ <span id=\"flagged-text-{$key}\">{$cmt}</span>";
-        echo "&nbsp;<button class=\"btn-remove-comment\" data-section=\"{$key}\" style=\"margin-left:auto;\">✕ Remove</button>";
+        if ($canEdit) {
+            echo "&nbsp;<button class=\"btn-remove-comment\" data-section=\"{$key}\" style=\"margin-left:auto;\">✕ Remove</button>";
+        }
         echo "</div>";
     } else {
         echo "<div class=\"section-flagged-banner\" id=\"flagged-banner-{$key}\" style=\"display:none;\">";
         echo "⚠️ <span id=\"flagged-text-{$key}\"></span>";
-        echo "&nbsp;<button class=\"btn-remove-comment\" data-section=\"{$key}\" style=\"margin-left:auto;\">✕ Remove</button>";
+        if ($canEdit) {
+            echo "&nbsp;<button class=\"btn-remove-comment\" data-section=\"{$key}\" style=\"margin-left:auto;\">✕ Remove</button>";
+        }
         echo "</div>";
     }
     echo "<div class=\"review-section-body\">";
 }
 
 function renderSectionClose(string $key, array $staged, int $actId): void {
+    global $isReviewable;
+    $canEdit = $isReviewable ?? true;
     $existing = htmlspecialchars($staged[$key] ?? '', ENT_QUOTES);
     echo "</div>"; // close review-section-body
-    // Inline comment box
-    echo "<div class=\"section-comment-box\" id=\"cbox-{$key}\">";
-    echo "<textarea id=\"ctxt-{$key}\" placeholder=\"Describe what needs to be revised in this section...\" style=\"flex:1;\">{$existing}</textarea>";
-    echo "<div style=\"display:flex;flex-direction:column;gap:6px;\">";
-    echo "<button class=\"btn btn-sm btn-warning btn-save-comment\" data-section=\"{$key}\">💾 Save Comment</button>";
-    echo "</div>";
-    echo "</div>";
+    if ($canEdit) {
+        // Inline comment box
+        echo "<div class=\"section-comment-box\" id=\"cbox-{$key}\">";
+        echo "<textarea id=\"ctxt-{$key}\" placeholder=\"Describe what needs to be revised in this section...\" style=\"flex:1;\">{$existing}</textarea>";
+        echo "<div style=\"display:flex;flex-direction:column;gap:6px;\">";
+        echo "<button class=\"btn btn-sm btn-warning btn-save-comment\" data-section=\"{$key}\">💾 Save Comment</button>";
+        echo "</div>";
+        echo "</div>";
+    }
     echo "</div>"; // close review-section
 }
 ?>

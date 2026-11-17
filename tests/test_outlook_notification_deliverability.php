@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Test Suite: Outlook Notification Deliverability & Bounce Protection
  * Verifies that:
@@ -18,7 +19,8 @@ require_once $rootDir . '/includes/EmailService.php';
 $db = getDB();
 $results = [];
 
-function recordTest($testName, $passed, $details = '') {
+function recordTest($testName, $passed, $details = '')
+{
     global $results;
     $results[] = [
         'test' => $testName,
@@ -30,14 +32,14 @@ function recordTest($testName, $passed, $details = '') {
 $emailService = new EmailService();
 
 // 1. Verify Andrea Gatbonton has official institutional email
-$stmt = $db->prepare("SELECT id, name, email FROM users WHERE name LIKE '%Andrea Gatbonton%' LIMIT 1");
+$stmt = $db->prepare("SELECT id, name, email FROM users WHERE name LIKE '%Andrea%Gatbonton%' LIMIT 1");
 $stmt->execute();
 $andrea = $stmt->fetch(PDO::FETCH_ASSOC);
 $andreaValid = $andrea && (strpos($andrea['email'], '@marikina.sti.edu.ph') !== false) && (strpos($andrea['email'], '@test.com') === false);
 recordTest("Andrea Gatbonton Email Validated", $andreaValid, "Current email: " . ($andrea['email'] ?? 'NOT FOUND'));
 
 // 2. Verify Ricky Manliguis has official institutional email
-$stmt = $db->prepare("SELECT id, name, email FROM users WHERE name LIKE '%Ricky Manliguis%' LIMIT 1");
+$stmt = $db->prepare("SELECT id, name, email FROM users WHERE name LIKE '%Ricky%Manliguis%' LIMIT 1");
 $stmt->execute();
 $ricky = $stmt->fetch(PDO::FETCH_ASSOC);
 $rickyValid = $ricky && (strpos($ricky['email'], '@marikina.sti.edu.ph') !== false) && (strpos($ricky['email'], '@test.com') === false);
@@ -109,4 +111,3 @@ echo "Overall Result: " . ($allPassed ? "ALL TESTS PASSED (NDR BOUNCE PREVENTED)
 echo "=======================================================================\n";
 
 exit($allPassed ? 0 : 1);
-

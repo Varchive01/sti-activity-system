@@ -35,7 +35,7 @@ if ($filterStat === 'archived') {
   }
 }
 $total=$db->prepare("SELECT COUNT(*) FROM activities a WHERE $where"); $total->execute($params); $totalCount=$total->fetchColumn(); $totalPages=ceil($totalCount/$perPage);
-$acts=$db->prepare("SELECT a.*,u.name as fn FROM activities a JOIN users u ON a.faculty_id=u.id WHERE $where ORDER BY a.updated_at DESC LIMIT $perPage OFFSET $offset"); $acts->execute($params); $activities=$acts->fetchAll();
+$acts=$db->prepare("SELECT a.*,u.name as fn, u.role as author_role FROM activities a JOIN users u ON a.faculty_id=u.id WHERE $where ORDER BY a.updated_at DESC LIMIT $perPage OFFSET $offset"); $acts->execute($params); $activities=$acts->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -147,8 +147,8 @@ $acts=$db->prepare("SELECT a.*,u.name as fn FROM activities a JOIN users u ON a.
                         <?php endif; ?>
                         <?php
                         $canAdmin2Review =
-                            ($a['source'] === 'faculty' && in_array($a['status'], ['submitted', 'under_review', 'resubmitted'], true))
-                            || ($a['source'] === 'student_org' && $a['status'] === 'endorsed');
+                            $a['status'] === 'endorsed'
+                            || ($a['source'] === 'faculty' && ($a['author_role'] ?? '') !== 'program_head' && in_array($a['status'], ['submitted', 'under_review', 'resubmitted'], true));
                         if ($canAdmin2Review): ?>
                           <a href="<?= BASE_URL ?>/admin2/review.php?id=<?= $a['id'] ?>" class="btn btn-primary btn-sm">Review</a>
                         <?php endif; ?>

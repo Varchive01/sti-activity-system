@@ -9,7 +9,7 @@ $db   = getDB();
 
 // Admin 1 (Student Organization Head) Returned for Revision Proposals
 $search = sanitize($_GET['q'] ?? '');
-$where = "al.reviewer_id = ? AND al.action IN ('returned', 'returned_for_revision') AND a.source = 'student_org' AND a.status = 'returned_for_revision'";
+$where = "al.reviewer_id = ? AND al.action IN ('returned', 'returned_for_revision') AND (a.source = 'student_org' OR u.role = 'program_head') AND a.status = 'returned_for_revision'";
 $params = [$user['id']];
 
 if ($search) {

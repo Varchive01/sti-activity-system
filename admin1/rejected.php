@@ -9,7 +9,7 @@ $db   = getDB();
 
 // Admin 1 (Student Organization Head) Rejected Proposals Register
 $search = sanitize($_GET['q'] ?? '');
-$where = "al.reviewer_id = ? AND al.action = 'rejected' AND a.source = 'student_org' AND a.status = 'rejected'";
+$where = "al.reviewer_id = ? AND al.action = 'rejected' AND (a.source = 'student_org' OR u.role = 'program_head') AND a.status = 'rejected'";
 $params = [$user['id']];
 
 if ($search) {

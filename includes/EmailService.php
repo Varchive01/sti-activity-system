@@ -16,6 +16,106 @@ class EmailService {
     private $db;
     private static ?bool $smtpReachable = null;
 
+    /**
+     * Optional attachments for the current sendNotification() call.
+     * Each item: ['name' => string, 'content' => string (raw bytes), 'type' => mime string]
+     */
+    private array $attachments = [];
+
+    /**
+     * Builds an Outlook-compatible iCalendar (.ics) attachment for an approved activity,
+     * so recipients can add the event to their Outlook calendar with one click.
+     * Returns null if the activity has no event date (attachment is then simply omitted).
+     */
+    public static function buildActivityCalendarAttachment(array $act): ?array {
+        try {
+            if (empty($act['event_date']) || empty($act['id'])) {
+                return null;
+            }
+            $tz  = new \DateTimeZone('Asia/Manila');
+            $utc = new \DateTimeZone('UTC');
+            $esc = static function (string $s): string {
+                $s = str_replace(["\\", ';', ',', "\r\n", "\r", "\n"], ["\\\\", '\;', '\,', '\n', '\n', '\n'], $s);
+                return $s;
+            };
+            $fold = static function (string $line): string {
+                // RFC 5545: fold lines longer than 75 octets
+                $out = '';
+                while (strlen($line) > 75) {
+                    $cut = 75;
+                    while ($cut > 1 && (ord($line[$cut]) & 0xC0) === 0x80) { $cut--; } // keep UTF-8 chars intact
+                    $out .= substr($line, 0, $cut) . "\r\n ";
+                    $line = substr($line, $cut);
+                }
+                return $out . $line;
+            };
+
+            $date = (string)$act['event_date'];
+            $hasTimes = !empty($act['start_time']);
+            if ($hasTimes) {
+                $start = new \DateTime($date . ' ' . $act['start_time'], $tz);
+                $end   = !empty($act['end_time']) ? new \DateTime($date . ' ' . $act['end_time'], $tz) : (clone $start)->modify('+1 hour');
+                if ($end <= $start) {
+                    $end = (clone $start)->modify('+1 hour');
+                }
+                $dtLines = [
+                    'DTSTART:' . $start->setTimezone($utc)->format('Ymd\THis\Z'),
+                    'DTEND:'   . $end->setTimezone($utc)->format('Ymd\THis\Z'),
+                ];
+            } else {
+                $d = new \DateTime($date, $tz);
+                $dtLines = [
+                    'DTSTART;VALUE=DATE:' . $d->format('Ymd'),
+                    'DTEND;VALUE=DATE:'   . (clone $d)->modify('+1 day')->format('Ymd'),
+                ];
+            }
+
+            $location = trim(($act['venue'] ?? '') . (!empty($act['venue_address']) ? ', ' . $act['venue_address'] : ''));
+            $descr = 'Approved STI activity proposal.';
+            if (!empty($act['description'])) {
+                $descr .= "\n\n" . mb_substr(strip_tags((string)$act['description']), 0, 1000);
+            }
+            if (defined('BASE_URL')) {
+                $descr .= "\n\n" . BASE_URL . '/faculty/proposal-view.php?id=' . (int)$act['id'];
+            }
+
+            $lines = array_merge([
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'PRODID:-//STI Marikina//Activity System//EN',
+                'CALSCALE:GREGORIAN',
+                'METHOD:PUBLISH',
+                'BEGIN:VEVENT',
+                // Stable UID: re-sending for the same activity updates the calendar entry instead of duplicating it
+                'UID:sti-activity-' . (int)$act['id'] . '@sti-activity-system',
+                'DTSTAMP:' . gmdate('Ymd\THis\Z'),
+                'SEQUENCE:' . time(),
+            ], $dtLines, [
+                'SUMMARY:' . $esc((string)($act['title'] ?? 'STI Activity')),
+                'LOCATION:' . $esc($location),
+                'DESCRIPTION:' . $esc($descr),
+                'STATUS:CONFIRMED',
+                'TRANSP:OPAQUE',
+                'BEGIN:VALARM',
+                'TRIGGER:-PT1H',
+                'ACTION:DISPLAY',
+                'DESCRIPTION:Reminder',
+                'END:VALARM',
+                'END:VEVENT',
+                'END:VCALENDAR',
+            ]);
+
+            return [
+                'name'    => 'activity-' . (int)$act['id'] . '.ics',
+                'content' => implode("\r\n", array_map($fold, $lines)) . "\r\n",
+                'type'    => 'text/calendar',
+            ];
+        } catch (\Throwable $e) {
+            error_log('Calendar attachment build failed for activity ' . ($act['id'] ?? '?') . ': ' . $e->getMessage());
+            return null;
+        }
+    }
+
     private function isSmtpReachable(): bool {
         if (self::$smtpReachable !== null) {
             return self::$smtpReachable;
@@ -91,7 +191,8 @@ class EmailService {
     /**
      * Send an email notification based on the HTML template
      */
-    public function sendNotification($recipientEmail, $recipientName, $subject, $proposalTitle, $status, $message, $actionLink, $activityId = null, $notificationType = 'general') {
+    public function sendNotification($recipientEmail, $recipientName, $subject, $proposalTitle, $status, $message, $actionLink, $activityId = null, $notificationType = 'general', array $attachments = []) {
+        $this->attachments = $attachments;
         // 1. Deliverability & NDR Bounce Protection Guard
         $deliverability = $this->validateRecipientDeliverability((string)$recipientEmail, (string)$subject, (string)$proposalTitle);
         if (!$deliverability['deliverable']) {
@@ -105,9 +206,10 @@ class EmailService {
         $recipientEmail = $deliverability['normalized_email'];
 
         // 2. Basic deduplication check (fault-tolerant if email_logs table is absent)
+        // Rate-limits duplicate dispatch within a 60-second window to prevent rapid double-clicks without suppressing future status updates
         if ($activityId && $notificationType !== 'general') {
             try {
-                $stmt = $this->db->prepare("SELECT id FROM email_logs WHERE activity_id = ? AND recipient_email = ? AND notification_type = ? AND status = 'success' LIMIT 1");
+                $stmt = $this->db->prepare("SELECT id FROM email_logs WHERE activity_id = ? AND recipient_email = ? AND notification_type = ? AND status = 'success' AND sent_at >= (NOW() - INTERVAL 60 SECOND) LIMIT 1");
                 $stmt->execute([$activityId, $recipientEmail, $notificationType]);
                 if ($stmt->fetch()) {
                     return true;
@@ -239,17 +341,27 @@ class EmailService {
 
         // 5. Institutional alias mapping (maps legacy placeholder accounts to official institutional mailbox)
         $institutionalMap = [
-            'arjay@sti.edu'   => 'ar-jay.agbayani@marikina.sti.edu.ph',
-            'ian@sti.edu'     => 'ian.barangan@marikina.sti.edu.ph',
-            'dean@sti.edu'    => 'frederic.yulo@marikina.sti.edu.ph',
-            'dave@sti.edu'    => 'dave.rubaya@marikina.sti.edu.ph',
-            'aldwin@sti.edu'  => 'aldwin.alminar@marikina.sti.edu.ph',
-            'tan@sti.edu'     => 'tristan.unabia@marikina.sti.edu.ph',
-            'faculty@sti.edu' => 'maria.santos@marikina.sti.edu.ph',
+            'arjay@sti.edu'                         => 'guaniso.372499@marikina.sti.edu.ph',
+            'ar-jay.agbayani@marikina.sti.edu.ph'   => 'guaniso.372499@marikina.sti.edu.ph',
+            'ian@sti.edu'                           => 'regulacion.376867@marikina.sti.edu.ph',
+            'ian.barangan@marikina.sti.edu.ph'     => 'regulacion.376867@marikina.sti.edu.ph',
+            'dean@sti.edu'                          => 'robles.376003@marikina.sti.edu.ph',
+            'frederic.yulo@marikina.sti.edu.ph'     => 'robles.376003@marikina.sti.edu.ph',
+            'dave@sti.edu'                          => 'hular.370125@marikina.sti.edu.ph',
+            'dave.rubaya@marikina.sti.edu.ph'       => 'hular.370125@marikina.sti.edu.ph',
+            'faculty@sti.edu'                       => 'payod.332445@marikina.sti.edu.ph',
+            'maria.santos@marikina.sti.edu.ph'      => 'payod.332445@marikina.sti.edu.ph',
+            'aldwin@sti.edu'                        => 'aldwin.alminar@marikina.sti.edu.ph',
+            'tan@sti.edu'                           => 'tristan.unabia@marikina.sti.edu.ph',
         ];
 
         if (isset($institutionalMap[$cleanEmail])) {
             $cleanEmail = $institutionalMap[$cleanEmail];
+            $parts = explode('@', $cleanEmail);
+            $domain = end($parts);
+        } elseif (str_ends_with($domain, '.sti.edu')) {
+            // Auto-heal .sti.edu to .sti.edu.ph (e.g. user@marikina.sti.edu -> user@marikina.sti.edu.ph)
+            $cleanEmail = $parts[0] . '@' . $domain . '.ph';
             $parts = explode('@', $cleanEmail);
             $domain = end($parts);
         }
@@ -284,8 +396,8 @@ class EmailService {
 
             $guzzle = new \GuzzleHttp\Client([
                 'verify'          => $verifyCa,
-                'timeout'         => 4.0,
-                'connect_timeout' => 2.0
+                'timeout'         => 8.0,
+                'connect_timeout' => 4.0
             ]);
 
             $provider = new \Greew\OAuth2\Client\Provider\Azure([
@@ -341,10 +453,19 @@ class EmailService {
                 'saveToSentItems' => 'true'
             ];
 
+            if (!empty($this->attachments)) {
+                $payload['message']['attachments'] = array_map(static fn($a) => [
+                    '@odata.type'  => '#microsoft.graph.fileAttachment',
+                    'name'         => $a['name'],
+                    'contentType'  => $a['type'] ?? 'application/octet-stream',
+                    'contentBytes' => base64_encode($a['content']),
+                ], $this->attachments);
+            }
+
             $client = new \GuzzleHttp\Client([
                 'verify'          => $verifyCa,
-                'timeout'         => 4.0,
-                'connect_timeout' => 2.0
+                'timeout'         => 8.0,
+                'connect_timeout' => 4.0
             ]);
             $response = $client->post($graphUrl, [
                 'headers' => [
@@ -374,7 +495,11 @@ class EmailService {
         }
         try {
             $this->mail->clearAddresses();
+            $this->mail->clearAttachments();
             $this->mail->addAddress($recipientEmail, $recipientName);
+            foreach ($this->attachments as $a) {
+                $this->mail->addStringAttachment($a['content'], $a['name'], PHPMailer::ENCODING_BASE64, $a['type'] ?? 'application/octet-stream');
+            }
             
             $this->mail->Subject = $subject;
             $this->mail->Body = $body;

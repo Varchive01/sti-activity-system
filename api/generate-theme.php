@@ -138,6 +138,24 @@ GUIDELINES:
   ]
 }";
 
+if (!function_exists('generateFallbackTheme')) {
+    function generateFallbackTheme(string $title, string $source = ''): array {
+        $cleanTitle = trim($title);
+        $taglines = [
+            "Igniting Innovation: Empowering Excellence in " . $cleanTitle,
+            "Shaping Tomorrow: Fostering Leadership and Creativity through " . $cleanTitle,
+            "Beyond Boundaries: Driving Knowledge and Real-World Impact in " . $cleanTitle,
+        ];
+        return [
+            'theme' => $taglines[0],
+            'alternatives' => [
+                $taglines[1],
+                $taglines[2]
+            ]
+        ];
+    }
+}
+
 // 8. Gemini API Key Retrieval
 $apiKey = function_exists('getGeminiApiKeySecure') ? getGeminiApiKeySecure() : '';
 if (empty($apiKey) && defined('GEMINI_API_KEY')) {
@@ -145,11 +163,13 @@ if (empty($apiKey) && defined('GEMINI_API_KEY')) {
 }
 
 if (empty($apiKey) || $apiKey === 'YOUR_API_KEY_HERE') {
-    http_response_code(503);
+    $fb = generateFallbackTheme($title, $source);
     ob_clean();
     echo json_encode([
-        'error' => 'Configuration Error: Gemini API key is missing.',
-        'details' => 'Please configure the GEMINI_API_KEY in the environment or .env file.'
+        'success'      => true,
+        'theme'        => $fb['theme'],
+        'alternatives' => $fb['alternatives'],
+        'is_fallback'  => true
     ]);
     exit;
 }
@@ -171,7 +191,7 @@ $payloadData = [
     ]
 ];
 
-$modelsToTry = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-3.5-flash'];
+$modelsToTry = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
 $response = '';
 $httpCode = 0;
 $curlError = '';
@@ -179,17 +199,16 @@ $success = false;
 
 foreach ($modelsToTry as $modelName) {
     $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $modelName . ':generateContent?key=' . urlencode($apiKey);
-    $maxAttempts = 2;
     $attempt = 0;
 
-    while ($attempt < $maxAttempts) {
+    while ($attempt < 1) {
         $attempt++;
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payloadData));
-        curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 6);
         curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 
         // Windows/XAMPP CA bundle fallback
@@ -215,37 +234,21 @@ foreach ($modelsToTry as $modelName) {
             $success = true;
             break 2;
         }
-
-        // Retry on 503 or 429
-        if ($httpCode === 503 || $httpCode === 429 || (is_string($response) && strpos($response, 'UNAVAILABLE') !== false)) {
-            if ($attempt < $maxAttempts) {
-                $sleepSeconds = 2;
-                error_log("Gemini API Model $modelName returned HTTP $httpCode in generate-theme. Attempt $attempt/$maxAttempts. Retrying in {$sleepSeconds}s...");
-                sleep($sleepSeconds);
-                continue;
-            }
-        }
         break;
     }
 
     error_log("Gemini API Model $modelName failed with HTTP $httpCode in generate-theme. Trying fallback model...");
 }
 
-if ($curlError) {
-    error_log("Gemini API cURL Error (generate-theme): " . $curlError);
-    http_response_code(502);
-    ob_clean();
-    echo json_encode(['error' => 'cURL Error: ' . $curlError]);
-    exit;
-}
-
-if ($httpCode !== 200) {
-    error_log("Gemini API Error (HTTP $httpCode) in generate-theme: " . $response);
-    http_response_code(502);
+if (!$success || $curlError || $httpCode !== 200) {
+    error_log("Gemini API generate-theme fallback activated (HTTP $httpCode, error: $curlError)");
+    $fb = generateFallbackTheme($title, $source);
     ob_clean();
     echo json_encode([
-        'error' => 'AI Service Error: HTTP ' . $httpCode,
-        'details' => 'Unable to retrieve theme from AI provider.'
+        'success'      => true,
+        'theme'        => $fb['theme'],
+        'alternatives' => $fb['alternatives'],
+        'is_fallback'  => true
     ]);
     exit;
 }

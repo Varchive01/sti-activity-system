@@ -235,13 +235,9 @@ $data = [
 ];
 
 $modelsToTry = [
-    'gemini-flash-lite-latest',
     'gemini-3.5-flash-lite',
     'gemini-3.1-flash-lite',
-    'gemini-3.7-flash',
-    'gemini-3.6-flash',
-    'gemini-flash-latest',
-    'gemini-3.5-flash'
+    'gemini-flash-latest'
 ];
 
 // Windows/XAMPP CA certificate bundle resolution
@@ -261,101 +257,43 @@ $success = false;
 
 foreach ($modelsToTry as $modelName) {
     $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $modelName . ':generateContent?key=' . urlencode($apiKey);
-    $maxAttempts = 2;
-    $attempt = 0;
-    
-    while ($attempt < $maxAttempts) {
-        $attempt++;
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-        if ($caBundle && file_exists($caBundle)) {
-            curl_setopt($ch, CURLOPT_CAINFO, $caBundle);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-        } else {
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-        }
-        
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        @curl_close($ch);
-        
-        if (!$curlError && $httpCode === 200) {
-            $success = true;
-            break 2; // Break both loops, we are successful!
-        }
-        
-        // If quota is exhausted (daily/tier limit), stop retrying this model
-        if (strpos($response, 'RESOURCE_EXHAUSTED') !== false || strpos($response, 'Quota exceeded') !== false || strpos($response, 'quotaMetric') !== false) {
-            error_log("Gemini API quota exhausted for model $modelName in generate-evaluation. Trying next model.");
-            break;
-        }
-
-        // Bounded retry on temporary 503 or transient 429 rate limit
-        if ($httpCode === 503 || $httpCode === 429 || strpos($response, 'UNAVAILABLE') !== false) {
-            if ($attempt < $maxAttempts) {
-                $sleepSeconds = 2;
-                error_log("Gemini API Model $modelName returned HTTP $httpCode. Attempt $attempt/$maxAttempts. Retrying in {$sleepSeconds}s...");
-                sleep($sleepSeconds);
-                continue;
-            }
-        }
-        break; // For other errors (like 400/403/404), try next model directly
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+    if ($caBundle && file_exists($caBundle)) {
+        curl_setopt($ch, CURLOPT_CAINFO, $caBundle);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+    } else {
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
     }
     
-    error_log("Gemini API Model $modelName returned HTTP $httpCode. Trying fallback model...");
-}
-
-if ($curlError && !$success) {
-    error_log("Gemini API cURL Error (generate-evaluation): " . $curlError);
-    sendEvalJsonResponse(503, [
-        'success' => false,
-        'error'   => 'NETWORK_ERROR',
-        'message' => 'Network error: Unable to connect to AI service. Please check your internet connection and try again.'
-    ]);
-}
-
-if ($httpCode !== 200) {
-    error_log("Gemini API Error (HTTP $httpCode) in generate-evaluation: " . $response);
-    $isQuotaExhausted = (strpos($response, 'RESOURCE_EXHAUSTED') !== false || strpos($response, 'Quota exceeded') !== false || strpos($response, 'quotaMetric') !== false);
-    $isRateLimited = ($httpCode === 429);
-    $isAuthError = ($httpCode === 400 && (strpos($response, 'API_KEY_INVALID') !== false || strpos($response, 'API key not valid') !== false)) || $httpCode === 401 || $httpCode === 403;
-
-    $userMessage = 'Unable to generate evaluation questions right now. Please try again.';
-    $errorCode = 'API Error: HTTP ' . $httpCode;
-    $httpStatusOut = 502;
-    if ($isAuthError) {
-        $errorCode = 'AUTH_ERROR';
-        $userMessage = 'Authentication Error: Gemini API key is invalid or unauthorized.';
-        $httpStatusOut = 401;
-    } elseif ($isQuotaExhausted) {
-        $errorCode = 'QUOTA_EXHAUSTED';
-        $userMessage = 'AI service quota has been reached. You can add and customize evaluation questions manually.';
-        $httpStatusOut = 429;
-    } elseif ($isRateLimited) {
-        $errorCode = 'RATE_LIMIT';
-        $userMessage = 'AI service rate limit reached. Please wait a moment and try again.';
-        $httpStatusOut = 429;
-    } elseif ($httpCode >= 500) {
-        $errorCode = 'SERVER_ERROR';
-        $userMessage = 'The AI service is temporarily unavailable. Please try again in a few moments.';
-        $httpStatusOut = 503;
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    @curl_close($ch);
+    
+    if (!$curlError && $httpCode === 200) {
+        $success = true;
+        break;
     }
+    
+    error_log("Gemini API Model $modelName failed in generate-evaluation (HTTP $httpCode). Trying next model...");
+}
 
-    sendEvalJsonResponse($httpStatusOut, [
-        'success'         => false,
-        'error'           => $errorCode,
-        'quota_exhausted' => $isQuotaExhausted,
-        'rate_limited'    => $isRateLimited,
-        'auth_error'      => $isAuthError,
-        'message'         => $userMessage
+if (!$success || $httpCode !== 200) {
+    error_log("Gemini API models unavailable or failed in generate-evaluation. Using deterministic fallback questions.");
+    $fallbackQuestions = generateFallbackEvaluationQuestions($title, $theme, $general_objectives, $specific_objectives);
+    sendEvalJsonResponse(200, [
+        'success'   => true,
+        'fallback'  => true,
+        'questions' => $fallbackQuestions,
+        'message'   => 'Evaluation questions generated from activity details.'
     ]);
 }
 

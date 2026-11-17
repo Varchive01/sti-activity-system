@@ -7,13 +7,19 @@ register_shutdown_function(function() {
     if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
         error_log("FATAL ERROR CAUGHT: " . $err['message'] . " in " . $err['file'] . ":" . $err['line']);
         if (!headers_sent()) {
-            $isAjaxReq = (
+            $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+            $requestUri = str_replace('\\', '/', $_SERVER['REQUEST_URI'] ?? '');
+            $isApiReq = (
                 (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
                 (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json')) ||
-                (isset($_POST['is_ajax_sync']) && $_POST['is_ajax_sync'] === '1')
+                (isset($_SERVER['CONTENT_TYPE']) && str_contains($_SERVER['CONTENT_TYPE'], 'application/json')) ||
+                (isset($_SERVER['HTTP_CONTENT_TYPE']) && str_contains($_SERVER['HTTP_CONTENT_TYPE'], 'application/json')) ||
+                (isset($_POST['is_ajax_sync']) && $_POST['is_ajax_sync'] === '1') ||
+                str_contains($scriptName, '/api/') ||
+                str_contains($requestUri, '/api/')
             );
-            if ($isAjaxReq) {
-                http_response_code(422);
+            if ($isApiReq) {
+                http_response_code(500);
                 header('Content-Type: application/json; charset=utf-8');
                 echo json_encode([
                     'success'    => false,

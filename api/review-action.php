@@ -28,7 +28,12 @@ if (!$role) {
 
 if (!$actId || !$action) { header('Location: ' . BASE_URL . '/'); exit; }
 
-$activity = $db->prepare("SELECT * FROM activities WHERE id=?");
+$activity = $db->prepare("
+    SELECT a.*, u.role as author_role 
+    FROM activities a 
+    LEFT JOIN users u ON a.faculty_id = u.id 
+    WHERE a.id = ?
+");
 $activity->execute([$actId]);
 $act = $activity->fetch();
 if (!$act) die('Activity not found.');
@@ -59,20 +64,38 @@ if ($action === 'record_clearance') {
 
 // Enforce current proposal stage before allowing review action
 $isValidStage = false;
+$currStatus = trim(strtolower($act['status'] ?? ''));
+$authorRole = trim(strtolower($act['author_role'] ?? ''));
+$isStudentOrg = (($act['source'] ?? '') === 'student_org');
+$isProgramHeadAuthor = ($authorRole === 'program_head');
+
 if ($userRole === 'admin1') {
-    $isValidStage = ($act['source'] === 'student_org' && in_array($act['status'], ['under_review', 'submitted', 'resubmitted'], true));
+    $isValidStage = (
+        ($isStudentOrg || $isProgramHeadAuthor) &&
+        in_array($currStatus, ['under_review', 'submitted', 'resubmitted'], true)
+    );
 } elseif ($userRole === 'admin2') {
     $isValidStage = (
-        ($act['source'] === 'faculty' && in_array($act['status'], ['submitted', 'under_review', 'resubmitted'], true)) ||
-        ($act['source'] === 'student_org' && $act['status'] === 'endorsed')
+        $currStatus === 'endorsed' ||
+        (($act['source'] ?? '') === 'faculty' && !$isProgramHeadAuthor && in_array($currStatus, ['submitted', 'under_review', 'resubmitted'], true))
     );
 } elseif ($userRole === 'dean') {
-    $isValidStage = ($act['status'] === 'pending_final_approval');
+    $isValidStage = ($currStatus === 'pending_final_approval');
 }
 
 if (!$isValidStage) {
     http_response_code(403);
-    die('Access denied: Proposal is not in a valid stage for your review role.');
+    $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+              (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'));
+    if ($isAjax) {
+        header('Content-Type: application/json; charset=utf-8');
+        die(json_encode(['success' => false, 'error' => 'Access denied: Proposal is not in a valid stage for your review role.']));
+    }
+    $redirectMap = ['arjay' => 'admin1', 'ian' => 'admin2', 'dean' => 'dean'];
+    $dir = $redirectMap[$role] ?? 'admin2';
+    $statusLabel = ucwords(str_replace('_', ' ', $act['status'] ?? ''));
+    header("Location: " . BASE_URL . "/{$dir}/review.php?id={$actId}&error=" . urlencode("Access denied: Proposal is currently '{$statusLabel}' and cannot be reviewed at this stage."));
+    exit;
 }
 
 // Determine new status
@@ -190,6 +213,15 @@ try {
 
     $emailService = new EmailService();
 
+    // On Dean final approval, attach an Outlook calendar invite (.ics) to the approval emails
+    $calendarAttachments = [];
+    if ($newStatus === 'approved') {
+        $ics = EmailService::buildActivityCalendarAttachment($act);
+        if ($ics) {
+            $calendarAttachments[] = $ics;
+        }
+    }
+
     // Notify faculty
     $notifMsg = match($logAction) {
         'forwarded' => "Your proposal '{$act['title']}' has been forwarded to the next reviewer.",
@@ -211,7 +243,8 @@ try {
             $notifMsg,
             BASE_URL . "/faculty/proposal-view.php?id=" . $actId,
             $actId,
-            "proposal_" . $newStatus
+            "proposal_" . $newStatus,
+            $calendarAttachments
         );
     }
 
@@ -256,6 +289,26 @@ try {
                 BASE_URL . "/dean/review.php?id=" . $actId,
                 $actId,
                 "proposal_pending_final"
+            );
+        }
+    }
+
+    // If fully approved by Dean, also notify Student Org Head and Events Committee Head
+    if ($newStatus === 'approved') {
+        $committeeAdmins = $db->query("SELECT id, email, name, role FROM users WHERE role IN ('admin1', 'admin2')")->fetchAll();
+        foreach ($committeeAdmins as $cAdmin) {
+            $dashDir = ($cAdmin['role'] === 'admin1') ? 'admin1' : 'admin2';
+            $emailService->sendNotification(
+                $cAdmin['email'],
+                $cAdmin['name'],
+                "Proposal Fully Approved: " . sanitize($act['title']),
+                sanitize($act['title']),
+                "Approved",
+                "The proposal '" . sanitize($act['title']) . "' has received final approval from the Dean.",
+                BASE_URL . "/{$dashDir}/view-activity.php?id=" . $actId,
+                $actId,
+                "proposal_final_approved",
+                $calendarAttachments
             );
         }
     }

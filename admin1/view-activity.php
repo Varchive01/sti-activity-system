@@ -10,7 +10,7 @@ $db = getDB();
 $id = (int)($_GET['id'] ?? 0);
 if (!$id) { header('Location: '.BASE_URL.'/admin1/dashboard.php'); exit; }
 
-$act  = $db->prepare("SELECT a.*,u.name as fn,u.email as fe FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.id=?");
+$act  = $db->prepare("SELECT a.*,u.name as fn,u.email as fe,u.role as author_role FROM activities a JOIN users u ON a.faculty_id=u.id WHERE a.id=?");
 $act->execute([$id]); $activity=$act->fetch();
 if (!$activity || !canUserAccessActivity((int)$id, 'view', (int)$user['id'], $user['role'], $user['dept'] ?? '')) {
   die('Activity not found or not accessible.');
@@ -112,7 +112,7 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
       <?php if (in_array($activity['status'], ['draft', 'returned_for_revision'], true) && canUserAccessActivity((int)$id, 'modify', (int)$user['id'], $user['role'], $user['dept'] ?? '')): ?>
         <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= $id ?>" class="btn btn-primary btn-sm">Edit Proposal</a>
       <?php endif; ?>
-      <?php if (in_array($activity['status'], ['under_review', 'submitted', 'resubmitted'], true) && ($activity['source'] ?? '') === 'student_org'): ?>
+      <?php if (in_array($activity['status'], ['under_review', 'submitted', 'resubmitted'], true) && (($activity['source'] ?? '') === 'student_org' || ($activity['author_role'] ?? '') === 'program_head')): ?>
         <a href="<?= BASE_URL ?>/admin1/review.php?id=<?= $activity['id'] ?>" class="btn btn-primary btn-sm">Review Proposal</a>
       <?php endif; ?>
       <button type="button" id="exportPdfBtn" class="btn btn-outline btn-sm" onclick="exportProposalPdf()" title="Download formal PDF document" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">📄 Export PDF</button>
