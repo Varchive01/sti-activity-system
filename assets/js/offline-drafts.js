@@ -70,15 +70,43 @@
   }
 
   /**
+   * Helper: Deeply sanitize objects before IndexedDB storage to strip any DOM elements
+   * (e.g. HTMLInputElement) or functions that fail the Structured Clone Algorithm.
+   */
+  function sanitizeForStorage(obj) {
+    if (!obj || typeof obj !== 'object') return obj;
+    try {
+      return JSON.parse(JSON.stringify(obj, (key, value) => {
+        if (value instanceof Node || (value && typeof value === 'object' && (value.nodeType || value.constructor?.name?.includes('HTML')))) {
+          return undefined;
+        }
+        if (typeof value === 'function') return undefined;
+        return value;
+      }));
+    } catch (e) {
+      const copy = Array.isArray(obj) ? [] : {};
+      for (const k in obj) {
+        if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+        const v = obj[k];
+        if (v instanceof Node || (v && typeof v === 'object' && (v.nodeType || v.constructor?.name?.includes('HTML')))) continue;
+        if (typeof v === 'function') continue;
+        copy[k] = (typeof v === 'object' && v !== null) ? sanitizeForStorage(v) : v;
+      }
+      return copy;
+    }
+  }
+
+  /**
    * 2. IndexedDB CRUD Operations
    */
   async function putDraft(draftObj) {
     const db = await openDB();
+    const storableObj = sanitizeForStorage(draftObj);
     return new Promise((resolve, reject) => {
       const tx = db.transaction([STORE_NAME], 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.put(draftObj);
-      req.onsuccess = () => resolve(draftObj);
+      const req = store.put(storableObj);
+      req.onsuccess = () => resolve(storableObj);
       req.onerror = (e) => reject(e.target.error);
     });
   }
