@@ -32,7 +32,7 @@ $activities = $db->query("SELECT a.*,u.name as faculty_name FROM activities a JO
       } catch (e) {}
     })();
   </script>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.1">
 </head>
 <body class="theme-arjay">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>

@@ -606,7 +606,7 @@ if ($totalTimelineDays - (($lastMarker['ts'] - $timelineStartTs) / 86400) >= ($m
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Task Monitoring – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.1">
   <script>
     (function() {
       try {

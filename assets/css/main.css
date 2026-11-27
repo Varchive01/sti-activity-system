@@ -7940,3 +7940,106 @@ html[data-theme="dark"] #aiProposalGuidanceModal .ai-applied-badge {
   }
 }
 
+/* Ultra-Compact Smartphones (< 360px, e.g. Galaxy Fold outer screen, iPhone 5/SE) */
+@media (max-width: 359.98px) {
+  html body .topbar {
+    padding: 0 8px !important;
+    height: 52px !important;
+    min-height: 52px !important;
+  }
+
+  html body .topbar .page-title {
+    font-size: 0.80rem !important;
+    max-width: 140px !important;
+  }
+
+  html body .mobile-nav-toggle {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    margin-right: 4px !important;
+  }
+
+  html body .topbar-right {
+    gap: 4px !important;
+  }
+
+  html body .theme-toggle-btn,
+  html body .topbar-avatar-wrap,
+  html body .notif-bell-btn {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+  }
+
+  /* Single column stat cards for ultra-narrow screens */
+  html body .stat-grid,
+  html body .stats-grid,
+  html body .stat-cards,
+  html body .summary-cards,
+  html body .kpi-cards-grid,
+  html body .summary-strip,
+  html body .kpi-metrics-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .stat-grid > :last-child:nth-child(odd),
+  html body .stats-grid > :last-child:nth-child(odd),
+  html body .stat-cards > :last-child:nth-child(odd),
+  html body .kpi-cards-grid > :last-child:nth-child(odd) {
+    grid-column: span 1 !important;
+  }
+
+  html body .faculty-hero-banner,
+  html body .ph-hero-banner,
+  html body .dashboard-hero-banner {
+    padding: 12px 10px !important;
+  }
+
+  html body .faculty-hero-title,
+  html body .ph-hero-title,
+  html body .dashboard-hero-title {
+    font-size: 1.15rem !important;
+  }
+}
+
+/* Tablets (768px to 1023.98px, e.g. iPad, iPad Air, Surface) */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  html body .stat-grid,
+  html body .stats-grid,
+  html body .stat-cards,
+  html body .summary-cards,
+  html body .kpi-cards-grid,
+  html body .kpi-metrics-row {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  html body .content {
+    padding: 18px 20px 28px !important;
+  }
+}
+
+/* Universal Media and Block Zero-Blowout Protection */
+html body img,
+html body svg:not([width]),
+html body canvas,
+html body video {
+  max-width: 100% !important;
+  height: auto;
+}
+
+html body pre,
+html body code {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+}
+
+html body .card {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+

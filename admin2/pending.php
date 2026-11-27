@@ -43,7 +43,7 @@ $pending = $stmt->fetchAll();
       } catch (e) {}
     })();
   </script>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.1">
   <style>
     /* ── Typography & Institutional Colors: Strict Plus Jakarta Sans ── */
     :root,

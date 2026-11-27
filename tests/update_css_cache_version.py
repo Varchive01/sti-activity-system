@@ -14,7 +14,7 @@ for d in dirs:
             with open(p, 'r', encoding='utf-8', errors='ignore') as fh:
                 content = fh.read()
             if 'main.css' in content:
-                new_content = pattern.sub(r'href="\1?v=1.2.0"', content)
+                new_content = pattern.sub(r'href="\1?v=1.2.1"', content)
                 if new_content != content:
                     with open(p, 'w', encoding='utf-8') as fh:
                         fh.write(new_content)
@@ -29,12 +29,10 @@ for d in dirs:
                 content = fh.read()
             
             if 'main.css' in content:
-                new_content = pattern.sub(r'href="\1?v=1.2.0"', content)
+                new_content = pattern.sub(r'href="\1?v=1.2.1"', content)
                 if new_content != content:
                     with open(p, 'w', encoding='utf-8') as fh:
                         fh.write(new_content)
                     updated.append(p)
 
-print(f"Total files updated with ?v=1.2.0 cache busting: {len(updated)}")
-for p in updated:
-    print(f"  Updated: {p}")
+print(f"Total files updated with ?v=1.2.1 cache busting: {len(updated)}")

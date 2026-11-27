@@ -80,7 +80,7 @@ $portalUrl = (defined('BASE_URL') ? BASE_URL : '') . '/evaluate.php?activity_id=
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Participant Feedback Portal – <?= htmlspecialchars($activity['title']) ?></title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.1">
 </head>
 <body style="background:#f1f5f9; min-height:100vh; padding:28px 16px; font-family:'Plus Jakarta Sans', sans-serif;">
   <div style="width:100%; max-width:760px; margin:0 auto; box-sizing:border-box;">
