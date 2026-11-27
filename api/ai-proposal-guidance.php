@@ -116,7 +116,7 @@ if ($action === 'log_applied') {
 if ($action === 'generate_sections') {
     $requestedSections = $input['sections'] ?? [];
     if (!is_array($requestedSections) || empty($requestedSections)) {
-        $requestedSections = ['objectives', 'materials', 'floor_plan', 'people', 'schedule', 'guidelines', 'faculty_tasks', 'evaluation_kpi'];
+        $requestedSections = ['materials', 'floor_plan', 'people', 'schedule', 'guidelines', 'faculty_tasks', 'evaluation_kpi'];
     }
 
     $guidanceService = new GeminiProposalGuidanceService();

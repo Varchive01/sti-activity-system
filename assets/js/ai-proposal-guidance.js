@@ -23,12 +23,6 @@ const AIProposalGuidance = (function () {
   let _appliedSections = new Set();
 
   const SECTION_CONFIG = {
-    objectives: {
-      id: 'objectives',
-      name: 'Objectives & Rationale',
-      icon: '🎯',
-      fields: ['rationale', 'involved_subjects']
-    },
     materials: {
       id: 'materials',
       name: 'Materials & Budget',
@@ -1032,13 +1026,18 @@ const AIProposalGuidance = (function () {
         throw new Error((data && data.error) || `HTTP ${resp.status}: Failed to generate section suggestions.`);
       }
 
-      // Merge new suggestions into session cache
-      _currentSuggestions = Object.assign({}, _currentSuggestions, data.suggestions);
+      // Set suggestions to strictly the chosen sections only
+      _currentSuggestions = {};
+      selectedSections.forEach((s) => {
+        if (data.suggestions && data.suggestions[s]) {
+          _currentSuggestions[s] = data.suggestions[s];
+        }
+      });
       _editingSections = {};
 
-      // Initialize selection for Apply Selected to include all newly generated sections
+      // Initialize selection for Apply Selected to include only the newly generated sections
       _selectedForApply.clear();
-      selectedSections.forEach((s) => _selectedForApply.add(s));
+      Object.keys(_currentSuggestions).forEach((s) => _selectedForApply.add(s));
 
       renderSuggestions();
       showToast('✨ AI suggestions generated successfully!');
@@ -1125,24 +1124,6 @@ const AIProposalGuidance = (function () {
     if (!data) return '<em class="ai-text-muted">No content generated.</em>';
 
     switch (secKey) {
-      case 'objectives':
-        return `
-          <div style="font-size: 0.84rem; display: flex; flex-direction: column; gap: 8px;">
-            <div class="ai-notice-box">
-              <span>ℹ️</span>
-              <span><strong>Note:</strong> General and Specific Objectives are automatically generated upon clicking "Next" in Step 1.</span>
-            </div>
-            <div>
-              <strong class="ai-label-header">Rationale / Educational Justification:</strong>
-              <div class="ai-preview-box">${escapeHtml(data.rationale || '')}</div>
-            </div>
-            <div>
-              <strong class="ai-label-header">Involved Subjects / Courses:</strong>
-              <div class="ai-preview-box">${escapeHtml(data.involved_subjects || '')}</div>
-            </div>
-          </div>
-        `;
-
       case 'materials':
         if (!Array.isArray(data) || data.length === 0) return '<em class="ai-text-muted">No materials suggested.</em>';
         let matRows = data.map((m, i) => {
@@ -1273,23 +1254,224 @@ const AIProposalGuidance = (function () {
 
   function renderEditView(secKey, data) {
     switch (secKey) {
-      case 'objectives':
+      case 'materials':
+        const matList = Array.isArray(data) ? data : [];
+        let matEditRows = matList.map((m) => {
+          const rawProv = String(m.provider || '').toLowerCase().trim();
+          const isRental = rawProv === 'rental' || rawProv.includes('rental') || rawProv.includes('supplier') || rawProv.includes('external') || rawProv.includes('vendor') || (parseFloat(m.rate || m.cost || 0) > 0 && !rawProv.includes('in_house') && !rawProv.includes('school') && !rawProv.includes('internal'));
+          const provVal = isRental ? 'rental' : 'in_house';
+          const unitVal = ['per_hour', 'per_day', 'fixed'].includes(m.unit) ? m.unit : 'fixed';
+          const rateVal = isRental ? parseFloat(m.rate !== undefined ? m.rate : (m.cost || 0)).toFixed(2) : '0.00';
+          const qtyVal = parseInt(m.qty || 1, 10) || 1;
+          const costVal = isRental ? parseFloat(m.cost !== undefined ? m.cost : (parseFloat(rateVal) * qtyVal)).toFixed(2) : '0.00';
+          return `
+            <tr class="edit-mat-row">
+              <td><input type="text" class="form-control edit-mat-item" style="font-size:0.8rem;" value="${escapeHtml(m.item || '')}" placeholder="Item name"></td>
+              <td><input type="text" class="form-control edit-mat-desc" style="font-size:0.8rem;" value="${escapeHtml(m.desc || '')}" placeholder="Description"></td>
+              <td style="width:70px;"><input type="number" min="1" class="form-control edit-mat-qty" style="font-size:0.8rem;" value="${qtyVal}" oninput="AIProposalGuidance.calcEditMaterialRow(this)"></td>
+              <td style="width:140px;">
+                <select class="form-control edit-mat-prov" style="font-size:0.8rem;" onchange="AIProposalGuidance.onEditMaterialProviderChange(this)">
+                  <option value="in_house" ${provVal === 'in_house' ? 'selected' : ''}>In-House (School)</option>
+                  <option value="rental" ${provVal === 'rental' ? 'selected' : ''}>Rental (Supplier)</option>
+                </select>
+              </td>
+              <td style="width:110px;">
+                <select class="form-control edit-mat-unit" style="font-size:0.8rem; ${!isRental ? 'opacity:0.6;' : ''}" ${!isRental ? 'disabled' : ''}>
+                  <option value="fixed" ${unitVal === 'fixed' ? 'selected' : ''}>Fixed / Item</option>
+                  <option value="per_hour" ${unitVal === 'per_hour' ? 'selected' : ''}>Per Hour</option>
+                  <option value="per_day" ${unitVal === 'per_day' ? 'selected' : ''}>Per Day</option>
+                </select>
+              </td>
+              <td style="width:85px;"><input type="number" step="0.01" min="0" class="form-control edit-mat-rate" style="font-size:0.8rem; ${!isRental ? 'opacity:0.6;' : ''}" value="${rateVal}" ${!isRental ? 'disabled' : ''} oninput="AIProposalGuidance.calcEditMaterialRow(this)"></td>
+              <td style="width:90px;"><input type="number" step="0.01" class="form-control edit-mat-cost" style="font-size:0.8rem; background:#f8fafc; font-weight:600;" value="${costVal}" readonly></td>
+              <td style="width:40px; text-align:center;"><button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.deleteEditRow(this)" style="color:#ef4444; border-color:#fca5a5;">✕</button></td>
+            </tr>
+          `;
+        }).join('');
+
         return `
           <div style="display:flex; flex-direction:column; gap:8px;">
-            <div class="ai-notice-box">
-              ℹ️ General and Specific Objectives are automatically generated upon clicking "Next" in Step 1. You can edit rationale and involved subjects below:
+            <div style="overflow-x:auto;">
+              <table class="ai-preview-table" id="edit_table_materials">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Description</th>
+                    <th style="width:70px;">Qty</th>
+                    <th style="width:140px;">Provider</th>
+                    <th style="width:110px;">Unit</th>
+                    <th style="width:85px;">Rate (₱)</th>
+                    <th style="width:90px;">Cost (₱)</th>
+                    <th style="width:40px;"></th>
+                  </tr>
+                </thead>
+                <tbody>${matEditRows}</tbody>
+              </table>
             </div>
-            <div>
-              <label class="ai-label-header">Rationale / Educational Justification:</label>
-              <textarea id="edit_rationale" class="form-control" rows="3" style="font-size:0.82rem;">${escapeHtml(data.rationale || '')}</textarea>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+              <button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.addEditRow('materials')" style="font-size:0.75rem; font-weight:600;">+ Add Item</button>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-outline btn-xs ai-btn-action" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
+                <button type="button" class="btn btn-primary btn-xs" onclick="AIProposalGuidance.saveSectionEdits('${secKey}')">Save Changes</button>
+              </div>
             </div>
-            <div>
-              <label class="ai-label-header">Involved Subjects / Courses:</label>
-              <input type="text" id="edit_involved_subjects" class="form-control" style="font-size:0.82rem;" value="${escapeHtml(data.involved_subjects || '')}">
+          </div>
+        `;
+
+      case 'people':
+        const pplList = Array.isArray(data) ? data : [];
+        let pplEditRows = pplList.map((p) => {
+          const rawType = String(p.type || 'Faculty').toLowerCase().trim();
+          const normType = (rawType === 'faculty' || rawType === 'staff' || rawType === 'student') ? rawType : 'faculty';
+          return `
+            <tr class="edit-people-row">
+              <td><input type="text" class="form-control edit-ppl-role" style="font-size:0.8rem;" value="${escapeHtml(p.role || '')}" placeholder="Role (e.g. Emcee)"></td>
+              <td><input type="text" class="form-control edit-ppl-person" style="font-size:0.8rem;" value="${escapeHtml(p.person || '')}" placeholder="Full name"></td>
+              <td style="width:120px;">
+                <select class="form-control edit-ppl-type" style="font-size:0.8rem;">
+                  <option value="Faculty" ${normType === 'faculty' ? 'selected' : ''}>Faculty</option>
+                  <option value="Staff" ${normType === 'staff' ? 'selected' : ''}>Staff</option>
+                  <option value="Student" ${normType === 'student' ? 'selected' : ''}>Student</option>
+                </select>
+              </td>
+              <td style="width:40px; text-align:center;"><button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.deleteEditRow(this)" style="color:#ef4444; border-color:#fca5a5;">✕</button></td>
+            </tr>
+          `;
+        }).join('');
+
+        return `
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="overflow-x:auto;">
+              <table class="ai-preview-table" id="edit_table_people">
+                <thead>
+                  <tr>
+                    <th>Role</th>
+                    <th>Assigned Person / Committee</th>
+                    <th style="width:120px;">Type</th>
+                    <th style="width:40px;"></th>
+                  </tr>
+                </thead>
+                <tbody>${pplEditRows}</tbody>
+              </table>
             </div>
-            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
-              <button type="button" class="btn btn-outline btn-xs ai-btn-action" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
-              <button type="button" class="btn btn-primary btn-xs" onclick="AIProposalGuidance.saveSectionEdits('${secKey}')">Save Changes</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+              <button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.addEditRow('people')" style="font-size:0.75rem; font-weight:600;">+ Add Person</button>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-outline btn-xs ai-btn-action" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
+                <button type="button" class="btn btn-primary btn-xs" onclick="AIProposalGuidance.saveSectionEdits('${secKey}')">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+      case 'schedule':
+        const schList = Array.isArray(data) ? data : [];
+        let schEditRows = schList.map((s) => `
+          <tr class="edit-schedule-row">
+            <td style="width:90px;"><input type="text" class="form-control edit-sch-time" style="font-size:0.8rem;" value="${escapeHtml(s.time || '')}" placeholder="08:30"></td>
+            <td><input type="text" class="form-control edit-sch-segment" style="font-size:0.8rem;" value="${escapeHtml(s.segment || '')}" placeholder="Segment name"></td>
+            <td><input type="text" class="form-control edit-sch-desc" style="font-size:0.8rem;" value="${escapeHtml(s.desc || '')}" placeholder="Description"></td>
+            <td style="width:130px;"><input type="text" class="form-control edit-sch-pic" style="font-size:0.8rem;" value="${escapeHtml(s.pic || '')}" placeholder="In-charge"></td>
+            <td style="width:40px; text-align:center;"><button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.deleteEditRow(this)" style="color:#ef4444; border-color:#fca5a5;">✕</button></td>
+          </tr>
+        `).join('');
+
+        return `
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="overflow-x:auto;">
+              <table class="ai-preview-table" id="edit_table_schedule">
+                <thead>
+                  <tr>
+                    <th style="width:90px;">Time</th>
+                    <th>Program Segment</th>
+                    <th>Description</th>
+                    <th style="width:130px;">In-Charge (PIC)</th>
+                    <th style="width:40px;"></th>
+                  </tr>
+                </thead>
+                <tbody>${schEditRows}</tbody>
+              </table>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+              <button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.addEditRow('schedule')" style="font-size:0.75rem; font-weight:600;">+ Add Segment</button>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-outline btn-xs ai-btn-action" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
+                <button type="button" class="btn btn-primary btn-xs" onclick="AIProposalGuidance.saveSectionEdits('${secKey}')">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+      case 'faculty_tasks':
+        const ftList = Array.isArray(data) ? data : [];
+        let ftEditRows = ftList.map((t) => `
+          <tr class="edit-ft-row">
+            <td><input type="text" class="form-control edit-ft-task" style="font-size:0.8rem;" value="${escapeHtml(t.task || '')}" placeholder="Task name"></td>
+            <td><input type="text" class="form-control edit-ft-contrib" style="font-size:0.8rem;" value="${escapeHtml(t.contribution || '')}" placeholder="Contribution / Deliverable"></td>
+            <td style="width:130px;"><input type="text" class="form-control edit-ft-role" style="font-size:0.8rem;" value="${escapeHtml(t.role || '')}" placeholder="Faculty Role"></td>
+            <td style="width:130px;"><input type="date" class="form-control edit-ft-due" style="font-size:0.8rem;" value="${escapeHtml(t.due_date || '')}"></td>
+            <td style="width:40px; text-align:center;"><button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.deleteEditRow(this)" style="color:#ef4444; border-color:#fca5a5;">✕</button></td>
+          </tr>
+        `).join('');
+
+        return `
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="overflow-x:auto;">
+              <table class="ai-preview-table" id="edit_table_faculty_tasks">
+                <thead>
+                  <tr>
+                    <th>Specific Task</th>
+                    <th>Contribution / Deliverable</th>
+                    <th style="width:130px;">Faculty Role</th>
+                    <th style="width:130px;">Due Date</th>
+                    <th style="width:40px;"></th>
+                  </tr>
+                </thead>
+                <tbody>${ftEditRows}</tbody>
+              </table>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+              <button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.addEditRow('faculty_tasks')" style="font-size:0.75rem; font-weight:600;">+ Add Task</button>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-outline btn-xs ai-btn-action" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
+                <button type="button" class="btn btn-primary btn-xs" onclick="AIProposalGuidance.saveSectionEdits('${secKey}')">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+      case 'evaluation_kpi':
+        const kpiList = Array.isArray(data) ? data : [];
+        let kpiEditRows = kpiList.map((k) => `
+          <tr class="edit-kpi-row">
+            <td><input type="text" class="form-control edit-kpi-ind" style="font-size:0.8rem;" value="${escapeHtml(k.indicator || '')}" placeholder="Indicator"></td>
+            <td style="width:180px;"><input type="text" class="form-control edit-kpi-target" style="font-size:0.8rem;" value="${escapeHtml(k.target || '')}" placeholder="Measurable Target"></td>
+            <td style="width:180px;"><input type="text" class="form-control edit-kpi-method" style="font-size:0.8rem;" value="${escapeHtml(k.method || '')}" placeholder="Evaluation Method"></td>
+            <td style="width:40px; text-align:center;"><button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.deleteEditRow(this)" style="color:#ef4444; border-color:#fca5a5;">✕</button></td>
+          </tr>
+        `).join('');
+
+        return `
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="overflow-x:auto;">
+              <table class="ai-preview-table" id="edit_table_evaluation_kpi">
+                <thead>
+                  <tr>
+                    <th>Evaluation Indicator</th>
+                    <th style="width:180px;">Measurable Target</th>
+                    <th style="width:180px;">Method</th>
+                    <th style="width:40px;"></th>
+                  </tr>
+                </thead>
+                <tbody>${kpiEditRows}</tbody>
+              </table>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+              <button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.addEditRow('evaluation_kpi')" style="font-size:0.75rem; font-weight:600;">+ Add KPI Indicator</button>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-outline btn-xs ai-btn-action" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
+                <button type="button" class="btn btn-primary btn-xs" onclick="AIProposalGuidance.saveSectionEdits('${secKey}')">Save Changes</button>
+              </div>
             </div>
           </div>
         `;
@@ -1337,17 +1519,7 @@ const AIProposalGuidance = (function () {
         `;
 
       default:
-        // Structured array editor via formatted JSON text
-        return `
-          <div>
-            <label style="font-size:0.74rem; font-weight:700;">Edit Items (JSON Format):</label>
-            <textarea id="edit_json_${secKey}" class="form-control" rows="6" style="font-family:monospace; font-size:0.78rem;">${escapeHtml(JSON.stringify(data, null, 2))}</textarea>
-            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
-              <button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.toggleEditSection('${secKey}')">Cancel</button>
-              <button type="button" class="btn btn-primary btn-xs" onclick="AIProposalGuidance.saveSectionEdits('${secKey}')">Save Changes</button>
-            </div>
-          </div>
-        `;
+        return '';
     }
   }
 
@@ -1359,34 +1531,239 @@ const AIProposalGuidance = (function () {
   function saveSectionEdits(secKey) {
     try {
       switch (secKey) {
-        case 'objectives':
-          _currentSuggestions.objectives.rationale = document.getElementById('edit_rationale')?.value || '';
-          _currentSuggestions.objectives.involved_subjects = document.getElementById('edit_involved_subjects')?.value || '';
+        case 'materials':
+          const matRows = document.querySelectorAll('#edit_table_materials tbody tr.edit-mat-row');
+          const materialsData = [];
+          matRows.forEach((row) => {
+            const item = row.querySelector('.edit-mat-item')?.value.trim() || '';
+            const desc = row.querySelector('.edit-mat-desc')?.value.trim() || '';
+            const qty = parseInt(row.querySelector('.edit-mat-qty')?.value, 10) || 1;
+            const provider = row.querySelector('.edit-mat-prov')?.value || 'in_house';
+            const unit = row.querySelector('.edit-mat-unit')?.value || 'fixed';
+            const rate = provider === 'rental' ? parseFloat(row.querySelector('.edit-mat-rate')?.value || 0) : 0;
+            const cost = provider === 'rental' ? (parseFloat(row.querySelector('.edit-mat-cost')?.value || 0) || (qty * rate)) : 0;
+            if (item) {
+              materialsData.push({ item, desc, qty, provider, unit, rate, cost });
+            }
+          });
+          _currentSuggestions.materials = materialsData;
+          break;
+
+        case 'people':
+          const pplRows = document.querySelectorAll('#edit_table_people tbody tr.edit-people-row');
+          const peopleData = [];
+          pplRows.forEach((row) => {
+            const role = row.querySelector('.edit-ppl-role')?.value.trim() || '';
+            const person = row.querySelector('.edit-ppl-person')?.value.trim() || '';
+            const type = row.querySelector('.edit-ppl-type')?.value || 'Faculty';
+            if (role || person) {
+              peopleData.push({ role, person, type });
+            }
+          });
+          _currentSuggestions.people = peopleData;
+          break;
+
+        case 'schedule':
+          const schRows = document.querySelectorAll('#edit_table_schedule tbody tr.edit-schedule-row');
+          const scheduleData = [];
+          schRows.forEach((row) => {
+            const time = row.querySelector('.edit-sch-time')?.value.trim() || '';
+            const segment = row.querySelector('.edit-sch-segment')?.value.trim() || '';
+            const desc = row.querySelector('.edit-sch-desc')?.value.trim() || '';
+            const pic = row.querySelector('.edit-sch-pic')?.value.trim() || '';
+            if (segment || time) {
+              scheduleData.push({ time, segment, desc, pic });
+            }
+          });
+          _currentSuggestions.schedule = scheduleData;
+          break;
+
+        case 'faculty_tasks':
+          const ftRows = document.querySelectorAll('#edit_table_faculty_tasks tbody tr.edit-ft-row');
+          const ftData = [];
+          ftRows.forEach((row) => {
+            const task = row.querySelector('.edit-ft-task')?.value.trim() || '';
+            const contribution = row.querySelector('.edit-ft-contrib')?.value.trim() || '';
+            const role = row.querySelector('.edit-ft-role')?.value.trim() || '';
+            const due_date = row.querySelector('.edit-ft-due')?.value.trim() || '';
+            if (task || role) {
+              ftData.push({ task, contribution, role, due_date });
+            }
+          });
+          _currentSuggestions.faculty_tasks = ftData;
+          break;
+
+        case 'evaluation_kpi':
+          const kpiRows = document.querySelectorAll('#edit_table_evaluation_kpi tbody tr.edit-kpi-row');
+          const kpiData = [];
+          kpiRows.forEach((row) => {
+            const indicator = row.querySelector('.edit-kpi-ind')?.value.trim() || '';
+            const target = row.querySelector('.edit-kpi-target')?.value.trim() || '';
+            const method = row.querySelector('.edit-kpi-method')?.value.trim() || '';
+            if (indicator) {
+              kpiData.push({ indicator, target, method });
+            }
+          });
+          _currentSuggestions.evaluation_kpi = kpiData;
           break;
 
         case 'floor_plan':
+          _currentSuggestions.floor_plan = _currentSuggestions.floor_plan || {};
           _currentSuggestions.floor_plan.notes = document.getElementById('edit_fp_notes')?.value || '';
           break;
 
         case 'guidelines':
+          _currentSuggestions.guidelines = _currentSuggestions.guidelines || {};
           _currentSuggestions.guidelines.mechanics = document.getElementById('edit_guidelines_mech')?.value || '';
           _currentSuggestions.guidelines.criteria = document.getElementById('edit_guidelines_crit')?.value || '';
           _currentSuggestions.guidelines.scoring = document.getElementById('edit_guidelines_score')?.value || '';
           _currentSuggestions.guidelines.regular_awards = document.getElementById('edit_guidelines_reg_awards')?.value || '';
           _currentSuggestions.guidelines.awards = document.getElementById('edit_guidelines_awards')?.value || '';
           break;
-
-        default:
-          const raw = document.getElementById(`edit_json_${secKey}`)?.value || '';
-          _currentSuggestions[secKey] = JSON.parse(raw);
-          break;
       }
 
       _editingSections[secKey] = false;
       renderSuggestions();
-      showToast(`✓ Edits saved for ${SECTION_CONFIG[secKey].name}. Click Apply to update the form.`);
+      showToast(`✓ Edits saved for ${SECTION_CONFIG[secKey]?.name || secKey}. Click Apply to update the form.`);
     } catch (err) {
       alert('Failed to save edits: ' + err.message);
+    }
+  }
+
+  function addEditRow(secKey) {
+    const table = document.getElementById(`edit_table_${secKey}`);
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+
+    const tr = document.createElement('tr');
+    switch (secKey) {
+      case 'materials':
+        tr.className = 'edit-mat-row';
+        tr.innerHTML = `
+          <td><input type="text" class="form-control edit-mat-item" style="font-size:0.8rem;" placeholder="Item name"></td>
+          <td><input type="text" class="form-control edit-mat-desc" style="font-size:0.8rem;" placeholder="Description"></td>
+          <td style="width:70px;"><input type="number" min="1" class="form-control edit-mat-qty" style="font-size:0.8rem;" value="1" oninput="AIProposalGuidance.calcEditMaterialRow(this)"></td>
+          <td style="width:140px;">
+            <select class="form-control edit-mat-prov" style="font-size:0.8rem;" onchange="AIProposalGuidance.onEditMaterialProviderChange(this)">
+              <option value="in_house" selected>In-House (School)</option>
+              <option value="rental">Rental (Supplier)</option>
+            </select>
+          </td>
+          <td style="width:110px;">
+            <select class="form-control edit-mat-unit" style="font-size:0.8rem; opacity:0.6;" disabled>
+              <option value="fixed" selected>Fixed / Item</option>
+              <option value="per_hour">Per Hour</option>
+              <option value="per_day">Per Day</option>
+            </select>
+          </td>
+          <td style="width:85px;"><input type="number" step="0.01" min="0" class="form-control edit-mat-rate" style="font-size:0.8rem; opacity:0.6;" value="0.00" disabled oninput="AIProposalGuidance.calcEditMaterialRow(this)"></td>
+          <td style="width:90px;"><input type="number" step="0.01" class="form-control edit-mat-cost" style="font-size:0.8rem; background:#f8fafc; font-weight:600;" value="0.00" readonly></td>
+          <td style="width:40px; text-align:center;"><button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.deleteEditRow(this)" style="color:#ef4444; border-color:#fca5a5;">✕</button></td>
+        `;
+        break;
+
+      case 'people':
+        tr.className = 'edit-people-row';
+        tr.innerHTML = `
+          <td><input type="text" class="form-control edit-ppl-role" style="font-size:0.8rem;" placeholder="Role"></td>
+          <td><input type="text" class="form-control edit-ppl-person" style="font-size:0.8rem;" placeholder="Full name"></td>
+          <td style="width:120px;">
+            <select class="form-control edit-ppl-type" style="font-size:0.8rem;">
+              <option value="Faculty" selected>Faculty</option>
+              <option value="Staff">Staff</option>
+              <option value="Student">Student</option>
+            </select>
+          </td>
+          <td style="width:40px; text-align:center;"><button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.deleteEditRow(this)" style="color:#ef4444; border-color:#fca5a5;">✕</button></td>
+        `;
+        break;
+
+      case 'schedule':
+        tr.className = 'edit-schedule-row';
+        tr.innerHTML = `
+          <td style="width:90px;"><input type="text" class="form-control edit-sch-time" style="font-size:0.8rem;" placeholder="09:00"></td>
+          <td><input type="text" class="form-control edit-sch-segment" style="font-size:0.8rem;" placeholder="Segment name"></td>
+          <td><input type="text" class="form-control edit-sch-desc" style="font-size:0.8rem;" placeholder="Description"></td>
+          <td style="width:130px;"><input type="text" class="form-control edit-sch-pic" style="font-size:0.8rem;" placeholder="In-charge"></td>
+          <td style="width:40px; text-align:center;"><button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.deleteEditRow(this)" style="color:#ef4444; border-color:#fca5a5;">✕</button></td>
+        `;
+        break;
+
+      case 'faculty_tasks':
+        tr.className = 'edit-ft-row';
+        tr.innerHTML = `
+          <td><input type="text" class="form-control edit-ft-task" style="font-size:0.8rem;" placeholder="Task name"></td>
+          <td><input type="text" class="form-control edit-ft-contrib" style="font-size:0.8rem;" placeholder="Contribution / Deliverable"></td>
+          <td style="width:130px;"><input type="text" class="form-control edit-ft-role" style="font-size:0.8rem;" placeholder="Faculty Role"></td>
+          <td style="width:130px;"><input type="date" class="form-control edit-ft-due" style="font-size:0.8rem;"></td>
+          <td style="width:40px; text-align:center;"><button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.deleteEditRow(this)" style="color:#ef4444; border-color:#fca5a5;">✕</button></td>
+        `;
+        break;
+
+      case 'evaluation_kpi':
+        tr.className = 'edit-kpi-row';
+        tr.innerHTML = `
+          <td><input type="text" class="form-control edit-kpi-ind" style="font-size:0.8rem;" placeholder="Indicator"></td>
+          <td style="width:180px;"><input type="text" class="form-control edit-kpi-target" style="font-size:0.8rem;" placeholder="Measurable Target"></td>
+          <td style="width:180px;"><input type="text" class="form-control edit-kpi-method" style="font-size:0.8rem;" placeholder="Method"></td>
+          <td style="width:40px; text-align:center;"><button type="button" class="btn btn-outline btn-xs" onclick="AIProposalGuidance.deleteEditRow(this)" style="color:#ef4444; border-color:#fca5a5;">✕</button></td>
+        `;
+        break;
+    }
+    tbody.appendChild(tr);
+  }
+
+  function deleteEditRow(btn) {
+    const tr = btn.closest('tr');
+    if (tr) {
+      const tbody = tr.parentElement;
+      if (tbody && tbody.querySelectorAll('tr').length > 1) {
+        tr.remove();
+      } else if (tr) {
+        tr.querySelectorAll('input').forEach(i => i.value = '');
+      }
+    }
+  }
+
+  function onEditMaterialProviderChange(selectEl) {
+    const row = selectEl.closest('tr');
+    if (!row) return;
+    const unitSelect = row.querySelector('.edit-mat-unit');
+    const rateInput = row.querySelector('.edit-mat-rate');
+    const costInput = row.querySelector('.edit-mat-cost');
+    const isRental = (selectEl.value === 'rental');
+
+    if (unitSelect) {
+      unitSelect.disabled = !isRental;
+      unitSelect.style.opacity = isRental ? '1' : '0.6';
+    }
+    if (rateInput) {
+      rateInput.disabled = !isRental;
+      rateInput.style.opacity = isRental ? '1' : '0.6';
+      if (!isRental) rateInput.value = '0.00';
+    }
+    if (costInput && !isRental) {
+      costInput.value = '0.00';
+    }
+    calcEditMaterialRow(selectEl);
+  }
+
+  function calcEditMaterialRow(el) {
+    const row = el.closest('tr');
+    if (!row) return;
+    const provSelect = row.querySelector('.edit-mat-prov');
+    const isRental = (provSelect?.value === 'rental');
+    const qty = parseFloat(row.querySelector('.edit-mat-qty')?.value) || 0;
+    const rate = parseFloat(row.querySelector('.edit-mat-rate')?.value) || 0;
+    const costInput = row.querySelector('.edit-mat-cost');
+
+    if (costInput) {
+      if (isRental) {
+        costInput.value = (qty * rate).toFixed(2);
+      } else {
+        costInput.value = '0.00';
+      }
     }
   }
 
@@ -1414,11 +1791,6 @@ const AIProposalGuidance = (function () {
     if (!form) return false;
 
     switch (secKey) {
-      case 'objectives':
-        const rat = (form.querySelector('[name="rationale"]') || document.getElementById('f2_rationale'))?.value.trim();
-        const subj = (form.querySelector('[name="involved_subjects"]') || document.getElementById('f2_involved_subjects'))?.value.trim();
-        return !!(rat || subj);
-
       case 'materials':
         const matItems = form.querySelectorAll('input[name="mat_item[]"]');
         for (let el of matItems) {
@@ -1492,23 +1864,6 @@ const AIProposalGuidance = (function () {
 
     try {
       switch (secKey) {
-        case 'objectives':
-          const fRat = form.querySelector('[name="rationale"]') || document.getElementById('f2_rationale');
-          const fSubj = form.querySelector('[name="involved_subjects"]') || document.getElementById('f2_involved_subjects');
-
-          // Do NOT touch or overwrite general_objectives or specific_objectives
-          if (fRat && data.rationale) {
-            fRat.value = data.rationale;
-            fRat.dispatchEvent(new Event('input', { bubbles: true }));
-            fRat.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-          if (fSubj && data.involved_subjects) {
-            fSubj.value = data.involved_subjects;
-            fSubj.dispatchEvent(new Event('input', { bubbles: true }));
-            fSubj.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-          break;
-
         case 'materials':
           if (Array.isArray(data) && data.length > 0) {
             const tbody = document.getElementById('materials-body');
@@ -1886,6 +2241,10 @@ const AIProposalGuidance = (function () {
     applyAll,
     toggleEditSection,
     saveSectionEdits,
+    addEditRow,
+    deleteEditRow,
+    onEditMaterialProviderChange,
+    calcEditMaterialRow,
     toggleSectionSelection,
     toggleAllSections
   };

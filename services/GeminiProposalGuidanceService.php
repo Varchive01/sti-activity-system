@@ -777,7 +777,7 @@ Generate realistic, detailed, high-quality proposal content based strictly on th
 
 === CRITICAL GENERATION RULES ===
 1. DO NOT generate, modify, or suggest the Activity Title. The title is manually entered by faculty and strictly protected.
-2. DO NOT generate General Objectives or Specific Objectives in the Objectives step. These are generated automatically upon clicking Next in Step 1. Generate ONLY "rationale" and "involved_subjects" for the Objectives section.
+2. DO NOT generate Objectives. General and Specific Objectives are already formulated automatically in Step 2.
 3. Every suggestion across all requested sections must be realistic, non-boilerplate, and directly tailored to the Step 1 event details (Venue: {$venue}, Timing: {$startTime}-{$endTime}, Headcount: {$participants} participants, Category: {$source}, Theme: "{$theme}").
 4. Evaluation & KPI indicators and methods must directly evaluate the accomplishment of the activity title, theme, and stated objectives.
 5. Generate content ONLY for the following requested sections: {$sectionsListStr}.
@@ -785,10 +785,6 @@ Generate realistic, detailed, high-quality proposal content based strictly on th
 
 Return STRICTLY a valid JSON object without markdown fences matching this schema for the requested sections:
 {
-  "objectives": {
-    "rationale": "Educational and industry justification paragraph...",
-    "involved_subjects": "Relevant courses/subjects"
-  },
   "materials": [
     { "item": "Sound System & Microphones", "desc": "Wireless mics & PA mixer", "qty": 1, "provider": "in_house", "unit": "fixed", "rate": 0.00, "cost": 0.00 },
     { "item": "Event Stage Backdrop / Tarpaulin", "desc": "8x5 ft custom printed event backdrop", "qty": 1, "provider": "rental", "unit": "fixed", "rate": 750.00, "cost": 750.00 }
@@ -937,7 +933,17 @@ PROMPT;
                 unset($m);
             }
 
-            return $parsed;
+            // Strictly filter returned suggestions to only requested sections
+            $filtered = [];
+            foreach ($sections as $sec) {
+                if (isset($parsed[$sec]) && !empty($parsed[$sec])) {
+                    $filtered[$sec] = $parsed[$sec];
+                } elseif (isset($fallback[$sec])) {
+                    $filtered[$sec] = $fallback[$sec];
+                }
+            }
+
+            return $filtered;
         }
 
         /**
@@ -958,10 +964,6 @@ PROMPT;
             $subjects     = !empty($proposal['involved_subjects']) ? trim((string)$proposal['involved_subjects']) : 'Major Academic Courses & General Education';
 
             $allSuggestions = [
-                'objectives' => [
-                    'rationale' => "In alignment with STI's outcome-based education model and {$source} guidelines, this activity addresses essential student competencies by connecting classroom theories with practical, hands-on application. Immersion in {$title} fosters collaborative engagement, problem-solving capabilities, and professional preparedness.",
-                    'involved_subjects' => $subjects
-                ],
                 'materials' => [
                     [
                         'item'     => 'Wireless Microphones & PA Audio System',
