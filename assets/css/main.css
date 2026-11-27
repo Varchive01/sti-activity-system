@@ -8043,3 +8043,185 @@ html body .card {
   box-sizing: border-box !important;
 }
 
+/* ============================================================
+   Faculty Global Multi-Device Resolution & Adaptive Layout Engine
+   (Smartphones 320px–480px, Tablets 768px–1024px, Laptops & Desktops 1280px–2560px+)
+   ============================================================ */
+
+/* ── Wizard Steps Touch Navigation ── */
+.wizard-steps {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.wizard-step {
+  scroll-snap-align: start;
+  flex: 0 0 auto !important;
+  min-width: 82px;
+  box-sizing: border-box !important;
+}
+
+/* ── Target Participants Scroll Box Universal Containment ── */
+.target-participants-scroll-box {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  position: relative;
+}
+
+@media (max-width: 1023.98px) {
+  .target-participants-scroll-box {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: thin;
+  }
+  .target-participants-scroll-box table {
+    min-width: 620px !important;
+  }
+}
+
+/* ── Proposal Multi-Step Navigation Buttons (.nav-btns) ── */
+.nav-btns {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.nav-btns > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .nav-btns {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .nav-btns > div,
+  .nav-btns > div:last-child {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+  .nav-btns button,
+  .nav-btns a.btn {
+    width: 100% !important;
+    text-align: center !important;
+    justify-content: center !important;
+    min-height: 44px !important;
+    font-size: 0.9rem !important;
+  }
+}
+
+/* ── Dynamic Table Inputs Touch Optimization ── */
+.dynamic-table {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.dynamic-table table {
+  width: 100% !important;
+  min-width: 580px !important;
+}
+
+.dynamic-table input.form-control,
+.dynamic-table select.form-control {
+  min-height: 36px;
+  box-sizing: border-box;
+  font-size: 0.85rem;
+}
+
+/* ── Collaborative Proposal Banner & AI Guidance Toolbar ── */
+#collaborativeProposalBanner,
+.ai-guidance-toolbar {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 767.98px) {
+  #collaborativeProposalBanner > div,
+  .ai-guidance-toolbar > div {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  #collaborativeProposalBanner .btn,
+  .ai-guidance-toolbar .btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* ── Faculty Modals Fluid Boundaries ── */
+.modal-dialog,
+.modal-content,
+div[style*="max-width: 600px"],
+div[style*="max-width: 520px"],
+div[style*="max-width: 560px"],
+div[style*="max-width: 680px"],
+div[style*="max-width: 750px"] {
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 767.98px) {
+  .modal-dialog,
+  .modal-content,
+  div[style*="max-width: 600px"],
+  div[style*="max-width: 520px"],
+  div[style*="max-width: 560px"],
+  div[style*="max-width: 680px"],
+  div[style*="max-width: 750px"] {
+    max-width: calc(100vw - 20px) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}
+
+/* ── Grid Auto-Fit Narrow Screen Override ── */
+@media (max-width: 480px) {
+  div[style*="minmax(300px"],
+  div[style*="minmax(280px"],
+  div[style*="minmax(250px"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Faculty Calendar Multi-Device Resolution ── */
+@media (max-width: 640px) {
+  .cal-toolbar,
+  .fc-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .cal-title,
+  .fc-toolbar-title {
+    font-size: 1.1rem !important;
+    text-align: center !important;
+  }
+  .cal-nav,
+  .fc-button-group {
+    display: flex !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+}
+
+
