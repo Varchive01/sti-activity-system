@@ -105,7 +105,7 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
       } catch (e) {}
     })();
   </script>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
 <style>
 .timeline-line{width:1px;background:var(--border);margin:14px 4px 0;flex:0 0 1px;}
 .kpi-star{color:var(--sti-gold);}

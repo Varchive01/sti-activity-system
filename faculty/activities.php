@@ -133,7 +133,7 @@ try {
 <meta name="base-url" content="<?= BASE_URL ?>">
 <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
 <title><?= ($user['role'] === 'program_head') ? 'Department Activities' : 'My Activities' ?> – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
 <style>
   @media (max-width: 640px) {
     .filters {

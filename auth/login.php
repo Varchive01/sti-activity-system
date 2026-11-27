@@ -168,6 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Syne:wght@800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
   
   <style>
     :root {
@@ -178,6 +179,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       --sti-primary-hover: #002855;
       --text-main: #1A202C;
       --text-muted: #556987;
+    }
+
+    html,
+    body {
+      width: 100%;
+      max-width: 100vw;
+      overflow-x: hidden;
+      margin: 0;
+      box-sizing: border-box;
     }
 
     * {
@@ -206,6 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     @media (max-width: 768px) {
       body {
+        background-attachment: scroll !important;
         background-position: center 15%;
         padding: 16px 12px;
       }
@@ -213,8 +224,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     .auth-page-body {
       width: 100%;
-      max-width: 440px;
+      max-width: min(440px, calc(100vw - 24px));
       margin: auto;
+      box-sizing: border-box;
     }
 
     .auth-card {
@@ -570,17 +582,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     @media (max-width: 480px) {
       .auth-card {
-        padding: 26px 20px 22px 20px;
-        border-radius: 20px;
+        padding: 24px 16px 20px 16px;
+        border-radius: 18px;
+        width: 100%;
+        max-width: 100%;
       }
       .illustration-wrap {
-        max-width: 160px;
-        height: 96px;
+        max-width: 150px;
+        height: 90px;
         margin-bottom: 12px;
       }
       .btn-microsoft, .btn-submit-login {
         height: 42px;
         font-size: 0.90rem;
+      }
+      .auth-brand {
+        font-size: 1.75rem;
       }
     }
   </style>

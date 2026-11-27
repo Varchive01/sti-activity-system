@@ -169,7 +169,7 @@ function timeAgo($datetime)
   <title>Faculty Dashboard – STI Activity System</title>
   <meta name="base-url" content="<?= BASE_URL ?>">
   <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
   <script>
     (function() {
       try {
@@ -812,10 +812,21 @@ function timeAgo($datetime)
 
     .activity-table {
       width: 100%;
-      min-width: 860px;
       border-collapse: collapse;
       table-layout: fixed;
       box-sizing: border-box;
+    }
+
+    @media (min-width: 1024px) {
+      .activity-table {
+        min-width: 860px;
+      }
+    }
+
+    @media (max-width: 1023.98px) {
+      .activity-table {
+        min-width: 540px;
+      }
     }
 
     .activity-table th {

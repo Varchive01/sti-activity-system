@@ -44,7 +44,7 @@ $acts=$db->prepare("SELECT a.*,u.name as fn, u.role as author_role FROM activiti
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>All Activities – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
   <script>
     (function() {
       try {

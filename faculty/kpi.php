@@ -115,7 +115,7 @@ function attendanceClass($actual, $target) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title><?= $isProgramHead ? 'Department KPI & Evaluation Reports – STI' : 'KPI Results – STI Activity System' ?></title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
 <style>
 /* Typography parity */
 body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge, .form-control, label, select {

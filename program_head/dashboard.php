@@ -302,7 +302,7 @@ function renderActivityStatusBadge(string $status): string {
   <meta name="base-url" content="<?= BASE_URL ?>">
   <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
   <title><?= htmlspecialchars($dashboardTitle) ?> – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
   <script>
     (function() {
       try {
@@ -743,11 +743,22 @@ function renderActivityStatusBadge(string $status): string {
 
     .data-table {
       width: 100%;
-      min-width: 860px;
       border-collapse: collapse;
       table-layout: fixed;
       font-size: 0.82rem;
       box-sizing: border-box;
+    }
+
+    @media (min-width: 1024px) {
+      .data-table {
+        min-width: 860px;
+      }
+    }
+
+    @media (max-width: 1023.98px) {
+      .data-table {
+        min-width: 540px;
+      }
     }
 
     .data-table th {

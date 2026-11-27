@@ -74,7 +74,7 @@ if (!$isAccessible) {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Post-Event Results – Access Notice</title>
-      <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
+      <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
     </head>
     <body class="<?= htmlspecialchars($themeClass) ?>">
       <?php include __DIR__ . '/../includes/sidebar.php'; ?>
@@ -207,7 +207,7 @@ $roleTitle = ($role === 'admin1') ? 'Admin 1 — Student Org Head' : (($role ===
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Post-Event Results: <?= htmlspecialchars($activity['title']) ?> – STI-ARMES</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
   <style>
     .pe-metric-grid {
       display: grid;

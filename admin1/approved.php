@@ -39,7 +39,7 @@ $acts = $acts->fetchAll();
       } catch (e) {}
     })();
   </script>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
 </head>
 
 <body class="theme-arjay">

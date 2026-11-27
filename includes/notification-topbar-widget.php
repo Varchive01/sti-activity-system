@@ -292,8 +292,8 @@ if (!function_exists('topbarWidgetTimeAgo')) {
   display: none;
   position: absolute;
   top: calc(100% + 8px);
-  right: -36px;
-  width: 400px;
+  right: -10px;
+  width: min(400px, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
   background: var(--bg-card, #FFFFFF);
   border: 1px solid var(--border, #E2E8F0);

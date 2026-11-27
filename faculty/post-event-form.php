@@ -65,7 +65,7 @@ $errorCode = $_GET['error'] ?? null;
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= $existingPostEvent ? 'Edit Post-Event Report' : 'Upload Post-Event Report' ?> – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
   <style>
     .main-wrap,
     .content {

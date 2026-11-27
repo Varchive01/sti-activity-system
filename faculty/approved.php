@@ -48,7 +48,7 @@ try {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta charset="UTF-8">
 <title>Approved Activities – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0">
 </head>
 <body class="theme-faculty">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>

@@ -22,7 +22,7 @@ $acts = $acts->fetchAll();
 <?php include __DIR__ . '/../includes/head-theme-init.php'; ?>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"><meta charset="UTF-8">
 <title>Approved – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0"></head>
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.0"></head>
 <body class="theme-ian">
 <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 <div class="main-wrap">

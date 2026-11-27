@@ -7692,6 +7692,15 @@ html[data-theme="dark"] #aiProposalGuidanceModal .ai-applied-badge {
 
 /* Tablets & Small Laptops (< 1024px) */
 @media (max-width: 1023.98px) {
+  html,
+  body {
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
   html body,
   html body .main-wrap,
   html body .content {
@@ -7705,7 +7714,8 @@ html[data-theme="dark"] #aiProposalGuidanceModal .ai-applied-badge {
   html body .dashboard-layout,
   html body .split-layout,
   html body .review-layout,
-  html body .proposal-layout-grid {
+  html body .proposal-layout-grid,
+  html body .dashboard-kpi-split {
     display: flex !important;
     flex-direction: column !important;
     width: 100% !important;
@@ -7737,6 +7747,15 @@ html[data-theme="dark"] #aiProposalGuidanceModal .ai-applied-badge {
 
 /* Phones & Small Tablets (< 768px) */
 @media (max-width: 767.98px) {
+  html,
+  body {
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
   html body,
   html body .main-wrap,
   html body .content {
@@ -7818,14 +7837,32 @@ html[data-theme="dark"] #aiProposalGuidanceModal .ai-applied-badge {
     min-width: 0 !important;
   }
 
+  /* Universal Chart & SVG Scroll Wrapper Protection */
+  html body .chart-container-wrap,
+  html body .month-bar-wrap,
+  html body .month-chart-scroll-wrap,
+  html body .chart-scroll-wrap {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  html body .trends-chart-svg {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
   /* Universal Table Container & Horizontal Scroll Protection */
   html body .table-wrap,
   html body .table-responsive,
   html body .table-container,
   html body .data-table-container,
   html body .data-table-wrap,
-  html body .gantt-chart-table-wrap,
-  html body .month-chart-scroll-wrap {
+  html body .gantt-chart-table-wrap {
     display: block !important;
     width: 100% !important;
     max-width: 100% !important;
@@ -7839,7 +7876,7 @@ html[data-theme="dark"] #aiProposalGuidanceModal .ai-applied-badge {
   html body .table-responsive > table,
   html body .table-container > table,
   html body .data-table {
-    min-width: 580px;
+    min-width: 540px;
     width: 100%;
   }
 
@@ -7882,12 +7919,13 @@ html[data-theme="dark"] #aiProposalGuidanceModal .ai-applied-badge {
   html body .um-modal,
   html body .clearance-modal-box,
   html body .pe-lightbox-modal,
-  html body .event-popup {
+  html body .event-popup,
+  html body #notifDropdown,
+  html body .notif-dropdown {
     width: min(100%, calc(100vw - 20px)) !important;
     max-width: calc(100vw - 20px) !important;
     max-height: calc(100dvh - 24px) !important;
     box-sizing: border-box !important;
-    margin: 10px auto !important;
   }
 
   html body .modal-body,
