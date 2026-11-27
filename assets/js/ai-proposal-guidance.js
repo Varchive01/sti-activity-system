@@ -33,7 +33,7 @@ const AIProposalGuidance = (function () {
       id: 'materials',
       name: 'Materials & Budget',
       icon: '📦',
-      fields: ['mat_item[]', 'mat_desc[]', 'mat_qty[]', 'mat_provider[]', 'mat_cost[]']
+      fields: ['mat_item[]', 'mat_desc[]', 'mat_qty[]', 'mat_provider[]', 'mat_unit[]', 'mat_rate[]', 'mat_cost[]']
     },
     floor_plan: {
       id: 'floor_plan',
@@ -1145,15 +1145,27 @@ const AIProposalGuidance = (function () {
 
       case 'materials':
         if (!Array.isArray(data) || data.length === 0) return '<em class="ai-text-muted">No materials suggested.</em>';
-        let matRows = data.map((m, i) => `
-          <tr>
-            <td style="font-weight:600;">${escapeHtml(m.item)}</td>
-            <td class="ai-text-muted">${escapeHtml(m.desc || '—')}</td>
-            <td style="text-align:center;">${m.qty}</td>
-            <td class="ai-text-muted">${escapeHtml(m.provider || '—')}</td>
-            <td style="text-align:right; font-weight:600;">₱${parseFloat(m.cost || 0).toFixed(2)}</td>
-          </tr>
-        `).join('');
+        let matRows = data.map((m, i) => {
+          const rawProv = String(m.provider || '').toLowerCase().trim();
+          const isRental = rawProv === 'rental' || rawProv.includes('rental') || rawProv.includes('supplier') || rawProv.includes('external') || rawProv.includes('vendor') || (parseFloat(m.rate || m.cost || 0) > 0 && !rawProv.includes('in_house') && !rawProv.includes('school') && !rawProv.includes('internal'));
+          const provBadge = isRental 
+            ? '<span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">Rental (Supplier)</span>'
+            : '<span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">In-House (School)</span>';
+          const unitLabel = m.unit === 'per_hour' ? 'Per Hour' : (m.unit === 'per_day' ? 'Per Day' : 'Fixed / Item');
+          const rateVal = isRental ? `₱${parseFloat(m.rate !== undefined ? m.rate : (m.cost || 0)).toFixed(2)}` : '<span class="ai-text-muted">—</span>';
+          const costVal = isRental ? `₱${parseFloat(m.cost !== undefined ? m.cost : ((parseFloat(m.rate) || 0) * (parseInt(m.qty, 10) || 1))).toFixed(2)}` : '₱0.00';
+          return `
+            <tr>
+              <td style="font-weight:600;">${escapeHtml(m.item || '')}</td>
+              <td class="ai-text-muted">${escapeHtml(m.desc || '—')}</td>
+              <td style="text-align:center;">${m.qty || 1}</td>
+              <td>${provBadge}</td>
+              <td class="ai-text-muted" style="font-size:0.78rem;">${isRental ? unitLabel : '—'}</td>
+              <td style="text-align:right;">${rateVal}</td>
+              <td style="text-align:right; font-weight:600;">${costVal}</td>
+            </tr>
+          `;
+        }).join('');
         return `
           <div style="overflow-x:auto;">
             <table class="ai-preview-table">
@@ -1162,7 +1174,9 @@ const AIProposalGuidance = (function () {
                   <th>Item</th>
                   <th>Description</th>
                   <th style="text-align:center;">Qty</th>
-                  <th>Supplier</th>
+                  <th>Provider / Supplier</th>
+                  <th>Billing Unit</th>
+                  <th style="text-align:right;">Rate</th>
                   <th style="text-align:right;">Est. Cost</th>
                 </tr>
               </thead>
@@ -1501,18 +1515,49 @@ const AIProposalGuidance = (function () {
             if (tbody) {
               tbody.innerHTML = '';
               data.forEach((m) => {
+                const rawProv = String(m.provider || '').toLowerCase().trim();
+                const isRental = rawProv === 'rental' || rawProv.includes('rental') || rawProv.includes('supplier') || rawProv.includes('external') || rawProv.includes('vendor') || (parseFloat(m.rate || m.cost || 0) > 0 && !rawProv.includes('in_house') && !rawProv.includes('school') && !rawProv.includes('internal'));
+                const provVal = isRental ? 'rental' : 'in_house';
+                const unitVal = ['per_hour', 'per_day', 'fixed'].includes(m.unit) ? m.unit : 'fixed';
+                const rateNum = isRental ? parseFloat(m.rate !== undefined ? m.rate : (m.cost || 0)) : 0;
+                const rateVal = rateNum.toFixed(2);
+                const qtyVal = parseInt(m.qty || 1, 10) || 1;
+                const costVal = isRental ? (parseFloat(m.cost !== undefined ? m.cost : (rateNum * qtyVal))).toFixed(2) : '0.00';
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                   <td><input type="text" name="mat_item[]" class="form-control mat-field" placeholder="e.g. Chairs" value="${escapeHtml(m.item || '')}"></td>
                   <td><input type="text" name="mat_desc[]" class="form-control mat-field" placeholder="Description" value="${escapeHtml(m.desc || '')}"></td>
-                  <td><input type="number" name="mat_qty[]" class="form-control mat-qty" value="${m.qty || 1}" min="1"></td>
-                  <td><input type="text" name="mat_provider[]" class="form-control mat-field" placeholder="Supplier name" value="${escapeHtml(m.provider || '')}"></td>
-                  <td><input type="number" name="mat_cost[]" class="form-control mat-cost" placeholder="0.00" step="0.01" min="0" value="${m.cost !== undefined ? m.cost : '0.00'}"></td>
+                  <td><input type="number" name="mat_qty[]" class="form-control mat-qty" value="${qtyVal}" min="1" placeholder="1" oninput="calculateMaterialRow(this)"></td>
+                  <td>
+                    <select name="mat_provider[]" class="form-control mat-field mat-provider-select" onchange="handleMaterialProviderChange(this)">
+                      <option value="in_house" ${provVal === 'in_house' ? 'selected' : ''}>In-House (School)</option>
+                      <option value="rental" ${provVal === 'rental' ? 'selected' : ''}>Rental (Supplier)</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select name="mat_unit[]" class="form-control mat-field mat-unit-select" onchange="calculateMaterialRow(this)" ${!isRental ? 'disabled style="opacity:0.6;"' : ''}>
+                      <option value="per_hour" ${unitVal === 'per_hour' ? 'selected' : ''}>Per Hour</option>
+                      <option value="per_day" ${unitVal === 'per_day' ? 'selected' : ''}>Per Day</option>
+                      <option value="fixed" ${unitVal === 'fixed' ? 'selected' : ''}>Fixed / Per Item</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input type="number" name="mat_rate[]" class="form-control mat-rate" placeholder="0.00" step="0.01" min="0" value="${rateVal}" ${!isRental ? 'disabled style="opacity:0.6;"' : ''} oninput="calculateMaterialRow(this)">
+                  </td>
+                  <td>
+                    <input type="number" name="mat_cost[]" class="form-control mat-cost" placeholder="0.00" step="0.01" min="0" value="${costVal}" readonly style="background:var(--bg-muted, #f8fafc); font-weight:600;">
+                  </td>
                   <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
                 `;
                 tbody.appendChild(tr);
               });
-              if (typeof window.updateTotal === 'function') window.updateTotal();
+
+              if (typeof window.recalculateAllMaterials === 'function') {
+                window.recalculateAllMaterials();
+              } else if (typeof window.updateTotal === 'function') {
+                window.updateTotal();
+              }
             }
           }
           break;

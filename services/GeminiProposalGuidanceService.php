@@ -781,6 +781,7 @@ Generate realistic, detailed, high-quality proposal content based strictly on th
 3. Every suggestion across all requested sections must be realistic, non-boilerplate, and directly tailored to the Step 1 event details (Venue: {$venue}, Timing: {$startTime}-{$endTime}, Headcount: {$participants} participants, Category: {$source}, Theme: "{$theme}").
 4. Evaluation & KPI indicators and methods must directly evaluate the accomplishment of the activity title, theme, and stated objectives.
 5. Generate content ONLY for the following requested sections: {$sectionsListStr}.
+6. For the "materials" section: Each item MUST have "provider" set strictly to either "in_house" (for school equipment/facilities, lab items, projectors; rate=0.00, cost=0.00, unit="fixed") or "rental" (for external suppliers/rentals, printing, tokens, rented AV; provide realistic numeric rate in PHP, unit as "per_hour", "per_day", or "fixed", and cost = qty * rate). DO NOT invent arbitrary supplier strings for "provider".
 
 Return STRICTLY a valid JSON object without markdown fences matching this schema for the requested sections:
 {
@@ -789,7 +790,8 @@ Return STRICTLY a valid JSON object without markdown fences matching this schema
     "involved_subjects": "Relevant courses/subjects"
   },
   "materials": [
-    { "item": "Item name", "desc": "Description/spec", "qty": 2, "provider": "Supplier", "cost": 0.00 }
+    { "item": "Sound System & Microphones", "desc": "Wireless mics & PA mixer", "qty": 1, "provider": "in_house", "unit": "fixed", "rate": 0.00, "cost": 0.00 },
+    { "item": "Event Stage Backdrop / Tarpaulin", "desc": "8x5 ft custom printed event backdrop", "qty": 1, "provider": "rental", "unit": "fixed", "rate": 750.00, "cost": 750.00 }
   ],
   "floor_plan": {
     "notes": "Comprehensive layout description detailing stage, seating rows, aisle widths, exits, and registration for {$venue}."
@@ -911,6 +913,30 @@ PROMPT;
                 }
             }
 
+            // Normalize materials items to guarantee valid provider ('in_house' vs 'rental'), unit, rate, and cost
+            if (isset($parsed['materials']) && is_array($parsed['materials'])) {
+                foreach ($parsed['materials'] as &$m) {
+                    if (!is_array($m)) continue;
+                    $rawProv = strtolower(trim((string)($m['provider'] ?? '')));
+                    $costNum = (float)($m['cost'] ?? 0);
+                    $rateNum = isset($m['rate']) ? (float)$m['rate'] : $costNum;
+                    $qtyNum = max(1, (int)($m['qty'] ?? 1));
+
+                    $isRental = ($rawProv === 'rental')
+                        || strpos($rawProv, 'rental') !== false
+                        || strpos($rawProv, 'supplier') !== false
+                        || strpos($rawProv, 'external') !== false
+                        || strpos($rawProv, 'vendor') !== false
+                        || ($rateNum > 0 && strpos($rawProv, 'in_house') === false && strpos($rawProv, 'school') === false && strpos($rawProv, 'internal') === false);
+
+                    $m['provider'] = $isRental ? 'rental' : 'in_house';
+                    $m['unit'] = in_array($m['unit'] ?? '', ['per_hour', 'per_day', 'fixed'], true) ? $m['unit'] : 'fixed';
+                    $m['rate'] = $isRental ? ($rateNum > 0 ? $rateNum : round($costNum / $qtyNum, 2)) : 0.00;
+                    $m['cost'] = $isRental ? ($costNum > 0 ? $costNum : round($m['rate'] * $qtyNum, 2)) : 0.00;
+                }
+                unset($m);
+            }
+
             return $parsed;
         }
 
@@ -941,35 +967,45 @@ PROMPT;
                         'item'     => 'Wireless Microphones & PA Audio System',
                         'desc'     => 'Dual wireless microphones with PA amplifier and receiver',
                         'qty'      => 2,
-                        'provider' => 'Campus AV Logistics',
+                        'provider' => 'in_house',
+                        'unit'     => 'fixed',
+                        'rate'     => 0.00,
                         'cost'     => 0.00
                     ],
                     [
                         'item'     => 'High-Definition Projector & Projection Screen',
                         'desc'     => 'HDMI 1080p presentation display for keynote speakers',
                         'qty'      => 1,
-                        'provider' => 'IT Laboratory',
+                        'provider' => 'in_house',
+                        'unit'     => 'fixed',
+                        'rate'     => 0.00,
                         'cost'     => 0.00
                     ],
                     [
                         'item'     => 'Certificate of Participation & Recognition',
                         'desc'     => 'Premium parchment certificate board with embossed STI seal',
                         'qty'      => $participants,
-                        'provider' => 'Admin Office',
-                        'cost'     => 500.00
+                        'provider' => 'rental',
+                        'unit'     => 'fixed',
+                        'rate'     => 15.00,
+                        'cost'     => round($participants * 15.00, 2)
                     ],
                     [
                         'item'     => 'Event Stage Backdrop / Tarpaulin',
                         'desc'     => '8x5 ft official event banner featuring event theme and branding',
                         'qty'      => 1,
-                        'provider' => 'Accredited Print Vendor',
+                        'provider' => 'rental',
+                        'unit'     => 'fixed',
+                        'rate'     => 750.00,
                         'cost'     => 750.00
                     ],
                     [
                         'item'     => 'Tokens of Appreciation for Guest Speakers',
                         'desc'     => 'Plaque or customized institutional token for resource speakers',
                         'qty'      => 2,
-                        'provider' => 'Campus Bookstore / Admin',
+                        'provider' => 'rental',
+                        'unit'     => 'fixed',
+                        'rate'     => 300.00,
                         'cost'     => 600.00
                     ]
                 ],
