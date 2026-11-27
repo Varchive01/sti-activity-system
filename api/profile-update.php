@@ -167,13 +167,24 @@ if ($removePicture) {
     $newProfilePicture = 'avatars/' . $fileName;
 }
 
-// 6. Persist Updates in Database
-// Note: Email, Role, Department are intentionally untouched and protected.
-$updateStmt = $db->prepare('UPDATE users SET name = ?, profile_picture = ? WHERE id = ?');
-$updateStmt->execute([$name, $newProfilePicture, $userId]);
+// 6. Persist Updates in Database (Full Name, Profile Picture, Department/Organization Affiliation, and Notification Preferences)
+$newDept = isset($_POST['department']) && trim((string)$_POST['department']) !== ''
+    ? substr(trim((string)$_POST['department']), 0, 120)
+    : ($userRecord['department'] ?? 'IT Department');
+$notifyEmail = isset($_POST['notify_email']) ? ((int)$_POST['notify_email'] ? 1 : 0) : 0;
+$notifyInApp = isset($_POST['notify_in_app']) ? ((int)$_POST['notify_in_app'] ? 1 : 0) : 0;
+
+try {
+    $updateStmt = $db->prepare('UPDATE users SET name = ?, department = ?, profile_picture = ?, notify_email = ?, notify_in_app = ? WHERE id = ?');
+    $updateStmt->execute([$name, $newDept, $newProfilePicture, $notifyEmail, $notifyInApp, $userId]);
+} catch (\Throwable $e) {
+    $updateStmt = $db->prepare('UPDATE users SET name = ?, department = ?, profile_picture = ? WHERE id = ?');
+    $updateStmt->execute([$name, $newDept, $newProfilePicture, $userId]);
+}
 
 // 7. Synchronize Active Session Immediately
 $_SESSION['user_name'] = $name;
+$_SESSION['user_dept'] = $newDept;
 $_SESSION['user_profile_picture'] = $newProfilePicture;
 
 // 8. Return Fresh Profile State

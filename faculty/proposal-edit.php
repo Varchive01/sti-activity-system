@@ -12,38 +12,38 @@ $facultyUsers = $facultyUsersStmt ? $facultyUsersStmt->fetchAll(PDO::FETCH_ASSOC
 
 $facultyDepartmentGroups = [
   'THM Department' => [
-    'Mr. Aldwin D. Alminar, LPT',
-    'Ms. Andrea J. Gatbunton, LPT',
-    'Ms. Divine Grace E. Ibarrola, LPT',
-    'Ms. Mary Darlene A. Mariano, LPT',
-    'Ms. Julieta Caridad C. Cruz',
-    'Mr. Exequiel L. Magnipis',
-    'Mr. Frankie Chiu, RN, MBA'
+    'Aldwin D. Alminar',
+    'Andrea J. Gatbonton',
+    'Divine Grace E. Ibarrola',
+    'Mary Darlene A. Mariano',
+    'Julieta Caridad C. Cruz',
+    'Exequiel L. Magnipis',
+    'Frankie Chiu'
   ],
   'Information Technology Department' => [
-    'Mr. Dave Lord M. Rubaya',
-    'Ms. Michelle Carlos, MAEd, LPT',
-    'Mr. Ar-Jay C. Agbayani',
-    'Ms. Emilou G. Magnaye, LPT',
-    'Mr. John Cedrick Agapito',
-    'Mr. Jedekiah Veloso',
-    'Mr. Shintaro Lagare',
-    'Mr. Geo V. De Leon',
-    'Ms. Johainna Kristel T. Montejo',
-    'Mr. Felmar Solbita',
-    'Mr. Michael André Sayson'
+    'Dave Lord M. Rubaya',
+    'Michelle Carlos',
+    'Ar-Jay C. Agbayani',
+    'Emilou G. Magnaye',
+    'John Cedrick Agapito',
+    'Jedekiah Veloso',
+    'Shintaro Lagare',
+    'Geo V. De Leon',
+    'Johanna Kristel T. Montejo',
+    'Felmar Solbita',
+    'Michael André Sayson'
   ],
   'General Education Department' => [
-    'Mr. Tristan S. Unabia',
-    'Mr. Ian Jade C. Barangan, LPT',
-    'Mr. Eulysses Neil Patrick B. Edquilag, LPT',
-    'Mr. Gregg Anthony J. Rana',
-    'Mr. Ricky E. Manliguis, LPT',
-    'Ms. Regina Kate D. Dominguez, LPT',
-    'Mr. Benedicto A. Arnoco, LPT',
-    'Ms. Jennylyn Q. Abarra, MAEd PE, LPT',
-    'Ms. Ruby Ann G. Dasalla, LPT',
-    'Ms. Perine O. Dela Cruz, LPT'
+    'Tristan S. Unabia',
+    'Ian Jade C. Barangan',
+    'Ulysses Neil Patrick B. Edquilang',
+    'Gregg Anthony J. Rana',
+    'Ricky E. Manliguis',
+    'Regina Kate D. Dominguez',
+    'Benedicto A. Arnoco',
+    'Jennilyn Q. Abarra',
+    'Ruby Ann G. Dasalla',
+    'Perine O. Dela Cruz'
   ]
 ];
 
@@ -88,7 +88,7 @@ if (!function_exists('renderFacultyTaskOptgroups')) {
 }
 
 $id = (int)($_GET['id'] ?? 0);
-$act = $db->prepare("SELECT * FROM activities WHERE id=? AND status IN ('draft','returned_for_revision')");
+$act = $db->prepare("SELECT * FROM activities WHERE id=? AND status IN ('draft','submitted','returned_for_revision')");
 $act->execute([$id]);
 $activity = $act->fetch();
 if (!$activity) {
@@ -122,10 +122,10 @@ $sectionStepMap = [
   'materials'      => 3,
   'floor_plan'     => 4,
   'people'         => 5,
-  'schedule'       => 6,   // schedule & program
+  'schedule'       => 6,   // schedule, program & faculty tasks
+  'faculty_tasks'  => 6,
   'guidelines'     => 7,
-  'faculty_tasks'  => 8,
-  'kpi'            => 9,
+  'kpi'            => 8,
 ];
 
 // Build list of flagged step numbers (for JS auto-navigation)
@@ -228,10 +228,9 @@ $s2Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['
 $s3Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['materials']);
 $s4Editable = true; // Always fully editable as requested
 $s5Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['people']);
-$s6Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['schedule']);
+$s6Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['schedule']) || !empty($revisionSections['faculty_tasks']);
 $s7Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['guidelines']);
-$s8Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['faculty_tasks']);
-$s9Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['kpi']);
+$s8Editable = !$isReturned || !$hasSectionComments || !empty($revisionSections['kpi']);
 
 // Attribute strings
 $s1Attr = $s1Editable ? '' : 'readonly style="background:var(--bg-base); cursor:not-allowed;"';
@@ -251,9 +250,7 @@ $s6Attr = $s6Editable ? '' : 'readonly style="background:var(--bg-base); cursor:
 $s7Attr = $s7Editable ? '' : 'readonly style="background:var(--bg-base); cursor:not-allowed;"';
 
 $s8Attr = $s8Editable ? '' : 'readonly style="background:var(--bg-base); cursor:not-allowed;"';
-
-$s9Attr = $s9Editable ? '' : 'readonly style="background:var(--bg-base); cursor:not-allowed;"';
-$s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var(--bg-base); cursor:not-allowed;" tabindex="-1"';
+$s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var(--bg-base); cursor:not-allowed;" tabindex="-1"';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -265,7 +262,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
   <meta name="base-url" content="<?= BASE_URL ?>">
   <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
   <title>Edit Proposal – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/teacher-multiselect.css?v=<?= time() ?>">
   <style>
     .wizard-panel { display: none }
@@ -828,50 +825,95 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       padding: 6px 12px;
       border-radius: 6px;
     }
-    .target-participants-panel .dynamic-table {
-      background: #ffffff !important;
-      border: 1px solid #e2e8f0 !important;
-      border-radius: 8px !important;
+    .target-participants-scroll-box {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px 8px 0 0;
+      min-height: auto;
+      max-height: none;
       overflow: visible !important;
+      background: #ffffff;
+      position: relative;
     }
-    .target-participants-panel .dynamic-table table {
+    .target-participants-scroll-box::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .target-participants-scroll-box::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    .target-participants-scroll-box::-webkit-scrollbar-track {
+      background: #f8fafc;
+    }
+    .target-participants-scroll-box table {
       width: 100%;
-      border-collapse: collapse;
-      background: #ffffff !important;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: #ffffff;
+      margin: 0;
     }
-    .target-participants-panel .dynamic-table table th {
+    .target-participants-scroll-box table th {
       background: #f8fafc !important;
       color: #475569 !important;
       border-bottom: 1px solid #e2e8f0 !important;
-      font-size: 0.8rem !important;
-      font-weight: 600 !important;
-      padding: 10px 12px !important;
-      text-transform: none !important;
-      letter-spacing: normal !important;
+      font-size: 0.75rem !important;
+      font-weight: 700 !important;
+      padding: 9px 12px !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.5px !important;
+      position: sticky;
+      top: 0;
+      z-index: 5;
     }
-    .target-participants-panel .dynamic-table table td {
-      background: #ffffff !important;
-      border-bottom: 1px solid #f1f5f9 !important;
-      padding: 8px 12px !important;
+    .target-participants-scroll-box table td {
+      background: #ffffff;
+      border-bottom: 1px solid #f1f5f9;
+      padding: 6px 10px;
       vertical-align: middle;
       position: relative;
     }
-    [data-theme="dark"] .target-participants-panel .dynamic-table {
+    .target-participants-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+    [data-theme="dark"] .target-participants-scroll-box {
       background: var(--bg-card, #0F1B2E) !important;
       border-color: var(--border, #1E2D45) !important;
-      overflow: visible !important;
     }
-    [data-theme="dark"] .target-participants-panel .dynamic-table table {
+    [data-theme="dark"] .target-participants-scroll-box::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
+    [data-theme="dark"] .target-participants-scroll-box::-webkit-scrollbar-track {
+      background: #0B1524;
+    }
+    [data-theme="dark"] .target-participants-scroll-box table {
       background: var(--bg-card, #0F1B2E) !important;
     }
-    [data-theme="dark"] .target-participants-panel .dynamic-table table th {
+    [data-theme="dark"] .target-participants-scroll-box table th {
       background: var(--bg-card-elevated, #15243C) !important;
       color: var(--text-secondary, #CBD5E1) !important;
       border-bottom-color: var(--border, #1E2D45) !important;
     }
-    [data-theme="dark"] .target-participants-panel .dynamic-table table td {
+    [data-theme="dark"] .target-participants-scroll-box table td {
       background: var(--bg-card, #0F1B2E) !important;
       border-bottom-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .target-participants-footer {
+      background: var(--bg-card-elevated, #15243C) !important;
+      border-color: var(--border, #1E2D45) !important;
+      color: var(--text-muted, #94A3B8) !important;
+    }
+    [data-theme="dark"] .part-num-badge {
+      background: #1E2D45 !important;
+      color: #94A3B8 !important;
     }
     [data-theme="dark"] .total-participants-badge {
       background: var(--bg-card-elevated, #15243C) !important;
@@ -1151,9 +1193,47 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         height: 20px !important;
       }
     }
-      .topbar-right .btn-sm {
-        padding: 4px 8px;
-        font-size: 0.72rem;
+
+    /* ── Mobile Responsive Refinements ── */
+    @media (max-width: 767.98px) {
+      #target-participants-scroll-box {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+      }
+      #target-participants-scroll-box table {
+        min-width: 620px !important;
+      }
+      .target-participants-panel .card-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+      }
+      .target-participants-controls {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        gap: 8px !important;
+      }
+      .target-participants-controls button,
+      .target-participants-controls .total-participants-badge {
+        width: 100% !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+      }
+      .ai-guidance-toolbar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+      }
+      .ai-guidance-toolbar button {
+        width: 100% !important;
+        justify-content: center !important;
+      }
+      .topbar-right {
+        gap: 6px !important;
+      }
+      .topbar-right #offlineSyncBadge {
+        display: none !important;
       }
     }
 
@@ -1463,10 +1543,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
   <?php include __DIR__ . '/../includes/sidebar.php'; ?>
   <div class="main-wrap">
     <header class="topbar">
-      <div class="page-title" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div class="page-title">
         <span>Edit Proposal</span>
       </div>
-      <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+      <div class="topbar-right">
         <span id="offlineSyncBadge" class="badge" style="font-size:0.75rem;padding:5px 10px;border-radius:12px;background:#10B981;color:#fff;display:inline-flex;align-items:center;gap:5px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.1);"><span class="sync-icon">✓</span> <span class="sync-text">Synchronized</span></span>
         <a href="<?= BASE_URL ?>/faculty/proposal-view.php?id=<?= $id ?>" class="btn btn-outline btn-sm">← Cancel</a>
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
@@ -1662,16 +1742,13 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           <div class="step-num">5</div>People
         </div>
         <div class="wizard-step <?= in_array(6, $flaggedSteps) ? 'flagged' : '' ?>" data-step="6">
-          <div class="step-num">6</div>Schedule
+          <div class="step-num">6</div>Schedule &amp; Tasks
         </div>
         <div class="wizard-step <?= in_array(7, $flaggedSteps) ? 'flagged' : '' ?>" data-step="7">
           <div class="step-num">7</div>Guidelines
         </div>
         <div class="wizard-step <?= in_array(8, $flaggedSteps) ? 'flagged' : '' ?>" data-step="8">
-          <div class="step-num">8</div>Faculty Tasks
-        </div>
-        <div class="wizard-step <?= in_array(9, $flaggedSteps) ? 'flagged' : '' ?>" data-step="9">
-          <div class="step-num">9</div>Evaluation & KPI
+          <div class="step-num">8</div>Evaluation &amp; KPI
         </div>
       </div>
 
@@ -1715,17 +1792,14 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 <div class="form-group">
                   <label class="form-label">Date of Event <span class="text-danger">*</span></label>
                   <input type="date" name="event_date" id="f1_event_date" class="form-control" required value="<?= $activity['event_date'] ?? '' ?>" <?= $s1Attr ?> <?= $s1Editable ? 'min="' . $tomorrowManila . '"' : '' ?>>
-                  <span class="field-error" id="e_event_date">Event date is required.</span>
-                  <span class="field-error" id="e_event_date_past">Event date must be tomorrow or a future date.</span>
+                  <span class="field-error" id="e_event_date">Start date is required.</span>
+                  <span class="field-error" id="e_event_date_past">Start date must be tomorrow or a future date.</span>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Source <span class="text-danger">*</span></label>
-                  <select name="source" id="f1_source" class="form-control" required <?= $s1SelectStyle ?>>
-                    <option value="" <?= empty($activity['source']) ? 'selected' : '' ?>>Select source...</option>
-                    <option value="student_org" <?= ($activity['source'] ?? '') === 'student_org' ? 'selected' : '' ?>>Student Organization</option>
-                    <option value="faculty" <?= ($activity['source'] ?? '') === 'faculty' ? 'selected' : '' ?>>Faculty</option>
-                  </select>
-                  <span class="field-error" id="e_source">Please select a source.</span>
+                  <label class="form-label">End Date of Event <span class="text-danger">*</span></label>
+                  <input type="date" name="end_date" id="f1_end_date" class="form-control" required value="<?= $activity['end_date'] ?? ($activity['event_date'] ?? '') ?>" <?= $s1Attr ?> <?= $s1Editable ? 'min="' . $tomorrowManila . '"' : '' ?>>
+                  <span class="field-error" id="e_end_date">End date is required.</span>
+                  <span class="field-error" id="e_end_date_order">End date cannot be earlier than start date.</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Start Time <span class="text-danger">*</span></label>
@@ -1739,23 +1813,13 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   <span class="field-error" id="e_end_time_order">End time must be later than the start time.</span>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Theme <span class="text-danger">*</span></label>
-                  <div class="theme-input-wrapper" style="position: relative; width: 100%;">
-                    <input type="text" name="theme" id="f1_theme" class="form-control" placeholder="e.g. Fostering Innovation Through Technology" value="<?= htmlspecialchars($activity['theme'] ?? '') ?>" <?= $s1Attr ?> style="padding-right: 42px;" aria-busy="false">
-                    <?php if ($s1Editable): ?>
-                    <div id="themeInputSpinner" style="display: none; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; color: #0284c7; align-items: center; justify-content: center;" aria-hidden="true">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="animation: spin 0.8s linear infinite;">
-                        <circle cx="12" cy="12" r="9" stroke-opacity="0.25"></circle>
-                        <path d="M12 3a9 9 0 0 1 9 9"></path>
-                      </svg>
-                    </div>
-                    <?php endif; ?>
-                  </div>
-                  <?php if ($s1Editable): ?>
-                  <!-- Automatic AI Theme Status -->
-                  <div id="themeAiStatus" style="margin-top: 6px;"></div>
-                  <?php endif; ?>
-                  <span class="field-error" id="e_theme">Theme is required.</span>
+                  <label class="form-label">Headed by <span class="text-danger">*</span></label>
+                  <select name="source" id="f1_source" class="form-control" required <?= $s1SelectStyle ?>>
+                    <option value="" <?= empty($activity['source']) ? 'selected' : '' ?>>Select who heads the activity...</option>
+                    <option value="student_org" <?= ($activity['source'] ?? '') === 'student_org' ? 'selected' : '' ?>>Student Organization</option>
+                    <option value="faculty" <?= ($activity['source'] ?? '') === 'faculty' ? 'selected' : '' ?>>Faculty</option>
+                  </select>
+                  <span class="field-error" id="e_source">Please select who heads the activity.</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Venue <span class="text-danger">*</span></label>
@@ -1777,7 +1841,26 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   <span class="field-error" id="e_venue_address">Venue address is required.</span>
                 </div>
                 <div class="form-group col-span-2">
-                  <label class="form-label">Event Poster <?php if(empty($activity['poster_path'])) echo '<span class="text-danger">*</span>'; ?></label>
+                  <label class="form-label">Theme <span class="text-danger">*</span></label>
+                  <div class="theme-input-wrapper" style="position: relative; width: 100%;">
+                    <input type="text" name="theme" id="f1_theme" class="form-control" placeholder="e.g. Fostering Innovation Through Technology" value="<?= htmlspecialchars($activity['theme'] ?? '') ?>" <?= $s1Attr ?> style="padding-right: 42px;" aria-busy="false">
+                    <?php if ($s1Editable): ?>
+                    <div id="themeInputSpinner" style="display: none; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; color: #0284c7; align-items: center; justify-content: center;" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="animation: spin 0.8s linear infinite;">
+                        <circle cx="12" cy="12" r="9" stroke-opacity="0.25"></circle>
+                        <path d="M12 3a9 9 0 0 1 9 9"></path>
+                      </svg>
+                    </div>
+                    <?php endif; ?>
+                  </div>
+                  <?php if ($s1Editable): ?>
+                  <!-- Automatic AI Theme Status -->
+                  <div id="themeAiStatus" style="margin-top: 6px;"></div>
+                  <?php endif; ?>
+                  <span class="field-error" id="e_theme">Theme is required.</span>
+                </div>
+                <div class="form-group col-span-2">
+                  <label class="form-label">Event Poster <span style="font-size:0.85em; font-weight:normal; color:var(--text-muted);">(Optional)</span></label>
                   <?php if (!empty($activity['poster_path'])): ?>
                     <div style="margin-bottom:8px;">
                       <?php
@@ -1790,10 +1873,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                     <input type="file" name="poster_file" id="f1_poster_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" <?= $s1Attr ?>>
                     <small style="color: var(--text-muted);">Upload a new image poster to replace the current one (JPG, PNG, WEBP, GIF). Videos are not allowed.</small>
                   <?php else: ?>
-                    <input type="file" name="poster_file" id="f1_poster_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" <?= (($activity['status'] ?? '') === 'draft' ? '' : 'required') ?> <?= $s1Attr ?>>
-                    <small style="color: var(--text-muted);">Upload an image poster for this event (JPG, PNG, WEBP, GIF). Videos are not allowed.</small>
+                    <input type="file" name="poster_file" id="f1_poster_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" <?= $s1Attr ?>>
+                    <small style="color: var(--text-muted);">Optional: Upload an image poster for this event (JPG, PNG, WEBP, GIF). Videos are not allowed.</small>
                   <?php endif; ?>
-                  <span class="field-error" id="e_poster_file">Activity poster is required.</span>
+                  <span class="field-error" id="e_poster_file">Invalid poster format or size exceeds limit.</span>
                 </div>
               </div>
             </div>
@@ -1805,9 +1888,10 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
               <h2 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 6px;">
                 👥 Target Participants <span class="text-danger">*</span>
               </h2>
-              <div class="target-participants-controls" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <div class="target-participants-controls" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                 <?php if ($s1Editable): ?>
                   <button type="button" class="btn btn-outline btn-sm" id="btn-add-section" onclick="addParticipantSectionRow()" style="font-weight: 600;">+ Add Section</button>
+                  <button type="button" class="btn btn-outline btn-sm" id="btn-bulk-add-sections" onclick="openBulkAddSectionsModal()" style="font-weight: 600; color: #0284c7; border-color: #7dd3fc; background: #f0f9ff;">⚡ Bulk Add Sections</button>
                 <?php endif; ?>
                 <div class="total-participants-badge" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 0.875rem; color: var(--text-main, #1e293b); background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 6px;">
                   <span>Total Target Participants:</span>
@@ -1819,15 +1903,15 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
               <input type="hidden" name="target_participants" id="f1_target_participants" value="<?= (int)($activity['target_participants'] ?? 0) ?>">
               <span class="field-error" id="e_target_participants" style="margin-bottom: 12px;">Target participants is required and must have at least 1 participant.</span>
 
-              <div class="dynamic-table" style="border-radius: 8px; overflow: visible;">
-                <table class="table" style="margin: 0; width: 100%; border-collapse: collapse;">
-                  <thead>
+              <div class="target-participants-scroll-box" id="target-participants-scroll-box" style="border-radius: 8px 8px 0 0; min-height: auto; max-height: none; overflow: visible !important; border: 1px solid #e2e8f0; background: #ffffff;">
+                <table class="table" style="margin: 0; width: 100%; border-collapse: separate; border-spacing: 0;">
+                  <thead style="position: sticky; top: 0; z-index: 5; background: #f8fafc;">
                     <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
-                      <th style="width: 50px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No.</th>
-                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Involved Subject / Section <span class="text-danger">*</span></th>
-                      <th style="width: 180px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No. of Participants <span class="text-danger">*</span></th>
-                      <th style="min-width: 280px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Subject Teacher(s)</th>
-                      <th style="width: 70px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Actions</th>
+                      <th style="width: 48px; text-align: center; padding: 9px 10px; font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase;">#</th>
+                      <th style="padding: 9px 12px; font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase;">Involved Subject / Section <span class="text-danger">*</span></th>
+                      <th style="width: 140px; padding: 9px 12px; font-size: 0.75rem; font-weight: 700; color: #475569; text-align: center; text-transform: uppercase;">Participants <span class="text-danger">*</span></th>
+                      <th style="min-width: 270px; padding: 9px 12px; font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase;">Subject Teacher(s)</th>
+                      <th style="width: 55px; text-align: center; padding: 9px 10px; font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase;">Action</th>
                     </tr>
                   </thead>
                   <tbody id="participant-sections-body">
@@ -1837,19 +1921,19 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                           data-pre-test="<?= htmlspecialchars((string)($pRow['pre_test_score'] ?? '')) ?>"
                           data-post-test="<?= htmlspecialchars((string)($pRow['post_test_score'] ?? '')) ?>"
                           data-learning-kpi="<?= htmlspecialchars((string)($pRow['learning_kpi_result'] ?? '')) ?>">
-                        <td class="part-row-num" style="text-align: center; font-weight: 600; color: #64748b; font-size: 0.85rem; padding: 10px 12px; vertical-align: middle;">
-                          <?= $pIdx + 1 ?>
+                        <td class="part-row-num" style="text-align: center; padding: 6px 8px; vertical-align: middle;">
+                          <span class="part-num-badge" style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; background: #f1f5f9; color: #475569; font-weight: 700; font-size: 0.78rem;"><?= $pIdx + 1 ?></span>
                         </td>
-                        <td style="padding: 10px 12px;">
-                          <input type="text" name="part_section[]" class="form-control part-section-input" placeholder="e.g. BSIT 301 / Data Structures" value="<?= htmlspecialchars($pRow['subject_section'] ?? '') ?>" <?= $s1Attr ?>>
+                        <td style="padding: 6px 10px; vertical-align: middle;">
+                          <input type="text" name="part_section[]" class="form-control part-section-input" placeholder="e.g. BSIT 301 / Data Structures" value="<?= htmlspecialchars($pRow['subject_section'] ?? '') ?>" <?= $s1Attr ?> style="height: 36px; font-size: 0.85rem; border-radius: 6px; padding: 4px 10px;">
                         </td>
-                        <td style="padding: 10px 12px;">
-                          <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="<?= htmlspecialchars((string)($pRow['participants_count'] ?? '')) ?>" oninput="updateTotalTargetParticipants()" <?= $s1Attr ?>>
+                        <td style="padding: 6px 10px; vertical-align: middle; width: 140px;">
+                          <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="<?= htmlspecialchars((string)($pRow['participants_count'] ?? '')) ?>" oninput="updateTotalTargetParticipants()" <?= $s1Attr ?> style="height: 36px; font-size: 0.85rem; font-weight: 600; text-align: center; border-radius: 6px; padding: 4px 8px;">
                         </td>
-                        <td style="padding: 10px 12px; min-width: 280px; position: relative;">
+                        <td style="padding: 6px 10px; min-width: 270px; vertical-align: middle; position: relative;">
                           <div class="teacher-multiselect" data-row-idx="<?= $pIdx + 1 ?>">
                             <input type="hidden" name="part_teacher[]" class="part-teacher-input" value="<?= htmlspecialchars($pRow['teacher_name'] ?? '') ?>" <?= $s1Attr ?>>
-                            <div class="tms-control" <?= $s1Editable ? 'onclick="focusTmsInput(this)"' : 'style="cursor: default; opacity: 0.85;"' ?>>
+                            <div class="tms-control" <?= $s1Editable ? 'onclick="focusTmsInput(this)" style="min-height: 36px; padding: 3px 8px; border-radius: 6px;"' : 'style="cursor: default; opacity: 0.85; min-height: 36px; padding: 3px 8px; border-radius: 6px;"' ?>>
                               <div class="tms-tags"></div>
                               <?php if ($s1Editable): ?>
                                 <input type="text" class="tms-input" placeholder="Search and select faculty...">
@@ -1863,15 +1947,29 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                             <?php endif; ?>
                           </div>
                         </td>
-                        <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
+                        <td style="text-align: center; padding: 6px 8px; vertical-align: middle;">
                           <?php if ($s1Editable): ?>
-                            <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Delete section" style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1;" <?= count($participantRows) <= 1 ? 'disabled style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1; opacity: 0.4; cursor: not-allowed;" title="Cannot delete the only row"' : '' ?>>✕</button>
+                            <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Delete section" style="width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; color: #ef4444; border-color: #fca5a5; line-height: 1;" <?= count($participantRows) <= 1 ? 'disabled style="width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; color: #ef4444; border-color: #fca5a5; line-height: 1; opacity: 0.4; cursor: not-allowed;" title="Cannot delete the only row"' : '' ?>>✕</button>
                           <?php endif; ?>
                         </td>
                       </tr>
                     <?php endforeach; ?>
                   </tbody>
                 </table>
+              </div>
+
+              <!-- Sleek Table Footer Status Bar -->
+              <div class="target-participants-footer">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span><strong id="part-count-badge" style="color: #0f172a; font-weight: 700;"><?= count($participantRows) ?></strong> Section(s)</span>
+                  <span style="color: #cbd5e1;">•</span>
+                  <span style="font-size: 0.78rem;">Scroll table to view all sections</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <?php if ($s1Editable): ?>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="clearAllParticipantSections()" style="font-size: 0.75rem; padding: 3px 8px; color: #dc2626; border-color: #fca5a5; line-height: 1; border-radius: 4px;">Clear All Sections</button>
+                  <?php endif; ?>
+                </div>
               </div>
             </div>
           </div>
@@ -1915,11 +2013,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   <textarea name="specific_objectives" id="f2_specific_objectives" class="form-control" <?= $s2Attr ?>><?= htmlspecialchars($activity['specific_objectives'] ?? '') ?></textarea>
                   <span class="field-error" id="e_specific_objectives">Specific objectives are required.</span>
                 </div>
-                <div class="form-group col-span-2">
-                  <label class="form-label">Involved Subjects <span class="text-danger">*</span></label>
-                  <input type="text" name="involved_subjects" id="f2_involved_subjects" class="form-control" placeholder="e.g. ITE314, GE102" value="<?= htmlspecialchars($activity['involved_subjects'] ?? '') ?>" <?= $s2Attr ?>>
-                  <span class="field-error" id="e_involved_subjects">Involved subjects are required.</span>
-                </div>
+                <input type="hidden" name="involved_subjects" id="f2_involved_subjects" value="<?= htmlspecialchars($activity['involved_subjects'] ?? '') ?>">
                 <div class="form-group col-span-2">
                   <label class="form-label">Rationale <span class="text-danger">*</span></label>
                   <textarea name="rationale" id="f2_rationale" class="form-control" placeholder="Why is this activity necessary?" <?= $s2Attr ?>><?= htmlspecialchars($activity['rationale'] ?? '') ?></textarea>
@@ -1953,35 +2047,76 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 <table>
                   <thead>
                     <tr>
-                      <th>Item Name</th>
-                      <th>Description</th>
-                      <th>Qty</th>
-                      <th>Provider</th>
-                      <th>Est. Cost (₱)</th>
-                      <th></th>
+                      <th style="min-width:140px;">Item Name <span class="text-danger">*</span></th>
+                      <th style="min-width:140px;">Description / Type</th>
+                      <th style="width:90px;">Quantity <span class="text-danger">*</span></th>
+                      <th style="min-width:140px;">Provider / Supplier <span class="text-danger">*</span></th>
+                      <th style="min-width:120px;">Billing Unit</th>
+                      <th style="width:110px;">Rate (₱)</th>
+                      <th style="width:120px;">Est. Cost (₱)</th>
+                      <th style="width:40px;"></th>
                     </tr>
                   </thead>
                   <tbody id="materials-body">
                     <?php if (empty($materials)): ?>
                       <tr>
-                        <td><input type="text" name="mat_item[]" class="form-control mat-field" <?= $s2Attr ?>></td>
-                        <td><input type="text" name="mat_desc[]" class="form-control mat-field" <?= $s2Attr ?>></td>
-                        <td><input type="number" name="mat_qty[]" class="form-control mat-qty" value="1" <?= $s2Attr ?>></td>
-                        <td><input type="text" name="mat_provider[]" class="form-control mat-field" <?= $s2Attr ?>></td>
-                        <td><input type="number" name="mat_cost[]" class="form-control mat-cost" value="0" step="0.01" <?= $s2Attr ?>></td>
+                        <td><input type="text" name="mat_item[]" class="form-control mat-field" placeholder="e.g. Chairs" <?= $s2Attr ?>></td>
+                        <td><input type="text" name="mat_desc[]" class="form-control mat-field" placeholder="Description" <?= $s2Attr ?>></td>
+                        <td><input type="number" name="mat_qty[]" class="form-control mat-qty" value="1" min="1" <?= $s2Attr ?> oninput="calculateMaterialRow(this)"></td>
+                        <td>
+                          <select name="mat_provider[]" class="form-control mat-field mat-provider-select" onchange="handleMaterialProviderChange(this)" <?= $s2Attr ?>>
+                            <option value="in_house">In-House (School)</option>
+                            <option value="rental">Rental (Supplier)</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select name="mat_unit[]" class="form-control mat-field mat-unit-select" onchange="calculateMaterialRow(this)" disabled style="opacity:0.6;" <?= $s2Attr ?>>
+                            <option value="per_hour">Per Hour</option>
+                            <option value="per_day">Per Day</option>
+                            <option value="fixed">Fixed / Per Item</option>
+                          </select>
+                        </td>
+                        <td>
+                          <input type="number" name="mat_rate[]" class="form-control mat-rate" placeholder="0.00" step="0.01" min="0" value="0.00" disabled style="opacity:0.6;" oninput="calculateMaterialRow(this)" <?= $s2Attr ?>>
+                        </td>
+                        <td>
+                          <input type="number" name="mat_cost[]" class="form-control mat-cost" placeholder="0.00" step="0.01" min="0" value="0.00" readonly style="background:var(--bg-muted, #f8fafc); font-weight:600;" <?= $s2Attr ?>>
+                        </td>
                         <td>
                           <?php if ($s2Editable): ?>
                             <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
                           <?php endif; ?>
                         </td>
                       </tr>
-                      <?php else: foreach ($materials as $m): ?>
+                      <?php else: foreach ($materials as $m): 
+                        $isRent = (($m['provider'] ?? '') === 'rental');
+                        $unitVal = $m['billing_unit'] ?? 'fixed';
+                        $rateVal = number_format((float)($m['rate'] ?? 0), 2, '.', '');
+                        $costVal = number_format((float)($m['est_cost'] ?? 0), 2, '.', '');
+                      ?>
                         <tr>
                           <td><input type="text" name="mat_item[]" class="form-control mat-field" value="<?= htmlspecialchars($m['item_name']) ?>" <?= $s2Attr ?>></td>
                           <td><input type="text" name="mat_desc[]" class="form-control mat-field" value="<?= htmlspecialchars($m['description'] ?? '') ?>" <?= $s2Attr ?>></td>
-                          <td><input type="number" name="mat_qty[]" class="form-control mat-qty" value="<?= $m['quantity'] ?>" <?= $s2Attr ?>></td>
-                          <td><input type="text" name="mat_provider[]" class="form-control mat-field" value="<?= htmlspecialchars($m['provider'] ?? '') ?>" <?= $s2Attr ?>></td>
-                          <td><input type="number" name="mat_cost[]" class="form-control mat-cost" value="<?= $m['est_cost'] ?>" step="0.01" <?= $s2Attr ?>></td>
+                          <td><input type="number" name="mat_qty[]" class="form-control mat-qty" value="<?= $m['quantity'] ?>" min="1" <?= $s2Attr ?> oninput="calculateMaterialRow(this)"></td>
+                          <td>
+                            <select name="mat_provider[]" class="form-control mat-field mat-provider-select" onchange="handleMaterialProviderChange(this)" <?= $s2Attr ?>>
+                              <option value="in_house" <?= !$isRent ? 'selected' : '' ?>>In-House (School)</option>
+                              <option value="rental" <?= $isRent ? 'selected' : '' ?>>Rental (Supplier)</option>
+                            </select>
+                          </td>
+                          <td>
+                            <select name="mat_unit[]" class="form-control mat-field mat-unit-select" onchange="calculateMaterialRow(this)" <?= !$isRent ? 'disabled style="opacity:0.6;"' : '' ?> <?= $s2Attr ?>>
+                              <option value="per_hour" <?= $unitVal === 'per_hour' ? 'selected' : '' ?>>Per Hour</option>
+                              <option value="per_day" <?= $unitVal === 'per_day' ? 'selected' : '' ?>>Per Day</option>
+                              <option value="fixed" <?= $unitVal === 'fixed' ? 'selected' : '' ?>>Fixed / Per Item</option>
+                            </select>
+                          </td>
+                          <td>
+                            <input type="number" name="mat_rate[]" class="form-control mat-rate" placeholder="0.00" step="0.01" min="0" value="<?= $rateVal ?>" <?= !$isRent ? 'disabled style="opacity:0.6;"' : '' ?> oninput="calculateMaterialRow(this)" <?= $s2Attr ?>>
+                          </td>
+                          <td>
+                            <input type="number" name="mat_cost[]" class="form-control mat-cost" placeholder="0.00" step="0.01" min="0" value="<?= $costVal ?>" readonly style="background:var(--bg-muted, #f8fafc); font-weight:600;" <?= $s2Attr ?>>
+                          </td>
                           <td>
                             <?php if ($s2Editable): ?>
                               <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
@@ -2071,10 +2206,18 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             <div class="card-header">
               <h2>📄 People / Manpower</h2>
               <?php if ($s5Editable): ?>
-                <button type="button" class="btn btn-outline btn-sm" onclick="addRow('manpower')">+ Add Person</button>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <button type="button" class="btn btn-outline btn-sm" onclick="addRow('manpower')">+ Add Role / Committee</button>
+                  <button type="button" class="btn btn-outline btn-sm" id="btn-bulk-add-committees" onclick="openBulkAddCommitteesModal()" style="font-weight: 600; color: #0284c7; border-color: #7dd3fc; background: #f0f9ff;">⚡ Bulk Add Committees</button>
+                </div>
               <?php endif; ?>
             </div>
             <div class="card-body">
+              <!-- Guidance Notice on Committee Delegation -->
+              <div style="margin-bottom: 14px; padding: 10px 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; font-size: 0.83rem; color: #166534; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.1rem;">💡</span>
+                <span><strong>Committee-Based Delegation:</strong> You only need to encode the Committee Lead / Person in Charge. Enter the total number of volunteers or members in <strong>Members Supervised</strong> (e.g., 1 Lead + 50 Marshals = 50 total headcount). For multiple committees, use <strong>⚡ Bulk Add Committees</strong>.</span>
+              </div>
               <div class="step-error-banner" id="err-banner-5">⚠️ Please fill in all assigned person fields before continuing.</div>
               <?php if ($s5Flagged): ?>
                 <div class="reviewer-comment-banner"><span class="rc-icon">⚠️</span><div><span class="rc-label">Reviewer Comment</span><?= htmlspecialchars($s5Comment) ?></div></div>
@@ -2084,8 +2227,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   <thead>
                     <tr>
                       <th>Role / Position</th>
-                      <th>Assigned Person</th>
+                      <th>Person in Charge</th>
                       <th>Type</th>
+                      <th style="width:170px;">Members Supervised</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -2118,7 +2262,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                             <?php endforeach; ?>
                           </select>
                         </td>
-                        <td><input type="text" name="mp_person[]" class="form-control mp-person-field" oninput="updateManpowerSummary()" <?= $s5Editable ? '' : 'readonly' ?>></td>
+                        <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Person in Charge full name" oninput="updateManpowerSummary(); refreshEncodedOrganizerDropdowns();" <?= $s5Editable ? '' : 'readonly' ?>></td>
                         <td>
                           <select name="mp_type[]" class="form-control" onchange="updateManpowerSummary()" <?= $s5Editable ? '' : 'disabled' ?>>
                             <option value="faculty">Faculty</option>
@@ -2126,6 +2270,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                             <option value="student">Student</option>
                           </select>
                         </td>
+                        <td><input type="number" name="mp_member_count[]" class="form-control mp-count-field" value="1" min="0" step="1" oninput="updateManpowerSummary()" <?= $s5Editable ? '' : 'readonly' ?>></td>
                         <td>
                           <?php if ($s5Editable): ?>
                             <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this); updateManpowerSummary();">✕</button>
@@ -2149,7 +2294,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                             <?php endif; ?>
                           </select>
                         </td>
-                        <td><input type="text" name="mp_person[]" class="form-control mp-person-field" value="<?= htmlspecialchars($m['assigned_person']) ?>" oninput="updateManpowerSummary()" <?= $s5Editable ? '' : 'readonly' ?>></td>
+                        <td><input type="text" name="mp_person[]" class="form-control mp-person-field" value="<?= htmlspecialchars($m['assigned_person']) ?>" oninput="updateManpowerSummary(); refreshEncodedOrganizerDropdowns();" <?= $s5Editable ? '' : 'readonly' ?>></td>
                         <td>
                           <select name="mp_type[]" class="form-control" onchange="updateManpowerSummary()" <?= $s5Editable ? '' : 'disabled' ?>>
                             <option value="faculty" <?= $m['type']=='faculty'?'selected':'' ?>>Faculty</option>
@@ -2157,6 +2302,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                             <option value="student" <?= $m['type']=='student'?'selected':'' ?>>Student</option>
                           </select>
                         </td>
+                        <td><input type="number" name="mp_member_count[]" class="form-control mp-count-field" value="<?= (int)($m['member_count'] ?? 1) ?>" min="0" step="1" oninput="updateManpowerSummary()" <?= $s5Editable ? '' : 'readonly' ?>></td>
                         <td>
                           <?php if ($s5Editable): ?>
                             <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this); updateManpowerSummary();">✕</button>
@@ -2175,7 +2321,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                     Manpower Summary
                   </h3>
                   <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-main); background: var(--bg-card); border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px;">
-                    Total Persons Involved: <span id="mp-summary-unique-total" style="font-weight: 700;">0</span> <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-muted);">(distinct individuals)</span>
+                    Total Manpower: <span id="mp-summary-total-headcount" style="font-weight: 700; color: #0284c7;">0</span> <span style="display:none;" id="mp-summary-unique-total">0</span> <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-muted);">(across <span id="mp-summary-lead-count">0</span> committee leads)</span>
                   </div>
                 </div>
                 <div class="dynamic-table" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; overflow-x: auto;">
@@ -2216,40 +2362,92 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           </div>
         </div>
 
-        <!-- STEP 6: Schedule & Program -->
+        <!-- STEP 6: Schedule & Program / Invitation -->
         <div class="wizard-panel" id="panel-6">
           <?php $s6Flagged = !empty($revisionSections['schedule']); $s6Comment = $revisionSections['schedule'] ?? ''; ?>
           
           <div class="card <?= $s6Flagged ? 'section-flagged' : '' ?>" style="margin-bottom: 20px;">
             <div class="card-header">
-              <h2>📄 Activity Timeline (Schedule)</h2>
-              <?php if ($s6Editable): ?>
-                <button type="button" class="btn btn-outline btn-sm" onclick="addRow('schedule')">+ Add Row</button>
-              <?php endif; ?>
+              <h2>📅 Activity Timeline &amp; Calendar Schedule</h2>
             </div>
             <div class="card-body">
-              <div class="step-error-banner" id="err-banner-6">⚠️ Please fill in all schedule and program flow fields with valid future dates before continuing.</div>
+              <div class="step-error-banner" id="err-banner-6">⚠️ Please fill in all schedule and program/invitation fields with valid future dates before continuing.</div>
               <?php if ($s6Flagged): ?>
                 <div class="reviewer-comment-banner"><span class="rc-icon">⚠️</span><div><span class="rc-label">Reviewer Comment</span><?= htmlspecialchars($s6Comment) ?></div></div>
               <?php endif; ?>
-              <div class="dynamic-table">
+
+              <!-- Interactive Calendar Format View -->
+              <div id="schedule-calendar-view-wrap" style="margin-bottom:18px; border:1px solid var(--border, #e2e8f0); border-radius:12px; overflow:hidden; background:var(--bg-card, #ffffff); box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+                <!-- Top Navigation Bar matching the reference UI -->
+                <div style="padding:16px 20px 14px 20px; background:var(--bg-card, #ffffff); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; border-bottom:1px solid var(--border, #f1f5f9);">
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <button type="button" onclick="shiftScheduleCalendarMonth(-1)" title="Previous month" style="width:34px; height:34px; border-radius:50%; border:1px solid #e2e8f0; background:#ffffff; color:#475569; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem; line-height:1; transition:all 0.15s ease;">‹</button>
+                      <button type="button" onclick="shiftScheduleCalendarMonth(1)" title="Next month" style="width:34px; height:34px; border-radius:50%; border:1.5px solid #0284c7; background:#ffffff; color:#0284c7; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem; line-height:1; font-weight:700; transition:all 0.15s ease;">›</button>
+                    </div>
+                    <h3 id="schedule-calendar-month-label" style="font-size:1.4rem; font-weight:700; color:var(--text-main, #0f172a); margin:0; letter-spacing:-0.3px;">Month Year</h3>
+                  </div>
+
+                  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <!-- Filter Chips with Category Colored Dots -->
+                    <div style="display:flex; gap:4px; background:#f8fafc; padding:3px 4px; border-radius:24px; border:1px solid #e2e8f0; flex-wrap:wrap;">
+                      <button type="button" id="btnSchedFilterAll" class="btn btn-xs btn-primary" onclick="setScheduleCalendarFilter('all')" style="border-radius:20px; padding:3px 10px; font-size:0.75rem; font-weight:600;">All</button>
+                      <button type="button" id="btnSchedFilterPrep" class="btn btn-xs btn-outline" onclick="setScheduleCalendarFilter('prep')" style="border-radius:20px; padding:3px 10px; font-size:0.75rem; border:none; color:#92400e; font-weight:600; display:flex; align-items:center; gap:5px;">
+                        <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#f59e0b;"></span> Prep
+                      </button>
+                      <button type="button" id="btnSchedFilterMain" class="btn btn-xs btn-outline" onclick="setScheduleCalendarFilter('main')" style="border-radius:20px; padding:3px 10px; font-size:0.75rem; border:none; color:#1e40af; font-weight:600; display:flex; align-items:center; gap:5px;">
+                        <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#2563eb;"></span> Main Event
+                      </button>
+                      <button type="button" id="btnSchedFilterSub" class="btn btn-xs btn-outline" onclick="setScheduleCalendarFilter('sub')" style="border-radius:20px; padding:3px 10px; font-size:0.75rem; border:none; color:#5b21b6; font-weight:600; display:flex; align-items:center; gap:5px;">
+                        <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#8b5cf6;"></span> Sub-Event
+                      </button>
+                      <button type="button" id="btnSchedFilterTasks" class="btn btn-xs btn-outline" onclick="setScheduleCalendarFilter('tasks')" style="border-radius:20px; padding:3px 10px; font-size:0.75rem; border:none; color:#065f46; font-weight:600; display:flex; align-items:center; gap:5px;">
+                        <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#10b981;"></span> Faculty Tasks
+                      </button>
+                    </div>
+
+                    <!-- Today button & Quick Add shortcuts -->
+                    <button type="button" onclick="goToTodayCalendar()" style="border-radius:20px; padding:6px 16px; border:1px solid #cbd5e1; background:#ffffff; font-size:0.8rem; font-weight:600; color:#334155; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.04); transition:all 0.15s ease;">Today</button>
+                    <?php if ($s6Editable): ?>
+                      <button type="button" onclick="openAddScheduleEventDialog('', 'task')" class="btn btn-outline btn-sm" style="border-radius:20px; padding:6px 14px; font-size:0.8rem; font-weight:600; display:inline-flex; align-items:center; gap:5px;">📋 + Add Faculty Task</button>
+                      <button type="button" onclick="openAddScheduleEventDialog('', 'milestone')" class="btn btn-primary btn-sm" style="border-radius:20px; padding:6px 14px; font-size:0.8rem; font-weight:600; display:inline-flex; align-items:center; gap:5px; background:#003876; border-color:#003876;">📅 + Add Schedule</button>
+                    <?php endif; ?>
+                  </div>
+                </div>
+
+                <!-- Calendar Grid Container -->
+                <div id="schedule-calendar-grid" style="display:grid; grid-template-columns:repeat(7, 1fr); background:var(--bg-card, #ffffff);"></div>
+              </div>
+
+              <!-- Chronological Agenda List (Rendered dynamically below calendar) -->
+              <div id="schedule-agenda-wrap"></div>
+
+              <!-- Underlying Form Table (Hidden in Calendar Mode, Shown in Table Only Mode) -->
+              <div class="dynamic-table" id="schedule-table-wrap" style="display:none; margin-top:14px;">
                 <table>
                   <thead>
                     <tr>
                       <th>Date</th>
                       <th>Event</th>
                       <th>Venue</th>
-                      <th>Organizer</th>
+                      <th>Responsible Organizer</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody id="schedule-body">
                     <?php if (empty($schedules)): ?>
                       <tr>
-                        <td><input type="date" name="sched_date[]" class="form-control" <?= $s6Attr ?> <?= $s6Editable ? 'min="' . $tomorrowManila . '"' : '' ?>></td>
-                        <td><input type="text" name="sched_event[]" class="form-control sched-field" <?= $s6Attr ?>></td>
+                        <td><input type="date" name="sched_date[]" class="form-control sched-field" <?= $s6Attr ?> <?= $s6Editable ? 'min="' . $tomorrowManila . '"' : '' ?>></td>
+                        <td>
+                          <input type="text" name="sched_event[]" class="form-control sched-field" <?= $s6Attr ?>>
+                          <input type="hidden" name="sched_type[]" class="sched-type-field" value="main_event">
+                        </td>
                         <td><input type="text" name="sched_venue[]" class="form-control sched-field" <?= $s6Attr ?>></td>
-                        <td><input type="text" name="sched_organizer[]" class="form-control sched-field" <?= $s6Attr ?>></td>
+                        <td>
+                          <select name="sched_organizer[]" class="form-control sched-field sched-organizer-select" data-initial-value="<?= htmlspecialchars($user['name'] ?? '') ?>" <?= $s6Attr ?>>
+                            <option value="<?= htmlspecialchars($user['name'] ?? '') ?>"><?= htmlspecialchars($user['name'] ?? 'Select encoded individual...') ?></option>
+                          </select>
+                        </td>
                         <td>
                           <?php if ($s6Editable): ?>
                             <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
@@ -2258,10 +2456,102 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                       </tr>
                       <?php else: foreach ($schedules as $s): ?>
                         <tr>
-                          <td><input type="date" name="sched_date[]" class="form-control" value="<?= $s['sched_date'] ?>" <?= $s6Attr ?> <?= $s6Editable ? 'min="' . $tomorrowManila . '"' : '' ?>></td>
-                          <td><input type="text" name="sched_event[]" class="form-control sched-field" value="<?= htmlspecialchars($s['event_name']) ?>" <?= $s6Attr ?>></td>
+                          <td><input type="date" name="sched_date[]" class="form-control sched-field" value="<?= $s['sched_date'] ?>" <?= $s6Attr ?> <?= $s6Editable ? 'min="' . $tomorrowManila . '"' : '' ?>></td>
+                          <td>
+                            <input type="text" name="sched_event[]" class="form-control sched-field" value="<?= htmlspecialchars($s['event_name']) ?>" <?= $s6Attr ?>>
+                            <input type="hidden" name="sched_type[]" class="sched-type-field" value="<?= htmlspecialchars($s['schedule_type'] ?? 'main_event') ?>">
+                          </td>
                           <td><input type="text" name="sched_venue[]" class="form-control sched-field" value="<?= htmlspecialchars($s['venue'] ?? '') ?>" <?= $s6Attr ?>></td>
-                          <td><input type="text" name="sched_organizer[]" class="form-control sched-field" value="<?= htmlspecialchars($s['organizer'] ?? '') ?>" <?= $s6Attr ?>></td>
+                          <td>
+                            <select name="sched_organizer[]" class="form-control sched-field sched-organizer-select" data-initial-value="<?= htmlspecialchars($s['organizer'] ?? '') ?>" <?= $s6Attr ?>>
+                              <option value="<?= htmlspecialchars($s['organizer'] ?? '') ?>"><?= htmlspecialchars($s['organizer'] ?: 'Select encoded individual...') ?></option>
+                            </select>
+                          </td>
+                          <td>
+                            <?php if ($s6Editable): ?>
+                              <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
+                            <?php endif; ?>
+                          </td>
+                        </tr>
+                    <?php endforeach;
+                    endif; ?>
+                  </tbody>
+                </table>
+                <?php if ($s6Editable): ?>
+                  <div style="margin-top:10px;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="addRow('schedule')">+ Add Row</button>
+                  </div>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
+
+          <!-- Faculty Tasks & Role Assignments Card (Preserved in DOM for Calendar & Form Submission) -->
+          <?php $sTaskFlagged = !empty($revisionSections['faculty_tasks']); $sTaskComment = $revisionSections['faculty_tasks'] ?? ''; ?>
+          <?php if ($sTaskFlagged): ?>
+            <div class="reviewer-comment-banner" style="margin-bottom:14px;"><span class="rc-icon">⚠️</span><div><span class="rc-label">Reviewer Comment (Faculty Tasks)</span><?= htmlspecialchars($sTaskComment) ?></div></div>
+          <?php endif; ?>
+          <div class="card <?= $sTaskFlagged ? 'section-flagged' : '' ?>" id="faculty-tasks-card" style="display:none;">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <h2>📋 Faculty Tasks &amp; Role Assignments</h2>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('schedule-calendar-view-wrap')?.scrollIntoView({behavior:'smooth'})" title="View all faculty tasks and deadlines on the unified calendar above">📅 View on Calendar</button>
+                <?php if ($s6Editable): ?>
+                  <button type="button" class="btn btn-outline btn-sm" onclick="addRow('faculty-tasks')">+ Add Faculty Task</button>
+                <?php endif; ?>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="dynamic-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="min-width: 190px;">Assigned Faculty</th>
+                      <th>Assigned Task</th>
+                      <th>Contribution</th>
+                      <th>Role</th>
+                      <th style="min-width: 130px;">Start Date</th>
+                      <th style="min-width: 130px;">Target Deadline <span class="text-danger">*</span></th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="faculty-tasks-body">
+                    <?php if (empty($ftasks)): ?>
+                      <tr>
+                        <td>
+                          <input type="hidden" name="ft_id[]" value="">
+                          <select name="ft_user_id[]" class="form-control ft-user-select" onchange="syncFtName(this)" <?= $s6Attr ?>>
+                            <option value="">-- Unassigned / External --</option>
+                            <?= renderFacultyTaskOptgroups($facultyDepartmentGroups, $facultyUsers) ?>
+                          </select>
+                          <input type="text" name="ft_name[]" class="form-control ft-name-field" style="margin-top: 4px; font-size: 0.8rem;" placeholder="External name (if unassigned)" <?= $s6Attr ?>>
+                        </td>
+                        <td><input type="text" name="ft_task[]" class="form-control ft-field" <?= $s6Attr ?>></td>
+                        <td><input type="text" name="ft_contribution[]" class="form-control ft-field" <?= $s6Attr ?>></td>
+                        <td><input type="text" name="ft_role[]" class="form-control ft-field" <?= $s6Attr ?>></td>
+                        <td><input type="date" name="ft_start_date[]" class="form-control ft-date-field" <?= $s6Attr ?> title="Task Start Date"></td>
+                        <td><input type="date" name="ft_due_date[]" class="form-control ft-date-field" <?= $s6Attr ?> title="Target Deadline"></td>
+                        <td>
+                          <?php if ($s6Editable): ?>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
+                          <?php endif; ?>
+                        </td>
+                      </tr>
+                      <?php else: foreach ($ftasks as $f): ?>
+                        <tr>
+                          <td>
+                            <input type="hidden" name="ft_id[]" value="<?= (int)$f['id'] ?>">
+                            <select name="ft_user_id[]" class="form-control ft-user-select" onchange="syncFtName(this)" <?= $s6Attr ?>>
+                              <option value="">-- Unassigned / External --</option>
+                              <?= renderFacultyTaskOptgroups($facultyDepartmentGroups, $facultyUsers, $f['assigned_user_id'] ?? null, $f['faculty_name'] ?? null) ?>
+                            </select>
+                            <input type="text" name="ft_name[]" class="form-control ft-name-field" style="margin-top: 4px; font-size: 0.8rem;" value="<?= htmlspecialchars($f['faculty_name'] ?? '') ?>" placeholder="External name (if unassigned)" <?= $s6Attr ?>>
+                          </td>
+                          <td><input type="text" name="ft_task[]" class="form-control ft-field" value="<?= htmlspecialchars($f['task_title'] ?: ($f['assigned_task'] ?? '')) ?>" <?= $s6Attr ?>></td>
+                          <td><input type="text" name="ft_contribution[]" class="form-control ft-field" value="<?= htmlspecialchars($f['task_description'] ?: ($f['contribution_desc'] ?? '')) ?>" <?= $s6Attr ?>></td>
+                          <td><input type="text" name="ft_role[]" class="form-control ft-field" value="<?= htmlspecialchars($f['role_in_event'] ?? '') ?>" <?= $s6Attr ?>></td>
+                          <td><input type="date" name="ft_start_date[]" class="form-control ft-date-field" value="<?= !empty($f['start_date']) ? htmlspecialchars(date('Y-m-d', strtotime($f['start_date']))) : '' ?>" <?= $s6Attr ?> title="Task Start Date"></td>
+                          <td><input type="date" name="ft_due_date[]" class="form-control ft-date-field" value="<?= !empty($f['due_date']) ? htmlspecialchars(date('Y-m-d', strtotime($f['due_date']))) : '' ?>" <?= $s6Attr ?> title="Target Deadline"></td>
                           <td>
                             <?php if ($s6Editable): ?>
                               <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
@@ -2276,54 +2566,82 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             </div>
           </div>
 
+          <?php $curInvMode = ($activity['invitation_mode'] ?? 'create') === 'upload' ? 'upload' : 'create'; ?>
           <div class="card <?= $s6Flagged ? 'section-flagged' : '' ?>">
-            <div class="card-header">
-              <h2>📄 Program Flow</h2>
-              <?php if ($s6Editable): ?>
-                <button type="button" class="btn btn-outline btn-sm" onclick="addRow('program')">+ Add Segment</button>
-              <?php endif; ?>
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <h2>✉️ Program Invitation &amp; Flow</h2>
+              <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                <input type="hidden" name="invitation_mode" id="invitation_mode_input" value="<?= $curInvMode ?>">
+                <input type="hidden" id="has_existing_invitation_file" value="<?= !empty($activity['invitation_path']) ? '1' : '0' ?>">
+                <button type="button" id="btnInvModeCreate" class="btn <?= $curInvMode === 'create' ? 'btn-primary' : 'btn-outline' ?> btn-sm" onclick="handleInvitationModeChange('create')">✍️ Create Invitation</button>
+                <button type="button" id="btnInvModeUpload" class="btn <?= $curInvMode === 'upload' ? 'btn-primary' : 'btn-outline' ?> btn-sm" onclick="handleInvitationModeChange('upload')">📤 Upload Invitation</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="openDigitalInvitationPreview()">👁️ Preview Invitation</button>
+                <?php if ($s6Editable): ?>
+                  <button type="button" id="btnAddProgramSegment" class="btn btn-outline btn-sm" onclick="addRow('program')" style="<?= $curInvMode === 'upload' ? 'display:none;' : '' ?>">+ Add Segment</button>
+                <?php endif; ?>
+              </div>
             </div>
             <div class="card-body">
-              <div class="dynamic-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Time</th>
-                      <th>Segment</th>
-                      <th>Description</th>
-                      <th>Person In-Charge</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody id="program-body">
-                    <?php if (empty($program)): ?>
+              <div id="invitation-create-mode-wrap" style="<?= $curInvMode === 'upload' ? 'display:none;' : 'display:block;' ?>">
+                <div class="dynamic-table">
+                  <table>
+                    <thead>
                       <tr>
-                        <td><input type="time" name="prog_time[]" class="form-control" <?= $s6Attr ?>></td>
-                        <td><input type="text" name="prog_segment[]" class="form-control prog-field" <?= $s6Attr ?>></td>
-                        <td><input type="text" name="prog_desc[]" class="form-control prog-field" <?= $s6Attr ?>></td>
-                        <td><input type="text" name="prog_pic[]" class="form-control prog-field" <?= $s6Attr ?>></td>
-                        <td>
-                          <?php if ($s6Editable): ?>
-                            <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
-                          <?php endif; ?>
-                        </td>
+                        <th>Time</th>
+                        <th>Segment</th>
+                        <th>Description</th>
+                        <th>Person In-Charge</th>
+                        <th></th>
                       </tr>
-                      <?php else: foreach ($program as $p): ?>
+                    </thead>
+                    <tbody id="program-body">
+                      <?php if (empty($program)): ?>
                         <tr>
-                          <td><input type="time" name="prog_time[]" class="form-control" value="<?= $p['time_slot'] ?>" <?= $s6Attr ?>></td>
-                          <td><input type="text" name="prog_segment[]" class="form-control prog-field" value="<?= htmlspecialchars($p['segment']) ?>" <?= $s6Attr ?>></td>
-                          <td><input type="text" name="prog_desc[]" class="form-control prog-field" value="<?= htmlspecialchars($p['description'] ?? '') ?>" <?= $s6Attr ?>></td>
-                          <td><input type="text" name="prog_pic[]" class="form-control prog-field" value="<?= htmlspecialchars($p['person_ic'] ?? '') ?>" <?= $s6Attr ?>></td>
+                          <td><input type="time" name="prog_time[]" class="form-control prog-field" <?= $s6Attr ?>></td>
+                          <td><input type="text" name="prog_segment[]" class="form-control prog-field" <?= $s6Attr ?>></td>
+                          <td><input type="text" name="prog_desc[]" class="form-control prog-field" <?= $s6Attr ?>></td>
+                          <td><input type="text" name="prog_pic[]" class="form-control prog-field" <?= $s6Attr ?>></td>
                           <td>
                             <?php if ($s6Editable): ?>
                               <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
                             <?php endif; ?>
                           </td>
                         </tr>
-                    <?php endforeach;
-                    endif; ?>
-                  </tbody>
-                </table>
+                        <?php else: foreach ($program as $p): ?>
+                          <tr>
+                            <td><input type="time" name="prog_time[]" class="form-control prog-field" value="<?= $p['time_slot'] ?>" <?= $s6Attr ?>></td>
+                            <td><input type="text" name="prog_segment[]" class="form-control prog-field" value="<?= htmlspecialchars($p['segment']) ?>" <?= $s6Attr ?>></td>
+                            <td><input type="text" name="prog_desc[]" class="form-control prog-field" value="<?= htmlspecialchars($p['description'] ?? '') ?>" <?= $s6Attr ?>></td>
+                            <td><input type="text" name="prog_pic[]" class="form-control prog-field" value="<?= htmlspecialchars($p['person_ic'] ?? '') ?>" <?= $s6Attr ?>></td>
+                            <td>
+                              <?php if ($s6Editable): ?>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
+                              <?php endif; ?>
+                            </td>
+                          </tr>
+                      <?php endforeach;
+                      endif; ?>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div id="invitation-upload-mode-wrap" style="<?= $curInvMode === 'upload' ? 'display:block;' : 'display:none;' ?> padding:16px; background:var(--bg-base, #f8fafc); border:1px dashed var(--border, #cbd5e1); border-radius:10px;">
+                <label class="form-label" style="font-weight:700;">📤 Upload Official Event Invitation</label>
+                <?php if (!empty($activity['invitation_path'])): ?>
+                  <div style="margin-bottom:10px;">
+                    <a href="<?= BASE_URL ?>/api/document-download.php?activity_id=<?= (int)$id ?>&type=invitation" target="_blank" class="btn btn-outline btn-sm">📎 View Current Uploaded Invitation</a>
+                  </div>
+                <?php endif; ?>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <input type="file" name="invitation_file" id="invitation_file" class="form-control" accept=".png,.jpg,.jpeg,.webp,.gif,.pdf" onchange="handleInvitationFileSelect(this)" style="max-width:340px;" <?= $s6Attr ?>>
+                  <span id="invitation-selected-filename" style="font-size:0.82rem; font-weight:600; color:var(--text-muted, #64748b);">No new file selected</span>
+                </div>
+                <div id="invitation-upload-preview-wrap" style="display:none; margin-top:14px; padding:12px; background:var(--bg-card, #ffffff); border:1px solid var(--border, #e2e8f0); border-radius:8px; text-align:center;">
+                  <div style="font-size:0.8rem; font-weight:700; color:#15803d; margin-bottom:8px;">✓ Uploaded Invitation Preview</div>
+                  <img id="invitation-live-preview-img" src="" alt="Invitation Preview" style="display:none; max-width:100%; max-height:360px; margin:0 auto; border-radius:6px; object-fit:contain;">
+                  <iframe id="invitation-live-preview-pdf" src="" title="Invitation PDF Preview" style="display:none; width:100%; height:360px; border:none; border-radius:6px;"></iframe>
+                </div>
               </div>
             </div>
           </div>
@@ -2339,7 +2657,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           <?php $s7Flagged = !empty($revisionSections['guidelines']); $s7Comment = $revisionSections['guidelines'] ?? ''; ?>
           <div class="card <?= $s7Flagged ? 'section-flagged' : '' ?>">
             <div class="card-header">
-              <h2>📄 Event Guidelines</h2>
+              <h2>📄 Event Guidelines, Judging Criteria &amp; Awards</h2>
             </div>
             <div class="card-body">
               <div class="step-error-banner" id="err-banner-7">⚠️ Please complete all guidelines sections before continuing.</div>
@@ -2351,126 +2669,95 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 <textarea name="guidelines_mechanics" id="f7_mechanics" class="form-control" style="min-height:100px" <?= $s7Attr ?>><?= htmlspecialchars($guidelines['mechanics'] ?? '') ?></textarea>
                 <span class="field-error" id="e_mechanics">Mechanics are required.</span>
               </div>
-              <div class="form-group">
-                <label class="form-label">Criteria for Judging <span class="text-danger">*</span></label>
-                <textarea name="guidelines_criteria" id="f7_criteria" class="form-control" <?= $s7Attr ?>><?= htmlspecialchars($guidelines['criteria'] ?? '') ?></textarea>
-                <span class="field-error" id="e_criteria">Criteria for judging are required.</span>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Scoring System <span class="text-danger">*</span></label>
-                <textarea name="guidelines_scoring" id="f7_scoring" class="form-control" <?= $s7Attr ?>><?= htmlspecialchars($guidelines['scoring_system'] ?? '') ?></textarea>
-                <span class="field-error" id="e_scoring">Scoring system is required.</span>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Special Awards <span class="text-danger">*</span></label>
-                <textarea name="guidelines_awards" id="f7_awards" class="form-control" <?= $s7Attr ?>><?= htmlspecialchars($guidelines['special_awards'] ?? '') ?></textarea>
-                <span class="field-error" id="e_awards">Special awards are required.</span>
-              </div>
-            </div>
-          </div>
-          <div class="nav-btns">
-            <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next →</button>
-          </div>
-        </div>
 
-        <!-- STEP 8: Faculty Tasks -->
-        <div class="wizard-panel" id="panel-8">
-          <?php $s8Flagged = !empty($revisionSections['faculty_tasks']); $s8Comment = $revisionSections['faculty_tasks'] ?? ''; ?>
-          <div class="card <?= $s8Flagged ? 'section-flagged' : '' ?>">
-            <div class="card-header">
-              <h2>📄 Faculty Tasks &amp; Contributions</h2>
-              <?php if ($s8Editable): ?>
-                <button type="button" class="btn btn-outline btn-sm" onclick="addRow('faculty-tasks')">+ Add Faculty</button>
-              <?php endif; ?>
-            </div>
-            <div class="card-body">
-              <div class="step-error-banner" id="err-banner-8">⚠️ Please fill in all faculty task rows before continuing.</div>
-              <?php if ($s8Flagged): ?>
-                <div class="reviewer-comment-banner"><span class="rc-icon">⚠️</span><div><span class="rc-label">Reviewer Comment</span><?= htmlspecialchars($s8Comment) ?></div></div>
-              <?php endif; ?>
-              <div class="dynamic-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th style="min-width: 190px;">Assigned Faculty</th>
-                      <th>Assigned Task</th>
-                      <th>Contribution</th>
-                      <th>Role</th>
-                      <th style="min-width: 140px;">Target Deadline</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody id="faculty-tasks-body">
-                    <?php if (empty($ftasks)): ?>
+              <!-- Combined Judging Criteria & Scoring System in List Format -->
+              <div class="form-group" style="margin-top:16px; padding:16px; background:var(--bg-base, #f8fafc); border:1px solid var(--border, #e2e8f0); border-radius:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+                  <div>
+                    <label class="form-label" style="margin-bottom:2px; font-weight:700;">Combined Judging Criteria &amp; Scoring System (List Format) <span class="text-danger">*</span></label>
+                    <div style="font-size:0.78rem; color:var(--text-muted, #64748b);">Add each criterion and its corresponding percentage weight or point score in list format.</div>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span id="combined-criteria-total-badge" style="font-size:0.76rem; font-weight:700; background:#e0f2fe; color:#0369a1; padding:4px 10px; border-radius:999px;">List Format Active</span>
+                    <?php if ($s7Editable): ?>
+                      <button type="button" class="btn btn-outline btn-sm" onclick="addCriteriaListRow('', '')">+ Add Criterion</button>
+                    <?php endif; ?>
+                  </div>
+                </div>
+                <div class="dynamic-table" style="margin-bottom:10px;">
+                  <table>
+                    <thead>
                       <tr>
-                        <td>
-                          <input type="hidden" name="ft_id[]" value="">
-                          <select name="ft_user_id[]" class="form-control ft-user-select" onchange="syncFtName(this)" <?= $s8Attr ?>>
-                            <option value="">-- Unassigned / External --</option>
-                            <?= renderFacultyTaskOptgroups($facultyDepartmentGroups, $facultyUsers) ?>
-                          </select>
-                          <input type="text" name="ft_name[]" class="form-control ft-name-field" style="margin-top: 4px; font-size: 0.8rem;" placeholder="External name (if unassigned)" <?= $s8Attr ?>>
-                        </td>
-                        <td><input type="text" name="ft_task[]" class="form-control ft-field" <?= $s8Attr ?>></td>
-                        <td><input type="text" name="ft_contribution[]" class="form-control ft-field" <?= $s8Attr ?>></td>
-                        <td><input type="text" name="ft_role[]" class="form-control ft-field" <?= $s8Attr ?>></td>
-                        <td><input type="date" name="ft_due_date[]" class="form-control ft-date-field" <?= $s8Attr ?>></td>
-                        <td>
-                          <?php if ($s8Editable): ?>
-                            <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
-                          <?php endif; ?>
-                        </td>
+                        <th style="width:44px; text-align:center;">No.</th>
+                        <th>Judging Criterion (List Item)</th>
+                        <th style="width:170px;">Scoring Weight / Points</th>
+                        <th style="width:44px;"></th>
                       </tr>
-                      <?php else: foreach ($ftasks as $f): ?>
-                        <tr>
-                          <td>
-                            <input type="hidden" name="ft_id[]" value="<?= (int)$f['id'] ?>">
-                            <select name="ft_user_id[]" class="form-control ft-user-select" onchange="syncFtName(this)" <?= $s8Attr ?>>
-                              <option value="">-- Unassigned / External --</option>
-                              <?= renderFacultyTaskOptgroups($facultyDepartmentGroups, $facultyUsers, $f['assigned_user_id'] ?? null, $f['faculty_name'] ?? null) ?>
-                            </select>
-                            <input type="text" name="ft_name[]" class="form-control ft-name-field" style="margin-top: 4px; font-size: 0.8rem;" value="<?= htmlspecialchars($f['faculty_name'] ?? '') ?>" placeholder="External name (if unassigned)" <?= $s8Attr ?>>
-                          </td>
-                          <td><input type="text" name="ft_task[]" class="form-control ft-field" value="<?= htmlspecialchars($f['task_title'] ?: ($f['assigned_task'] ?? '')) ?>" <?= $s8Attr ?>></td>
-                          <td><input type="text" name="ft_contribution[]" class="form-control ft-field" value="<?= htmlspecialchars($f['task_description'] ?: ($f['contribution_desc'] ?? '')) ?>" <?= $s8Attr ?>></td>
-                          <td><input type="text" name="ft_role[]" class="form-control ft-field" value="<?= htmlspecialchars($f['role_in_event'] ?? '') ?>" <?= $s8Attr ?>></td>
-                          <td><input type="date" name="ft_due_date[]" class="form-control ft-date-field" value="<?= !empty($f['due_date']) ? htmlspecialchars(date('Y-m-d', strtotime($f['due_date']))) : '' ?>" <?= $s8Attr ?>></td>
-                          <td>
-                            <?php if ($s8Editable): ?>
-                              <button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button>
-                            <?php endif; ?>
-                          </td>
-                        </tr>
-                    <?php endforeach;
-                    endif; ?>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody id="combined-criteria-list-body"></tbody>
+                  </table>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px;">
+                  <div>
+                    <label class="form-label" style="font-size:0.78rem;">Formatted Criteria List <span class="text-danger">*</span></label>
+                    <textarea name="guidelines_criteria" id="f7_criteria" class="form-control" rows="3" <?= $s7Attr ?>><?= htmlspecialchars($guidelines['criteria'] ?? '') ?></textarea>
+                    <span class="field-error" id="e_criteria">Criteria for judging are required.</span>
+                  </div>
+                  <div>
+                    <label class="form-label" style="font-size:0.78rem;">Scoring System Breakdown <span class="text-danger">*</span></label>
+                    <textarea name="guidelines_scoring" id="f7_scoring" class="form-control" rows="3" <?= $s7Attr ?>><?= htmlspecialchars($guidelines['scoring_system'] ?? '') ?></textarea>
+                    <span class="field-error" id="e_scoring">Scoring system is required.</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Combined Regular Awards & Special Awards -->
+              <div class="form-grid" style="margin-top:16px;">
+                <div class="form-group">
+                  <label class="form-label">Regular Awards <span style="font-size:0.78rem; font-weight:normal; color:var(--text-muted);">(Included alongside Special Awards)</span></label>
+                  <textarea name="guidelines_regular_awards" id="f7_regular_awards" class="form-control" rows="3" placeholder="e.g.&#10;1. Champion / 1st Place&#10;2. 1st Runner-Up&#10;3. 2nd Runner-Up" <?= $s7Attr ?>><?= htmlspecialchars($guidelines['regular_awards'] ?? '') ?></textarea>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Special Awards <span class="text-danger">*</span></label>
+                  <textarea name="guidelines_awards" id="f7_awards" class="form-control" rows="3" <?= $s7Attr ?>><?= htmlspecialchars($guidelines['special_awards'] ?? '') ?></textarea>
+                  <span class="field-error" id="e_awards">Special awards are required.</span>
+                </div>
+              </div>
+
+              <!-- Upload Section / Attachment Feature for Judging Mechanics, Scoring Systems, and Awards -->
+              <div class="form-group" style="margin-top:14px; padding:14px 16px; background:var(--bg-base, #f8fafc); border:1px dashed var(--border, #cbd5e1); border-radius:8px;">
+                <label class="form-label" style="font-weight:700;">📎 Upload Judging Mechanics, Scoring System &amp; Awards Attachment <span style="font-size:0.8rem; font-weight:normal; color:var(--text-muted);">(Optional)</span></label>
+                <?php if (!empty($guidelines['attachment_path'])): ?>
+                  <div style="margin-bottom:8px;">
+                    <a href="<?= BASE_URL ?>/api/document-download.php?activity_id=<?= (int)$id ?>&type=guidelines" target="_blank" class="btn btn-outline btn-sm">📎 View Current Mechanics / Scoring Attachment</a>
+                  </div>
+                <?php endif; ?>
+                <input type="file" name="guidelines_attachment" id="f7_guidelines_attachment" class="form-control" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" <?= $s7Attr ?>>
               </div>
             </div>
           </div>
           <div class="nav-btns">
             <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Evaluation →</button>
+            <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Evaluation &amp; KPI →</button>
           </div>
         </div>
 
-        <!-- ── STEP 9: Key Performance Indicators & Evaluation ── -->
-        <div class="wizard-panel" id="panel-9">
+        <!-- ── STEP 8: Key Performance Indicators & Evaluation ── -->
+        <div class="wizard-panel" id="panel-8">
           <!-- SECTION 1: Key Performance Indicators -->
-          <?php $s9Flagged = !empty($revisionSections['kpi']); $s9Comment = $revisionSections['kpi'] ?? ''; ?>
-          <div class="card <?= $s9Flagged ? 'section-flagged' : '' ?>" id="kpi-table-card">
+          <?php $s8Flagged = !empty($revisionSections['kpi']); $s8Comment = $revisionSections['kpi'] ?? ''; ?>
+          <div class="card <?= $s8Flagged ? 'section-flagged' : '' ?>" id="kpi-table-card">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
               <h2 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
                 📈 Key Performance Indicators
               </h2>
-              <?php if ($s9Editable): ?>
+              <?php if ($s8Editable): ?>
                 <button type="button" class="btn btn-outline btn-sm" id="btn-add-kpi" onclick="addKpiRow()">+ Add KPI</button>
               <?php endif; ?>
             </div>
             <div class="card-body" style="padding: 20px;">
-              <?php if ($s9Flagged): ?>
-                <div class="reviewer-comment-banner" style="margin-bottom: 16px;"><span class="rc-icon">⚠️</span><div><span class="rc-label">Reviewer Comment</span><?= htmlspecialchars($s9Comment) ?></div></div>
+              <?php if ($s8Flagged): ?>
+                <div class="reviewer-comment-banner" style="margin-bottom: 16px;"><span class="rc-icon">⚠️</span><div><span class="rc-label">Reviewer Comment</span><?= htmlspecialchars($s8Comment) ?></div></div>
               <?php endif; ?>
               <div class="dynamic-table" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto;">
                 <table class="table" style="margin: 0; width: 100%; border-collapse: collapse; background: #ffffff;">
@@ -2485,11 +2772,11 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                   <tbody id="kpi-body">
                     <?php if (empty($kpis)): ?>
                       <tr>
-                        <td style="padding: 10px 12px;"><input type="text" name="kpi_indicator[]" class="form-control kpi-field" placeholder="e.g. Number of Attendees" <?= $s9Attr ?>></td>
-                        <td style="padding: 10px 12px;"><input type="text" name="kpi_target[]" class="form-control kpi-field" placeholder="e.g. 500 Participants" <?= $s9Attr ?>></td>
-                        <td style="padding: 10px 12px;"><input type="text" name="kpi_method[]" class="form-control kpi-field" placeholder="e.g. Attendance Sheet" <?= $s9Attr ?>></td>
+                        <td style="padding: 10px 12px;"><input type="text" name="kpi_indicator[]" class="form-control kpi-field" placeholder="e.g. Number of Attendees" <?= $s8Attr ?>></td>
+                        <td style="padding: 10px 12px;"><input type="text" name="kpi_target[]" class="form-control kpi-field" placeholder="e.g. 500 Participants" <?= $s8Attr ?>></td>
+                        <td style="padding: 10px 12px;"><input type="text" name="kpi_method[]" class="form-control kpi-field" placeholder="e.g. Attendance Sheet" <?= $s8Attr ?>></td>
                         <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
-                          <?php if ($s9Editable): ?>
+                          <?php if ($s8Editable): ?>
                             <button type="button" class="btn btn-outline btn-sm btn-delete-kpi" onclick="removeKpiRow(this)" title="Delete KPI" disabled style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1; opacity: 0.4; cursor: not-allowed;">✕</button>
                           <?php endif; ?>
                         </td>
@@ -2500,11 +2787,11 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                       $methodVal = !empty($k['evaluation_method']) ? $k['evaluation_method'] : ((!empty($k['criteria']) || !empty($k['rating'])) ? 'Student Evaluation' : '');
                     ?>
                       <tr>
-                        <td style="padding: 10px 12px;"><input type="text" name="kpi_indicator[]" class="form-control kpi-field" value="<?= htmlspecialchars($indVal) ?>" placeholder="e.g. Number of Attendees" <?= $s9Attr ?>></td>
-                        <td style="padding: 10px 12px;"><input type="text" name="kpi_target[]" class="form-control kpi-field" value="<?= htmlspecialchars($targetVal) ?>" placeholder="e.g. 500 Participants" <?= $s9Attr ?>></td>
-                        <td style="padding: 10px 12px;"><input type="text" name="kpi_method[]" class="form-control kpi-field" value="<?= htmlspecialchars($methodVal) ?>" placeholder="e.g. Attendance Sheet" <?= $s9Attr ?>></td>
+                        <td style="padding: 10px 12px;"><input type="text" name="kpi_indicator[]" class="form-control kpi-field" value="<?= htmlspecialchars($indVal) ?>" placeholder="e.g. Number of Attendees" <?= $s8Attr ?>></td>
+                        <td style="padding: 10px 12px;"><input type="text" name="kpi_target[]" class="form-control kpi-field" value="<?= htmlspecialchars($targetVal) ?>" placeholder="e.g. 500 Participants" <?= $s8Attr ?>></td>
+                        <td style="padding: 10px 12px;"><input type="text" name="kpi_method[]" class="form-control kpi-field" value="<?= htmlspecialchars($methodVal) ?>" placeholder="e.g. Attendance Sheet" <?= $s8Attr ?>></td>
                         <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
-                          <?php if ($s9Editable): ?>
+                          <?php if ($s8Editable): ?>
                             <button type="button" class="btn btn-outline btn-sm btn-delete-kpi" onclick="removeKpiRow(this)" title="Delete KPI" style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1;" <?= count($kpis) <= 1 ? 'disabled style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1; opacity: 0.4; cursor: not-allowed;"' : '' ?>>✕</button>
                           <?php endif; ?>
                         </td>
@@ -2517,7 +2804,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           </div>
 
           <!-- SECTION 2: AI-Generated Evaluation Tool -->
-          <div class="card <?= $s9Flagged ? 'section-flagged' : '' ?>" id="ai-evaluation-tool-card" style="margin-top: 20px;">
+          <div class="card <?= $s8Flagged ? 'section-flagged' : '' ?>" id="ai-evaluation-tool-card" style="margin-top: 20px;">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
               <h2 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
                 🤖 AI-Generated Evaluation Tool
@@ -2526,7 +2813,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 <span id="evalStatusBadge">
                   <span id="evalStatusIndicator"></span> <span id="evalStatusText">Empty</span>
                 </span>
-                <?php if ($s9Editable): ?>
+                <?php if ($s8Editable): ?>
                   <button type="button" class="btn btn-outline btn-sm" id="btn-regenerate-eval" onclick="regenerateEvaluationWithAi(true)" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 4px; height:auto; line-height:1.2;">
                     ↻ Regenerate with AI
                   </button>
@@ -2547,14 +2834,14 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 </div>
               </div>
 
-              <div class="step-error-banner" id="err-banner-9" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; background:#f8d7da; color:#842029; border:1px solid #f5c2c7; font-size:.8rem;">⚠️ Please review evaluation questions and enter a valid evaluation form link.</div>
+              <div class="step-error-banner" id="err-banner-8" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; background:#f8d7da; color:#842029; border:1px solid #f5c2c7; font-size:.8rem;">⚠️ Please review evaluation questions and enter a valid evaluation form link.</div>
               <div class="step-error-banner" id="err-banner-eval-side" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; background:#f8d7da; color:#842029; border:1px solid #f5c2c7; font-size:.8rem;">⚠️ Please review and fix evaluation questions.</div>
 
               <!-- AI Generation Loading & Status -->
               <div id="evalGenStatus" style="display:none; margin-bottom:4px; padding:10px 14px; border-radius:6px; font-size:.85rem;"></div>
 
               <div class="info-alert" style="margin-bottom: 4px;">
-                These evaluation questions are automatically generated based on your activity objectives. You can customize them, add manual rating/open-ended questions, and generate the Google Form for student responses.
+                Review and customize the evaluation questions below, or click <strong>Create Google Form</strong> to generate your survey link.
               </div>
 
               <!-- Hidden JSON field -->
@@ -2565,7 +2852,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 <!-- Dynamically populated -->
               </div>
 
-              <?php if ($s9Editable): ?>
+              <?php if ($s8Editable): ?>
                 <button type="button" class="btn btn-outline btn-sm btn-add-manual-q" onclick="addManualQuestion()" style="align-self: flex-start;">
                   + Add Question
                 </button>
@@ -2576,9 +2863,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
                 <label class="form-label" style="font-weight: 600;">Google Forms Evaluation Link <span class="text-danger">*</span></label>
                 <div style="display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;">
                   <div style="flex:1; min-width:240px;">
-                    <input type="url" name="eval_form_link" id="f9_eval_form_link" class="form-control" placeholder="https://forms.gle/..." required value="<?= htmlspecialchars($activity['evaluation_method'] ?? '') ?>" <?= $s9Attr ?>>
+                    <input type="url" name="eval_form_link" id="f9_eval_form_link" class="form-control" placeholder="https://forms.gle/..." required value="<?= htmlspecialchars($activity['evaluation_method'] ?? '') ?>" <?= $s8Attr ?>>
                   </div>
-                  <?php if ($s9Editable): ?>
+                  <?php if ($s8Editable): ?>
                     <button type="button" class="btn btn-outline" id="btnCreateGoogleForm" onclick="handleCreateGoogleForm()" style="white-space:nowrap; display:inline-flex; align-items:center; gap:6px; height:42px; font-weight:500;">
                       <span id="btnCreateGoogleFormSpinner" class="spinner-border" style="display:none; width:0.9rem; height:0.9rem;"></span>
                       <span id="btnCreateGoogleFormText">Create Google Form</span>
@@ -2646,7 +2933,6 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     const isS6Editable = <?= json_encode($s6Editable) ?>;
     const isS7Editable = <?= json_encode($s7Editable) ?>;
     const isS8Editable = <?= json_encode($s8Editable) ?>;
-    const isS9Editable = <?= json_encode($s9Editable) ?>;
     const hasExistingPoster = <?= !empty($activity['poster_path']) ? 'true' : 'false' ?>;
     let questionsList = <?= json_encode(!empty($activity['evaluation_questions']) ? (json_decode($activity['evaluation_questions'], true) ?: []) : []) ?>;
     window.questionsList = questionsList;
@@ -2654,7 +2940,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     window.serializeEvaluationQuestions = serializeEvaluationQuestions;
     let currentStep = 1;
     window.currentStep = 1;
-    const totalSteps = 9;
+    const totalSteps = 8;
     let maxUnlocked = totalSteps;
     const flaggedSteps = <?= json_encode($flaggedSteps) ?>;
 
@@ -2742,6 +3028,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       document.getElementById('panel-' + n).classList.add('active');
       currentStep = n;
       window.currentStep = n;
+      if (n === 6 && typeof renderScheduleTimelineCalendar === 'function') {
+        renderScheduleTimelineCalendar();
+      }
       if (n === 9 && typeof syncKpiSectionTables === 'function') {
         syncKpiSectionTables();
       }
@@ -2964,20 +3253,13 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       return true;
     }
 
-    function validatePosterInput(fieldId, errId, isOptional = false) {
+    function validatePosterInput(fieldId, errId) {
       const el = document.getElementById(fieldId);
       const errEl = document.getElementById(errId);
       if (!el) return true;
 
+      // Event poster is completely optional. If no file selected, clear error and pass.
       if (!el.value || !el.files || el.files.length === 0) {
-        if (el.required || !isOptional) {
-          el.classList.add('is-invalid');
-          if (errEl) {
-            errEl.textContent = 'Activity poster is required.';
-            errEl.classList.add('visible');
-          }
-          return false;
-        }
         el.classList.remove('is-invalid');
         if (errEl) errEl.classList.remove('visible');
         return true;
@@ -3007,7 +3289,6 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
 
       el.classList.remove('is-invalid');
       if (errEl) {
-        errEl.textContent = 'Activity poster is required.';
         errEl.classList.remove('visible');
       }
       return true;
@@ -3016,7 +3297,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     const posterInputEdit = document.getElementById('f1_poster_file');
     if (posterInputEdit) {
       posterInputEdit.addEventListener('change', function() {
-        validatePosterInput('f1_poster_file', 'e_poster_file', hasExistingPoster);
+        validatePosterInput('f1_poster_file', 'e_poster_file');
       });
     }
 
@@ -3079,6 +3360,39 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       return true;
     }
 
+    function checkEndDateField() {
+      if (!isS1Editable) return true;
+      const startEl = document.getElementById('f1_event_date');
+      const endEl = document.getElementById('f1_end_date');
+      if (!endEl) return true;
+      const startVal = startEl ? startEl.value.trim() : '';
+      let endVal = endEl.value.trim();
+
+      if (!endVal && startVal) {
+        endEl.value = startVal;
+        endVal = startVal;
+      }
+
+      if (!endVal) {
+        endEl.classList.add('is-invalid');
+        showError('e_end_date');
+        hideError('e_end_date_order');
+        return false;
+      }
+
+      if (startVal && endVal < startVal) {
+        endEl.classList.add('is-invalid');
+        hideError('e_end_date');
+        showError('e_end_date_order');
+        return false;
+      }
+
+      endEl.classList.remove('is-invalid');
+      hideError('e_end_date');
+      hideError('e_end_date_order');
+      return true;
+    }
+
     const eventDateInput = document.getElementById('f1_event_date');
     if (eventDateInput && isS1Editable) {
       eventDateInput.min = tomorrowManila;
@@ -3086,6 +3400,19 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         eventDateInput.addEventListener(evt, () => {
           if (eventDateInput.value) {
             checkEventDateField();
+            checkEndDateField();
+          }
+        });
+      });
+    }
+
+    const endDateInput = document.getElementById('f1_end_date');
+    if (endDateInput && isS1Editable) {
+      endDateInput.min = tomorrowManila;
+      ['input', 'change'].forEach(evt => {
+        endDateInput.addEventListener(evt, () => {
+          if (endDateInput.value) {
+            checkEndDateField();
           }
         });
       });
@@ -3334,7 +3661,6 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           'f1_theme': 'e_theme',
           'f2_general_objectives': 'e_general_objectives',
           'f2_specific_objectives': 'e_specific_objectives',
-          'f2_involved_subjects': 'e_involved_subjects',
           'f2_rationale': 'e_rationale',
           'f3_floor_plan_notes': 'e_floor_plan_notes',
           'f7_mechanics': 'e_mechanics',
@@ -3372,7 +3698,6 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           'f1_theme': 'e_theme',
           'f2_general_objectives': 'e_general_objectives',
           'f2_specific_objectives': 'e_specific_objectives',
-          'f2_involved_subjects': 'e_involved_subjects',
           'f2_rationale': 'e_rationale',
           'f3_floor_plan_notes': 'e_floor_plan_notes',
           'f7_mechanics': 'e_mechanics',
@@ -3422,6 +3747,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       if (step === 1) {
         if (isS1Editable) {
           if (!checkEventDateField()) valid = false;
+          if (!checkEndDateField()) valid = false;
           if (!validateTimeFields(true)) valid = false;
           const fields = [
             { id: 'f1_title', err: 'e_title' },
@@ -3473,8 +3799,11 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             }
           }
           const posterEl = document.getElementById('f1_poster_file');
-          if (!hasExistingPoster || (posterEl && posterEl.files && posterEl.files.length > 0)) {
-            if (!validatePosterInput('f1_poster_file', 'e_poster_file', hasExistingPoster)) valid = false;
+          if (posterEl && posterEl.files && posterEl.files.length > 0) {
+            if (!validatePosterInput('f1_poster_file', 'e_poster_file')) valid = false;
+          } else {
+            hideError('e_poster_file');
+            if (posterEl) posterEl.classList.remove('is-invalid');
           }
         }
       } else if (step === 2) {
@@ -3484,7 +3813,6 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           const fields = [
             { id: 'f2_general_objectives', err: 'e_general_objectives' },
             { id: 'f2_specific_objectives', err: 'e_specific_objectives' },
-            { id: 'f2_involved_subjects', err: 'e_involved_subjects' },
             { id: 'f2_rationale', err: 'e_rationale' }
           ];
           fields.forEach(f => {
@@ -3628,7 +3956,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         if (isS6Editable) {
           const schedRows = document.querySelectorAll('#schedule-body tr');
           schedRows.forEach(row => {
-            row.querySelectorAll('input.sched-field').forEach(inp => {
+            row.querySelectorAll('input.sched-field, select.sched-field').forEach(inp => {
               const v = inp.value.trim();
               if (!v) {
                 inp.classList.add('is-invalid');
@@ -3644,23 +3972,65 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
               }
             });
           });
-          const progRows = document.querySelectorAll('#program-body tr');
-          progRows.forEach(row => {
-            row.querySelectorAll('input.prog-field').forEach(inp => {
-              const v = inp.value.trim();
-              if (!v) {
-                inp.classList.add('is-invalid');
-                valid = false;
-              } else if (inp.type === 'text' && hasGibberishText(v)) {
-                inp.classList.add('is-invalid');
+          const invMode = document.getElementById('invitation_mode_input')?.value || 'create';
+          const invFile = document.getElementById('invitation_file');
+          const hasExistingInv = document.getElementById('has_existing_invitation_file')?.value === '1';
+          const hasInvUpload = (invFile && invFile.files && invFile.files.length > 0) || hasExistingInv;
+          if (invMode === 'upload') {
+            if (!hasInvUpload) {
+              if (invFile) invFile.classList.add('is-invalid');
+              valid = false;
+            } else if (invFile) {
+              invFile.classList.remove('is-invalid');
+            }
+          } else {
+            const progRows = document.querySelectorAll('#program-body tr');
+            progRows.forEach(row => {
+              row.querySelectorAll('input.prog-field').forEach(inp => {
+                const v = inp.value.trim();
+                if (!v) {
+                  inp.classList.add('is-invalid');
+                  valid = false;
+                } else if (inp.type === 'text' && hasGibberishText(v)) {
+                  inp.classList.add('is-invalid');
+                  valid = false;
+                } else {
+                  inp.classList.remove('is-invalid');
+                }
+              });
+            });
+          }
+          // Validate faculty task rows only if user began filling them in or added tasks via calendar
+          const ftRows = document.querySelectorAll('#faculty-tasks-body tr');
+          ftRows.forEach(row => {
+            const tVal = (row.querySelector('input[name="ft_task[]"]')?.value || '').trim();
+            const dVal = (row.querySelector('input[name="ft_due_date[]"]')?.value || '').trim();
+            const sVal = (row.querySelector('input[name="ft_start_date[]"]')?.value || '').trim();
+            const uVal = (row.querySelector('select[name="ft_user_id[]"]')?.value || '').trim();
+            const nVal = (row.querySelector('input.ft-name-field')?.value || '').trim();
+            const hasAny = tVal || dVal || sVal || uVal || nVal;
+            if (hasAny) {
+              if (!tVal || hasGibberishText(tVal)) {
+                row.querySelector('input[name="ft_task[]"]')?.classList.add('is-invalid');
                 valid = false;
               } else {
-                inp.classList.remove('is-invalid');
+                row.querySelector('input[name="ft_task[]"]')?.classList.remove('is-invalid');
               }
-            });
+              if (!dVal) {
+                row.querySelector('input[name="ft_due_date[]"]')?.classList.add('is-invalid');
+                valid = false;
+              } else {
+                row.querySelector('input[name="ft_due_date[]"]')?.classList.remove('is-invalid');
+              }
+            } else {
+              row.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+            }
           });
         }
       } else if (step === 7) {
+        if (isS7Editable && typeof syncCombinedCriteriaToTextareas === 'function') {
+          syncCombinedCriteriaToTextareas();
+        }
         if (isS7Editable) {
           [
             { id: 'f7_mechanics', err: 'e_mechanics' },
@@ -3673,22 +4043,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         }
       } else if (step === 8) {
         if (isS8Editable) {
-          const rows = document.querySelectorAll('#faculty-tasks-body tr');
-          rows.forEach(row => {
-            row.querySelectorAll('input.ft-field').forEach(inp => {
-              const v = inp.value.trim();
-              if (!v || hasGibberishText(v)) {
-                inp.classList.add('is-invalid');
-                valid = false;
-              } else {
-                inp.classList.remove('is-invalid');
-              }
-            });
-          });
-        }
-      } else if (step === 9) {
-        if (isS9Editable) {
-          // Evaluation Tool questions validation
+          // Evaluation Tool questions validation (formerly step 9)
           const evalValid = validateEvaluationSidePanel();
           if (!evalValid) {
             valid = false;
@@ -3888,8 +4243,8 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
 
         if (!evalValid) {
           e.preventDefault();
-          showStep(9);
-          alert('⚠️ Please review the AI-Generated Evaluation Tool questions in Step 9 before submitting.');
+          showStep(8);
+          alert('⚠️ Please review the AI-Generated Evaluation Tool questions in Step 8 before submitting.');
           return;
         }
 
@@ -3946,9 +4301,26 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         <tr>
           <td><input type="text" name="mat_item[]" class="form-control mat-field" placeholder="e.g. Chairs"></td>
           <td><input type="text" name="mat_desc[]" class="form-control mat-field" placeholder="Description"></td>
-          <td><input type="number" name="mat_qty[]" class="form-control mat-qty" value="1" min="1" placeholder="1"></td>
-          <td><input type="text" name="mat_provider[]" class="form-control mat-field" placeholder="Supplier name"></td>
-          <td><input type="number" name="mat_cost[]" class="form-control mat-cost" value="0" placeholder="0.00" step="0.01" min="0"></td>
+          <td><input type="number" name="mat_qty[]" class="form-control mat-qty" value="1" min="1" placeholder="1" oninput="calculateMaterialRow(this)"></td>
+          <td>
+            <select name="mat_provider[]" class="form-control mat-field mat-provider-select" onchange="handleMaterialProviderChange(this)">
+              <option value="in_house">In-House (School)</option>
+              <option value="rental">Rental (Supplier)</option>
+            </select>
+          </td>
+          <td>
+            <select name="mat_unit[]" class="form-control mat-field mat-unit-select" onchange="calculateMaterialRow(this)" disabled style="opacity:0.6;">
+              <option value="per_hour">Per Hour</option>
+              <option value="per_day">Per Day</option>
+              <option value="fixed">Fixed / Per Item</option>
+            </select>
+          </td>
+          <td>
+            <input type="number" name="mat_rate[]" class="form-control mat-rate" placeholder="0.00" step="0.01" min="0" value="0.00" disabled style="opacity:0.6;" oninput="calculateMaterialRow(this)">
+          </td>
+          <td>
+            <input type="number" name="mat_cost[]" class="form-control mat-cost" placeholder="0.00" step="0.01" min="0" value="0.00" readonly style="background:var(--bg-muted, #f8fafc); font-weight:600;">
+          </td>
           <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
         </tr>`,
       program: `
@@ -3980,7 +4352,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
               <option value="Sponsor(s)">Sponsor(s)</option>
             </select>
           </td>
-          <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Full name" oninput="updateManpowerSummary()"></td>
+          <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Person in Charge full name" oninput="updateManpowerSummary(); refreshEncodedOrganizerDropdowns();"></td>
           <td>
             <select name="mp_type[]" class="form-control" onchange="updateManpowerSummary()">
               <option value="faculty">Faculty</option>
@@ -3988,14 +4360,22 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
               <option value="student">Student</option>
             </select>
           </td>
+          <td><input type="number" name="mp_member_count[]" class="form-control mp-count-field" value="1" min="0" step="1" placeholder="1" oninput="updateManpowerSummary()"></td>
           <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this); updateManpowerSummary();">✕</button></td>
         </tr>`,
       schedule: `
         <tr>
           <td><input type="date" name="sched_date[]" class="form-control sched-field" min="${tomorrowManila}"></td>
-          <td><input type="text" name="sched_event[]" class="form-control sched-field" placeholder="Event name"></td>
+          <td>
+            <input type="text" name="sched_event[]" class="form-control sched-field" placeholder="Event name">
+            <input type="hidden" name="sched_type[]" class="sched-type-field" value="main_event">
+          </td>
           <td><input type="text" name="sched_venue[]" class="form-control sched-field" placeholder="Venue"></td>
-          <td><input type="text" name="sched_organizer[]" class="form-control sched-field" placeholder="Name"></td>
+          <td>
+            <select name="sched_organizer[]" class="form-control sched-field sched-organizer-select">
+              <option value="">Select encoded individual...</option>
+            </select>
+          </td>
           <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
         </tr>`,
       'faculty-tasks': `
@@ -4011,7 +4391,8 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           <td><input type="text" name="ft_task[]" class="form-control ft-field" placeholder="Assigned task"></td>
           <td><input type="text" name="ft_contribution[]" class="form-control ft-field" placeholder="Contribution description"></td>
           <td><input type="text" name="ft_role[]" class="form-control ft-field" placeholder="Role"></td>
-          <td><input type="date" name="ft_due_date[]" class="form-control ft-date-field"></td>
+          <td><input type="date" name="ft_start_date[]" class="form-control ft-date-field" title="Task Start Date"></td>
+          <td><input type="date" name="ft_due_date[]" class="form-control ft-date-field" title="Target Deadline"></td>
           <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
         </tr>`,
       kpi: `
@@ -4030,7 +4411,14 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       tmp.innerHTML = rowTemplates[table];
       tbody.appendChild(tmp.firstElementChild);
       if (table === 'materials') updateTotal();
-      if (table === 'manpower') updateManpowerSummary();
+      if (table === 'manpower') {
+        updateManpowerSummary();
+        if (typeof refreshEncodedOrganizerDropdowns === 'function') refreshEncodedOrganizerDropdowns();
+      }
+      if (table === 'schedule') {
+        if (typeof refreshEncodedOrganizerDropdowns === 'function') refreshEncodedOrganizerDropdowns();
+        if (typeof renderScheduleTimelineCalendar === 'function') renderScheduleTimelineCalendar();
+      }
     }
 
     function removeRow(btn) {
@@ -4069,44 +4457,53 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       const rows = document.querySelectorAll('#manpower-body tr');
       const countsByRole = {};
       const uniquePersons = new Set();
+      let totalAssignedRows = 0;
 
-      rows.forEach((tr, index) => {
+      rows.forEach((tr) => {
         const roleSel = tr.querySelector('select[name="mp_role[]"]');
         const personInp = tr.querySelector('input[name="mp_person[]"]');
         const typeSel = tr.querySelector('select[name="mp_type[]"]');
+        const countInp = tr.querySelector('input[name="mp_member_count[]"]');
 
         const role = roleSel ? roleSel.value.trim() : '';
         const person = personInp ? personInp.value.trim() : '';
         const type = typeSel ? typeSel.value.trim().toLowerCase() : 'faculty';
+        const memberCount = Math.max(1, parseInt(countInp?.value || '1', 10) || 1);
 
-        if (!role || !person) return;
+        if (!role) return;
 
         if (!countsByRole[role]) {
           countsByRole[role] = {
-            faculty: new Set(),
-            staff: new Set(),
-            student: new Set()
+            faculty: 0,
+            staff: 0,
+            student: 0
           };
         }
 
-        const personKey = person.toLowerCase();
-        uniquePersons.add(personKey);
+        if (person) {
+          uniquePersons.add(person.toLowerCase());
+          totalAssignedRows++;
+        }
 
         if (type === 'staff') {
-          countsByRole[role].staff.add(personKey);
+          countsByRole[role].staff += memberCount;
         } else if (type === 'student') {
-          countsByRole[role].student.add(personKey);
+          countsByRole[role].student += memberCount;
         } else {
-          countsByRole[role].faculty.add(personKey);
+          countsByRole[role].faculty += memberCount;
         }
       });
 
       const presentRoles = [];
       MANPOWER_ROLES.forEach(r => {
-        if (countsByRole[r]) presentRoles.push(r);
+        if (countsByRole[r] && (countsByRole[r].faculty > 0 || countsByRole[r].staff > 0 || countsByRole[r].student > 0)) {
+          presentRoles.push(r);
+        }
       });
       Object.keys(countsByRole).forEach(r => {
-        if (!presentRoles.includes(r)) presentRoles.push(r);
+        if (!presentRoles.includes(r) && (countsByRole[r].faculty > 0 || countsByRole[r].staff > 0 || countsByRole[r].student > 0)) {
+          presentRoles.push(r);
+        }
       });
 
       summaryBody.innerHTML = '';
@@ -4126,9 +4523,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         `;
       } else {
         presentRoles.forEach(role => {
-          const fCount = countsByRole[role].faculty.size;
-          const sCount = countsByRole[role].staff.size;
-          const stuCount = countsByRole[role].student.size;
+          const fCount = countsByRole[role].faculty;
+          const sCount = countsByRole[role].staff;
+          const stuCount = countsByRole[role].student;
           const rTotal = fCount + sCount + stuCount;
 
           colFaculty += fCount;
@@ -4155,14 +4552,18 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       const elStu = document.getElementById('mp-sum-students');
       const elTot = document.getElementById('mp-sum-total');
       const elUnique = document.getElementById('mp-summary-unique-total');
+      const elHeadcount = document.getElementById('mp-summary-total-headcount');
+      const elLeads = document.getElementById('mp-summary-lead-count');
 
       if (elF) elF.textContent = colFaculty;
       if (elS) elS.textContent = colStaff;
       if (elStu) elStu.textContent = colStudents;
       if (elTot) elTot.textContent = colTotal;
       if (elUnique) {
-        elUnique.textContent = uniquePersons.size;
+        elUnique.textContent = colTotal;
       }
+      if (elHeadcount) elHeadcount.textContent = colTotal;
+      if (elLeads) elLeads.textContent = uniquePersons.size || totalAssignedRows;
     }
 
     function checkKpiDeleteButtons() {
@@ -4217,13 +4618,104 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       addKpiRow();
     }
 
+    // ── Materials Rental & Duration Helpers ───────────────────────────
+    function getEventTimelineDurationHours() {
+      const startEl = document.getElementById('f1_start_time');
+      const endEl = document.getElementById('f1_end_time');
+      if (!startEl || !endEl || !startEl.value || !endEl.value) return 1;
+      const [sH, sM] = startEl.value.split(':').map(Number);
+      const [eH, eM] = endEl.value.split(':').map(Number);
+      const startMinutes = sH * 60 + sM;
+      const endMinutes = eH * 60 + eM;
+      let diff = (endMinutes - startMinutes) / 60;
+      if (diff <= 0) diff = 1;
+      return Math.max(1, diff);
+    }
+
+    function getEventDurationDays() {
+      const startEl = document.getElementById('f1_event_date');
+      const endEl = document.getElementById('f1_end_date');
+      if (!startEl || !endEl || !startEl.value) return 1;
+      const sDate = new Date(startEl.value);
+      const eDate = endEl.value ? new Date(endEl.value) : sDate;
+      if (isNaN(sDate.getTime()) || isNaN(eDate.getTime()) || eDate < sDate) return 1;
+      const diffTime = Math.abs(eDate - sDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      return Math.max(1, diffDays);
+    }
+
+    function handleMaterialProviderChange(selectEl) {
+      const row = selectEl.closest('tr');
+      if (!row) return;
+      const unitSelect = row.querySelector('.mat-unit-select');
+      const rateInput = row.querySelector('.mat-rate');
+      const costInput = row.querySelector('.mat-cost');
+      const isRental = (selectEl.value === 'rental');
+
+      if (unitSelect) {
+        unitSelect.disabled = !isRental;
+        unitSelect.style.opacity = isRental ? '1' : '0.6';
+      }
+      if (rateInput) {
+        rateInput.disabled = !isRental;
+        rateInput.style.opacity = isRental ? '1' : '0.6';
+        if (!isRental) rateInput.value = '0.00';
+      }
+      if (costInput && !isRental) {
+        costInput.value = '0.00';
+      }
+      calculateMaterialRow(selectEl);
+    }
+
+    function calculateMaterialRow(el) {
+      const row = el.closest('tr');
+      if (!row) return;
+      const provider = row.querySelector('.mat-provider-select')?.value || 'in_house';
+      const qty = parseFloat(row.querySelector('.mat-qty')?.value) || 0;
+      const unit = row.querySelector('.mat-unit-select')?.value || 'fixed';
+      const rate = parseFloat(row.querySelector('.mat-rate')?.value) || 0;
+      const costInput = row.querySelector('.mat-cost');
+      if (!costInput) return;
+
+      if (provider === 'in_house') {
+        costInput.value = '0.00';
+      } else {
+        let rowTotal = 0;
+        if (unit === 'per_hour') {
+          const hours = getEventTimelineDurationHours();
+          rowTotal = qty * rate * hours;
+        } else if (unit === 'per_day') {
+          const days = getEventDurationDays();
+          rowTotal = qty * rate * days;
+        } else {
+          rowTotal = qty * rate;
+        }
+        costInput.value = rowTotal.toFixed(2);
+      }
+      updateTotal();
+    }
+
+    function recalculateAllMaterials() {
+      document.querySelectorAll('#materials-body tr').forEach(row => {
+        const providerSelect = row.querySelector('.mat-provider-select');
+        if (providerSelect) calculateMaterialRow(providerSelect);
+      });
+    }
+
+    // Recalculate material rental costs if timeline or dates change
+    ['f1_start_time', 'f1_end_time', 'f1_event_date', 'f1_end_date'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('change', recalculateAllMaterials);
+      }
+    });
+
     // ── Materials Total Cost ──────────────────────────────────────────
     function updateTotal() {
       let total = 0;
       document.querySelectorAll('#materials-body tr').forEach(row => {
-        const qty = parseFloat(row.querySelector('.mat-qty')?.value) || 0;
         const cost = parseFloat(row.querySelector('.mat-cost')?.value) || 0;
-        total += qty * cost;
+        total += cost;
       });
       const totalEl = document.getElementById('materials-total');
       if (totalEl) {
@@ -4237,11 +4729,13 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     const matBody = document.getElementById('materials-body');
     if (matBody) {
       matBody.addEventListener('input', e => {
-        if (e.target.classList.contains('mat-qty') || e.target.classList.contains('mat-cost')) {
-          updateTotal();
+        if (e.target.classList.contains('mat-qty') || e.target.classList.contains('mat-rate') || e.target.classList.contains('mat-cost')) {
+          calculateMaterialRow(e.target);
         }
       });
     }
+    // Initial run to format total cost
+    updateTotal();
 
     // ── Target Participants Section Table Functions ───────────────────
     function renumberParticipantRows() {
@@ -4250,7 +4744,11 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       const rows = tbody.querySelectorAll('tr.participant-row');
       rows.forEach((row, idx) => {
         const numCell = row.querySelector('.part-row-num');
-        if (numCell) numCell.textContent = idx + 1;
+        if (numCell) {
+          const badge = numCell.querySelector('.part-num-badge');
+          if (badge) badge.textContent = idx + 1;
+          else numCell.innerHTML = `<span class="part-num-badge" style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; background: #f1f5f9; color: #475569; font-weight: 700; font-size: 0.78rem;">${idx + 1}</span>`;
+        }
         const delBtn = row.querySelector('.btn-delete-section');
         if (delBtn) {
           if (rows.length <= 1) {
@@ -4266,6 +4764,8 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           }
         }
       });
+      const countBadge = document.getElementById('part-count-badge');
+      if (countBadge) countBadge.textContent = rows.length;
     }
 
     function updateTotalTargetParticipants() {
@@ -4288,6 +4788,12 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         hiddenInput.value = total > 0 ? total : '';
       }
 
+      const countBadge = document.getElementById('part-count-badge');
+      if (countBadge) {
+        const rows = document.querySelectorAll('#participant-sections-body tr.participant-row');
+        countBadge.textContent = rows.length;
+      }
+
       const errEl = document.getElementById('e_target_participants');
       if (errEl && total > 0) {
         errEl.style.display = 'none';
@@ -4308,19 +4814,19 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       tr.className = 'participant-row';
       tr.style.borderBottom = '1px solid #f1f5f9';
       tr.innerHTML = `
-        <td class="part-row-num" style="text-align: center; font-weight: 600; color: #64748b; font-size: 0.85rem; padding: 10px 12px; vertical-align: middle;">
-          ${newIndex}
+        <td class="part-row-num" style="text-align: center; padding: 6px 8px; vertical-align: middle;">
+          <span class="part-num-badge" style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; background: #f1f5f9; color: #475569; font-weight: 700; font-size: 0.78rem;">${newIndex}</span>
         </td>
-        <td style="padding: 10px 12px;">
-          <input type="text" name="part_section[]" class="form-control part-section-input" placeholder="e.g. BSIT 301 / Data Structures" value="${escapeHtml(section)}">
+        <td style="padding: 6px 10px; vertical-align: middle;">
+          <input type="text" name="part_section[]" class="form-control part-section-input" placeholder="e.g. BSIT 301 / Data Structures" value="${escapeHtml(section)}" style="height: 36px; font-size: 0.85rem; border-radius: 6px; padding: 4px 10px;">
         </td>
-        <td style="padding: 10px 12px;">
-          <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="${escapeHtml(count)}" oninput="updateTotalTargetParticipants()">
+        <td style="padding: 6px 10px; vertical-align: middle; width: 140px;">
+          <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="${escapeHtml(count)}" oninput="updateTotalTargetParticipants()" style="height: 36px; font-size: 0.85rem; font-weight: 600; text-align: center; border-radius: 6px; padding: 4px 8px;">
         </td>
-        <td style="padding: 10px 12px; min-width: 280px; position: relative;">
+        <td style="padding: 6px 10px; min-width: 270px; vertical-align: middle; position: relative;">
           <div class="teacher-multiselect" data-row-idx="${newIndex}">
             <input type="hidden" name="part_teacher[]" class="part-teacher-input" value="${escapeHtml(teacher)}">
-            <div class="tms-control" onclick="focusTmsInput(this)">
+            <div class="tms-control" onclick="focusTmsInput(this)" style="min-height: 36px; padding: 3px 8px; border-radius: 6px;">
               <div class="tms-tags"></div>
               <input type="text" class="tms-input" placeholder="Search and select faculty...">
             </div>
@@ -4330,8 +4836,8 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             </div>
           </div>
         </td>
-        <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
-          <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Delete section" style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1;">✕</button>
+        <td style="text-align: center; padding: 6px 8px; vertical-align: middle;">
+          <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Delete section" style="width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; color: #ef4444; border-color: #fca5a5; line-height: 1;">✕</button>
         </td>
       `;
       tbody.appendChild(tr);
@@ -4357,6 +4863,55 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
         updateTotalTargetParticipants();
       }
     }
+
+    async function clearAllParticipantSections() {
+      const msg = 'Are you sure you want to clear all section rows?\n\nThis will remove all currently added sections and reset the table to a single blank row.';
+      let confirmed = false;
+      if (window.STIModal && typeof window.STIModal.confirm === 'function') {
+        confirmed = await window.STIModal.confirm(msg, {
+          title: 'Clear All Sections?',
+          icon: '🗑️',
+          confirmText: 'Yes, Clear All',
+          cancelText: 'Cancel',
+          variant: 'danger'
+        });
+      } else {
+        confirmed = confirm(msg);
+      }
+      if (!confirmed) return;
+
+      const tbody = document.getElementById('participant-sections-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      if (typeof window.addParticipantSectionRow === 'function') {
+        window.addParticipantSectionRow('', '', '');
+      } else if (typeof addParticipantSectionRow === 'function') {
+        addParticipantSectionRow('', '', '');
+      }
+      if (typeof window.renumberParticipantRows === 'function') {
+        window.renumberParticipantRows();
+      } else if (typeof renumberParticipantRows === 'function') {
+        renumberParticipantRows();
+      }
+      if (typeof window.updateTotalTargetParticipants === 'function') {
+        window.updateTotalTargetParticipants();
+      } else if (typeof updateTotalTargetParticipants === 'function') {
+        updateTotalTargetParticipants();
+      }
+      if (typeof window.syncKpiSectionTables === 'function') {
+        window.syncKpiSectionTables();
+      } else if (typeof syncKpiSectionTables === 'function') {
+        syncKpiSectionTables();
+      }
+    }
+
+    // Explicitly expose on window for modal & phase 2 bulk additions
+    window.addParticipantSectionRow = addParticipantSectionRow;
+    window.removeParticipantSectionRow = removeParticipantSectionRow;
+    window.renumberParticipantRows = renumberParticipantRows;
+    window.updateTotalTargetParticipants = updateTotalTargetParticipants;
+    window.clearAllParticipantSections = clearAllParticipantSections;
+    window.syncKpiSectionTables = syncKpiSectionTables;
 
     // ── Synchronization for Activity Evaluation & KPI Measurement Tables ──
     function syncKpiSectionTables() {
@@ -5117,7 +5672,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       editingIndex = questionsList.length - 1;
       renderQuestions();
       
-      const cardBody = document.querySelector('#panel-9 .card-body') || document.querySelector('.proposal-eval-side-panel .card-body');
+      const cardBody = document.querySelector('#panel-8 .card-body') || document.querySelector('.proposal-eval-side-panel .card-body');
       if (cardBody) {
         setTimeout(() => {
           cardBody.scrollTop = cardBody.scrollHeight;
@@ -5222,6 +5777,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     let isObjectivesProtected = false;
     let lastAiGeneralObjective = '';
     let lastAiSpecificObjectives = '';
+    let lastAiRationale = '';
     let lastRequestedObjTitle = '';
     let lastRequestedObjTheme = '';
     let currentObjRequestId = 0;
@@ -5281,7 +5837,7 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           statusEl.innerHTML = `
             <div style="display:flex;align-items:center;gap:8px;">
               <span class="spinner-border" style="width:14px;height:14px;border-width:2px;color:#0284c7;"></span>
-              <span>✨ Generating objectives with AI based on your title & theme…</span>
+              <span>✨ Generating SMART objectives &amp; rationale with AI based on your title &amp; theme…</span>
             </div>`;
           break;
 
@@ -5291,9 +5847,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;';
           statusEl.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-              <span>✅ SMART Objectives generated by AI.</span>
+              <span>✅ SMART Objectives &amp; Rationale generated by AI.</span>
               <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;font-weight:600;padding:0;">
-                ↻ Regenerate Objectives
+                ↻ Regenerate with AI
               </button>
             </div>`;
           break;
@@ -5303,9 +5859,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#fffbeb;color:#92400e;border:1px solid #fde68a;';
           statusEl.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-              <span>⚠️ Title/theme changed. Your edited objectives were preserved.</span>
+              <span>⚠️ Title/theme changed. Your edited objectives &amp; rationale were preserved.</span>
               <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;font-weight:600;padding:0;">
-                ↻ Regenerate Objectives
+                ↻ Regenerate with AI
               </button>
             </div>`;
           break;
@@ -5315,9 +5871,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;';
           statusEl.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-              <span>✏️ Custom objectives entered.</span>
+              <span>✏️ Custom objectives / rationale entered.</span>
               <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;font-weight:600;padding:0;">
-                ↻ Regenerate Objectives with AI
+                ↻ Regenerate with AI
               </button>
             </div>`;
           break;
@@ -5327,9 +5883,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
           statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3;';
           statusEl.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-              <span>⚠️ Could not auto-generate objectives (${escapeHtml(errorMsg || 'service unavailable')}). You can enter them manually.</span>
+              <span>⚠️ Could not auto-generate objectives &amp; rationale (${escapeHtml(errorMsg || 'service unavailable')}). You can enter them manually.</span>
               <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;padding:0;">
-                Retry
+                Retry with AI
               </button>
             </div>`;
           break;
@@ -5362,12 +5918,14 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
     function checkManualObjectiveEdit() {
       const genEl = document.getElementById('f2_general_objectives');
       const specEl = document.getElementById('f2_specific_objectives');
+      const ratEl = document.getElementById('f2_rationale');
       if (!genEl || !specEl) return;
 
       const curGen = genEl.value.trim();
       const curSpec = specEl.value.trim();
+      const curRat = ratEl ? ratEl.value.trim() : '';
 
-      if (curGen === '' && curSpec === '') {
+      if (curGen === '' && curSpec === '' && curRat === '') {
         isObjectivesProtected = false;
         renderObjectivesStatus('WAITING');
         return;
@@ -5375,8 +5933,9 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
 
       const isGenMatch = (lastAiGeneralObjective !== '' && curGen === lastAiGeneralObjective.trim());
       const isSpecMatch = (lastAiSpecificObjectives !== '' && curSpec === lastAiSpecificObjectives.trim());
+      const isRatMatch = (!lastAiRationale || curRat === lastAiRationale.trim() || curRat === '');
 
-      if (isGenMatch && isSpecMatch) {
+      if (isGenMatch && isSpecMatch && isRatMatch) {
         isObjectivesProtected = false;
         renderObjectivesStatus('UPDATED');
       } else {
@@ -5507,14 +6066,29 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
             genEl.value = data.general_objective;
             specEl.value = specVal;
 
+            const ratEl = document.getElementById('f2_rationale');
+            const ratVal = (data.rationale || data.academic_rationale || data.justification || '').trim();
+            if (ratEl && ratVal && (!ratEl.value.trim() || forced || !isObjectivesProtected)) {
+              ratEl.value = ratVal;
+              lastAiRationale = ratVal;
+              try {
+                sessionStorage.setItem('sti_ai_rationale_' + hashStr(ratVal), '1');
+              } catch (e) {}
+              ratEl.classList.remove('is-invalid');
+              const eRat = document.getElementById('e_rationale');
+              if (eRat) eRat.style.display = 'none';
+              ratEl.dispatchEvent(new Event('input', { bubbles: true }));
+              ratEl.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
             // Dispatch input and change events so all listeners and validation recognize the new values
             genEl.dispatchEvent(new Event('input', { bubbles: true }));
             genEl.dispatchEvent(new Event('change', { bubbles: true }));
             specEl.dispatchEvent(new Event('input', { bubbles: true }));
             specEl.dispatchEvent(new Event('change', { bubbles: true }));
 
-            // Subtle green pulse on objective textareas
-            [genEl, specEl].forEach(el => {
+            // Subtle green pulse on objective & rationale textareas
+            [genEl, specEl, ratEl].filter(Boolean).forEach(el => {
               el.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
               el.style.borderColor = '#22c55e';
               el.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
@@ -5659,6 +6233,11 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
 
       genEl.addEventListener('input', checkManualObjectiveEdit);
       specEl.addEventListener('input', checkManualObjectiveEdit);
+      const ratElInit = document.getElementById('f2_rationale');
+      if (ratElInit) {
+        lastAiRationale = ratElInit.value.trim();
+        ratElInit.addEventListener('input', checkManualObjectiveEdit);
+      }
     }
     window.setupAutomaticObjectives = setupAutomaticObjectivesOnEdit;
 
@@ -6540,9 +7119,6 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       });
     }
 
-    );
-    }
-
     if (typeof AIProposalGuidance !== 'undefined') {
       window.ACTIVITY_TITLE = <?= json_encode($activity['title'] ?? '') ?>;
       AIProposalGuidance.init({
@@ -7015,6 +7591,8 @@ $s9SelectStyle = $s9Editable ? '' : 'style="pointer-events: none; background:var
       }
     });
   </script>
+  <script>window.PROPOSAL_CURRENT_USER_NAME = <?= json_encode($user['name'] ?? '') ?>;</script>
+  <?php include __DIR__ . '/../includes/phase2-proposal-enhancements.php'; ?>
 </body>
 
 </html>

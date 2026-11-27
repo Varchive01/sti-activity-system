@@ -58,6 +58,10 @@ $navs = [
     ]],
   ],
   'admin1' => [
+    ['group' => 'Proposals', 'links' => [
+      ['icon' => 'plus-circle', 'label' => 'New Proposal', 'href' => BASE_URL . '/faculty/proposal-create.php'],
+      ['icon' => 'list', 'label' => 'My Proposals', 'href' => BASE_URL . '/faculty/activities.php'],
+    ]],
     ['group' => 'Review Queue', 'links' => [
       ['icon' => 'home', 'label' => 'Dashboard', 'href' => BASE_URL . '/admin1/dashboard.php'],
       ['icon' => 'inbox', 'label' => 'Pending Reviews', 'href' => BASE_URL . '/admin1/pending.php'],
@@ -76,6 +80,10 @@ $navs = [
     ]],
   ],
   'admin2' => [
+    ['group' => 'Proposals', 'links' => [
+      ['icon' => 'plus-circle', 'label' => 'New Proposal', 'href' => BASE_URL . '/faculty/proposal-create.php'],
+      ['icon' => 'list', 'label' => 'My Proposals', 'href' => BASE_URL . '/faculty/activities.php'],
+    ]],
     ['group' => 'Review Queue', 'links' => [
       ['icon' => 'home', 'label' => 'Dashboard', 'href' => BASE_URL . '/admin2/dashboard.php'],
       ['icon' => 'inbox', 'label' => 'Pending Reviews', 'href' => BASE_URL . '/admin2/pending.php'],
@@ -95,6 +103,7 @@ $navs = [
     ]],
     ['group' => 'Administration', 'links' => [
       ['icon' => 'users', 'label' => 'User Management', 'href' => BASE_URL . '/admin2/users.php'],
+      ['icon' => 'file-text', 'label' => 'System Admin & Audit', 'href' => BASE_URL . '/dean/system-admin.php'],
     ]],
   ],
   'dean' => [
@@ -117,6 +126,7 @@ $navs = [
     ]],
     ['group' => 'Administration', 'links' => [
       ['icon' => 'users', 'label' => 'User Management', 'href' => BASE_URL . '/dean/users.php'],
+      ['icon' => 'file-text', 'label' => 'System Admin & Audit', 'href' => BASE_URL . '/dean/system-admin.php'],
     ]],
   ],
 ];
@@ -620,7 +630,7 @@ if (!function_exists('sidebarIcon')) {
         <div class="nav-label"><?= $section['group'] ?></div>
         <?php foreach ($section['links'] as $link):
           $linkBase = basename($link['href']);
-          $active = (strpos($_SERVER['PHP_SELF'], $linkBase) !== false || (strpos($_SERVER['PHP_SELF'], 'post-event-view.php') !== false && $linkBase === 'post-event.php')) ? 'active' : ''; ?>
+          $active = (strpos($_SERVER['PHP_SELF'], $linkBase) !== false || ((strpos($_SERVER['PHP_SELF'], 'post-event-view.php') !== false || strpos($_SERVER['PHP_SELF'], 'post-event-form.php') !== false) && $linkBase === 'post-event.php')) ? 'active' : ''; ?>
           <a href="<?= $link['href'] ?>" class="sidebar-nav-item <?= $active ?>" aria-label="<?= htmlspecialchars($link['label']) ?>">
             <span class="nav-icon"><?= sidebarIcon($link['icon']) ?></span>
             <span class="nav-label-text"><?= $link['label'] ?></span>
@@ -667,6 +677,12 @@ if (!function_exists('sidebarIcon')) {
     }
 
     function openMobileDrawer() {
+      // Dismiss any open topbar popovers
+      const notifDrop = document.getElementById('notifDropdown');
+      if (notifDrop && notifDrop.classList.contains('open')) notifDrop.classList.remove('open');
+      const profPop = document.getElementById('topbarProfilePopover');
+      if (profPop && profPop.classList.contains('open')) profPop.classList.remove('open');
+
       document.documentElement.classList.add('mobile-drawer-open');
       document.body.classList.add('mobile-drawer-open');
       const mobileToggle = document.getElementById('mobile-nav-toggle');

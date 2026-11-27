@@ -27,6 +27,17 @@ $isReviewable = (
     ((($activity['source'] ?? '') === 'faculty') && !$isProgramHeadAuthor && in_array($currStatus, ['submitted', 'under_review', 'resubmitted'], true))
 );
 
+// Auto-transition to 'under_review' upon opening review shortcut
+if ($currStatus === 'submitted' && $isReviewable) {
+    try {
+        $db->prepare("UPDATE activities SET status = 'under_review', updated_at = NOW() WHERE id = ?")->execute([$id]);
+        $currStatus = 'under_review';
+        $activity['status'] = 'under_review';
+    } catch (\Throwable $e) {
+        error_log("Failed to transition activity to under_review in admin2: " . $e->getMessage());
+    }
+}
+
 $materials = $db->prepare("SELECT * FROM materials WHERE activity_id=?");
 $materials->execute([$id]);
 $mats = $materials->fetchAll();
@@ -85,7 +96,7 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Review Proposal – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
 <style>
 /* ── Sticky Action Bar ── */
 .review-action-bar {
@@ -608,12 +619,12 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
     <?php renderSectionHeader('event_details', '📋 Event Details', $stagedComments); ?>
       <div class="info-grid" style="margin-bottom:14px;">
         <div class="info-block"><div class="lbl">Event Title</div><div class="val"><?= htmlspecialchars($activity['title']) ?></div></div>
-        <div class="info-block"><div class="lbl">Event Date</div><div class="val"><?= $activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—' ?></div></div>
+        <div class="info-block"><div class="lbl">Event Date(s)</div><div class="val"><?= ($activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—') . (!empty($activity['end_date']) && $activity['end_date'] !== $activity['event_date'] ? ' to ' . date('F j, Y', strtotime($activity['end_date'])) : '') ?></div></div>
         <div class="info-block"><div class="lbl">Time</div><div class="val"><?= $activity['start_time'] ? date('g:i A', strtotime($activity['start_time'])) : '—' ?> – <?= $activity['end_time'] ? date('g:i A', strtotime($activity['end_time'])) : '—' ?></div></div>
         <div class="info-block"><div class="lbl">Venue</div><div class="val"><?= htmlspecialchars($activity['venue'] ?? '—') ?></div></div>
         <div class="info-block"><div class="lbl">Venue Address</div><div class="val"><?= htmlspecialchars($activity['venue_address'] ?? '—') ?></div></div>
         <div class="info-block"><div class="lbl">Target Participants</div><div class="val"><?= number_format($activity['target_participants']) ?></div></div>
-        <div class="info-block"><div class="lbl">Source</div><div class="val"><?= ucfirst(str_replace('_',' ',$activity['source'])) ?></div></div>
+        <div class="info-block"><div class="lbl">Headed by</div><div class="val"><?= ucfirst(str_replace('_',' ',$activity['source'])) ?></div></div>
         <div class="info-block"><div class="lbl">Theme</div><div class="val"><?= htmlspecialchars($activity['theme'] ?? '—') ?></div></div>
       </div>
           <?php if (!empty($activity['poster_path'])): ?>
@@ -687,9 +698,19 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
 
     <?php renderSectionHeader('materials', '💰 Materials & Budget', $stagedComments); ?>
       <?php if (!empty($mats)): ?>
-        <table style="width:100%;"><thead><tr><th>Item</th><th>Description</th><th>Qty</th><th>Provider</th><th>Est. Cost</th></tr></thead>
+        <table style="width:100%;"><thead><tr><th>Item</th><th>Description</th><th style="text-align:center;">Qty</th><th>Provider / Supplier</th><th style="text-align:right;">Est. Cost</th></tr></thead>
         <tbody><?php foreach ($mats as $m): ?>
-          <tr><td><?= htmlspecialchars($m['item_name']) ?></td><td><?= htmlspecialchars($m['description']??'') ?></td><td><?= $m['quantity'] ?></td><td><?= htmlspecialchars($m['provider']??'') ?></td><td>₱<?= number_format($m['est_cost'],2) ?></td></tr>
+          <?php
+            $rawProv = strtolower(trim((string)($m['provider'] ?? '')));
+            if ($rawProv === 'in_house' || str_contains($rawProv, 'in-house') || str_contains($rawProv, 'school')) {
+                $provBadge = '<span class="badge" style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; font-weight:600; font-size:0.75rem; padding:3px 8px; border-radius:4px;">In-House (School)</span>';
+            } elseif ($rawProv === 'rental' || str_contains($rawProv, 'rental') || str_contains($rawProv, 'supplier')) {
+                $provBadge = '<span class="badge" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; font-weight:600; font-size:0.75rem; padding:3px 8px; border-radius:4px;">Rental (Supplier)</span>';
+            } else {
+                $provBadge = htmlspecialchars($m['provider'] ?? '—');
+            }
+          ?>
+          <tr><td style="font-weight:600;"><?= htmlspecialchars($m['item_name']) ?></td><td><?= htmlspecialchars($m['description']??'—') ?></td><td style="text-align:center; font-weight:600;"><?= $m['quantity'] ?></td><td><?= $provBadge ?></td><td style="text-align:right; font-weight:600;">₱<?= number_format($m['est_cost'],2) ?></td></tr>
         <?php endforeach; ?></tbody></table>
         <div class="budget-total">Grand Total: ₱<?= number_format($totalBudget,2) ?></div>
       <?php else: ?><p class="text-muted">No materials listed.</p><?php endif; ?>
@@ -751,18 +772,31 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
 
     <?php renderSectionHeader('people', '👥 People & Manpower', $stagedComments); ?>
       <?php if (!empty($mp)): ?>
-        <table style="width:100%;"><thead><tr><th>Role</th><th>Assigned Person</th><th>Type</th></tr></thead>
+        <table style="width:100%;"><thead><tr><th>Role</th><th>Person in Charge</th><th>Type</th><th style="text-align:center;">Members Supervised</th></tr></thead>
         <tbody><?php foreach ($mp as $m): ?>
-          <tr><td><?= htmlspecialchars($m['role']) ?></td><td><?= htmlspecialchars($m['assigned_person']??'—') ?></td><td><span class="badge badge-secondary"><?= ucfirst($m['type']) ?></span></td></tr>
+          <tr><td><?= htmlspecialchars($m['role']) ?></td><td><?= htmlspecialchars($m['assigned_person']??'—') ?></td><td><span class="badge badge-secondary"><?= ucfirst($m['type']) ?></span></td><td style="text-align:center; font-weight:600;"><?= (int)($m['member_count'] ?? 1) ?></td></tr>
         <?php endforeach; ?></tbody></table>
       <?php else: ?><p class="text-muted">No manpower assigned.</p><?php endif; ?>
     <?php renderSectionClose('people', $stagedComments, $id); ?>
 
-    <?php renderSectionHeader('schedule', '📅 Schedule', $stagedComments); ?>
+    <?php renderSectionHeader('schedule', '📅 Schedule & Program Invitation', $stagedComments); ?>
+      <?php if (!empty($activity['invitation_path'])): ?>
+        <div style="margin-bottom:12px;">
+          <a href="<?= BASE_URL ?>/api/document-download.php?activity_id=<?= (int)$id ?>&type=invitation" target="_blank" class="btn btn-outline btn-sm">📎 View Uploaded Event Invitation</a>
+        </div>
+      <?php endif; ?>
       <?php if (!empty($scheds)): ?>
-        <table style="width:100%;"><thead><tr><th>Date</th><th>Event</th><th>Venue</th><th>Organizer</th></tr></thead>
+        <table style="width:100%;"><thead><tr><th>Date</th><th>Category</th><th>Event</th><th>Venue</th><th>Organizer</th></tr></thead>
         <tbody><?php foreach ($scheds as $s): ?>
-          <tr><td><?= $s['sched_date'] ? date('M j, Y', strtotime($s['sched_date'])) : '—' ?></td><td><?= htmlspecialchars($s['event_name']) ?></td><td><?= htmlspecialchars($s['venue']??'—') ?></td><td><?= htmlspecialchars($s['organizer']??'—') ?></td></tr>
+          <?php
+            $sType = $s['schedule_type'] ?? 'main_event';
+            $sTypeBadge = match($sType) {
+              'preparation' => '<span class="badge" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; font-size:0.75rem; padding:3px 8px; border-radius:999px; font-weight:600;"><span style="color:#f59e0b; margin-right:4px;">●</span>Prep</span>',
+              'sub_event'   => '<span class="badge" style="background:#f5f3ff; color:#5b21b6; border:1px solid #ddd6fe; font-size:0.75rem; padding:3px 8px; border-radius:999px; font-weight:600;"><span style="color:#8b5cf6; margin-right:4px;">●</span>Sub-Event</span>',
+              default       => '<span class="badge" style="background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; font-size:0.75rem; padding:3px 8px; border-radius:999px; font-weight:600;"><span style="color:#2563eb; margin-right:4px;">●</span>Main Event</span>',
+            };
+          ?>
+          <tr><td><?= $s['sched_date'] ? date('M j, Y', strtotime($s['sched_date'])) : '—' ?></td><td><?= $sTypeBadge ?></td><td><?= htmlspecialchars($s['event_name']) ?></td><td><?= htmlspecialchars($s['venue']??'—') ?></td><td><?= htmlspecialchars($s['organizer']??'—') ?></td></tr>
         <?php endforeach; ?></tbody></table>
       <?php else: ?><p class="text-muted">No schedule entries.</p><?php endif; ?>
       <?php if (!empty($prog)): ?>
@@ -774,20 +808,33 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
       <?php endif; ?>
     <?php renderSectionClose('schedule', $stagedComments, $id); ?>
 
-    <?php renderSectionHeader('guidelines', '📎 Guidelines', $stagedComments); ?>
+    <?php renderSectionHeader('guidelines', '📎 Guidelines, Judging Criteria & Awards', $stagedComments); ?>
       <?php if ($guide): ?>
+        <?php if (!empty($guide['attachment_path'])): ?>
+          <div style="margin-bottom:12px;">
+            <a href="<?= BASE_URL ?>/api/document-download.php?activity_id=<?= (int)$id ?>&type=guidelines" target="_blank" class="btn btn-outline btn-sm">📎 View Uploaded Judging Mechanics / Scoring Attachment</a>
+          </div>
+        <?php endif; ?>
         <div class="sl">Mechanics / Guidelines</div><p><?= nl2br(htmlspecialchars($guide['mechanics']??'—')) ?></p>
         <div class="sl" style="margin-top:12px;">Criteria for Judging</div><p><?= nl2br(htmlspecialchars($guide['criteria']??'—')) ?></p>
         <div class="sl" style="margin-top:12px;">Scoring System</div><p><?= nl2br(htmlspecialchars($guide['scoring_system']??'—')) ?></p>
+        <?php if (!empty($guide['regular_awards'])): ?>
+          <div class="sl" style="margin-top:12px;">Regular Awards</div><p><?= nl2br(htmlspecialchars($guide['regular_awards'])) ?></p>
+        <?php endif; ?>
         <div class="sl" style="margin-top:12px;">Special Awards</div><p><?= nl2br(htmlspecialchars($guide['special_awards']??'—')) ?></p>
       <?php else: ?><p class="text-muted">No guidelines entered.</p><?php endif; ?>
     <?php renderSectionClose('guidelines', $stagedComments, $id); ?>
 
     <?php renderSectionHeader('faculty_tasks', '📋 Faculty Tasks & Responsibilities', $stagedComments); ?>
       <?php if (!empty($ftasks)): ?>
-        <table style="width:100%;"><thead><tr><th>Faculty Name</th><th>Assigned Task</th><th>Contribution</th><th>Role in Event</th></tr></thead>
+        <table style="width:100%;"><thead><tr><th>Faculty Name</th><th>Assigned Task</th><th>Contribution</th><th>Role in Event</th><th>Task Duration</th></tr></thead>
         <tbody><?php foreach ($ftasks as $f): ?>
-          <tr><td><?= htmlspecialchars($f['faculty_name']) ?></td><td><?= htmlspecialchars($f['assigned_task']??'') ?></td><td><?= htmlspecialchars($f['contribution_desc']??'') ?></td><td><?= htmlspecialchars($f['role_in_event']??'') ?></td></tr>
+          <?php
+            $tStart = !empty($f['start_date']) ? date('M j, Y', strtotime($f['start_date'])) : '';
+            $tDue = !empty($f['due_date']) ? date('M j, Y', strtotime($f['due_date'])) : '—';
+            $tDuration = ($tStart && $tDue !== '—' && $tStart !== $tDue) ? "{$tStart} – {$tDue}" : $tDue;
+          ?>
+          <tr><td style="font-weight:600;"><?= htmlspecialchars($f['faculty_name']) ?></td><td><?= htmlspecialchars($f['assigned_task']??'—') ?></td><td><?= htmlspecialchars($f['contribution_desc']??'—') ?></td><td><?= htmlspecialchars($f['role_in_event']??'—') ?></td><td><span class="badge badge-outline">📅 <?= htmlspecialchars($tDuration) ?></span></td></tr>
         <?php endforeach; ?></tbody></table>
       <?php else: ?><p class="text-muted">No faculty tasks assigned.</p><?php endif; ?>
     <?php renderSectionClose('faculty_tasks', $stagedComments, $id); ?>

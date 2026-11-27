@@ -21,9 +21,10 @@ function sendEvalJsonResponse(int $statusCode, array $payload): void {
 }
 
 // Helper to synthesize objective-aligned academic evaluation questions as a foolproof fallback
-function generateFallbackEvaluationQuestions(string $title, string $theme, string $generalObj, string $specificObj): array {
+function generateFallbackEvaluationQuestions(string $title, string $theme, string $generalObj, string $specificObj, string $stakeholderType = 'students'): array {
     $questions = [];
     $qNum = 1;
+    $stakeholderType = strtolower(trim($stakeholderType ?: 'students'));
 
     // Parse objectives into clean individual statements
     $combined = $generalObj . "\n" . $specificObj;
@@ -44,7 +45,8 @@ function generateFallbackEvaluationQuestions(string $title, string $theme, strin
             'id' => 'q' . $qNum++,
             'question' => "To what extent did the activity successfully achieve the objective to {$objText}?",
             'type' => 'rating',
-            'required' => true
+            'required' => true,
+            'stakeholder' => $stakeholderType
         ];
         $objCount++;
     }
@@ -54,65 +56,160 @@ function generateFallbackEvaluationQuestions(string $title, string $theme, strin
             'id' => 'q' . $qNum++,
             'question' => "To what extent did the activity fulfill its stated academic and developmental objectives?",
             'type' => 'rating',
-            'required' => true
+            'required' => true,
+            'stakeholder' => $stakeholderType
         ];
     }
 
     // 2. Theme alignment question
     $themeClean = rtrim(trim($theme), '.');
+    $titleClean = rtrim(trim($title), '.');
     $questions[] = [
         'id' => 'q' . $qNum++,
         'question' => "The event activities and topics were closely aligned with the theme: '{$themeClean}'.",
         'type' => 'rating',
-        'required' => true
+        'required' => true,
+        'stakeholder' => $stakeholderType
     ];
 
-    // 3. Organization, scheduling, and logistical flow
-    $questions[] = [
-        'id' => 'q' . $qNum++,
-        'question' => "The event schedule, venue arrangement, and program coordination were effective and well-organized.",
-        'type' => 'rating',
-        'required' => true
-    ];
+    // 3. Stakeholder-Specific Evaluation Questions
+    if ($stakeholderType === 'faculty') {
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "[Faculty / Adviser Tool] The activity demonstrated strong curricular alignment, academic rigor, and measurable student learning outcomes.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'faculty'
+        ];
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "[Faculty / Adviser Tool] Inter-committee coordination, safety protocols, and adherence to institutional guidelines were properly executed.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'faculty'
+        ];
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "[Faculty / Adviser Tool] Resource utilization, equipment management, and time adherence met departmental quality standards.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'faculty'
+        ];
+    } elseif ($stakeholderType === 'speakers_judges') {
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "[Speaker / Judge Tool] Pre-event communication, briefing on judging mechanics/rubrics, and hospitality coordination were professional and clear.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'speakers_judges'
+        ];
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "[Speaker / Judge Tool] The audio-visual setup, stage technical support, and tabulation/scoring tools functioned smoothly throughout the program.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'speakers_judges'
+        ];
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "[Speaker / Judge Tool] The participants demonstrated strong preparation, engagement, and competency during '{$titleClean}'.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'speakers_judges'
+        ];
+    } elseif ($stakeholderType === 'committee_peers') {
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "[Organizing Committee / Peer Tool] Task assignments, committee head verification, and role responsibilities were clearly defined and fulfilled.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'committee_peers'
+        ];
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "[Organizing Committee / Peer Tool] Equipment distribution, logistical setup, and post-activity return procedures were properly coordinated.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'committee_peers'
+        ];
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "[Organizing Committee / Peer Tool] Budget allocation and manpower distribution were sufficient to execute '{$titleClean}' effectively.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'committee_peers'
+        ];
+    } elseif ($stakeholderType === 'multi_stakeholder') {
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "[Students / Attendees] Participating in '{$titleClean}' enhanced my practical knowledge and academic competence.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'multi_stakeholder'
+        ];
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "[Faculty / Advisers] The event achieved strong curricular alignment, academic rigor, and institutional compliance.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'multi_stakeholder'
+        ];
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "[Speakers / Judges & Committee] Program logistics, technical setup, and committee coordination were executed professionally.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'multi_stakeholder'
+        ];
+    } else {
+        // Default: Students / Attendees
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "The event schedule, venue arrangement, and program coordination were effective and well-organized.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'students'
+        ];
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "The speakers and facilitators delivered the topics clearly and engaged participants effectively.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'students'
+        ];
+        $questions[] = [
+            'id' => 'q' . $qNum++,
+            'question' => "Participating in '{$titleClean}' enhanced my practical knowledge and academic competence.",
+            'type' => 'rating',
+            'required' => true,
+            'stakeholder' => 'students'
+        ];
+    }
 
-    // 4. Resource speakers / facilitators performance
-    $questions[] = [
-        'id' => 'q' . $qNum++,
-        'question' => "The speakers and facilitators delivered the topics clearly and engaged participants effectively.",
-        'type' => 'rating',
-        'required' => true
-    ];
-
-    // 5. Impact / Skill Enhancement
-    $titleClean = rtrim(trim($title), '.');
-    $questions[] = [
-        'id' => 'q' . $qNum++,
-        'question' => "Participating in '{$titleClean}' enhanced my practical knowledge and academic competence.",
-        'type' => 'rating',
-        'required' => true
-    ];
-
-    // 6. Overall satisfaction
+    // 4. Overall satisfaction
     $questions[] = [
         'id' => 'q' . $qNum++,
         'question' => "Overall, I am highly satisfied with the conduct and experience of this activity.",
         'type' => 'rating',
-        'required' => true
+        'required' => true,
+        'stakeholder' => $stakeholderType
     ];
 
     // Open-ended qualitative questions (2 questions)
     $questions[] = [
         'id' => 'q' . $qNum++,
-        'question' => "What specific aspect or session of '{$titleClean}' did you find most beneficial or impactful?",
+        'question' => "What specific aspect or session of '{$titleClean}' did you find most beneficial or impactful from your perspective?",
         'type' => 'open_ended',
-        'required' => true
+        'required' => true,
+        'stakeholder' => $stakeholderType
     ];
 
     $questions[] = [
         'id' => 'q' . $qNum++,
-        'question' => "What suggestions or recommendations do you have to improve future iterations of this event?",
+        'question' => "What comments, suggestions, or recommendations do you have to help organizers improve future iterations of this event?",
         'type' => 'open_ended',
-        'required' => true
+        'required' => true,
+        'stakeholder' => $stakeholderType
     ];
 
     return $questions;
@@ -146,6 +243,15 @@ $title = trim($input['title'] ?? '');
 $theme = trim($input['theme'] ?? '');
 $general_objectives = trim($input['general_objectives'] ?? '');
 $specific_objectives = trim($input['specific_objectives'] ?? '');
+$stakeholder_type = strtolower(trim($input['stakeholder_type'] ?? 'students'));
+$stakeholderLabels = [
+    'students'          => 'Students / Attendees',
+    'faculty'           => 'Faculty / Advisers & Academic Evaluators',
+    'speakers_judges'   => 'Guest Speakers / Judges & Panelists',
+    'committee_peers'   => 'Organizing Committee / Event Personnel & Peers',
+    'multi_stakeholder' => 'Multi-Stakeholder Combined (Students, Faculty, Speakers/Judges, and Organizers)'
+];
+$stakeholderLabel = $stakeholderLabels[$stakeholder_type] ?? 'Students / Attendees';
 
 // Strict validation: non-empty title (>=4 chars), theme, and at least one objective
 if (empty($title) || strlen($title) < 4 || empty($theme) || (empty($general_objectives) && empty($specific_objectives))) {
@@ -155,30 +261,32 @@ if (empty($title) || strlen($title) < 4 || empty($theme) || (empty($general_obje
     ]);
 }
 
-// Build the prompt focused solely on Title, Theme, and Objectives
-$prompt = "Act as an academic evaluation expert and systems analyst. Analyze the following college activity proposal details and generate a highly tailored activity-specific evaluation questionnaire/tool for participants.
+// Build the prompt focused on Title, Theme, Objectives, and Target Stakeholder Group
+$prompt = "Act as an academic evaluation expert and systems analyst. Analyze the following college activity proposal details and generate a highly tailored activity-specific evaluation questionnaire/tool specifically designed for the target stakeholder group: {$stakeholderLabel}.
 
 ACTIVITY DETAILS:
 - Title: " . $title . "
 - Theme: " . $theme . "
+- Target Stakeholder / Respondent Group: " . $stakeholderLabel . "
 - General Objective: " . ($general_objectives ?: 'None specified') . "
 - Specific Objectives: " . ($specific_objectives ?: 'None specified') . "
 
 CRITICAL GUIDELINES:
-1. **Objective Alignment is Mandatory**: Evaluation questions must primarily measure whether the activity's General Objectives and Specific Objectives were actually achieved within the context of the title and theme.
-2. **At Least One Question Per Goal**: For every General Objective and Specific Objective listed above, you MUST generate at least one specific, direct evaluation question that can gather concrete evidence of its achievement.
-3. **No Generic/Boilerplate Questions**: Do not generate generic event questions (e.g., \"Did you find the topic interesting?\", \"How would you rate the event?\") merely because they relate to the topic. Every core question must align with a specific objective or the stated theme.
-4. **Supplementary Questions Limit**: Questions assessing general satisfaction, facilitator performance, presentation quality, venue, or organization are strictly supplementary. They must NOT replace or dominate the objective-aligned questions.
-5. **Appropriate Question Types**: Do not force every question to use the same type. Use exactly one of these two question types:
+1. **Stakeholder-Specific Perspective**: Frame every evaluation item from the perspective and responsibility of {$stakeholderLabel}.
+2. **Objective Alignment is Mandatory**: Evaluation questions must primarily measure whether the activity's General Objectives and Specific Objectives were actually achieved within the context of the title and theme.
+3. **At Least One Question Per Goal**: For every General Objective and Specific Objective listed above, you MUST generate at least one specific, direct evaluation question that can gather concrete evidence of its achievement.
+4. **No Generic/Boilerplate Questions**: Do not generate generic event questions (e.g., \"Did you find the topic interesting?\", \"How would you rate the event?\") merely because they relate to the topic. Every core question must align with a specific objective or the stated theme.
+5. **Supplementary Questions Limit**: Questions assessing general satisfaction, facilitator performance, presentation quality, venue, or organization are strictly supplementary. They must NOT replace or dominate the objective-aligned questions.
+6. **Appropriate Question Types**: Do not force every question to use the same type. Use exactly one of these two question types:
    - Use rating-scale questions (type: \"rating\") for structured, scalable feedback where quantitative metrics are helpful (e.g. agreement level or frequency).
    - Use open-ended text questions (type: \"open_ended\") for qualitative feedback, suggestions, detailed explanations, or descriptive evidence of achievement.
-6. Generate a mix of exactly 6 to 10 rating-scale questions (type: \"rating\") and exactly 2 to 3 open-ended/text questions (type: \"open_ended\").
-7. Output MUST be formatted as a valid JSON object matching the following structure without markdown formatting tags (no ```json):
+7. Generate a mix of exactly 6 to 10 rating-scale questions (type: \"rating\") and exactly 2 to 3 open-ended/text questions (type: \"open_ended\").
+8. Output MUST be formatted as a valid JSON object matching the following structure without markdown formatting tags (no ```json):
 {
   \"questions\": [
     {
       \"id\": \"q1\",
-      \"question\": \"[Direct question measuring achievement of specific objective or theme]\",
+      \"question\": \"[Direct question measuring achievement of specific objective or theme for {$stakeholderLabel}]\",
       \"type\": \"rating\",
       \"required\": true
     },
@@ -288,12 +396,13 @@ foreach ($modelsToTry as $modelName) {
 
 if (!$success || $httpCode !== 200) {
     error_log("Gemini API models unavailable or failed in generate-evaluation. Using deterministic fallback questions.");
-    $fallbackQuestions = generateFallbackEvaluationQuestions($title, $theme, $general_objectives, $specific_objectives);
+    $fallbackQuestions = generateFallbackEvaluationQuestions($title, $theme, $general_objectives, $specific_objectives, $stakeholder_type);
     sendEvalJsonResponse(200, [
-        'success'   => true,
-        'fallback'  => true,
-        'questions' => $fallbackQuestions,
-        'message'   => 'Evaluation questions generated from activity details.'
+        'success'          => true,
+        'fallback'         => true,
+        'stakeholder_type' => $stakeholder_type,
+        'questions'        => $fallbackQuestions,
+        'message'          => 'Evaluation questions generated from activity details.'
     ]);
 }
 

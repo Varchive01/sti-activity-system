@@ -603,17 +603,70 @@ if (!function_exists('topbarWidgetTimeAgo')) {
   flex-shrink: 0;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767.98px) {
   .notif-dropdown {
-    width: calc(100vw - 24px);
-    max-width: 380px;
-    right: -60px;
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    right: -42px !important;
+    left: auto !important;
+    width: min(360px, calc(100vw - 20px)) !important;
+    max-width: calc(100vw - 20px) !important;
+    border-radius: var(--radius-sm, 12px) !important;
+    box-shadow: 0 16px 36px rgba(10, 22, 40, 0.22) !important;
+    z-index: 1050 !important;
+  }
+
+  .notif-list {
+    max-height: min(360px, calc(100dvh - 150px)) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .notif-header {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+
+  .notif-header-title {
+    font-size: 0.84rem !important;
+  }
+
+  .notif-header-actions {
+    gap: 4px !important;
+  }
+
+  .notif-action-btn {
+    font-size: 0.68rem !important;
+    padding: 3px 6px !important;
+  }
+
+  .notif-modal {
+    max-width: calc(100vw - 24px) !important;
+    margin: 12px !important;
+    max-height: calc(100dvh - 30px) !important;
+  }
+
+  .notif-modal-body {
+    max-height: calc(100dvh - 180px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 16px !important;
   }
 }
-@media (max-width: 480px) {
+
+@media (max-width: 419.98px) {
   .notif-dropdown {
-    right: -80px;
-    width: calc(100vw - 20px);
+    right: -38px !important;
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+  }
+
+  .notif-header-title {
+    font-size: 0.8rem !important;
+  }
+
+  .notif-mark-all {
+    white-space: nowrap !important;
   }
 }
 
@@ -800,13 +853,13 @@ if (!function_exists('topbarWidgetTimeAgo')) {
 <!-- Topbar Notification Component Wrapper -->
 <div class="notif-topbar-wrapper" id="notifTopbarWrapper">
   <!-- 1. Notification Bell Button for Topbar -->
-  <button type="button" class="notif-bell-btn" id="notifBellBtn" title="Notifications" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
-    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+  <button type="button" class="notif-bell-btn" id="notifBellBtn" title="Notifications" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" style="pointer-events:auto; touch-action:manipulation;">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="pointer-events:none;">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" style="pointer-events:none;"
         d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 00-5-5.917V4a1 1 0 10-2 0v1.083A6 6 0 006 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
     </svg>
     <?php if ($topbarUnreadCount > 0): ?>
-      <span class="notif-badge" id="notifBadge"><?= $topbarUnreadCount > 99 ? '99+' : $topbarUnreadCount ?></span>
+      <span class="notif-badge" id="notifBadge" style="pointer-events:none;"><?= $topbarUnreadCount > 99 ? '99+' : $topbarUnreadCount ?></span>
     <?php endif; ?>
   </button>
 
@@ -936,3 +989,105 @@ if (!function_exists('topbarWidgetTimeAgo')) {
 
 <!-- 5. Reusable notifications.js Script -->
 <script src="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/js/notifications.js"></script>
+
+<!-- 6. Instant Resilient Topbar Notification Toggle Handler (Guarantees Mobile Responsiveness) -->
+<script>
+(function() {
+  function setupTopbarNotifToggle() {
+    var bell = document.getElementById('notifBellBtn');
+    var panel = document.getElementById('notifDropdown');
+    var closeBtn = document.getElementById('notifCloseBtn');
+    if (!bell || !panel) return;
+    if (bell.dataset.notifBound) return;
+    bell.dataset.notifBound = 'true';
+
+    function clampPanel() {
+      panel.style.transform = '';
+      if (typeof window !== 'undefined' && typeof panel.getBoundingClientRect === 'function') {
+        var rect = panel.getBoundingClientRect();
+        if (rect && typeof rect.right === 'number') {
+          if (rect.right > window.innerWidth - 8) {
+            var shiftLeft = rect.right - (window.innerWidth - 8);
+            panel.style.transform = 'translateX(-' + Math.ceil(shiftLeft) + 'px)';
+          } else if (rect.left < 8) {
+            var shiftRight = 8 - rect.left;
+            panel.style.transform = 'translateX(' + Math.ceil(shiftRight) + 'px)';
+          }
+        }
+      }
+    }
+
+    function toggleNotif(e) {
+      if (e) {
+        if (e.stopPropagation) e.stopPropagation();
+        if (e.preventDefault && e.type === 'touchend') e.preventDefault();
+      }
+      var isOpen = panel.classList.contains('open');
+      if (isOpen) {
+        panel.classList.remove('open');
+        bell.setAttribute('aria-expanded', 'false');
+        panel.style.transform = '';
+      } else {
+        // Mutual dismissal: close profile popover if open
+        var profPopover = document.getElementById('topbarProfilePopover');
+        if (profPopover && profPopover.classList.contains('open')) {
+          profPopover.classList.remove('open');
+          var tp = document.getElementById('topbarProfile');
+          if (tp) tp.setAttribute('aria-expanded', 'false');
+        }
+        panel.classList.add('open');
+        bell.setAttribute('aria-expanded', 'true');
+        clampPanel();
+      }
+    }
+
+    var lastTouch = 0;
+    bell.addEventListener('touchend', function(e) {
+      lastTouch = Date.now();
+      toggleNotif(e);
+    }, { passive: false });
+
+    bell.addEventListener('click', function(e) {
+      if (Date.now() - lastTouch < 400) return;
+      toggleNotif(e);
+    });
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function(e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        panel.classList.remove('open');
+        bell.setAttribute('aria-expanded', 'false');
+        panel.style.transform = '';
+      });
+      closeBtn.addEventListener('touchend', function(e) {
+        if (e) {
+          if (e.stopPropagation) e.stopPropagation();
+          if (e.preventDefault) e.preventDefault();
+        }
+        panel.classList.remove('open');
+        bell.setAttribute('aria-expanded', 'false');
+        panel.style.transform = '';
+      }, { passive: false });
+    }
+
+    // Dismiss on click or touch outside
+    function handleOutside(e) {
+      if (panel.classList.contains('open')) {
+        if (!panel.contains(e.target) && !bell.contains(e.target)) {
+          panel.classList.remove('open');
+          bell.setAttribute('aria-expanded', 'false');
+          panel.style.transform = '';
+        }
+      }
+    }
+    document.addEventListener('click', handleOutside);
+    document.addEventListener('touchend', handleOutside);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupTopbarNotifToggle);
+  } else {
+    setupTopbarNotifToggle();
+  }
+})();
+</script>

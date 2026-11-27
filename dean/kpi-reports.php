@@ -108,7 +108,7 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KPI Reports – STI</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
   <script>
     (function() {
       try {
@@ -254,6 +254,7 @@ $monthly = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
     </header>
     <div class="content">
+      <?php include __DIR__ . '/../includes/phase4-statistical-dashboard.php'; ?>
 
       <!-- Individual Activity KPI Report & AI Insights -->
       <div class="card" style="margin-bottom:20px;">

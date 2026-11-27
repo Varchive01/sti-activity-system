@@ -116,16 +116,13 @@ function formatNotifRelativeTime($datetime) {
     return date('M j, Y', $time);
 }
 
-// Helper to resolve view activity link by user role
+// Helper to resolve direct shortcut link by user role (routes reviewers directly to review.php where status auto-transitions to under_review)
 function getActivityViewUrl($activityId, $userRole) {
     if (!$activityId) return '#';
-    $roleFolder = match($userRole) {
-        'admin1' => 'admin1',
-        'admin2' => 'admin2',
-        'dean'   => 'dean',
-        default  => 'faculty'
-    };
-    return BASE_URL . "/{$roleFolder}/view-activity.php?id=" . (int)$activityId;
+    if (in_array($userRole, ['admin1', 'admin2', 'dean'], true)) {
+        return BASE_URL . "/{$userRole}/review.php?id=" . (int)$activityId;
+    }
+    return BASE_URL . "/faculty/view-activity.php?id=" . (int)$activityId;
 }
 ?>
 <!DOCTYPE html>
@@ -135,7 +132,7 @@ function getActivityViewUrl($activityId, $userRole) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>All Notifications – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
   <style>
     body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .btn, .badge, .form-control, label {
       font-family: 'Plus Jakarta Sans', sans-serif !important;

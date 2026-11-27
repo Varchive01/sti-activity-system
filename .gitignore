@@ -22,3 +22,9 @@ test_cookie.txt
 
 # Backups
 backups/
+
+# Generated uploads & temporary test dumps
+uploads/post-event/ai_assessment_report_*.pdf
+tests/*.html
+tests/user_exact_prompt.txt
+tests/user_full_original_prompt.txt

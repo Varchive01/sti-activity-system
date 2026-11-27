@@ -3,7 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('faculty', 'program_head');
+requireRole('faculty', 'program_head', 'admin1', 'admin2');
 $user = currentUser();
 $db   = getDB();
 
@@ -133,9 +133,33 @@ try {
 <meta name="base-url" content="<?= BASE_URL ?>">
 <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
 <title><?= ($user['role'] === 'program_head') ? 'Department Activities' : 'My Activities' ?> – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
 <style>
   @media (max-width: 640px) {
+    .filters {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 10px !important;
+    }
+    .filters .form-control,
+    .filters input[type="text"],
+    .filters input[type="search"],
+    .filters select,
+    .filters select.form-control,
+    .filters .btn {
+      width: 100% !important;
+      height: 42px;
+      min-height: 42px;
+      box-sizing: border-box !important;
+    }
+    .filters-count {
+      margin-left: 0 !important;
+      text-align: center;
+      padding-top: 4px;
+    }
+    .activity-table {
+      min-width: 720px !important;
+    }
     .activity-table td .btn {
       height: 38px;
       min-height: 38px;
@@ -144,15 +168,6 @@ try {
     }
     .act-actions {
       gap: 8px;
-    }
-    .filters .form-control,
-    .filters input[type="text"],
-    .filters input[type="search"],
-    .filters select,
-    .filters select.form-control,
-    .filters .btn {
-      height: 42px;
-      min-height: 42px;
     }
   }
 
@@ -616,7 +631,7 @@ try {
               <td class="col-actions">
                 <div class="act-actions">
                   <a href="<?= BASE_URL ?>/faculty/proposal-view.php?id=<?= $a['id'] ?>" class="btn btn-outline btn-sm">View</a>
-                  <?php if (in_array($a['status'],['draft','returned_for_revision']) && canUserAccessActivity((int)$a['id'], 'modify', (int)$user['id'], $user['role'], $user['dept'] ?? '')): ?>
+                  <?php if (in_array($a['status'], ['draft', 'submitted', 'returned_for_revision']) && canUserAccessActivity((int)$a['id'], 'modify', (int)$user['id'], $user['role'], $user['dept'] ?? '')): ?>
                   <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= $a['id'] ?>" class="btn btn-primary btn-sm">Edit</a>
                   <?php endif; ?>
                   <?php if ($a['status'] === 'draft' && canUserAccessActivity((int)$a['id'], 'modify', (int)$user['id'], $user['role'], $user['dept'] ?? '')): ?>
@@ -628,7 +643,7 @@ try {
                   <button type="button" class="btn btn-outline btn-sm" onclick="confirmArchiveSingleActivity(<?= (int)$a['id'] ?>, '<?= htmlspecialchars(addslashes($a['title']), ENT_QUOTES) ?>')">Archive</button>
                   <?php endif; ?>
                   <?php if ($a['status']==='approved'): ?>
-                  <a href="<?= BASE_URL ?>/faculty/post-event.php?activity_id=<?= $a['id'] ?>" class="btn btn-success btn-sm">Post-Event</a>
+                  <a href="<?= BASE_URL ?>/faculty/post-event-form.php?activity_id=<?= $a['id'] ?>" class="btn btn-success btn-sm">Post-Event</a>
                   <?php endif; ?>
                 </div>
               </td>

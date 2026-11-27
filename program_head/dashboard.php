@@ -302,7 +302,7 @@ function renderActivityStatusBadge(string $status): string {
   <meta name="base-url" content="<?= BASE_URL ?>">
   <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
   <title><?= htmlspecialchars($dashboardTitle) ?> – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.4">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
   <script>
     (function() {
       try {
@@ -496,8 +496,13 @@ function renderActivityStatusBadge(string $status): string {
       gap: 10px !important;
       align-items: stretch;
       width: 100%;
-      min-width: 960px;
       margin-bottom: 0 !important;
+    }
+
+    @media (min-width: 1024px) {
+      .stat-grid {
+        min-width: 960px;
+      }
     }
 
     @media (min-width: 1360px) {
@@ -870,7 +875,7 @@ function renderActivityStatusBadge(string $status): string {
     /* Responsive adjustments */
     @media (max-width: 768px) {
       .content {
-        padding: 16px;
+        padding: 14px;
       }
       .ph-hero-banner {
         flex-direction: column;
@@ -883,6 +888,46 @@ function renderActivityStatusBadge(string $status): string {
       .btn-ph-primary, .btn-ph-secondary {
         width: 100%;
         justify-content: center;
+      }
+
+      /* 7 Stat Cards in 2-Column Mobile Touch Grid */
+      .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        min-width: 0 !important;
+        width: 100% !important;
+      }
+      .stat-card,
+      a.stat-card,
+      .stat-grid a.stat-card {
+        min-height: 84px !important;
+        padding: 10px 10px 12px !important;
+        border-radius: 10px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      .stat-card:last-child,
+      .stat-grid a.stat-card:last-child {
+        grid-column: span 2 !important;
+      }
+      .stat-icon {
+        width: 26px !important;
+        height: 26px !important;
+        min-width: 26px !important;
+        border-radius: 6px !important;
+        margin-bottom: 6px !important;
+      }
+      .stat-val {
+        font-size: 1.40rem !important;
+        font-weight: 800 !important;
+        line-height: 1.1 !important;
+      }
+      .stat-label,
+      .stat-sub {
+        white-space: normal !important;
+        word-break: break-word !important;
+        font-size: 0.70rem !important;
+        line-height: 1.25 !important;
       }
     }
     @media (max-width: 480px) {
@@ -898,6 +943,11 @@ function renderActivityStatusBadge(string $status): string {
 
     <!-- Topbar -->
     <header class="topbar">
+      <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation menu" type="button">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
       <div class="page-title"><?= htmlspecialchars($dashboardTitle) ?></div>
       <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>

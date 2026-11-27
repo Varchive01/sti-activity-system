@@ -1219,7 +1219,7 @@ const AIProposalGuidance = (function () {
             </div>
             <div>
               <strong class="ai-label-header">Scoring &amp; Awards:</strong>
-              <div class="ai-preview-box">${escapeHtml(data.scoring || '')} · ${escapeHtml(data.awards || '')}</div>
+              <div class="ai-preview-box">${escapeHtml(data.scoring || '')}${data.regular_awards ? ' · Regular: ' + escapeHtml(data.regular_awards) : ''} · Special: ${escapeHtml(data.awards || '')}</div>
             </div>
           </div>
         `;
@@ -1308,6 +1308,10 @@ const AIProposalGuidance = (function () {
               <input type="text" id="edit_guidelines_score" class="form-control" style="font-size:0.82rem;" value="${escapeHtml(data.scoring || '')}">
             </div>
             <div>
+              <label class="ai-label-header">Regular Awards:</label>
+              <textarea id="edit_guidelines_reg_awards" class="form-control" rows="2" style="font-size:0.82rem;">${escapeHtml(data.regular_awards || '')}</textarea>
+            </div>
+            <div>
               <label class="ai-label-header">Special Awards:</label>
               <input type="text" id="edit_guidelines_awards" class="form-control" style="font-size:0.82rem;" value="${escapeHtml(data.awards || '')}">
             </div>
@@ -1354,6 +1358,7 @@ const AIProposalGuidance = (function () {
           _currentSuggestions.guidelines.mechanics = document.getElementById('edit_guidelines_mech')?.value || '';
           _currentSuggestions.guidelines.criteria = document.getElementById('edit_guidelines_crit')?.value || '';
           _currentSuggestions.guidelines.scoring = document.getElementById('edit_guidelines_score')?.value || '';
+          _currentSuggestions.guidelines.regular_awards = document.getElementById('edit_guidelines_reg_awards')?.value || '';
           _currentSuggestions.guidelines.awards = document.getElementById('edit_guidelines_awards')?.value || '';
           break;
 
@@ -1600,12 +1605,56 @@ const AIProposalGuidance = (function () {
           const fMech = form.querySelector('[name="guidelines_mechanics"]');
           const fCrit = form.querySelector('[name="guidelines_criteria"]');
           const fScore = form.querySelector('[name="guidelines_scoring"]');
+          const fRegularAwards = form.querySelector('[name="guidelines_regular_awards"]');
           const fAwards = form.querySelector('[name="guidelines_awards"]');
 
           if (fMech && data.mechanics) { fMech.value = data.mechanics; fMech.dispatchEvent(new Event('input', { bubbles: true })); }
           if (fCrit && data.criteria) { fCrit.value = data.criteria; fCrit.dispatchEvent(new Event('input', { bubbles: true })); }
           if (fScore && data.scoring) { fScore.value = data.scoring; fScore.dispatchEvent(new Event('input', { bubbles: true })); }
-          if (fAwards && data.awards) { fAwards.value = data.awards; fAwards.dispatchEvent(new Event('input', { bubbles: true })); }
+          if (fRegularAwards) {
+            const regVal = (data.regular_awards || "1. Champion / 1st Place\n2. 1st Runner-Up\n3. 2nd Runner-Up").trim();
+            fRegularAwards.value = regVal;
+            fRegularAwards.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          if (fAwards && (data.awards || data.special_awards)) {
+            fAwards.value = (data.special_awards || data.awards).trim();
+            fAwards.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+
+          // Hydrate dynamic criteria list rows from the generated criteria text
+          if (typeof hydrateCombinedCriteriaListFromTextareas === 'function') {
+            const container = document.getElementById('combined-criteria-list-body');
+            if (container) {
+              container.innerHTML = '';
+            }
+            hydrateCombinedCriteriaListFromTextareas();
+          } else if (data.criteria) {
+            // Self-contained resilient hydration fallback
+            const container = document.getElementById('combined-criteria-list-body');
+            if (container) {
+              container.innerHTML = '';
+              const critLines = data.criteria.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+              critLines.forEach((line) => {
+                const cleaned = line.replace(/^\d+[\.\)]\s*/, '');
+                const m = cleaned.match(/^(.*?)\s*[:–—\-]\s*(\d+(?:\.\d+)?%?(?:\s*(?:pts|points|%))?)$/i) || cleaned.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+                const critName = m ? m[1].trim() : cleaned;
+                const critScore = m ? m[2].trim() : '';
+                if (typeof addCriteriaListRow === 'function') {
+                  addCriteriaListRow(critName, critScore, true);
+                } else {
+                  const tr = document.createElement('tr');
+                  tr.innerHTML = `
+                    <td style="width:44px; text-align:center; font-weight:700; color:var(--text-muted, #64748b);" class="crit-row-num">#</td>
+                    <td><input type="text" class="form-control crit-item-name" placeholder="e.g. Creativity & Technical Execution" value="${critName.replace(/"/g, '&quot;')}"></td>
+                    <td style="width:160px;"><input type="text" class="form-control crit-item-score" placeholder="e.g. 40% or 40 pts" value="${critScore.replace(/"/g, '&quot;')}"></td>
+                    <td style="width:44px; text-align:center;"><button type="button" class="btn btn-outline btn-sm" onclick="this.closest('tr')?.remove()">✕</button></td>
+                  `;
+                  container.appendChild(tr);
+                }
+              });
+              if (typeof renumberCriteriaListRows === 'function') renumberCriteriaListRows();
+            }
+          }
           break;
 
         case 'faculty_tasks':

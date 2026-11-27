@@ -29,7 +29,7 @@ if (!empty($topbarUser['id'])) {
     if ($dbProf) {
         $fetchedProf = null;
         try {
-            $pStmt = $dbProf->prepare('SELECT id, name, email, role, department, profile_picture FROM users WHERE id = ? LIMIT 1');
+            $pStmt = $dbProf->prepare('SELECT id, name, email, role, department, profile_picture, notify_email, notify_in_app FROM users WHERE id = ? LIMIT 1');
             $pStmt->execute([(int)$topbarUser['id']]);
             $fetchedProf = $pStmt->fetch(PDO::FETCH_ASSOC);
         } catch (\Throwable $e) {
@@ -40,6 +40,8 @@ if (!empty($topbarUser['id'])) {
                 $fetchedProf = $pStmt->fetch(PDO::FETCH_ASSOC);
                 if ($fetchedProf) {
                     $fetchedProf['profile_picture'] = null;
+                    $fetchedProf['notify_email'] = 1;
+                    $fetchedProf['notify_in_app'] = 1;
                 }
             } catch (\Throwable $e2) {
                 $fetchedProf = null;
@@ -51,6 +53,8 @@ if (!empty($topbarUser['id'])) {
             $topbarUser['role']            = $fetchedProf['role'];
             $topbarUser['dept']            = $fetchedProf['department'] ?? '';
             $topbarUser['profile_picture'] = $fetchedProf['profile_picture'] ?? null;
+            $topbarUser['notify_email']    = isset($fetchedProf['notify_email']) ? (int)$fetchedProf['notify_email'] : 1;
+            $topbarUser['notify_in_app']   = isset($fetchedProf['notify_in_app']) ? (int)$fetchedProf['notify_in_app'] : 1;
 
             if (session_status() === PHP_SESSION_ACTIVE) {
                 $_SESSION['user_name']            = $fetchedProf['name'];
@@ -234,12 +238,30 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 767.98px) {
   .topbar-profile-popover {
     width: min(280px, calc(100vw - 20px)) !important;
     max-width: calc(100vw - 20px) !important;
     right: 0 !important;
     left: auto !important;
+    border-radius: var(--radius-sm, 10px) !important;
+    box-shadow: 0 16px 36px rgba(10, 22, 40, 0.22) !important;
+    z-index: 1050 !important;
+  }
+
+  .tpp-item {
+    min-height: 42px !important;
+    padding: 10px 14px !important;
+    font-size: 0.84rem !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+}
+
+@media (max-width: 359.98px) {
+  .topbar-profile-popover {
+    width: calc(100vw - 12px) !important;
+    max-width: calc(100vw - 12px) !important;
   }
 }
 
@@ -466,38 +488,56 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
   -webkit-overflow-scrolling: touch;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 767.98px) {
   .profile-modal {
+    width: 100% !important;
     max-width: calc(100vw - 20px) !important;
     margin: 10px auto !important;
+    max-height: 94dvh !important;
+    border-radius: var(--radius, 14px) !important;
   }
   .profile-modal-header {
     padding: 14px 16px !important;
   }
   .profile-modal-body {
-    padding: 16px !important;
+    padding: 14px !important;
     gap: 14px !important;
+    max-height: calc(92dvh - 125px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
   .profile-avatar-section {
     flex-direction: column !important;
-    align-items: flex-start !important;
+    align-items: center !important;
+    text-align: center !important;
     gap: 12px !important;
+    padding: 14px !important;
+  }
+  .profile-avatar-actions {
+    align-items: center !important;
+    width: 100% !important;
   }
   .profile-avatar-btn-row {
     width: 100% !important;
+    justify-content: center !important;
   }
   .profile-avatar-btn-row .btn-profile-action {
     flex: 1 1 auto !important;
     justify-content: center !important;
+    height: 38px !important;
+    min-height: 38px !important;
   }
   .profile-modal-footer {
-    padding: 12px 16px !important;
+    padding: 12px 14px !important;
     flex-wrap: wrap !important;
     gap: 8px !important;
   }
   .profile-modal-footer .btn-profile-footer {
     flex: 1 1 calc(50% - 4px) !important;
     justify-content: center !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    font-size: 0.84rem !important;
   }
 }
 
@@ -866,24 +906,24 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
 <!-- ── Topbar User Profile Component ── -->
 <div class="topbar-profile-wrapper" id="topbarProfileWrapper">
   <!-- Profile Trigger -->
-  <div class="topbar-profile" id="topbarProfile" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false" title="Account settings for <?= htmlspecialchars($uName) ?>">
-    <div class="topbar-avatar-wrap">
-      <div class="topbar-avatar" id="topbarAvatar">
+  <div class="topbar-profile" id="topbarProfile" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false" title="Account settings for <?= htmlspecialchars($uName) ?>" style="cursor:pointer; touch-action:manipulation;">
+    <div class="topbar-avatar-wrap" style="pointer-events:none;">
+      <div class="topbar-avatar" id="topbarAvatar" style="pointer-events:none;">
         <?php if (!empty($uPic)): ?>
-          <img src="<?= $baseUrl ?>/api/profile-avatar.php?id=<?= $uId ?>" alt="<?= htmlspecialchars($uName) ?>" class="topbar-avatar-img" id="topbarAvatarImg">
+          <img src="<?= $baseUrl ?>/api/profile-avatar.php?id=<?= $uId ?>" alt="<?= htmlspecialchars($uName) ?>" class="topbar-avatar-img" id="topbarAvatarImg" style="pointer-events:none;">
         <?php else: ?>
-          <span class="topbar-avatar-initial" id="topbarAvatarInitial"><?= htmlspecialchars($uInitial) ?></span>
+          <span class="topbar-avatar-initial" id="topbarAvatarInitial" style="pointer-events:none;"><?= htmlspecialchars($uInitial) ?></span>
         <?php endif; ?>
       </div>
-      <span class="topbar-avatar-indicator" id="topbarAvatarIndicator" aria-hidden="true">
-        <svg viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M1 1.2l4 3.6 4-3.6"/>
+      <span class="topbar-avatar-indicator" id="topbarAvatarIndicator" aria-hidden="true" style="pointer-events:none;">
+        <svg viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
+          <path d="M1 1.2l4 3.6 4-3.6" style="pointer-events:none;"/>
         </svg>
       </span>
     </div>
-    <div class="topbar-user-info">
-      <span class="topbar-user-name" id="topbarUserName" title="<?= htmlspecialchars($uName) ?>"><?= htmlspecialchars($uName) ?></span>
-      <span class="topbar-user-role" id="topbarUserRole"><?= htmlspecialchars($uRoleTitle) ?></span>
+    <div class="topbar-user-info" style="pointer-events:none;">
+      <span class="topbar-user-name" id="topbarUserName" title="<?= htmlspecialchars($uName) ?>" style="pointer-events:none;"><?= htmlspecialchars($uName) ?></span>
+      <span class="topbar-user-role" id="topbarUserRole" style="pointer-events:none;"><?= htmlspecialchars($uRoleTitle) ?></span>
     </div>
   </div>
 
@@ -967,6 +1007,27 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
           <label for="profileInputName" class="profile-form-label">Full Name <span style="color:var(--sti-red);">*</span></label>
           <input type="text" id="profileInputName" name="name" class="profile-form-control" value="<?= htmlspecialchars($uName) ?>" required maxlength="150" placeholder="Enter your full name">
           <div class="profile-form-help">This display name appears on your proposals, reviews, and activity logs.</div>
+        </div>
+
+        <!-- Editable: Department / Organization Affiliation (Panel 1 Module 1.2) -->
+        <div class="profile-form-group">
+          <label for="profileInputDepartment" class="profile-form-label">Department / Organization Affiliation</label>
+          <input type="text" id="profileInputDepartment" name="department" class="profile-form-control" value="<?= htmlspecialchars($uDept ?: 'IT Department') ?>" maxlength="120" placeholder="e.g. IT Department, THM Department, SITE Organization">
+        </div>
+
+        <!-- Editable: Notification Preferences (Panel 1 Module 1.2) -->
+        <div class="profile-form-group" style="padding:10px 12px; background:var(--bg-base, #f8fafc); border:1px solid var(--border, #e2e8f0); border-radius:8px;">
+          <label class="profile-form-label" style="margin-bottom:6px; display:block;">Notification Preferences</label>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:0.82rem; color:var(--text-main);">
+            <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" name="notify_email" value="1" <?= (!isset($topbarUser['notify_email']) || !empty($topbarUser['notify_email'])) ? 'checked' : '' ?>>
+              <span>📧 Email Alerts</span>
+            </label>
+            <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" name="notify_in_app" value="1" <?= (!isset($topbarUser['notify_in_app']) || !empty($topbarUser['notify_in_app'])) ? 'checked' : '' ?>>
+              <span>🔔 In-App Notifications</span>
+            </label>
+          </div>
         </div>
 
         <!-- Non-editable Account Information -->
@@ -1106,14 +1167,16 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
     }
   }
 
-  // Click outside listener for Popover
-  document.addEventListener('click', function(e) {
+  // Click & touch outside listener for Popover
+  function handleProfileOutside(e) {
     if (profilePopover && profilePopover.classList.contains('open')) {
       if (!profilePopover.contains(e.target) && !topbarProfile.contains(e.target)) {
         closePopover();
       }
     }
-  });
+  }
+  document.addEventListener('click', handleProfileOutside);
+  document.addEventListener('touchend', handleProfileOutside);
 
   // Escape key listener
   document.addEventListener('keydown', function(e) {
@@ -1126,9 +1189,20 @@ $baseUrl    = defined('BASE_URL') ? BASE_URL : '/sti-activity-system';
     }
   });
 
-  // Profile click and keyboard trigger
+  // Profile click, touch and keyboard trigger
   if (topbarProfile) {
-    topbarProfile.addEventListener('click', togglePopover);
+    let lastProfileTouch = 0;
+    topbarProfile.addEventListener('touchend', function(e) {
+      lastProfileTouch = Date.now();
+      if (e.cancelable && e.preventDefault) e.preventDefault();
+      togglePopover(e);
+    }, { passive: false });
+
+    topbarProfile.addEventListener('click', function(e) {
+      if (Date.now() - lastProfileTouch < 400) return;
+      togglePopover(e);
+    });
+
     topbarProfile.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();

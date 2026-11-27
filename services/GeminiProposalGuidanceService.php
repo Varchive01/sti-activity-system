@@ -804,6 +804,7 @@ Return STRICTLY a valid JSON object without markdown fences matching this schema
     "mechanics": "Detailed event rules and attendance guidelines...",
     "criteria": "Judging or performance evaluation criteria...",
     "scoring": "Scoring system breakdown...",
+    "regular_awards": "1. Champion / 1st Place\n2. 1st Runner-Up\n3. 2nd Runner-Up",
     "awards": "Recognitions and certificates..."
   },
   "faculty_tasks": [
@@ -900,6 +901,16 @@ PROMPT;
                 }
             }
 
+            // Ensure guidelines has both regular_awards and special_awards populated
+            if (isset($parsed['guidelines']) && is_array($parsed['guidelines'])) {
+                if (empty($parsed['guidelines']['regular_awards'])) {
+                    $parsed['guidelines']['regular_awards'] = $fallback['guidelines']['regular_awards'] ?? "1. Champion / 1st Place\n2. 1st Runner-Up\n3. 2nd Runner-Up";
+                }
+                if (empty($parsed['guidelines']['awards']) && empty($parsed['guidelines']['special_awards'])) {
+                    $parsed['guidelines']['awards'] = $fallback['guidelines']['awards'] ?? "Certificate of Active Participation; Certificate of Recognition";
+                }
+            }
+
             return $parsed;
         }
 
@@ -984,6 +995,7 @@ PROMPT;
                     'mechanics' => "1. All {$participants} registered students must wear their valid STI ID and prescribed uniform/attire.\n2. Participants are required to attend all scheduled segments at {$venue} and actively participate in group discussions.\n3. Mobile devices must remain on silent mode throughout all speaker sessions.\n4. Accomplishing the digital evaluation survey is a prerequisite for certificate issuance.",
                     'criteria'  => "1. Active Participation & Punctuality: 25%\n2. Quality of Workshop Output / Demonstration: 40%\n3. Collaborative Engagement & Decorum: 20%\n4. Post-Activity Reflection & Assessment: 15%",
                     'scoring'   => "100-Point Performance Rubric evaluated by designated faculty moderators.",
+                    'regular_awards' => "1. Champion / 1st Place\n2. 1st Runner-Up\n3. 2nd Runner-Up",
                     'awards'    => "Certificate of Active Participation for all qualified attendees; Certificate of Recognition for outstanding student outputs."
                 ],
                 'faculty_tasks' => [

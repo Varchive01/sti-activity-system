@@ -45,13 +45,14 @@ assert($urEntry !== null, "Under Review entry missing");
 assert($urEntry['cnt'] === 2, "Expected Under Review count = 2, got: " . $urEntry['cnt']);
 echo "✓ Test 2 Passed: Mock data successfully consolidated duplicate Under Review counts to 2.\n";
 
-// Test 3: Badge generation parity
+// Test 3: Badge generation separation (Submitted vs. Under Review)
 $badgeSub = getStatusBadge('submitted');
 $badgeUr = getStatusBadge('under_review');
 echo "Badge for 'submitted': $badgeSub\n";
 echo "Badge for 'under_review': $badgeUr\n";
-assert($badgeSub === $badgeUr, "Both should render identical badges");
-echo "✓ Test 3 Passed: Both raw statuses output identical Under Review badge markup.\n";
+assert(strpos($badgeSub, 'Submitted') !== false, "Submitted badge must say 'Submitted'");
+assert(strpos($badgeUr, 'Under Review') !== false, "Under Review badge must say 'Under Review'");
+echo "✓ Test 3 Passed: Distinct badges rendered for Submitted and Under Review.\n";
 
 echo "ALL DEDUPLICATION TESTS PASSED!\n";
 

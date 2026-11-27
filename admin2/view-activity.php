@@ -17,6 +17,16 @@ if (!canUserAccessActivity((int)$id, 'view', (int)$user['id'], $user['role'], $u
     renderAccessDenied('You do not have permission to view this activity because it has not reached the Events Committee review stage.');
 }
 
+// Auto-mark as 'under_review' when opened via notification shortcut by Admin 2 (Events Committee Head)
+if (in_array($activity['status'] ?? '', ['submitted', 'resubmitted'], true)) {
+    try {
+        $db->prepare("UPDATE activities SET status = 'under_review' WHERE id = ?")->execute([$id]);
+        $db->prepare("INSERT INTO approval_logs (activity_id, reviewer_id, action, notes) VALUES (?, ?, 'under_review', 'Automatically marked as Under Review upon opening proposal.')")
+           ->execute([$id, $user['id']]);
+        $activity['status'] = 'under_review';
+    } catch (\Throwable $e) {}
+}
+
 $mats = $db->prepare("SELECT * FROM materials WHERE activity_id=?"); $mats->execute([$id]); $materials=$mats->fetchAll();
 
 if (function_exists('reconcilePostEventMetrics')) {
@@ -85,7 +95,7 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta charset="UTF-8">
 <title>View Activity – STI</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
 <style>
 .timeline-line{width:1px;background:var(--border);margin:14px 4px 0;flex:0 0 1px;}
 .kpi-star{color:var(--sti-gold);}
@@ -346,6 +356,7 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
     <?php endif; ?>
 
     <!-- Post-Event -->
+    <?php include __DIR__ . '/../includes/phase3-post-event-details.php'; ?>
     <?php if ($postEvent || !empty($documents)): ?>
     <div class="section-title">📊 Post-Event Results & Documentation</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">

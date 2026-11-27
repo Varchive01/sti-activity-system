@@ -80,32 +80,37 @@ $involved_subjects = trim($input['involved_subjects'] ?? '');
 $rationale = trim($input['rationale'] ?? '');
 
 // 7. Prompt Construction (Strictly Zero PII)
-$prompt = "Act as an academic advisor and systems analyst for STI College in the Philippines. Analyze the following college activity proposal details and generate 1 General Objective and 3 to 5 Specific Objectives.
+$prompt = "Act as an academic advisor and systems analyst for STI College in the Philippines. Analyze the following college activity proposal details and generate 1 General Objective, 3 to 5 Specific Objectives, and a concise, non-redundant academic Rationale.
 
 ACTIVITY DETAILS:
 - Title: " . $title . "
-- Organizer/Source: " . $source . "
+- Headed by: " . $source . "
 - Target Participants: " . $target_participants . "
 - Theme: " . $theme . "
 - Involved Subjects: " . $involved_subjects . "
-- Rationale: " . $rationale . "
+- Existing Rationale Context: " . $rationale . "
 
 GUIDELINES:
 1. The General Objective should be a concise, overarching goal of the activity.
 2. The Specific Objectives (3-5 items) must be SMART (Specific, Measurable, Achievable, Relevant, Time-bound) where possible and use action verbs.
-3. Align with the activity details and academic context. Do NOT invent important details not provided.
-4. Output MUST be formatted as a valid JSON object exactly as follows, with no extra markdown (no ```json):
+3. The Rationale (2-3 sentences) must justify why this activity is necessary, how it bridges theoretical coursework with practical competencies, and how it benefits the target participants without repeating the objectives word-for-word.
+4. Align with the activity details and academic context. Do NOT invent important details not provided.
+5. Output MUST be formatted as a valid JSON object exactly as follows, with no extra markdown (no ```json):
 
 {
   \"general_objective\": \"The general objective text...\",
-  \"specific_objectives\": \"1. First specific objective...\\n2. Second specific objective...\\n3. Third specific objective...\"
+  \"specific_objectives\": \"1. First specific objective...\\n2. Second specific objective...\\n3. Third specific objective...\",
+  \"rationale\": \"The concise academic rationale explaining why this activity is necessary and beneficial...\"
 }";
 
-// Helper for deterministic high-quality objectives if Gemini is busy or unreachable
-function generateFallbackObjectives(string $title, string $source = '', string $theme = ''): array {
+// Helper for deterministic high-quality objectives & rationale if Gemini is busy or unreachable
+function generateFallbackObjectives(string $title, string $source = '', string $theme = '', string $subjects = ''): array {
     $cleanTitle = trim($title);
     $cleanTheme = trim($theme);
-    $orgContext = !empty($source) ? " under the auspices of " . trim($source) : "";
+    $cleanSubj  = trim($subjects);
+    $orgContext = !empty($source) ? " spearheaded by the " . str_replace('_', ' ', trim($source)) : "";
+    $themeContext = !empty($cleanTheme) ? " centered on the theme '{$cleanTheme}'" : "";
+    $subjContext = !empty($cleanSubj) ? " in direct alignment with {$cleanSubj}" : " across core academic competencies";
 
     $genObj = "To organize and successfully implement '{$cleanTitle}'{$orgContext}, providing students with comprehensive opportunities to develop practical skills, foster academic excellence, and engage in collaborative learning.";
 
@@ -113,23 +118,27 @@ function generateFallbackObjectives(string $title, string $source = '', string $
                "2. Encourage active collaboration, leadership, and knowledge sharing among participating students and faculty advisers.\n" .
                "3. Assess student learning outcomes, project demonstrations, and feedback to ensure alignment with institutional program goals.";
 
+    $ratText = "Conducting '{$cleanTitle}'{$themeContext} addresses the need for experiential learning{$subjContext} by bridging classroom theory with practical application. This initiative equips STI College students with industry-relevant competencies, teamwork experience, and measurable academic growth.";
+
     return [
-        'general_objective' => $genObj,
+        'general_objective'   => $genObj,
         'specific_objectives' => $specObj,
-        'fallback' => true
+        'rationale'           => $ratText,
+        'fallback'            => true
     ];
 }
 
 // 8. Call Gemini API
 $apiKey = function_exists('getGeminiApiKeySecure') ? getGeminiApiKeySecure() : (defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '');
 if (empty($apiKey) || $apiKey === 'YOUR_API_KEY_HERE') {
-    $fallback = generateFallbackObjectives($title, $source, $theme);
+    $fallback = generateFallbackObjectives($title, $source, $theme, $involved_subjects);
     ob_clean();
     echo json_encode([
-        'success' => true,
-        'general_objective' => $fallback['general_objective'],
+        'success'             => true,
+        'general_objective'   => $fallback['general_objective'],
         'specific_objectives' => $fallback['specific_objectives'],
-        'fallback' => true
+        'rationale'           => $fallback['rationale'],
+        'fallback'            => true
     ]);
     exit;
 }
@@ -194,13 +203,14 @@ foreach ($modelsToTry as $modelName) {
 
 if (!$success || $httpCode !== 200) {
     error_log("Gemini API all models failed in generate-objectives. Using fallback objectives.");
-    $fallback = generateFallbackObjectives($title, $source, $theme);
+    $fallback = generateFallbackObjectives($title, $source, $theme, $involved_subjects);
     ob_clean();
     echo json_encode([
-        'success' => true,
-        'general_objective' => $fallback['general_objective'],
+        'success'             => true,
+        'general_objective'   => $fallback['general_objective'],
         'specific_objectives' => $fallback['specific_objectives'],
-        'fallback' => true
+        'rationale'           => $fallback['rationale'],
+        'fallback'            => true
     ]);
     exit;
 }
@@ -274,22 +284,33 @@ if ($objectives && isset($objectives['general_objective']) && isset($objectives[
         $specObj = trim((string)$specObj);
     }
 
+    $fallbackData = generateFallbackObjectives($title, $source, $theme, $involved_subjects);
+    $ratCandidate = $objectives['rationale'] ?? $objectives['academic_rationale'] ?? $objectives['justification'] ?? $objectives['reason'] ?? '';
+    if (is_array($ratCandidate)) {
+        $ratCandidate = implode(" ", array_map('trim', $ratCandidate));
+    } else {
+        $ratCandidate = trim((string)$ratCandidate);
+    }
+    $ratObj = ($ratCandidate !== '') ? $ratCandidate : $fallbackData['rationale'];
+
     ob_clean();
     echo json_encode([
-        'success' => true,
-        'general_objective' => $genObj,
-        'specific_objectives' => $specObj
+        'success'             => true,
+        'general_objective'   => $genObj,
+        'specific_objectives' => $specObj,
+        'rationale'           => $ratObj
     ]);
     exit;
 }
 
 // Fallback if parsing was malformed
-$fallback = generateFallbackObjectives($title, $source, $theme);
+$fallback = generateFallbackObjectives($title, $source, $theme, $involved_subjects);
 ob_clean();
 echo json_encode([
-    'success' => true,
-    'general_objective' => $fallback['general_objective'],
+    'success'             => true,
+    'general_objective'   => $fallback['general_objective'],
     'specific_objectives' => $fallback['specific_objectives'],
-    'fallback' => true
+    'rationale'           => $fallback['rationale'],
+    'fallback'            => true
 ]);
 exit;

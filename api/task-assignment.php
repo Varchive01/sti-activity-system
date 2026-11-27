@@ -79,6 +79,20 @@ if (in_array($action, ['create', 'update', 'delete'])) {
         ]);
         exit;
     }
+} elseif ($action === 'verify_task' || $action === 'save_milestones') {
+    // Committee head / Activity leader / Program head / Admin reviewer / Dean can verify tasks or update implementation milestones
+    $canVerify = $isLeader
+        || $isAdmin
+        || $isDean
+        || ($user['role'] === 'program_head' && canUserAccessActivity($activityId, 'modify', $user['id'], $user['role'], $user['dept']));
+    if (!$canVerify) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Unauthorized: Only authorized monitoring teams or leaders can update this record.'
+        ]);
+        exit;
+    }
 } elseif ($action === 'update_status') {
     // Activity leader, department Program Head, or the assigned member can update task status
     $canManageActivity = $isLeader || ($user['role'] === 'program_head' && canUserAccessActivity($activityId, 'modify', $user['id'], $user['role'], $user['dept']));
@@ -169,6 +183,11 @@ if ($action === 'list') {
             'completion_pct' => (int)($t['completion_pct'] ?? 0),
             'created_by' => $t['created_by'] ? (int)$t['created_by'] : null,
             'creator_name' => cleanText($t['creator_name']),
+            'verified_by_head' => (int)($t['verified_by_head'] ?? 0),
+            'verified_at' => $t['verified_at'] ?? null,
+            'verification_status' => $t['verification_status'] ?? 'pending',
+            'performance_rating' => isset($t['performance_rating']) && $t['performance_rating'] !== null ? (int)$t['performance_rating'] : null,
+            'performance_remarks' => cleanText($t['performance_remarks'] ?? ''),
             'created_at' => $t['created_at'],
             'updated_at' => $t['updated_at']
         ];
@@ -508,6 +527,79 @@ if ($action === 'delete') {
     echo json_encode([
         'success' => true,
         'message' => 'Task assignment removed successfully.'
+    ]);
+    exit;
+}
+
+// ── ACTION: VERIFY TASK & RATE PERSONNEL PERFORMANCE (Phase 3) ──────
+if ($action === 'verify_task') {
+    $taskId = (int)($params['id'] ?? $params['task_id'] ?? 0);
+    if (!$taskId) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Missing task ID.']);
+        exit;
+    }
+
+    $verStatus = cleanText($params['verification_status'] ?? 'verified_correct');
+    if (!in_array($verStatus, ['pending', 'verified_correct', 'needs_correction'], true)) {
+        $verStatus = 'verified_correct';
+    }
+    $verifiedByHead = ($verStatus === 'verified_correct') ? 1 : 0;
+    $perfRating = isset($params['performance_rating']) && $params['performance_rating'] !== ''
+        ? max(1, min(5, (int)$params['performance_rating']))
+        : null;
+    $perfRemarks = cleanText($params['performance_remarks'] ?? '');
+
+    if ($verStatus === 'verified_correct') {
+        $stmt = $db->prepare("
+            UPDATE faculty_tasks
+            SET verified_by_head = 1,
+                verified_at = NOW(),
+                verification_status = 'verified_correct',
+                status = 'Completed',
+                completion_pct = 100,
+                performance_rating = ?,
+                performance_remarks = ?
+            WHERE id = ? AND activity_id = ?
+        ");
+        $stmt->execute([$perfRating, $perfRemarks ?: null, $taskId, $activityId]);
+    } else {
+        $stmt = $db->prepare("
+            UPDATE faculty_tasks
+            SET verified_by_head = ?,
+                verified_at = NOW(),
+                verification_status = ?,
+                performance_rating = ?,
+                performance_remarks = ?
+            WHERE id = ? AND activity_id = ?
+        ");
+        $stmt->execute([$verifiedByHead, $verStatus, $perfRating, $perfRemarks ?: null, $taskId, $activityId]);
+    }
+
+    echo json_encode([
+        'success'             => true,
+        'message'             => 'Task verification and personnel performance rating saved.',
+        'task_id'             => $taskId,
+        'verification_status' => $verStatus,
+        'verified_by_head'    => $verifiedByHead,
+        'performance_rating'  => $perfRating,
+        'performance_remarks' => $perfRemarks,
+    ]);
+    exit;
+}
+
+// ── ACTION: SAVE IMPLEMENTATION MILESTONES (Panel 1 Module 4.3) ────
+if ($action === 'save_milestones') {
+    $milestones = isset($params['milestones']) && is_array($params['milestones']) ? $params['milestones'] : [];
+    $jsonStr = json_encode($milestones, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $db->prepare("UPDATE activities SET implementation_milestones_json = ? WHERE id = ?")->execute([$jsonStr, $activityId]);
+    if (function_exists('logSystemAuditEvent')) {
+        logSystemAuditEvent('milestone_tracker', 'update_implementation_milestones', "Updated Pre-Activity, On-the-Day, and Post-Activity compliance milestones for Activity #{$activityId}");
+    }
+    echo json_encode([
+        'success'    => true,
+        'message'    => 'Implementation compliance milestones saved.',
+        'milestones' => $milestones,
     ]);
     exit;
 }

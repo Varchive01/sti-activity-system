@@ -94,7 +94,7 @@ $logs = $db->prepare("SELECT al.*,u.name FROM approval_logs al JOIN users u ON a
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title><?= htmlspecialchars($activity['title'] ?? 'View Activity') ?> – STI</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
 <script>
   (function() {
     try {
@@ -604,6 +604,46 @@ label, input, button, select, textarea {
   color: var(--text-muted) !important;
 }
 
+/* Responsive Mobile Refinements */
+@media (max-width: 767.98px) {
+  .detail-header-card .card-body {
+    padding: 16px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .info-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  .detail-table,
+  #responsesTable {
+    min-width: 600px !important;
+  }
+  .table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .tabs-nav {
+    display: flex !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 8px !important;
+    padding-bottom: 4px !important;
+  }
+  .tab-link {
+    white-space: nowrap !important;
+    flex: 1 1 auto !important;
+    text-align: center !important;
+  }
+}
+
+@media (max-width: 599.98px) {
+  .topbar-right .btn-sm {
+    padding: 4px 8px !important;
+    font-size: 0.72rem !important;
+  }
+}
+
 /* Print Styles */
 @media print {
   .no-print, .sidebar, .topbar, .tabs-nav {
@@ -628,12 +668,15 @@ label, input, button, select, textarea {
 <div class="main-wrap">
   <header class="topbar">
     <div class="page-title">Activity Detail</div>
-    <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+    <div class="topbar-right">
       <a href="<?= BASE_URL ?>/faculty/activities.php" class="btn btn-outline btn-sm">← Back</a>
       <?php if ($activity['status'] === 'completed'): ?>
         <a href="<?= BASE_URL ?>/faculty/generate-report.php?activity_id=<?= $id ?>" class="btn btn-outline btn-sm">📊 KPI Report</a>
       <?php endif; ?>
       <button type="button" id="exportPdfBtn" class="btn btn-outline btn-sm" onclick="exportProposalPdf()" title="Download formal PDF document" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">📄 Export PDF</button>
+      <?php if (in_array($activity['status'] ?? '', ['draft', 'submitted', 'returned_for_revision'], true) && canUserAccessActivity((int)$id, 'modify', (int)$user['id'], $user['role'], $user['dept'] ?? '')): ?>
+        <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= $id ?>" class="btn btn-primary btn-sm">Edit Proposal</a>
+      <?php endif; ?>
       <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
       <!-- User Profile Control -->
       <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
@@ -1667,12 +1710,13 @@ label, input, button, select, textarea {
     <?php endif; ?>
 
     <!-- Post-Event -->
+    <?php include __DIR__ . '/../includes/phase3-post-event-details.php'; ?>
     <?php if ($postEvent || !empty($documents)): ?>
     <div class="card detail-section-card">
       <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
         <h2><span>📊</span> Post-Event Results & Documentation</h2>
         <?php if (!empty($canModify)): ?>
-          <a href="<?= BASE_URL ?>/faculty/post-event.php?activity_id=<?= (int)$id ?>" class="btn btn-outline btn-sm" style="padding:5px 12px;font-size:0.8rem;">✏️ Edit Post-Event Report</a>
+          <a href="<?= BASE_URL ?>/faculty/post-event-form.php?activity_id=<?= (int)$id ?>" class="btn btn-outline btn-sm" style="padding:5px 12px;font-size:0.8rem;">✏️ Edit Post-Event Report</a>
         <?php endif; ?>
       </div>
       <div class="card-body">

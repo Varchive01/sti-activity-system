@@ -14,18 +14,54 @@
                   Have a pre-made floor plan or architectural layout? You can upload your file here as an alternative to drawing on the canvas below.
                 </p>
                 <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                  <input type="file" name="floor_plan_file" id="floor_plan_file" accept=".png,.jpg,.jpeg,.pdf" style="display:none;" onchange="handleFloorPlanFileSelect(this)">
+                  <input type="file" name="floor_plan_file" id="floor_plan_file" accept=".png,.jpg,.jpeg,.webp,.gif,.pdf" style="display:none;" onchange="handleFloorPlanFileSelect(this)">
                   <label for="floor_plan_file" class="btn btn-outline btn-sm" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px; margin:0; padding:6px 14px; font-weight:600;">
                     📎 Choose Floor Plan File
                   </label>
                   <div id="fp-selected-file-info" style="display:none; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-main, #334155); background:var(--bg-card, #ffffff); border:1px solid var(--border, #cbd5e1); padding:4px 10px; border-radius:6px;">
                     <span id="fp-selected-filename" style="font-weight:600; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+                    <button type="button" onclick="openFloorPlanLightbox()" class="btn btn-outline btn-xs" style="padding:2px 8px; font-size:0.75rem; font-weight:600;">🔍 Verify Preview</button>
                     <button type="button" onclick="clearSelectedFloorPlanFile()" style="background:none; border:none; color:#ef4444; font-weight:700; cursor:pointer; padding:0 4px; font-size:0.9rem;" title="Remove / change file">✕</button>
+                  </div>
+                </div>
+
+                <!-- Live Uploaded Floor Plan Verification Preview -->
+                <div id="fp-upload-preview-wrap" style="display:none; margin-top:14px; padding:14px; background:var(--bg-card, #ffffff); border:1px solid var(--border, #cbd5e1); border-radius:10px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+                    <div style="font-size:0.84rem; font-weight:700; color:var(--text-main, #0f172a); display:flex; align-items:center; gap:6px;">
+                      <span>🖼️ Uploaded Floor Plan Preview</span>
+                      <span style="font-size:0.75rem; font-weight:500; color:#15803d; background:#dcfce7; padding:2px 8px; border-radius:999px;">Ready for Verification</span>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-xs" onclick="openFloorPlanLightbox()" style="font-size:0.76rem; padding:3px 10px;">🔍 Fullscreen Preview</button>
+                  </div>
+                  <div style="text-align:center; background:var(--bg-base, #f8fafc); border:1px dashed var(--border, #cbd5e1); border-radius:8px; padding:12px; overflow:hidden;">
+                    <img id="fp-live-preview-img" src="" alt="Uploaded Floor Plan Preview" style="display:none; max-width:100%; max-height:380px; object-fit:contain; border-radius:6px; margin:0 auto; cursor:zoom-in;" onclick="openFloorPlanLightbox()">
+                    <iframe id="fp-live-preview-pdf" src="" title="Uploaded Floor Plan PDF Preview" style="display:none; width:100%; height:380px; border:none; border-radius:6px;"></iframe>
+                  </div>
+                  <div style="font-size:0.76rem; color:var(--text-muted, #64748b); margin-top:8px; text-align:center;">
+                    Please inspect the preview above to verify the accuracy and readability of your uploaded floor plan layout.
+                  </div>
+                </div>
+
+                <!-- Fullscreen Lightbox Modal for Floor Plan Verification -->
+                <div id="fp-preview-lightbox" style="display:none; position:fixed; inset:0; background:rgba(15, 23, 42, 0.82); z-index:9999; align-items:center; justify-content:center; padding:24px;" onclick="if(event.target===this)closeFloorPlanLightbox()">
+                  <div style="background:var(--bg-card, #ffffff); border-radius:14px; max-width:960px; width:100%; max-height:90vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.45);">
+                    <div style="padding:14px 20px; border-bottom:1px solid var(--border, #e2e8f0); display:flex; justify-content:space-between; align-items:center;">
+                      <strong style="font-size:0.95rem; color:var(--text-main, #0f172a);">🗺️ Floor Plan Accuracy Verification Preview</strong>
+                      <button type="button" onclick="closeFloorPlanLightbox()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-muted, #64748b);">✕</button>
+                    </div>
+                    <div style="padding:20px; overflow:auto; text-align:center; background:#0f172a; flex:1; display:flex; align-items:center; justify-content:center;">
+                      <img id="fp-lightbox-img" src="" alt="Floor Plan Full Preview" style="display:none; max-width:100%; max-height:75vh; object-fit:contain; border-radius:6px;">
+                      <iframe id="fp-lightbox-pdf" src="" title="Floor Plan PDF Full Preview" style="display:none; width:100%; height:75vh; border:none; background:#fff; border-radius:6px;"></iframe>
+                    </div>
                   </div>
                 </div>
               </div>
 
               <script>
+              let fpCurrentPreviewObjectUrl = null;
+              let fpCurrentPreviewIsPdf = false;
+
               function handleFloorPlanFileSelect(input) {
                 const infoWrap = document.getElementById('fp-selected-file-info');
                 const nameEl = document.getElementById('fp-selected-filename');
@@ -34,6 +70,14 @@
                 const notesErr = document.getElementById('e_floor_plan_notes');
                 const notesEl = document.getElementById('f3_floor_plan_notes');
                 const wrap = document.getElementById('fp-canvas-invalid-wrap');
+                const previewWrap = document.getElementById('fp-upload-preview-wrap');
+                const previewImg = document.getElementById('fp-live-preview-img');
+                const previewPdf = document.getElementById('fp-live-preview-pdf');
+
+                if (fpCurrentPreviewObjectUrl) {
+                  try { URL.revokeObjectURL(fpCurrentPreviewObjectUrl); } catch (e) {}
+                  fpCurrentPreviewObjectUrl = null;
+                }
 
                 if (input && input.files && input.files[0]) {
                   const file = input.files[0];
@@ -44,15 +88,52 @@
                   if (notesErr) notesErr.style.display = 'none';
                   if (notesEl) notesEl.classList.remove('is-invalid');
                   if (wrap) wrap.classList.remove('fp-canvas-invalid');
+
+                  const ext = (file.name.split('.').pop() || '').toLowerCase();
+                  fpCurrentPreviewIsPdf = (ext === 'pdf' || file.type === 'application/pdf');
+                  fpCurrentPreviewObjectUrl = URL.createObjectURL(file);
+
+                  if (previewWrap) previewWrap.style.display = 'block';
+                  if (fpCurrentPreviewIsPdf) {
+                    if (previewImg) { previewImg.style.display = 'none'; previewImg.src = ''; }
+                    if (previewPdf) { previewPdf.src = fpCurrentPreviewObjectUrl; previewPdf.style.display = 'block'; }
+                  } else {
+                    if (previewPdf) { previewPdf.style.display = 'none'; previewPdf.src = ''; }
+                    if (previewImg) { previewImg.src = fpCurrentPreviewObjectUrl; previewImg.style.display = 'block'; }
+                  }
                 } else {
                   if (infoWrap) infoWrap.style.display = 'none';
                   if (nameEl) nameEl.textContent = '';
+                  if (previewWrap) previewWrap.style.display = 'none';
+                  if (previewImg) { previewImg.style.display = 'none'; previewImg.src = ''; }
+                  if (previewPdf) { previewPdf.style.display = 'none'; previewPdf.src = ''; }
                   const hasExisting = document.getElementById('has_existing_floor_plan_file')?.value === '1';
                   if (!hasExisting) {
                     if (notesAsterisk) notesAsterisk.style.display = 'inline';
                     if (notesOpt) notesOpt.style.display = 'none';
                   }
                 }
+              }
+
+              function openFloorPlanLightbox() {
+                if (!fpCurrentPreviewObjectUrl) return;
+                const modal = document.getElementById('fp-preview-lightbox');
+                const lbImg = document.getElementById('fp-lightbox-img');
+                const lbPdf = document.getElementById('fp-lightbox-pdf');
+                if (!modal) return;
+                if (fpCurrentPreviewIsPdf) {
+                  if (lbImg) lbImg.style.display = 'none';
+                  if (lbPdf) { lbPdf.src = fpCurrentPreviewObjectUrl; lbPdf.style.display = 'block'; }
+                } else {
+                  if (lbPdf) lbPdf.style.display = 'none';
+                  if (lbImg) { lbImg.src = fpCurrentPreviewObjectUrl; lbImg.style.display = 'block'; }
+                }
+                modal.style.display = 'flex';
+              }
+
+              function closeFloorPlanLightbox() {
+                const modal = document.getElementById('fp-preview-lightbox');
+                if (modal) modal.style.display = 'none';
               }
 
               function clearSelectedFloorPlanFile() {

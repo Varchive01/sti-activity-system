@@ -169,7 +169,7 @@ function timeAgo($datetime)
   <title>Faculty Dashboard – STI Activity System</title>
   <meta name="base-url" content="<?= BASE_URL ?>">
   <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.4">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
   <script>
     (function() {
       try {
@@ -392,8 +392,13 @@ function timeAgo($datetime)
       gap: 10px !important;
       align-items: stretch;
       width: 100%;
-      min-width: 960px;
       margin-bottom: 0 !important;
+    }
+
+    @media (min-width: 1024px) {
+      .stat-grid {
+        min-width: 960px;
+      }
     }
 
     @media (min-width: 1360px) {
@@ -971,57 +976,270 @@ function timeAgo($datetime)
     }
 
     /* ── Responsive Rules ── */
-    @media (max-width: 900px) {
+    @media (max-width: 991.98px) {
       .content {
-        padding: 14px 14px 24px;
+        padding: 16px 16px 28px !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
       }
-      .faculty-hero-banner {
-        flex-direction: column;
-        align-items: flex-start;
-        padding: 16px;
-        gap: 12px;
+      .stat-row-wrapper {
+        overflow-x: visible !important;
+        width: 100% !important;
+        margin-bottom: 18px !important;
+        padding-bottom: 0 !important;
       }
-      .faculty-hero-bg-img {
-        opacity: 0.25;
-        width: 100%;
-      }
-      .faculty-hero-actions {
-        width: 100%;
+      .stat-grid {
+        min-width: 0 !important;
+        width: 100% !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 10px !important;
       }
     }
 
-    @media (max-width: 640px) {
-      .faculty-hero-actions {
-        flex-direction: column;
+    @media (max-width: 767.98px) {
+      .content {
+        padding: 12px 12px 24px !important;
+      }
+      .faculty-hero-banner,
+      .dashboard-hero-banner {
+        padding: 16px !important;
+        border-radius: 12px !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 14px !important;
+      }
+      .faculty-hero-bg-img,
+      .dashboard-hero-bg-img {
+        opacity: 0.18 !important;
+        width: 100% !important;
+      }
+      .faculty-hero-title,
+      .dashboard-hero-title {
+        font-size: 1.25rem !important;
+        line-height: 1.25 !important;
+      }
+      .faculty-hero-subtitle,
+      .dashboard-hero-subtitle {
+        font-size: 0.80rem !important;
+        line-height: 1.35 !important;
+      }
+      .faculty-hero-actions,
+      .dashboard-hero-actions {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
       }
       .btn-hero-primary,
-      .btn-hero-secondary {
-        width: 100%;
-        justify-content: center;
+      .btn-hero-secondary,
+      .dashboard-hero-actions .btn-hero-primary,
+      .dashboard-hero-actions .btn-hero-secondary {
+        width: 100% !important;
+        min-height: 42px !important;
+        justify-content: center !important;
+        font-size: 0.82rem !important;
+        border-radius: 8px !important;
+        box-sizing: border-box !important;
       }
-      .activity-table td .btn {
-        height: 38px;
-        min-height: 38px;
-        padding: 6px 14px;
-        font-size: 0.78rem;
-      }
-      .act-actions {
-        gap: 8px;
-      }
-    }
 
-    @media (max-width: 480px) {
+      /* 7 Stat Cards in 2-Column Touch Grid */
+      .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        min-width: 0 !important;
+        width: 100% !important;
+      }
       .stat-card,
       a.stat-card,
       .stat-grid a.stat-card {
-        padding: 10px 10px !important;
+        min-height: 84px !important;
+        padding: 10px 10px 12px !important;
+        border-radius: 10px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
       }
+      .stat-card:last-child,
+      .stat-grid a.stat-card:last-child {
+        grid-column: span 2 !important;
+      }
+      .stat-icon {
+        width: 26px !important;
+        height: 26px !important;
+        min-width: 26px !important;
+        border-radius: 6px !important;
+        margin-bottom: 6px !important;
+      }
+      .stat-card-meta {
+        font-size: 0.60rem !important;
+        letter-spacing: 0.04em !important;
+        margin-bottom: 2px !important;
+      }
+      .stat-val {
+        font-size: 1.40rem !important;
+        font-weight: 800 !important;
+        line-height: 1.1 !important;
+      }
+      .stat-label,
+      .label-default,
+      .label-amber,
+      .label-green,
+      .label-purple,
+      .stat-sub {
+        white-space: normal !important;
+        word-break: break-word !important;
+        font-size: 0.70rem !important;
+        line-height: 1.25 !important;
+        text-overflow: clip !important;
+      }
+
+      /* Upcoming Activities Card on Mobile */
       .upcoming-card {
-        padding: 12px 14px;
+        padding: 14px !important;
+        border-radius: 12px !important;
+      }
+      .upcoming-card-header {
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        gap: 8px !important;
       }
       .upcoming-row {
-        padding: 8px 10px;
-        gap: 8px;
+        padding: 10px 12px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+        border-radius: 8px !important;
+      }
+      .upcoming-row-left {
+        width: 100% !important;
+        display: flex !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+      }
+      .upcoming-row-title {
+        white-space: normal !important;
+        word-break: break-word !important;
+        font-size: 0.82rem !important;
+        font-weight: 700 !important;
+        line-height: 1.3 !important;
+      }
+      .upcoming-row-meta {
+        white-space: normal !important;
+        word-break: break-word !important;
+        font-size: 0.72rem !important;
+        margin-top: 2px !important;
+      }
+      .upcoming-row-status {
+        display: flex !important;
+        justify-content: flex-end !important;
+        width: 100% !important;
+        padding-top: 4px !important;
+        border-top: 1px dashed var(--border, #E2E8F0) !important;
+      }
+
+      /* Modern Mobile Responsive Cards for Recent Activities */
+      .activity-card {
+        border-radius: 12px !important;
+        overflow: hidden !important;
+      }
+      .activity-card-header {
+        padding: 12px 14px !important;
+      }
+      .activity-table,
+      .activity-table thead,
+      .activity-table tbody,
+      .activity-table tr,
+      .activity-table td {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+      }
+      .activity-table thead {
+        display: none !important;
+      }
+      .activity-table tbody tr {
+        background: var(--bg-card, #FFFFFF);
+        border-bottom: 1px solid var(--border, #E2E8F0) !important;
+        padding: 14px 14px 12px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+      }
+      .activity-table tbody tr:last-child {
+        border-bottom: none !important;
+      }
+      .activity-table td {
+        padding: 0 !important;
+        border: none !important;
+      }
+      .activity-table td.col-title {
+        width: 100% !important;
+      }
+      .activity-table .act-title {
+        font-size: 0.88rem !important;
+        font-weight: 700 !important;
+        line-height: 1.35 !important;
+        color: var(--text-main, #0A1628) !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+      }
+      .activity-table td.col-date,
+      .activity-table td.col-venue {
+        display: inline-flex !important;
+        align-items: center !important;
+        font-size: 0.74rem !important;
+        color: var(--text-muted, #64748B) !important;
+        gap: 4px !important;
+      }
+      .activity-table td.col-source,
+      .activity-table td.col-status {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        margin-right: 6px !important;
+      }
+      .activity-table td.col-actions {
+        width: 100% !important;
+        margin-top: 4px !important;
+        padding-top: 8px !important;
+        border-top: 1px solid var(--border-light, #F1F5F9) !important;
+      }
+      .activity-table .act-actions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        width: 100% !important;
+        justify-content: stretch !important;
+      }
+      .activity-table td .btn {
+        flex: 1 1 auto !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        font-size: 0.78rem !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        justify-content: center !important;
+        text-align: center !important;
+        display: inline-flex !important;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .content {
+        padding: 10px 8px 20px !important;
+      }
+      .stat-grid {
+        gap: 6px !important;
+      }
+      .stat-card,
+      a.stat-card,
+      .stat-grid a.stat-card {
+        padding: 8px 8px 10px !important;
+      }
+      .stat-val {
+        font-size: 1.25rem !important;
       }
     }
 
@@ -1055,7 +1273,7 @@ function timeAgo($datetime)
     <!-- Topbar -->
     <header class="topbar">
       <div class="page-title">Faculty Dashboard</div>
-      <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+      <div class="topbar-right">
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
         <!-- User Profile Control -->
         <?php include __DIR__ . '/../includes/topbar-profile.php'; ?>
@@ -1300,14 +1518,14 @@ function timeAgo($datetime)
                           <td class="col-actions">
                             <div class="act-actions">
                               <a href="<?= BASE_URL ?>/faculty/proposal-view.php?id=<?= $act['id'] ?>" class="btn btn-outline btn-sm">View</a>
-                              <?php if (in_array($act['status'], ['draft', 'returned_for_revision'])): ?>
+                              <?php if (in_array($act['status'], ['draft', 'submitted', 'returned_for_revision'])): ?>
                                 <a href="<?= BASE_URL ?>/faculty/proposal-edit.php?id=<?= $act['id'] ?>" class="btn btn-primary btn-sm">Edit</a>
                               <?php endif; ?>
                               <?php if ($act['status'] === 'draft'): ?>
                                 <button type="button" class="btn btn-danger btn-sm" onclick="confirmDeleteDraft(<?= (int)$act['id'] ?>, '<?= htmlspecialchars(addslashes($act['title']), ENT_QUOTES) ?>')">Delete</button>
                               <?php endif; ?>
                               <?php if ($act['status'] === 'approved'): ?>
-                                <a href="<?= BASE_URL ?>/faculty/post-event.php?activity_id=<?= $act['id'] ?>" class="btn btn-success btn-sm">Post-Event</a>
+                                <a href="<?= BASE_URL ?>/faculty/post-event-form.php?activity_id=<?= $act['id'] ?>" class="btn btn-success btn-sm">Post-Event</a>
                               <?php endif; ?>
                             </div>
                           </td>

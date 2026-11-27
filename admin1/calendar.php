@@ -60,7 +60,7 @@ $monthName      = date('F Y', mktime(0, 0, 0, $month, 1, $year));
 
 $statusConfig = [
   'draft'                  => ['color' => '#6B7280', 'bg' => '#F3F4F6', 'label' => 'Draft'],
-  'submitted'              => ['color' => '#D97706', 'bg' => '#FEF3C7', 'label' => 'Under Review'],
+  'submitted'              => ['color' => '#D97706', 'bg' => '#FEF3C7', 'label' => 'Submitted'],
   'under_review'           => ['color' => '#D97706', 'bg' => '#FEF3C7', 'label' => 'Under Review'],
   'endorsed'               => ['color' => '#0284C7', 'bg' => '#E0F2FE', 'label' => 'Endorsed'],
   'pending_final_approval' => ['color' => '#0284C7', 'bg' => '#E0F2FE', 'label' => 'Subject for Final Approval'],
@@ -92,7 +92,7 @@ $todayYear  = (int)date('Y');
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Calendar – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
   <script>
     (function() {
       try {
@@ -253,7 +253,8 @@ $todayYear  = (int)date('Y');
       <span id="popupVenue"></span>
     </div>
     <div class="event-popup-actions">
-      <a href="#" id="popupViewBtn" class="popup-btn primary">View Details</a>
+      <a href="#" id="popupReviewBtn" class="popup-btn primary">Review Status</a>
+      <a href="#" id="popupViewBtn" class="popup-btn ghost">View Details</a>
       <button class="popup-btn ghost" onclick="closePopup()">Close</button>
     </div>
   </div>
@@ -271,6 +272,7 @@ $todayYear  = (int)date('Y');
       document.getElementById('popupStatus').textContent = status;
       document.getElementById('popupStatus').style.background = bg;
       document.getElementById('popupStatus').style.color = color;
+      document.getElementById('popupReviewBtn').href = BASE_URL + '/admin1/review.php?id=' + id;
       document.getElementById('popupViewBtn').href = BASE_URL + '/admin1/view-activity.php?id=' + id;
 
       const venueRow = document.getElementById('popupVenueRow');

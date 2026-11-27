@@ -21,7 +21,7 @@ $baseUrl     = defined('BASE_URL') ? BASE_URL : '';
 
 // Proposal creation authorization check based on existing permissions
 if (!isset($canCreateProposal)) {
-    $canCreateProposal = in_array($currentRole, ['faculty', 'program_head'], true);
+    $canCreateProposal = in_array($currentRole, ['faculty', 'program_head', 'admin1', 'admin2'], true);
 }
 
 // Role-specific banner configurations
@@ -76,12 +76,19 @@ $roleConfigs = [
         ],
     ],
     'admin1' => [
-        'label'       => 'SYSTEM ADMINISTRATION PORTAL',
+        'label'       => 'STUDENT ORGANIZATION & SYSTEM PORTAL',
         'heading'     => 'Welcome back, ' . htmlspecialchars($userName) . '!',
-        'description' => 'Manage system users, maintain access permissions, and oversee STI-ARMES configuration.',
+        'description' => 'Manage student organization proposals, review incoming requests, and oversee campus activities.',
         'buttons'     => [
             [
                 'type'               => 'primary',
+                'label'              => 'New Activity Proposal',
+                'href'               => $baseUrl . '/faculty/proposal-create.php',
+                'icon'               => 'plus',
+                'require_can_create' => true,
+            ],
+            [
+                'type'               => 'secondary',
                 'label'              => 'Pending Reviews',
                 'href'               => $baseUrl . '/admin1/pending.php',
                 'icon'               => 'pending',
@@ -99,12 +106,19 @@ $roleConfigs = [
         ],
     ],
     'admin2' => [
-        'label'       => 'ADMINISTRATIVE MANAGEMENT PORTAL',
+        'label'       => 'EVENTS COMMITTEE & ADMINISTRATIVE PORTAL',
         'heading'     => 'Welcome back, ' . htmlspecialchars($userName) . '!',
-        'description' => 'Manage activity proposals, coordinate administrative processing, and monitor activity schedules.',
+        'description' => 'Manage committee activity proposals, coordinate institutional events, and monitor activity schedules.',
         'buttons'     => [
             [
                 'type'               => 'primary',
+                'label'              => 'New Activity Proposal',
+                'href'               => $baseUrl . '/faculty/proposal-create.php',
+                'icon'               => 'plus',
+                'require_can_create' => true,
+            ],
+            [
+                'type'               => 'secondary',
                 'label'              => 'Proposal Management',
                 'href'               => $baseUrl . '/admin2/activities.php',
                 'icon'               => 'proposals',
@@ -304,7 +318,7 @@ $bannerConfig = $roleConfigs[$currentRole] ?? $roleConfigs['faculty'];
       gap: 14px;
     }
     .dashboard-hero-bg-img {
-      opacity: 0.22;
+      opacity: 0.18;
       width: 100%;
     }
     .dashboard-hero-text {
@@ -315,20 +329,44 @@ $bannerConfig = $roleConfigs[$currentRole] ?? $roleConfigs['faculty'];
     }
   }
 
-  @media (max-width: 480px) {
+  @media (max-width: 767.98px) {
+    .dashboard-hero-banner {
+      padding: 16px !important;
+      border-radius: 12px !important;
+      gap: 14px !important;
+    }
     .dashboard-hero-title {
-      font-size: 1.22rem;
+      font-size: 1.25rem !important;
+      line-height: 1.25 !important;
     }
     .dashboard-hero-subtitle {
-      font-size: 0.78rem;
+      font-size: 0.80rem !important;
+      line-height: 1.35 !important;
     }
     .dashboard-hero-actions {
-      gap: 8px;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 8px !important;
+      width: 100% !important;
     }
     .dashboard-hero-actions .btn-hero-primary,
     .dashboard-hero-actions .btn-hero-secondary {
-      flex: 1 1 auto;
-      justify-content: center;
+      width: 100% !important;
+      min-height: 42px !important;
+      font-size: 0.82rem !important;
+      font-weight: 700 !important;
+      justify-content: center !important;
+      border-radius: 8px !important;
+      box-sizing: border-box !important;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .dashboard-hero-title {
+      font-size: 1.15rem !important;
+    }
+    .dashboard-hero-subtitle {
+      font-size: 0.75rem !important;
     }
   }
 </style>

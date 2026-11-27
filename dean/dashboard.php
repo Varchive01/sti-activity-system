@@ -218,7 +218,7 @@ try {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Academic Head Dashboard – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.4">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
   <script>
     (function() {
       try {
@@ -475,11 +475,16 @@ try {
     /* ── 1. Compact Horizontal KPI Stat Cards ── */
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 10px;
       align-items: stretch;
       width: 100%;
       margin-bottom: 0 !important;
+    }
+
+    @media (min-width: 1024px) {
+      .stat-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
     }
 
     .stat-card,
@@ -960,31 +965,12 @@ try {
         height: auto;
         min-height: auto;
       }
-      .topbar {
-        height: auto;
-        min-height: 64px;
-        max-height: none;
-        padding: 12px 20px;
-        flex-wrap: wrap;
-        gap: 12px;
-      }
-      .topbar-right {
-        flex-wrap: wrap;
-        gap: 8px;
-      }
       .topbar-right .text-sm.text-muted {
         display: none;
       }
     }
 
     @media (max-width: 640px) {
-      .topbar {
-        padding: 8px 12px 10px !important;
-        gap: 6px 8px !important;
-        flex-wrap: wrap !important;
-        min-height: auto !important;
-        height: auto !important;
-      }
       .topbar .page-title {
         flex: 1 1 auto !important;
         min-width: 0 !important;

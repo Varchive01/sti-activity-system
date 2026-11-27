@@ -44,7 +44,7 @@ $acts=$db->prepare("SELECT a.*,u.name as fn, u.role as author_role FROM activiti
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>All Activities – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
   <script>
     (function() {
       try {
@@ -106,8 +106,9 @@ $acts=$db->prepare("SELECT a.*,u.name as fn, u.role as author_role FROM activiti
 
       <!-- Activities Table Card -->
       <div class="card">
-        <div class="card-header">
+        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
           <h2>📋 All Activities</h2>
+          <a href="<?= BASE_URL ?>/admin2/calendar.php" class="btn btn-outline btn-sm" style="display:inline-flex; align-items:center; gap:6px;">📅 Calendar View for Reviewing Statuses</a>
         </div>
         <div class="card-body" style="padding:0;">
           <div class="table-wrap">

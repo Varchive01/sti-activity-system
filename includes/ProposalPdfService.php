@@ -32,7 +32,9 @@ class ProposalPdfService
         $status = trim($act['status'] ?? 'submitted');
         $venue = trim($act['venue'] ?? 'TBA');
         
-        $eventDate = !empty($act['event_date']) ? date('F j, Y', strtotime($act['event_date'])) : 'TBA';
+        $sDate = !empty($act['event_date']) ? date('F j, Y', strtotime($act['event_date'])) : 'TBA';
+        $eDate = !empty($act['end_date']) ? date('F j, Y', strtotime($act['end_date'])) : $sDate;
+        $eventDate = ($sDate !== $eDate && $eDate !== 'TBA') ? "{$sDate} to {$eDate}" : $sDate;
         $startTime = !empty($act['start_time']) ? date('h:i A', strtotime($act['start_time'])) : '';
         $endTime   = !empty($act['end_time'])   ? date('h:i A', strtotime($act['end_time']))   : '';
         $timeStr   = ($startTime && $endTime) ? "{$startTime} - {$endTime}" : ($startTime ?: 'TBA');
@@ -57,7 +59,7 @@ class ProposalPdfService
         ]);
         $doc->addGridRow([
             'Department / Unit' => $facultyDept,
-            'Proposal Source'   => ($source === 'student_org') ? 'Student Organization' : 'Faculty Initiated'
+            'Headed by'         => ($source === 'student_org') ? 'Student Organization' : 'Faculty Initiated'
         ]);
 
         // 2. Objectives & Rationale
@@ -151,8 +153,18 @@ class ProposalPdfService
         }
 
         // 8. Signatories & Approval Routing
+        $coAuthors = [];
+        try {
+            $dbInstance = function_exists('getDB') ? getDB() : null;
+            if ($dbInstance) {
+                $cStmt = $dbInstance->prepare("SELECT u.name FROM proposal_collaborators pc JOIN users u ON pc.user_id = u.id WHERE pc.activity_id = ? ORDER BY pc.id ASC");
+                $cStmt->execute([$proposalId]);
+                $coAuthors = $cStmt->fetchAll(PDO::FETCH_COLUMN);
+            }
+        } catch (\Throwable $e) {}
+
         $doc->addSectionHeader("8. Institutional Endorsement & Approvals");
-        $doc->addSignatories($facultyName, $facultyDept, $status);
+        $doc->addSignatories($facultyName, $facultyDept, $status, $coAuthors);
 
         return $doc->renderPdf();
     }
@@ -486,7 +498,7 @@ class ProposalPdfLayout
         $this->y -= 10;
     }
 
-    public function addSignatories(string $facultyName, string $facultyRole, string $status): void
+    public function addSignatories(string $facultyName, string $facultyRole, string $status, array $coAuthors = []): void
     {
         $this->checkPageSpace(85);
         $p = &$this->pages[$this->currentPage];
@@ -496,11 +508,23 @@ class ProposalPdfLayout
         $boxH = 60;
         $yBox = $this->y - $boxH;
 
-        // Box 1: Proponent
+        // Box 1: Proponent(s) / Authors
+        $propTitle = !empty($coAuthors) ? "PROJECT AUTHORS / PROPONENTS:" : "PREPARED & SUBMITTED BY:";
+        $authorLines = [$facultyName ?: 'Faculty Proponent'];
+        foreach ($coAuthors as $caName) {
+            if (count($authorLines) < 2) {
+                $authorLines[] = $caName;
+            }
+        }
+        $authorText = implode(', ', $authorLines);
+        if (strlen($authorText) > 28) {
+            $authorText = substr($authorText, 0, 26) . '...';
+        }
+
         $p .= "0.96 0.97 0.99 rg 40 " . $yBox . " " . $boxW . " " . $boxH . " re f\n";
         $p .= "0.85 0.88 0.92 RG 0.5 w 40 " . $yBox . " " . $boxW . " " . $boxH . " re s\n";
-        $p .= "BT /F2 7.5 Tf 0.40 0.45 0.53 rg 46 " . ($yBox + 46) . " Td (PREPARED & SUBMITTED BY:) Tj ET\n";
-        $p .= "BT /F2 8.5 Tf 0.06 0.18 0.37 rg 46 " . ($yBox + 22) . " Td (" . $this->escapeText($facultyName ?: 'Faculty Proponent') . ") Tj ET\n";
+        $p .= "BT /F2 7.5 Tf 0.40 0.45 0.53 rg 46 " . ($yBox + 46) . " Td (" . $this->escapeText($propTitle) . ") Tj ET\n";
+        $p .= "BT /F2 8.5 Tf 0.06 0.18 0.37 rg 46 " . ($yBox + 22) . " Td (" . $this->escapeText($authorText) . ") Tj ET\n";
         $p .= "BT /F1 7.5 Tf 0.40 0.45 0.53 rg 46 " . ($yBox + 10) . " Td (" . $this->escapeText($facultyRole ?: 'Faculty Member / Adviser') . ") Tj ET\n";
 
         // Box 2: Reviewer Endorsement
@@ -510,7 +534,7 @@ class ProposalPdfLayout
         $p .= "BT /F2 7.5 Tf 0.40 0.45 0.53 rg " . ($x2 + 6) . " " . ($yBox + 46) . " Td (REVIEWED & ENDORSED BY:) Tj ET\n";
         $revStatus = in_array($status, ['endorsed', 'pending_final_approval', 'approved']) ? 'ENDORSED FOR APPROVAL' : 'PENDING REVIEW';
         $p .= "BT /F2 8.5 Tf 0.06 0.18 0.37 rg " . ($x2 + 6) . " " . ($yBox + 22) . " Td (" . $this->escapeText($revStatus) . ") Tj ET\n";
-        $p .= "BT /F1 7.5 Tf 0.40 0.45 0.53 rg " . ($x2 + 6) . " " . ($yBox + 10) . " Td (Academic Admin / Student Affairs) Tj ET\n";
+        $p .= "BT /F1 7.5 Tf 0.40 0.45 0.53 rg " . ($x2 + 6) . " " . ($yBox + 10) . " Td (Program Head / Events Committee) Tj ET\n";
 
         // Box 3: Dean Final Action
         $x3 = $x2 + $boxW + 18;
@@ -521,7 +545,7 @@ class ProposalPdfLayout
         $deanStatus = $isApp ? 'OFFICIALLY APPROVED' : 'UNDER EVALUATION';
         $deanColor = $isApp ? '0.06 0.58 0.34' : '0.40 0.45 0.53';
         $p .= "BT /F2 8.5 Tf {$deanColor} rg " . ($x3 + 6) . " " . ($yBox + 22) . " Td (" . $this->escapeText($deanStatus) . ") Tj ET\n";
-        $p .= "BT /F1 7.5 Tf 0.40 0.45 0.53 rg " . ($x3 + 6) . " " . ($yBox + 10) . " Td (Office of the Dean) Tj ET\n";
+        $p .= "BT /F1 7.5 Tf 0.40 0.45 0.53 rg " . ($x3 + 6) . " " . ($yBox + 10) . " Td (Office of the Academic Head / Dean) Tj ET\n";
 
         $this->y = $yBox - 15;
     }

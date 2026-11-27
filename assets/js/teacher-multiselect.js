@@ -262,6 +262,33 @@
       }
     }
 
+    function positionDropdown() {
+      if (!dropdown || dropdown.style.display !== 'block') return;
+      const control = container.querySelector('.tms-control') || container;
+      const rect = control.getBoundingClientRect();
+      const dropdownHeight = Math.min(dropdown.scrollHeight || 220, 230);
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+
+      dropdown.style.setProperty('position', 'fixed', 'important');
+      dropdown.style.setProperty('left', rect.left + 'px', 'important');
+      dropdown.style.setProperty('width', Math.max(rect.width, 280) + 'px', 'important');
+      dropdown.style.setProperty('z-index', '999999', 'important');
+
+      if (spaceBelow < 210 && spaceAbove > spaceBelow) {
+        // Dropup: flip upwards if cramped near bottom
+        const topPos = Math.max(8, rect.top - dropdownHeight - 4);
+        dropdown.style.setProperty('top', topPos + 'px', 'important');
+        dropdown.style.removeProperty('bottom');
+        container.classList.add('tms-dropup');
+      } else {
+        // Dropdown: open downwards
+        dropdown.style.setProperty('top', (rect.bottom + 4) + 'px', 'important');
+        dropdown.style.removeProperty('bottom');
+        container.classList.remove('tms-dropup');
+      }
+    }
+
     function openDropdown() {
       if (isReadonly || !dropdown) return;
       // Close other open multi-select dropups
@@ -271,13 +298,36 @@
         }
       });
       container.classList.add('tms-open');
+      const tr = container.closest('tr');
+      if (tr) {
+        tr.style.setProperty('z-index', '1000', 'important');
+        tr.style.setProperty('position', 'relative', 'important');
+      }
+      const scrollBox = container.closest('.target-participants-scroll-box');
+      if (scrollBox) {
+        scrollBox.classList.add('has-tms-open');
+      }
       dropdown.style.display = 'block';
       renderDropdownOptions(searchInput ? searchInput.value : '');
+      positionDropdown();
+      window.addEventListener('scroll', positionDropdown, { passive: true });
+      window.addEventListener('resize', positionDropdown, { passive: true });
     }
 
     function closeDropdown() {
       if (!dropdown) return;
       container.classList.remove('tms-open');
+      const tr = container.closest('tr');
+      if (tr) {
+        tr.style.removeProperty('z-index');
+        tr.style.removeProperty('position');
+      }
+      const scrollBox = container.closest('.target-participants-scroll-box');
+      if (scrollBox) {
+        scrollBox.classList.remove('has-tms-open');
+      }
+      window.removeEventListener('scroll', positionDropdown);
+      window.removeEventListener('resize', positionDropdown);
       dropdown.style.display = 'none';
     }
 

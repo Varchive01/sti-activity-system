@@ -654,7 +654,7 @@ function getStatusBadge(string $status): string
 {
     $map = [
         'draft'                  => ['Draft',            'badge-secondary'],
-        'submitted'              => ['Under Review',     'badge-warning'],
+        'submitted'              => ['Submitted',        'badge-primary'],
         'under_review'           => ['Under Review',     'badge-warning'],
         'returned_for_revision'  => ['For Revision',     'badge-danger'],
         'resubmitted'            => ['Resubmitted',      'badge-warning'],

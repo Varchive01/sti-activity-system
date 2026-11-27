@@ -94,7 +94,7 @@ $monthName      = date('F Y', mktime(0, 0, 0, $month, 1, $year));
 
 $statusConfig = [
   'draft'                  => ['color' => '#6B7280', 'bg' => '#F3F4F6', 'label' => 'Draft'],
-  'submitted'              => ['color' => '#D97706', 'bg' => '#FEF3C7', 'label' => 'Under Review'],
+  'submitted'              => ['color' => '#0284C7', 'bg' => '#E0F2FE', 'label' => 'Submitted'],
   'under_review'           => ['color' => '#D97706', 'bg' => '#FEF3C7', 'label' => 'Under Review'],
   'endorsed'               => ['color' => '#7C3AED', 'bg' => '#EDE9FE', 'label' => 'Endorsed'],
   'pending_final_approval' => ['color' => '#7C3AED', 'bg' => '#EDE9FE', 'label' => 'Subject for Final Approval'],
@@ -128,7 +128,7 @@ $todayYear  = (int)date('Y');
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Calendar – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
   <style>
     /* ── Right Sidebar ── */
     .cal-sidebar .card {

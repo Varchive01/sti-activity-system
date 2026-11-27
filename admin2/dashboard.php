@@ -182,7 +182,7 @@ try {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Committee Dashboard – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.4">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
   <script>
     (function() {
       try {
@@ -370,11 +370,16 @@ try {
     /* ── 1. Compact Horizontal KPI Stat Cards (Dean Standardized Parity) ── */
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 10px;
       align-items: stretch;
       width: 100%;
       margin-bottom: 0 !important;
+    }
+
+    @media (min-width: 1024px) {
+      .stat-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
     }
 
     .stat-card,
@@ -1200,18 +1205,6 @@ try {
     }
 
     @media (max-width: 640px) {
-      .topbar {
-        height: auto !important;
-        min-height: 56px !important;
-        max-height: none !important;
-        padding: 10px 14px !important;
-        flex-wrap: wrap !important;
-        gap: 8px !important;
-      }
-      .topbar-right {
-        width: 100%;
-        justify-content: flex-end;
-      }
       .topbar-filter-form {
         width: 100% !important;
         order: 10;

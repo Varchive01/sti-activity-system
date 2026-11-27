@@ -4,40 +4,56 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/EmailService.php';
-requireRole('faculty', 'program_head');
+require_once __DIR__ . '/../includes/PostEventAssessmentHelper.php';
+requireRole('faculty', 'program_head', 'admin1', 'admin2');
 
 $user = currentUser();
 $db   = getDB();
 
-// Self-healing database schema: ensure post_event table has expanded fields (run BEFORE any transaction)
+// Self-healing database schema: ensure post_event & faculty_tasks tables have Phase 3 expanded fields (run BEFORE any transaction)
 $postEventCols = [];
 try {
     $existingCols = $db->query("SHOW COLUMNS FROM post_event")->fetchAll(PDO::FETCH_COLUMN);
-    if (!in_array('target_attendance', $existingCols, true)) {
-        $db->exec("ALTER TABLE post_event ADD COLUMN target_attendance INT NULL DEFAULT 0");
-    }
-    if (!in_array('actual_attendance', $existingCols, true)) {
-        $db->exec("ALTER TABLE post_event ADD COLUMN actual_attendance INT NULL DEFAULT 0");
-    }
-    if (!in_array('satisfaction_score', $existingCols, true)) {
-        $db->exec("ALTER TABLE post_event ADD COLUMN satisfaction_score DECIMAL(3,1) NULL DEFAULT NULL");
-    }
-    if (!in_array('recommendations', $existingCols, true)) {
-        $db->exec("ALTER TABLE post_event ADD COLUMN recommendations TEXT NULL DEFAULT NULL");
-    }
-    if (!in_array('manual_attendance', $existingCols, true)) {
-        $db->exec("ALTER TABLE post_event ADD COLUMN manual_attendance INT NULL DEFAULT NULL");
-    }
-    if (!in_array('assessment_report_path', $existingCols, true)) {
-        $db->exec("ALTER TABLE post_event ADD COLUMN assessment_report_path VARCHAR(500) NULL DEFAULT NULL");
-    }
-    if (!in_array('survey_csv_path', $existingCols, true)) {
-        $db->exec("ALTER TABLE post_event ADD COLUMN survey_csv_path VARCHAR(500) NULL DEFAULT NULL");
-    }
-    if (!in_array('attendance_method', $existingCols, true)) {
-        $db->exec("ALTER TABLE post_event ADD COLUMN attendance_method VARCHAR(50) NOT NULL DEFAULT 'paper_list'");
+    $requiredPeCols = [
+        'target_attendance'      => "INT NULL DEFAULT 0",
+        'actual_attendance'      => "INT NULL DEFAULT 0",
+        'satisfaction_score'     => "DECIMAL(3,1) NULL DEFAULT NULL",
+        'recommendations'        => "TEXT NULL DEFAULT NULL",
+        'manual_attendance'      => "INT NULL DEFAULT NULL",
+        'assessment_report_path' => "VARCHAR(500) NULL DEFAULT NULL",
+        'survey_csv_path'        => "VARCHAR(500) NULL DEFAULT NULL",
+        'attendance_method'      => "VARCHAR(50) NOT NULL DEFAULT 'paper_list'",
+        'actual_expenses'        => "DECIMAL(12,2) NULL DEFAULT NULL",
+        'approved_budget'        => "DECIMAL(12,2) NULL DEFAULT NULL",
+        'budget_variance'        => "DECIMAL(12,2) NULL DEFAULT NULL",
+        'budget_status'          => "VARCHAR(40) NULL DEFAULT NULL",
+        'expense_breakdown_path' => "VARCHAR(500) NULL DEFAULT NULL",
+        'equipment_report_json'  => "TEXT NULL DEFAULT NULL",
+        'media_drive_link'       => "VARCHAR(500) NULL DEFAULT NULL",
+        'comments_summary'       => "TEXT NULL DEFAULT NULL",
+        'ai_recommendations'     => "TEXT NULL DEFAULT NULL",
+        'ai_assessment_summary'  => "TEXT NULL DEFAULT NULL",
+    ];
+    foreach ($requiredPeCols as $cName => $cDef) {
+        if (!in_array($cName, $existingCols, true)) {
+            $db->exec("ALTER TABLE post_event ADD COLUMN {$cName} {$cDef}");
+        }
     }
     $postEventCols = $db->query("SHOW COLUMNS FROM post_event")->fetchAll(PDO::FETCH_COLUMN);
+
+    $ftCols = $db->query("SHOW COLUMNS FROM faculty_tasks")->fetchAll(PDO::FETCH_COLUMN);
+    $requiredFtCols = [
+        'verified_by_head'    => "TINYINT(1) NOT NULL DEFAULT 0",
+        'verified_at'         => "DATETIME NULL DEFAULT NULL",
+        'verification_status' => "VARCHAR(40) NOT NULL DEFAULT 'pending'",
+        'performance_rating'  => "INT NULL DEFAULT NULL",
+        'performance_remarks' => "TEXT NULL DEFAULT NULL",
+    ];
+    foreach ($requiredFtCols as $cName => $cDef) {
+        if (!in_array($cName, $ftCols, true)) {
+            $db->exec("ALTER TABLE faculty_tasks ADD COLUMN {$cName} {$cDef}");
+        }
+    }
 } catch (\Throwable $migEx) {
     // Gracefully continue even if DDL permissions are restricted
     try {
@@ -68,7 +84,7 @@ $manualAttendance = null;
 if (isset($_POST['manual_attendance']) && trim((string)$_POST['manual_attendance']) !== '') {
     $rawAtt = trim((string)$_POST['manual_attendance']);
     if (!is_numeric($rawAtt) || (int)$rawAtt < 0) {
-        header("Location: " . BASE_URL . "/faculty/post-event.php?activity_id={$id}&error=invalid_attendance");
+        header("Location: " . BASE_URL . "/faculty/post-event-form.php?activity_id={$id}&error=invalid_attendance");
         exit;
     }
     $manualAttendance = (int)$rawAtt;
@@ -81,7 +97,7 @@ $actualAttendance = $manualAttendance !== null ? $manualAttendance : null;
 $hasNewAssessment = !empty($_FILES['assessment_report_file']['name']);
 if ($hasNewAssessment) {
     if (!isValidPdfFile($_FILES['assessment_report_file'])) {
-        header("Location: " . BASE_URL . "/faculty/post-event.php?activity_id={$id}&error=invalid_assessment_format");
+        header("Location: " . BASE_URL . "/faculty/post-event-form.php?activity_id={$id}&error=invalid_assessment_format");
         exit;
     }
 }
@@ -90,7 +106,7 @@ if ($hasNewAssessment) {
 $hasNewSurveyCsv = !empty($_FILES['survey_results_csv']['name']);
 if ($hasNewSurveyCsv) {
     if (!isValidCsvFile($_FILES['survey_results_csv'])) {
-        header("Location: " . BASE_URL . "/faculty/post-event.php?activity_id={$id}&error=invalid_survey_format");
+        header("Location: " . BASE_URL . "/faculty/post-event-form.php?activity_id={$id}&error=invalid_survey_format");
         exit;
     }
 }
@@ -106,7 +122,7 @@ if (!empty($_FILES['post_event_files']['name'][0])) {
             'error'    => $_FILES['post_event_files']['error'][$i] ?? UPLOAD_ERR_NO_FILE,
         ];
         if (!isValidDocumentationFile($fileItem)) {
-            header("Location: " . BASE_URL . "/faculty/post-event.php?activity_id={$id}&error=invalid_doc_format");
+            header("Location: " . BASE_URL . "/faculty/post-event-form.php?activity_id={$id}&error=invalid_doc_format");
             exit;
         }
     }
@@ -273,6 +289,150 @@ try {
 
     $finalSatScore = $computedSurveyScore ?? ($existingPe['satisfaction_score'] ?? null);
 
+    // ── Phase 3: Budget & Expense Breakdown Processing ─────────────────
+    $approvedBudget = isset($_POST['approved_budget']) && trim((string)$_POST['approved_budget']) !== ''
+        ? round((float)$_POST['approved_budget'], 2)
+        : ($existingPe['approved_budget'] ?? PostEventAssessmentHelper::computeApprovedBudget($db, $id));
+    $actualExpenses = isset($_POST['actual_expenses']) && trim((string)$_POST['actual_expenses']) !== ''
+        ? round((float)$_POST['actual_expenses'], 2)
+        : (isset($existingPe['actual_expenses']) && $existingPe['actual_expenses'] !== null ? (float)$existingPe['actual_expenses'] : $approvedBudget);
+    $budgetEval = PostEventAssessmentHelper::evaluateBudgetStatus((float)$approvedBudget, $actualExpenses);
+    $budgetVariance = $budgetEval['variance'];
+    $budgetStatus   = $budgetEval['status'];
+
+    $expenseBreakdownPath = $existingPe['expense_breakdown_path'] ?? null;
+    if (!empty($_FILES['expense_breakdown_file']['name']) && ($_FILES['expense_breakdown_file']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+        $ebPath = uploadFile($_FILES['expense_breakdown_file'], 'post-event', $id);
+        if ($ebPath) {
+            $expenseBreakdownPath = $ebPath;
+            $ebDocName = mb_substr('Expense Breakdown - ' . sanitize($_FILES['expense_breakdown_file']['name']), 0, 290, 'UTF-8');
+            $db->prepare("INSERT INTO documents(activity_id, doc_type, file_name, file_path, uploaded_by) VALUES (?, 'post_event', ?, ?, ?)")
+               ->execute([$id, $ebDocName, $ebPath, $user['id']]);
+        }
+    }
+
+    // ── Phase 3: Equipment Return & Condition Status Report ────────────
+    $equipmentItems = [];
+    if (!empty($_POST['eq_item_name']) && is_array($_POST['eq_item_name'])) {
+        foreach ($_POST['eq_item_name'] as $idx => $eqNameRaw) {
+            $eqName = trim((string)$eqNameRaw);
+            if ($eqName === '') continue;
+            $eqQty = max(1, (int)($_POST['eq_quantity'][$idx] ?? 1));
+            $eqStatus = trim((string)($_POST['eq_status'][$idx] ?? 'returned_properly'));
+            if (!in_array($eqStatus, ['returned_properly', 'damaged', 'needs_replacement'], true)) {
+                $eqStatus = 'returned_properly';
+            }
+            $eqRemarks = trim((string)($_POST['eq_remarks'][$idx] ?? ''));
+            $equipmentItems[] = [
+                'item_name' => $eqName,
+                'quantity'  => $eqQty,
+                'status'    => $eqStatus,
+                'remarks'   => $eqRemarks
+            ];
+        }
+    }
+    $equipmentReportJson = !empty($equipmentItems)
+        ? json_encode($equipmentItems, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        : ($existingPe['equipment_report_json'] ?? null);
+
+    // ── Phase 3: Committee Head Task Verification & Personnel Performance ──
+    if (!empty($_POST['task_verify_id']) && is_array($_POST['task_verify_id'])) {
+        foreach ($_POST['task_verify_id'] as $tIdx => $tIdRaw) {
+            $tId = (int)$tIdRaw;
+            if ($tId <= 0) continue;
+            $vStatus = trim((string)($_POST['task_verify_status'][$tIdx] ?? 'verified_correct'));
+            if (!in_array($vStatus, ['pending', 'verified_correct', 'needs_correction'], true)) {
+                $vStatus = 'verified_correct';
+            }
+            $vByHead = ($vStatus === 'verified_correct') ? 1 : 0;
+            $pRating = isset($_POST['task_perf_rating'][$tIdx]) && $_POST['task_perf_rating'][$tIdx] !== ''
+                ? max(1, min(5, (int)$_POST['task_perf_rating'][$tIdx]))
+                : 5;
+            $pRemarks = trim((string)($_POST['task_perf_remarks'][$tIdx] ?? ''));
+
+            if ($vStatus === 'verified_correct') {
+                $db->prepare("
+                    UPDATE faculty_tasks
+                    SET verified_by_head = 1,
+                        verified_at = NOW(),
+                        verification_status = 'verified_correct',
+                        status = 'Completed',
+                        completion_pct = 100,
+                        performance_rating = ?,
+                        performance_remarks = ?
+                    WHERE id = ? AND activity_id = ?
+                ")->execute([$pRating, $pRemarks ?: null, $tId, $id]);
+            } else {
+                $db->prepare("
+                    UPDATE faculty_tasks
+                    SET verified_by_head = ?,
+                        verified_at = NOW(),
+                        verification_status = ?,
+                        performance_rating = ?,
+                        performance_remarks = ?
+                    WHERE id = ? AND activity_id = ?
+                ")->execute([$vByHead, $vStatus, $pRating, $pRemarks ?: null, $tId, $id]);
+            }
+        }
+    }
+
+    // ── Phase 3: Cloud Drive Link, Comments Summary & AI-Assisted Auto-Generated Assessment Report ──
+    $mediaDriveLink  = trim((string)($_POST['media_drive_link'] ?? ($existingPe['media_drive_link'] ?? '')));
+    $commentsSummary = trim((string)($_POST['comments_summary'] ?? ($existingPe['comments_summary'] ?? '')));
+    $aiRecs          = trim((string)($_POST['ai_recommendations'] ?? ($existingPe['ai_recommendations'] ?? '')));
+    $aiAssessSummary = trim((string)($_POST['ai_assessment_summary'] ?? ($existingPe['ai_assessment_summary'] ?? '')));
+
+    $synth = PostEventAssessmentHelper::generateAssessmentAndRecommendations($db, $id, [
+        'target_attendance'  => $targetAttendance,
+        'actual_attendance'  => $finalActualAtt,
+        'satisfaction_score' => $finalSatScore,
+        'approved_budget'    => $approvedBudget,
+        'actual_expenses'    => $actualExpenses,
+        'comments_summary'   => $commentsSummary,
+        'equipment_items'    => $equipmentItems,
+    ]);
+
+    if ($commentsSummary === '') {
+        $commentsSummary = $synth['comments_summary'];
+    }
+    if ($aiRecs === '') {
+        $aiRecs = $synth['ai_recommendations'];
+    }
+    if ($aiAssessSummary === '') {
+        $aiAssessSummary = $synth['ai_assessment_summary'];
+    }
+
+    // Auto-generate official PDF Assessment Report once final documents/report are saved if no manual PDF was uploaded
+    if (empty($finalAssessPath)) {
+        $autoPdfPath = PostEventAssessmentHelper::autoGenerateAssessmentPdfFile($db, $id, [
+            'ai_assessment_summary' => $aiAssessSummary,
+            'approved_budget'       => $approvedBudget,
+            'actual_expenses'       => $actualExpenses,
+            'budget_label'          => $budgetEval['label'],
+            'budget_variance'       => $budgetVariance,
+            'comments_summary'      => $commentsSummary,
+            'ai_recommendations'    => $aiRecs,
+        ], (int)$user['id']);
+        if ($autoPdfPath) {
+            $finalAssessPath = $autoPdfPath;
+        }
+    }
+
+    $phase3FieldValues = [
+        'actual_expenses'        => $actualExpenses,
+        'approved_budget'        => $approvedBudget,
+        'budget_variance'        => $budgetVariance,
+        'budget_status'          => $budgetStatus,
+        'expense_breakdown_path' => $expenseBreakdownPath,
+        'equipment_report_json'  => $equipmentReportJson,
+        'media_drive_link'       => $mediaDriveLink ?: null,
+        'comments_summary'       => $commentsSummary ?: null,
+        'ai_recommendations'     => $aiRecs ?: null,
+        'ai_assessment_summary'  => $aiAssessSummary ?: null,
+        'observations'           => $commentsSummary ?: null,
+        'recommendations'        => $aiRecs ?: null,
+    ];
+
     if ($existingPe) {
         // Update existing record
         $updateFields = [
@@ -308,6 +468,12 @@ try {
         if ($hasSatCol && $finalSatScore !== null) {
             $updateFields[] = "satisfaction_score = ?";
             $params[] = $finalSatScore;
+        }
+        foreach ($phase3FieldValues as $colKey => $colVal) {
+            if (in_array($colKey, $postEventCols, true)) {
+                $updateFields[] = "{$colKey} = ?";
+                $params[] = $colVal;
+            }
         }
 
         $params[] = $id;
@@ -353,6 +519,13 @@ try {
             $insVals[] = "?";
             $params[]  = $finalSatScore;
         }
+        foreach ($phase3FieldValues as $colKey => $colVal) {
+            if (in_array($colKey, $postEventCols, true)) {
+                $insCols[] = $colKey;
+                $insVals[] = "?";
+                $params[]  = $colVal;
+            }
+        }
 
         $db->prepare("INSERT INTO post_event (" . implode(', ', $insCols) . ") VALUES (" . implode(', ', $insVals) . ")")->execute($params);
     }
@@ -393,13 +566,13 @@ try {
         error_log("Post-event notification/email skipped: " . $notifyEx->getMessage());
     }
 
-    header("Location: " . BASE_URL . "/faculty/post-event.php?activity_id={$id}&saved=1");
+    header("Location: " . BASE_URL . "/faculty/post-event-form.php?activity_id={$id}&saved=1");
     exit;
 } catch (\Throwable $e) {
     error_log("Post Event Save Error: " . $e->getMessage());
     if ($db->inTransaction()) {
         $db->rollBack();
     }
-    header("Location: " . BASE_URL . "/faculty/post-event.php?activity_id={$id}&error=1");
+    header("Location: " . BASE_URL . "/faculty/post-event-form.php?activity_id={$id}&error=1");
     exit;
 }

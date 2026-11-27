@@ -6,7 +6,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/EmailService.php';
 require_once __DIR__ . '/../includes/schedule_conflict.php';
-requireRole('faculty', 'program_head');
+requireRole('faculty', 'program_head', 'admin1', 'admin2');
 
 $user   = currentUser();
 $db     = getDB();
@@ -307,6 +307,8 @@ if ($action === 'submit') {
 }
 
 $saveEventDate = ($eventDate !== '') ? $eventDate : null;
+$rawEndDate    = trim((string)($_POST['end_date'] ?? ''));
+$saveEndDate   = ($rawEndDate !== '') ? $rawEndDate : $saveEventDate;
 $saveStartTime = ($startTime !== '') ? $startTime : null;
 $saveEndTime   = ($endTime !== '') ? $endTime : null;
 
@@ -526,18 +528,76 @@ $db->beginTransaction();
         // Schema migration pending; handled gracefully
     }
 
+    // Safely persist end_date if the schema column exists
+    try {
+        $colCheckEnd = $db->query("SHOW COLUMNS FROM activities LIKE 'end_date'")->fetch();
+        if ($colCheckEnd && $saveEndDate) {
+            $db->prepare("UPDATE activities SET end_date = ? WHERE id = ?")->execute([$saveEndDate, $actId]);
+        }
+    } catch (\Throwable $e) {
+        error_log("Error saving end_date in proposal-save: " . $e->getMessage());
+    }
+
     // 2. Materials
     if (!empty($_POST['mat_item'])) {
-        $ms = $db->prepare("INSERT INTO materials (activity_id,item_name,description,quantity,provider,est_cost) VALUES (?,?,?,?,?,?)");
-        foreach ($_POST['mat_item'] as $i => $name) {
-            if (!trim($name)) continue;
-            $ms->execute([$actId, sanitize($name), sanitize($_POST['mat_desc'][$i]??''),
-                (int)($_POST['mat_qty'][$i]??1), sanitize($_POST['mat_provider'][$i]??''),
-                (float)($_POST['mat_cost'][$i]??0)]);
+        $hasBillingFields = false;
+        try {
+            $colCheckBill = $db->query("SHOW COLUMNS FROM materials LIKE 'billing_unit'")->fetch();
+            $hasBillingFields = !empty($colCheckBill);
+        } catch (\Throwable $e) {}
+
+        if ($hasBillingFields) {
+            $ms = $db->prepare("INSERT INTO materials (activity_id,item_name,description,quantity,provider,billing_unit,rate,est_cost) VALUES (?,?,?,?,?,?,?,?)");
+            foreach ($_POST['mat_item'] as $i => $name) {
+                if (!trim($name)) continue;
+                $matProvider = sanitize($_POST['mat_provider'][$i] ?? 'in_house');
+                $matUnit = sanitize($_POST['mat_unit'][$i] ?? 'fixed');
+                $matRate = (float)($_POST['mat_rate'][$i] ?? 0);
+                $matCost = (float)($_POST['mat_cost'][$i] ?? 0);
+                $ms->execute([
+                    $actId,
+                    sanitize($name),
+                    sanitize($_POST['mat_desc'][$i] ?? ''),
+                    (int)($_POST['mat_qty'][$i] ?? 1),
+                    $matProvider,
+                    $matUnit,
+                    $matRate,
+                    $matCost
+                ]);
+            }
+        } else {
+            $ms = $db->prepare("INSERT INTO materials (activity_id,item_name,description,quantity,provider,est_cost) VALUES (?,?,?,?,?,?)");
+            foreach ($_POST['mat_item'] as $i => $name) {
+                if (!trim($name)) continue;
+                $ms->execute([
+                    $actId,
+                    sanitize($name),
+                    sanitize($_POST['mat_desc'][$i] ?? ''),
+                    (int)($_POST['mat_qty'][$i] ?? 1),
+                    sanitize($_POST['mat_provider'][$i] ?? ''),
+                    (float)($_POST['mat_cost'][$i] ?? 0)
+                ]);
+            }
         }
     }
 
-    // 3. Program
+    // 3. Program & Invitation Mode
+    $invMode = in_array($_POST['invitation_mode'] ?? 'create', ['create', 'upload'], true) ? $_POST['invitation_mode'] : 'create';
+    $savedInvitationPath = null;
+    if (!empty($_FILES['invitation_file']['name'])) {
+        $invPath = uploadFile($_FILES['invitation_file'], 'invitations', $actId);
+        if ($invPath) {
+            $savedInvitationPath = $invPath;
+        }
+    }
+    try {
+        $colCheckInv = $db->query("SHOW COLUMNS FROM activities LIKE 'invitation_mode'")->fetch();
+        if ($colCheckInv) {
+            $db->prepare("UPDATE activities SET invitation_mode = ?, invitation_path = ? WHERE id = ?")
+               ->execute([$invMode, $savedInvitationPath, $actId]);
+        }
+    } catch (\Throwable $e) {}
+
     if (!empty($_POST['prog_segment'])) {
         $ps = $db->prepare("INSERT INTO program_sequence (activity_id,time_slot,segment,description,person_ic,sort_order) VALUES (?,?,?,?,?,?)");
         foreach ($_POST['prog_segment'] as $i => $seg) {
@@ -549,35 +609,106 @@ $db->beginTransaction();
         }
     }
 
-    // 4. Manpower
+    // 4. Manpower (Person in Charge + Members Under Supervision)
     if (!empty($_POST['mp_role'])) {
-        $mp = $db->prepare("INSERT INTO manpower (activity_id,role,assigned_person,type) VALUES (?,?,?,?)");
+        $hasMpCountCol = false;
+        try {
+            $colCheckMp = $db->query("SHOW COLUMNS FROM manpower LIKE 'member_count'")->fetch();
+            $hasMpCountCol = !empty($colCheckMp);
+        } catch (\Throwable $e) {}
+
+        if ($hasMpCountCol) {
+            $mp = $db->prepare("INSERT INTO manpower (activity_id,role,assigned_person,type,member_count) VALUES (?,?,?,?,?)");
+        } else {
+            $mp = $db->prepare("INSERT INTO manpower (activity_id,role,assigned_person,type) VALUES (?,?,?,?)");
+        }
         foreach ($_POST['mp_role'] as $i => $role) {
             if (!trim($role)) continue;
             $rawMpType = strtolower(trim((string)($_POST['mp_type'][$i] ?? 'faculty')));
             $normMpType = in_array($rawMpType, ['faculty', 'staff', 'student'], true) ? $rawMpType : 'faculty';
             $rawPerson = $_POST['mp_person'][$i] ?? '';
             $person = function_exists('autoCapitalizeText') ? autoCapitalizeText($rawPerson) : $rawPerson;
-            $mp->execute([$actId, sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($role) : $role), sanitize($person), $normMpType]);
+            $memberCount = max(0, (int)($_POST['mp_member_count'][$i] ?? 1));
+            if ($hasMpCountCol) {
+                $mp->execute([$actId, sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($role) : $role), sanitize($person), $normMpType, $memberCount]);
+            } else {
+                $mp->execute([$actId, sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($role) : $role), sanitize($person), $normMpType]);
+            }
         }
     }
 
     // 5. Schedule
     if (!empty($_POST['sched_event'])) {
-        $sc = $db->prepare("INSERT INTO schedules (activity_id,sched_date,event_name,venue,organizer) VALUES (?,?,?,?,?)");
+        $sc = $db->prepare("INSERT INTO schedules (activity_id,sched_date,event_name,schedule_type,venue,organizer) VALUES (?,?,?,?,?,?)");
         foreach ($_POST['sched_event'] as $i => $ev) {
             if (!trim($ev)) continue;
             $rawOrg = $_POST['sched_organizer'][$i] ?? '';
             $org = function_exists('autoCapitalizeText') ? autoCapitalizeText($rawOrg) : $rawOrg;
-            $sc->execute([$actId, $_POST['sched_date'][$i]??null, sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($ev) : $ev),
-                sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($_POST['sched_venue'][$i]??'') : ($_POST['sched_venue'][$i]??'')), sanitize($org)]);
+            $schedType = trim($_POST['sched_type'][$i] ?? 'main_event');
+            if (!in_array($schedType, ['preparation', 'main_event', 'sub_event'], true)) {
+                $schedType = 'main_event';
+            }
+            $sc->execute([
+                $actId,
+                $_POST['sched_date'][$i] ?? null,
+                sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($ev) : $ev),
+                $schedType,
+                sanitize(function_exists('autoCapitalizeText') ? autoCapitalizeText($_POST['sched_venue'][$i] ?? '') : ($_POST['sched_venue'][$i] ?? '')),
+                sanitize($org)
+            ]);
         }
     }
 
-    // 6. Guidelines
-    $gl = $db->prepare("INSERT INTO guidelines (activity_id,mechanics,criteria,scoring_system,special_awards) VALUES (?,?,?,?,?)");
-    $gl->execute([$actId, sanitize($_POST['guidelines_mechanics']??''), sanitize($_POST['guidelines_criteria']??''),
-        sanitize($_POST['guidelines_scoring']??''), sanitize($_POST['guidelines_awards']??'')]);
+    // 6. Guidelines (Combined Judging Criteria & Scoring System, Regular & Special Awards, Attachment Upload)
+    $savedGuidelinesAttach = null;
+    if (!empty($_FILES['guidelines_attachment']['name'])) {
+        $glPath = uploadFile($_FILES['guidelines_attachment'], 'guidelines', $actId);
+        if ($glPath) {
+            $savedGuidelinesAttach = $glPath;
+        }
+    }
+
+    // 6b. Panel 1 Module 2.2: Supporting Documents File Attachment Handler (Letter requests, Safety guidelines, Design layouts, Parental consents)
+    if (!empty($_FILES['supporting_doc_files']['name']) && is_array($_FILES['supporting_doc_files']['name'])) {
+        $supDocStmt = $db->prepare("INSERT INTO documents (activity_id, doc_type, file_name, file_path, uploaded_by) VALUES (?, 'proposal', ?, ?, ?)");
+        foreach ($_FILES['supporting_doc_files']['name'] as $sIdx => $sName) {
+            if (!$sName || ($_FILES['supporting_doc_files']['error'][$sIdx] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) continue;
+            $sFile = [
+                'name'     => $sName,
+                'tmp_name' => $_FILES['supporting_doc_files']['tmp_name'][$sIdx],
+                'size'     => $_FILES['supporting_doc_files']['size'][$sIdx],
+                'error'    => $_FILES['supporting_doc_files']['error'][$sIdx],
+            ];
+            $sPath = uploadFile($sFile, 'supporting', $actId);
+            if ($sPath) {
+                $sCat = sanitize($_POST['supporting_doc_category'][$sIdx] ?? 'Supporting Document');
+                $sLabel = mb_substr("{$sCat} - " . sanitize($sName), 0, 290, 'UTF-8');
+                $supDocStmt->execute([$actId, $sLabel, $sPath, $user['id']]);
+            }
+        }
+    }
+    $hasGlExtraCols = false;
+    try {
+        $colCheckGl = $db->query("SHOW COLUMNS FROM guidelines LIKE 'regular_awards'")->fetch();
+        $hasGlExtraCols = !empty($colCheckGl);
+    } catch (\Throwable $e) {}
+
+    if ($hasGlExtraCols) {
+        $gl = $db->prepare("INSERT INTO guidelines (activity_id,mechanics,criteria,scoring_system,regular_awards,special_awards,attachment_path) VALUES (?,?,?,?,?,?,?)");
+        $gl->execute([
+            $actId,
+            sanitize($_POST['guidelines_mechanics'] ?? ''),
+            sanitize($_POST['guidelines_criteria'] ?? ''),
+            sanitize($_POST['guidelines_scoring'] ?? ''),
+            sanitize($_POST['guidelines_regular_awards'] ?? ''),
+            sanitize($_POST['guidelines_awards'] ?? ''),
+            $savedGuidelinesAttach
+        ]);
+    } else {
+        $gl = $db->prepare("INSERT INTO guidelines (activity_id,mechanics,criteria,scoring_system,special_awards) VALUES (?,?,?,?,?)");
+        $gl->execute([$actId, sanitize($_POST['guidelines_mechanics']??''), sanitize($_POST['guidelines_criteria']??''),
+            sanitize($_POST['guidelines_scoring']??''), sanitize($_POST['guidelines_awards']??'')]);
+    }
 
     // 7. Faculty Tasks
     $taskNotificationsToSend = [];
@@ -590,8 +721,8 @@ $db->beginTransaction();
             INSERT INTO faculty_tasks (
                 activity_id, assigned_user_id, faculty_name, assigned_task,
                 task_title, contribution_desc, task_description, role_in_event,
-                due_date, status, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Not Started', ?)
+                start_date, due_date, status, created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Not Started', ?)
         ");
 
         $facultyLookupStmt = $db->prepare("SELECT id, name FROM users WHERE id = ? AND role IN ('faculty', 'program_head', 'admin1', 'admin2') LIMIT 1");
@@ -638,7 +769,16 @@ $db->beginTransaction();
             $tDesc = sanitize($_POST['ft_contribution'][$i] ?? '');
             $tRole = sanitize($_POST['ft_role'][$i] ?? '');
 
-            // Validate optional due date (YYYY-MM-DD)
+            // Validate optional start date and due date (YYYY-MM-DD)
+            $startDate = null;
+            if (!empty($_POST['ft_start_date'][$i])) {
+                $rawStartDate = trim($_POST['ft_start_date'][$i]);
+                $sObj = DateTime::createFromFormat('Y-m-d', $rawStartDate);
+                if ($sObj && $sObj->format('Y-m-d') === $rawStartDate) {
+                    $startDate = $rawStartDate;
+                }
+            }
+
             $dueDate = null;
             if (!empty($_POST['ft_due_date'][$i])) {
                 $rawDate = trim($_POST['ft_due_date'][$i]);
@@ -657,6 +797,7 @@ $db->beginTransaction();
                 $tDesc,
                 $tDesc,
                 $tRole,
+                $startDate,
                 $dueDate,
                 $user['id'] ?? null
             ]);
@@ -764,12 +905,32 @@ $db->beginTransaction();
     $emailsToSend = [];
     if ($status === 'submitted') {
         $source = $_POST['source'] ?? 'faculty';
-        $isProgramHeadSubmitter = (($user['role'] ?? '') === 'program_head');
-        $nextStatus = ($source === 'student_org' || $isProgramHeadSubmitter) ? 'under_review' : 'submitted';
+        $userRole = $user['role'] ?? 'faculty';
+        $isProgramHeadSubmitter = ($userRole === 'program_head');
+
+        if ($userRole === 'admin2') {
+            // Events Committee Head (admin2) submits own proposal -> routed directly to Dean for final approval
+            $nextStatus = 'pending_final_approval';
+            $notifyRole = 'dean';
+            $statusDisplayName = 'Pending Final Approval';
+        } elseif ($userRole === 'admin1') {
+            // Student Org Head (admin1) submits own proposal -> endorsed, routed to Events Committee Head (admin2)
+            $nextStatus = 'endorsed';
+            $notifyRole = 'admin2';
+            $statusDisplayName = 'Endorsed for Review';
+        } elseif ($source === 'student_org' || $isProgramHeadSubmitter) {
+            $nextStatus = 'submitted';
+            $notifyRole = 'admin1';
+            $statusDisplayName = 'Submitted';
+        } else {
+            $nextStatus = 'submitted';
+            $notifyRole = 'admin2';
+            $statusDisplayName = 'Submitted';
+        }
+
         $db->prepare("UPDATE activities SET status=? WHERE id=?")->execute([$nextStatus, $actId]);
 
-        // Notify appropriate admin: student_org and program_head go to admin1, regular faculty goes straight to admin2
-        $notifyRole = ($source === 'student_org' || $isProgramHeadSubmitter) ? 'admin1' : 'admin2';
+        // Notify appropriate admin / reviewer
         $admins = $db->prepare("SELECT id, email, name FROM users WHERE role=?");
         $admins->execute([$notifyRole]);
         $adminRows = $admins->fetchAll();
@@ -782,7 +943,7 @@ $db->beginTransaction();
                     'email'  => $admin['email'],
                     'name'   => $admin['name'] ?? 'Administrator',
                     'role'   => $notifyRole,
-                    'status' => 'Under Review',
+                    'status' => $statusDisplayName,
                 ];
             }
         }

@@ -60,7 +60,7 @@ $activities = $actStmt->fetchAll(PDO::FETCH_ASSOC);
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Post-Event Results – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.8">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
 </head>
 <body class="theme-dean">
   <?php include __DIR__ . '/../includes/sidebar.php'; ?>

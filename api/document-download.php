@@ -18,7 +18,7 @@ $docId = (int)($_GET['id'] ?? 0);
 $deliverableId = (int)($_GET['deliverable_id'] ?? 0);
 $activityId = (int)($_GET['activity_id'] ?? 0);
 $type = strtolower(trim((string)($_GET['type'] ?? '')));
-$validActivityTypes = ['poster', 'floorplan', 'assessment', 'post_event_assessment', 'survey_csv', 'post_event_csv', 'csv'];
+$validActivityTypes = ['poster', 'floorplan', 'invitation', 'guidelines', 'assessment', 'post_event_assessment', 'survey_csv', 'post_event_csv', 'csv', 'expense_breakdown'];
 
 if ($docId <= 0 && $deliverableId <= 0 && !($activityId > 0 && in_array($type, $validActivityTypes, true))) {
     http_response_code(400);
@@ -127,6 +127,58 @@ if ($deliverableId > 0) {
 
     $storedPath = trim((string)($fp['file_path'] ?? ''));
     $originalName = basename($storedPath);
+} elseif ($activityId > 0 && $type === 'invitation') {
+    // 3d-2. Retrieve uploaded invitation file for activity
+    $stmt = $db->prepare("SELECT id, faculty_id, title, invitation_path FROM activities WHERE id = ? LIMIT 1");
+    $stmt->execute([$activityId]);
+    $act = $stmt->fetch();
+
+    if (!$act || empty($act['invitation_path'])) {
+        http_response_code(404);
+        die('Invitation file not found.');
+    }
+
+    $isAuthorized = canUserAccessActivity($activityId, 'view', $user['id'], $role, $user['dept']);
+    if (!$isAuthorized && in_array($role, ['admin1', 'admin2', 'dean', 'program_head'], true)) {
+        $isAuthorized = true;
+    }
+
+    if (!$isAuthorized) {
+        http_response_code(403);
+        die('Forbidden: You do not have permission to access this invitation file.');
+    }
+
+    $storedPath = trim((string)($act['invitation_path'] ?? ''));
+    $originalName = basename($storedPath);
+} elseif ($activityId > 0 && $type === 'guidelines') {
+    // 3d-3. Retrieve uploaded judging mechanics / guidelines attachment for activity
+    $stmt = $db->prepare("
+        SELECT g.*, a.faculty_id, a.title AS activity_title
+        FROM guidelines g
+        JOIN activities a ON g.activity_id = a.id
+        WHERE g.activity_id = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$activityId]);
+    $gl = $stmt->fetch();
+
+    if (!$gl || empty($gl['attachment_path'])) {
+        http_response_code(404);
+        die('Guidelines attachment not found.');
+    }
+
+    $isAuthorized = canUserAccessActivity($activityId, 'view', $user['id'], $role, $user['dept']);
+    if (!$isAuthorized && in_array($role, ['admin1', 'admin2', 'dean', 'program_head'], true)) {
+        $isAuthorized = true;
+    }
+
+    if (!$isAuthorized) {
+        http_response_code(403);
+        die('Forbidden: You do not have permission to access this guidelines attachment.');
+    }
+
+    $storedPath = trim((string)($gl['attachment_path'] ?? ''));
+    $originalName = basename($storedPath);
 } elseif ($activityId > 0 && in_array($type, ['assessment', 'post_event_assessment'], true)) {
     // 3e. Retrieve post-event assessment report for activity
     $peStmt = $db->prepare("
@@ -201,6 +253,40 @@ if ($deliverableId > 0) {
     if (!str_ends_with(strtolower($originalName), '.csv')) {
         $originalName .= '.csv';
     }
+} elseif ($activityId > 0 && $type === 'expense_breakdown') {
+    // 3g. Retrieve post-event uploaded expense breakdown for activity
+    $peStmt = $db->prepare("
+        SELECT pe.expense_breakdown_path, a.faculty_id, a.title AS activity_title, a.status
+        FROM post_event pe
+        JOIN activities a ON pe.activity_id = a.id
+        WHERE pe.activity_id = ?
+        LIMIT 1
+    ");
+    $peStmt->execute([$activityId]);
+    $pe = $peStmt->fetch();
+
+    if (!$pe || empty($pe['expense_breakdown_path'])) {
+        http_response_code(404);
+        die('Expense breakdown file not found.');
+    }
+
+    $isAuthorized = canUserAccessActivity($activityId, 'view', $user['id'], $role, $user['dept'] ?? '');
+    if (!$isAuthorized && in_array($role, ['admin1', 'admin2', 'dean', 'program_head'], true)) {
+        $isAuthorized = true;
+    }
+    if (!$isAuthorized && $role === 'faculty' && (int)$pe['faculty_id'] === (int)$user['id']) {
+        $isAuthorized = true;
+    }
+
+    if (!$isAuthorized) {
+        http_response_code(403);
+        die('Forbidden: You do not have permission to access this expense breakdown file.');
+    }
+
+    $storedPath = trim((string)$pe['expense_breakdown_path']);
+    $originalName = function_exists('getFriendlyDocumentFilename')
+        ? getFriendlyDocumentFilename($db, $activityId, $storedPath)
+        : basename($storedPath);
 } else {
     // 3b. Retrieve document record and associated activity
     $stmt = $db->prepare("

@@ -73,11 +73,11 @@
       if (typeof window !== 'undefined' && typeof panel.getBoundingClientRect === 'function') {
         const rect = panel.getBoundingClientRect();
         if (rect && typeof rect.right === 'number') {
-          if (rect.right > window.innerWidth - 12) {
-            const shiftLeft = rect.right - (window.innerWidth - 12);
+          if (rect.right > window.innerWidth - 8) {
+            const shiftLeft = rect.right - (window.innerWidth - 8);
             panel.style.transform = 'translateX(-' + Math.ceil(shiftLeft) + 'px)';
-          } else if (rect.left < 12) {
-            const shiftRight = 12 - rect.left;
+          } else if (rect.left < 8) {
+            const shiftRight = 8 - rect.left;
             panel.style.transform = 'translateX(' + Math.ceil(shiftRight) + 'px)';
           }
         }
@@ -143,15 +143,18 @@
       }
     }
 
-    // Toggle Panel
-    bell.addEventListener('click', function (e) {
-      e.stopPropagation();
-      if (panel.classList.contains('open')) {
-        closePanel();
-      } else {
-        openPanel();
-      }
-    });
+    // Toggle Panel (Guards against duplicate listeners when inline script is active)
+    if (!bell.dataset.notifBound) {
+      bell.dataset.notifBound = 'true';
+      bell.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (panel.classList.contains('open')) {
+          closePanel();
+        } else {
+          openPanel();
+        }
+      });
+    }
 
     if (closeBtn) closeBtn.addEventListener('click', closePanel);
     if (backdrop) backdrop.addEventListener('click', closePanel);
@@ -272,11 +275,20 @@
         if (msgEl) msgEl.textContent = this.dataset.message || '';
 
         const viewBtn = document.getElementById('modalViewBtn');
+        const getShortcutTargetUrl = function (activityIdVal) {
+          if (!activityIdVal || activityIdVal === '0') return '';
+          if (currentRole === 'admin1' || currentRole === 'admin2' || currentRole === 'dean') {
+            return baseUrl + '/' + currentRole + '/review.php?id=' + encodeURIComponent(activityIdVal);
+          }
+          return baseUrl + '/' + currentRole + '/view-activity.php?id=' + encodeURIComponent(activityIdVal);
+        };
+        const directShortcutUrl = getShortcutTargetUrl(actId);
+
         if (viewBtn) {
-          if (actId && actId !== '0') {
+          if (directShortcutUrl) {
             viewBtn.style.display = 'inline-block';
             viewBtn.onclick = function () {
-              window.location.href = baseUrl + '/' + currentRole + '/view-activity.php?id=' + encodeURIComponent(actId);
+              window.location.href = directShortcutUrl;
             };
           } else {
             viewBtn.style.display = 'none';
@@ -301,11 +313,17 @@
           fetch(baseUrl + '/api/notifications.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'mark_read', id: activeId })
+            body: JSON.stringify({ action: 'mark_read', id: activeId }),
+            keepalive: true
           }).catch(err => console.error('Error syncing read status:', err));
         }
 
         closePanel();
+        // Panel 2 Revision: Notification serves as a direct shortcut to access the content (auto-marking as 'under_review' on open)
+        if (directShortcutUrl) {
+          window.location.href = directShortcutUrl;
+          return;
+        }
         openModal();
       });
     });

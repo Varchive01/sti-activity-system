@@ -80,7 +80,7 @@ $clrInfo = getActivityClearanceInfo($activity, $totalBudget);
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dean Final Review – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.8">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
 <script>
   (function() {
     try {
@@ -685,12 +685,12 @@ label, input, button, select, textarea {
     <?php renderSectionHeader('event_details', '📋 Event Details', $stagedComments); ?>
       <div class="info-grid" style="margin-bottom:14px;">
         <div class="info-block"><div class="lbl">Event Title</div><div class="val"><?= htmlspecialchars($activity['title']) ?></div></div>
-        <div class="info-block"><div class="lbl">Event Date</div><div class="val"><?= $activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—' ?></div></div>
+        <div class="info-block"><div class="lbl">Event Date(s)</div><div class="val"><?= ($activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—') . (!empty($activity['end_date']) && $activity['end_date'] !== $activity['event_date'] ? ' to ' . date('F j, Y', strtotime($activity['end_date'])) : '') ?></div></div>
         <div class="info-block"><div class="lbl">Time</div><div class="val"><?= $activity['start_time'] ? date('g:i A', strtotime($activity['start_time'])) : '—' ?> – <?= $activity['end_time'] ? date('g:i A', strtotime($activity['end_time'])) : '—' ?></div></div>
         <div class="info-block"><div class="lbl">Venue</div><div class="val"><?= htmlspecialchars($activity['venue'] ?? '—') ?></div></div>
         <div class="info-block"><div class="lbl">Venue Address</div><div class="val"><?= htmlspecialchars($activity['venue_address'] ?? '—') ?></div></div>
         <div class="info-block"><div class="lbl">Target Participants</div><div class="val"><?= number_format($activity['target_participants']) ?></div></div>
-        <div class="info-block"><div class="lbl">Source</div><div class="val"><?= ucfirst(str_replace('_',' ',$activity['source'])) ?></div></div>
+        <div class="info-block"><div class="lbl">Headed by</div><div class="val"><?= ucfirst(str_replace('_',' ',$activity['source'])) ?></div></div>
         <div class="info-block"><div class="lbl">Theme</div><div class="val"><?= htmlspecialchars($activity['theme'] ?? '—') ?></div></div>
       </div>
           <?php if (!empty($activity['poster_path'])): ?>
@@ -851,14 +851,19 @@ label, input, button, select, textarea {
 
     <?php renderSectionHeader('people', '👥 People & Manpower', $stagedComments); ?>
       <?php if (!empty($mp)): ?>
-        <table style="width:100%;"><thead><tr><th>Role</th><th>Assigned Person</th><th>Type</th></tr></thead>
+        <table style="width:100%;"><thead><tr><th>Role</th><th>Person in Charge</th><th>Type</th><th style="text-align:center;">Members Supervised</th></tr></thead>
         <tbody><?php foreach ($mp as $m): ?>
-          <tr><td><?= htmlspecialchars($m['role']) ?></td><td><?= htmlspecialchars($m['assigned_person']??'—') ?></td><td><span class="badge badge-secondary"><?= ucfirst($m['type']) ?></span></td></tr>
+          <tr><td><?= htmlspecialchars($m['role']) ?></td><td><?= htmlspecialchars($m['assigned_person']??'—') ?></td><td><span class="badge badge-secondary"><?= ucfirst($m['type']) ?></span></td><td style="text-align:center; font-weight:600;"><?= (int)($m['member_count'] ?? 1) ?></td></tr>
         <?php endforeach; ?></tbody></table>
       <?php else: ?><p class="text-muted">No manpower assigned.</p><?php endif; ?>
     <?php renderSectionClose('people', $stagedComments, $id); ?>
 
-    <?php renderSectionHeader('schedule', '📅 Schedule', $stagedComments); ?>
+    <?php renderSectionHeader('schedule', '📅 Schedule & Program Invitation', $stagedComments); ?>
+      <?php if (!empty($activity['invitation_path'])): ?>
+        <div style="margin-bottom:12px;">
+          <a href="<?= BASE_URL ?>/api/document-download.php?activity_id=<?= (int)$id ?>&type=invitation" target="_blank" class="btn btn-outline btn-sm">📎 View Uploaded Event Invitation</a>
+        </div>
+      <?php endif; ?>
       <?php if (!empty($scheds)): ?>
         <table style="width:100%;"><thead><tr><th>Date</th><th>Event</th><th>Venue</th><th>Organizer</th></tr></thead>
         <tbody><?php foreach ($scheds as $s): ?>
@@ -874,11 +879,19 @@ label, input, button, select, textarea {
       <?php endif; ?>
     <?php renderSectionClose('schedule', $stagedComments, $id); ?>
 
-    <?php renderSectionHeader('guidelines', '📎 Guidelines', $stagedComments); ?>
+    <?php renderSectionHeader('guidelines', '📎 Guidelines, Judging Criteria & Awards', $stagedComments); ?>
       <?php if ($guide): ?>
+        <?php if (!empty($guide['attachment_path'])): ?>
+          <div style="margin-bottom:12px;">
+            <a href="<?= BASE_URL ?>/api/document-download.php?activity_id=<?= (int)$id ?>&type=guidelines" target="_blank" class="btn btn-outline btn-sm">📎 View Uploaded Judging Mechanics / Scoring Attachment</a>
+          </div>
+        <?php endif; ?>
         <div class="sl">Mechanics / Guidelines</div><p><?= nl2br(htmlspecialchars($guide['mechanics']??'—')) ?></p>
         <div class="sl" style="margin-top:12px;">Criteria for Judging</div><p><?= nl2br(htmlspecialchars($guide['criteria']??'—')) ?></p>
         <div class="sl" style="margin-top:12px;">Scoring System</div><p><?= nl2br(htmlspecialchars($guide['scoring_system']??'—')) ?></p>
+        <?php if (!empty($guide['regular_awards'])): ?>
+          <div class="sl" style="margin-top:12px;">Regular Awards</div><p><?= nl2br(htmlspecialchars($guide['regular_awards'])) ?></p>
+        <?php endif; ?>
         <div class="sl" style="margin-top:12px;">Special Awards</div><p><?= nl2br(htmlspecialchars($guide['special_awards']??'—')) ?></p>
       <?php else: ?><p class="text-muted">No guidelines entered.</p><?php endif; ?>
     <?php renderSectionClose('guidelines', $stagedComments, $id); ?>

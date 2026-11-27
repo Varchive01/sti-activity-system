@@ -520,7 +520,7 @@ if ($activityId > 0) {
       } catch (e) {}
     })();
   </script>
-      <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+      <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
       <style>
         /* ── Typography Standardization: Strict Plus Jakarta Sans ── */
         body, body *,
@@ -1634,7 +1634,7 @@ $years = [2026];
     })();
   </script>
 <title>Generate Report – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
 <!-- jsPDF & autoTable CDN for Client-Side PDF Export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>

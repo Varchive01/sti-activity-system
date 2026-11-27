@@ -25,7 +25,7 @@ if (!canUserAccessActivity($id, 'view', $user['id'], $user['role'], $user['dept'
 $hasCollab = hasCollaboratorsTable($db);
 $collaborators = $hasCollab ? getProposalCollaborators($id, $db) : [];
 $contributionLogs = $hasCollab ? getProposalContributionLogs($id, 25, $db) : [];
-$canEditProposal = in_array($activity['status'], ['draft', 'returned_for_revision']) && canUserAccessActivity($id, 'modify', $user['id'], $user['role'], $user['dept']);
+$canEditProposal = in_array($activity['status'], ['draft', 'submitted', 'returned_for_revision']) && canUserAccessActivity($id, 'modify', $user['id'], $user['role'], $user['dept']);
 
 $mats = $db->prepare("SELECT * FROM materials WHERE activity_id=?");
 $mats->execute([$id]);
@@ -119,8 +119,15 @@ $proposalPdfData = [
     ];
   }, $manpower),
   'schedules' => array_map(function ($s) {
+    $sType = $s['schedule_type'] ?? 'main_event';
+    $catLabel = match($sType) {
+      'preparation' => 'Preparation',
+      'sub_event'   => 'Sub-Event',
+      default       => 'Main Event'
+    };
     return [
       $s['sched_date'] ?? '',
+      $catLabel,
       $s['event_name'] ?? '',
       $s['venue'] ?? '—',
       $s['organizer'] ?? '—'
@@ -141,12 +148,15 @@ $proposalPdfData = [
     'Special Awards' => $guidelines['special_awards'] ?? ''
   ]),
   'tasks' => array_map(function ($f) {
+    $tStart = !empty($f['start_date']) ? date('M j, Y', strtotime($f['start_date'])) : '';
+    $tDue = !empty($f['due_date']) ? date('M j, Y', strtotime($f['due_date'])) : '—';
+    $tDuration = ($tStart && $tStart !== $tDue) ? "{$tStart} – {$tDue}" : $tDue;
     return [
       $f['task_title'] ?: ($f['assigned_task'] ?: 'Untitled Task'),
       $f['committee'] ?: '—',
       $f['assigned_user_name'] ?: ($f['faculty_name'] ?: '—'),
       $f['role_in_event'] ?: '—',
-      !empty($f['due_date']) ? date('M j, Y', strtotime($f['due_date'])) : '—',
+      $tDuration,
       $f['status'] ?? 'Not Started'
     ];
   }, $ftasks),
@@ -175,7 +185,7 @@ $proposalPdfData = [
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>View Proposal – STI</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=<?= @filemtime(__DIR__ . '/../assets/css/main.css') ?: time() ?>">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0"/../assets/css/main.css') ?: time() ?>">
   <!-- jsPDF & autoTable CDN for Client-Side PDF Export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -654,7 +664,7 @@ $proposalPdfData = [
   <!-- Topbar -->
   <header class="topbar">
     <div class="page-title">View Proposal</div>
-    <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+    <div class="topbar-right">
       <?php
       $roleBackMap = [
           'admin1'       => '/admin1/activities.php',
@@ -721,16 +731,21 @@ $proposalPdfData = [
         </div>
         <div class="card-body">
           <div class="info-grid">
-            <?php foreach (
-              [
-                'Date' => $activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—',
-                'Time' => ($activity['start_time'] ?? '—') . ' – ' . ($activity['end_time'] ?? '—'),
-                'Venue' => $activity['venue'] ?? '—',
-                'Theme' => $activity['theme'] ?? '—',
-                'Source' => ucfirst(str_replace('_', ' ', $activity['source'])),
-                'Target' => number_format($activity['target_participants']) . ' participants',
-              ] as $label => $val
-            ): ?>
+            <?php 
+              $dateDisplay = $activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—';
+              if (!empty($activity['end_date']) && $activity['end_date'] !== $activity['event_date']) {
+                $dateDisplay .= ' to ' . date('F j, Y', strtotime($activity['end_date']));
+              }
+              foreach (
+                [
+                  'Date' => $dateDisplay,
+                  'Time' => ($activity['start_time'] ?? '—') . ' – ' . ($activity['end_time'] ?? '—'),
+                  'Venue' => $activity['venue'] ?? '—',
+                  'Theme' => $activity['theme'] ?? '—',
+                  'Headed by' => ucfirst(str_replace('_', ' ', $activity['source'])),
+                  'Target' => number_format($activity['target_participants']) . ' participants',
+                ] as $label => $val
+              ): ?>
               <div class="info-tile">
                 <div class="lbl"><?= $label ?></div>
                 <div class="val"><?= htmlspecialchars($val) ?></div>
@@ -944,8 +959,9 @@ $proposalPdfData = [
                 <thead>
                   <tr>
                     <th>Role</th>
-                    <th>Assigned Person</th>
+                    <th>Person in Charge</th>
                     <th>Type</th>
+                    <th style="text-align:center;">Members Supervised</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -954,6 +970,7 @@ $proposalPdfData = [
                       <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($m['role']) ?></td>
                       <td><?= htmlspecialchars($m['assigned_person'] ?? '—') ?></td>
                       <td><span class="badge badge-secondary"><?= ucfirst($m['type']) ?></span></td>
+                      <td style="text-align:center; font-weight:600;"><?= (int)($m['member_count'] ?? 1) ?></td>
                     </tr>
                   <?php endforeach; ?>
                 </tbody>
@@ -963,13 +980,25 @@ $proposalPdfData = [
         </div>
       <?php endif; ?>
 
-      <!-- Schedule & Program Flow -->
-      <?php if (!empty($schedules) || !empty($program)): ?>
+      <!-- Schedule & Program / Invitation -->
+      <?php if (!empty($schedules) || !empty($program) || !empty($activity['invitation_path'])): ?>
         <div class="card">
           <div class="card-header">
-            <h2>Schedule & Program</h2>
+            <h2>Schedule &amp; Program Invitation</h2>
+            <?php if (!empty($activity['invitation_mode'])): ?>
+              <span class="badge badge-secondary"><?= ($activity['invitation_mode'] === 'upload') ? '📤 Uploaded Invitation' : '✍️ Created Invitation' ?></span>
+            <?php endif; ?>
           </div>
           <div class="card-body" style="padding:0;">
+            <?php if (!empty($activity['invitation_path'])): ?>
+              <div style="padding:14px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div>
+                  <strong style="font-size:0.88rem; color:var(--text-main);">✉️ Official Event Invitation File</strong>
+                  <div style="font-size:0.78rem; color:var(--text-muted);"><?= htmlspecialchars(basename($activity['invitation_path'])) ?></div>
+                </div>
+                <a href="<?= BASE_URL ?>/api/document-download.php?activity_id=<?= (int)$activity['id'] ?>&type=invitation" target="_blank" class="btn btn-outline btn-sm">📎 View / Download Invitation</a>
+              </div>
+            <?php endif; ?>
             <?php if (!empty($schedules)): ?>
               <div class="sub-section-title">Schedule of Activities</div>
               <div class="table-wrap">
@@ -977,6 +1006,7 @@ $proposalPdfData = [
                   <thead>
                     <tr>
                       <th>Date</th>
+                      <th>Category</th>
                       <th>Event</th>
                       <th>Venue</th>
                       <th>Organizer</th>
@@ -984,8 +1014,17 @@ $proposalPdfData = [
                   </thead>
                   <tbody>
                     <?php foreach ($schedules as $s): ?>
+                      <?php
+                        $sType = $s['schedule_type'] ?? 'main_event';
+                        $sTypeBadge = match($sType) {
+                          'preparation' => '<span class="badge" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; font-size:0.75rem; padding:3px 8px; border-radius:999px; font-weight:600;"><span style="color:#f59e0b; margin-right:4px;">●</span>Prep</span>',
+                          'sub_event'   => '<span class="badge" style="background:#f5f3ff; color:#5b21b6; border:1px solid #ddd6fe; font-size:0.75rem; padding:3px 8px; border-radius:999px; font-weight:600;"><span style="color:#8b5cf6; margin-right:4px;">●</span>Sub-Event</span>',
+                          default       => '<span class="badge" style="background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; font-size:0.75rem; padding:3px 8px; border-radius:999px; font-weight:600;"><span style="color:#2563eb; margin-right:4px;">●</span>Main Event</span>',
+                        };
+                      ?>
                       <tr>
                         <td><span class="time-badge"><?= htmlspecialchars($s['sched_date']) ?></span></td>
+                        <td><?= $sTypeBadge ?></td>
                         <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($s['event_name']) ?></td>
                         <td><?= htmlspecialchars($s['venue'] ?? '—') ?></td>
                         <td><?= htmlspecialchars($s['organizer'] ?? '—') ?></td>
@@ -1029,16 +1068,20 @@ $proposalPdfData = [
       <?php if ($guidelines): ?>
         <div class="card">
           <div class="card-header">
-            <h2>Guidelines</h2>
+            <h2>Guidelines, Judging Criteria &amp; Awards</h2>
+            <?php if (!empty($guidelines['attachment_path'])): ?>
+              <a href="<?= BASE_URL ?>/api/document-download.php?activity_id=<?= (int)$activity['id'] ?>&type=guidelines" target="_blank" class="btn btn-outline btn-sm">📎 View Mechanics / Scoring Attachment</a>
+            <?php endif; ?>
           </div>
           <div class="card-body">
             <div class="info-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
               <?php foreach (
                 [
-                  'Mechanics' => $guidelines['mechanics'],
-                  'Criteria for Judging' => $guidelines['criteria'],
-                  'Scoring System' => $guidelines['scoring_system'],
-                  'Special Awards' => $guidelines['special_awards']
+                  'Mechanics / Guidelines' => $guidelines['mechanics'] ?? '',
+                  'Criteria for Judging (List)' => $guidelines['criteria'] ?? '',
+                  'Scoring System' => $guidelines['scoring_system'] ?? '',
+                  'Regular Awards' => $guidelines['regular_awards'] ?? '',
+                  'Special Awards' => $guidelines['special_awards'] ?? ''
                 ] as $l => $v
               ): if (!$v) continue; ?>
                 <div class="obj-block" style="margin-bottom:0;">
@@ -1071,10 +1114,10 @@ $proposalPdfData = [
                 <thead>
                   <tr>
                     <th style="width: 25%;">Task & Description</th>
-                    <th style="width: 17%;">Committee</th>
-                    <th style="width: 18%;">Assigned Member</th>
-                    <th style="width: 16%;">Role</th>
-                    <th style="width: 12%;">Target Date</th>
+                    <th style="width: 16%;">Committee</th>
+                    <th style="width: 17%;">Assigned Member</th>
+                    <th style="width: 14%;">Role</th>
+                    <th style="width: 16%;">Duration / Due Date</th>
                     <th style="width: 12%;">Status</th>
                   </tr>
                 </thead>
@@ -1085,7 +1128,17 @@ $proposalPdfData = [
                     $tCommittee = $f['committee'] ?: '—';
                     $tPerson = $f['assigned_user_name'] ?: $f['faculty_name'] ?: '—';
                     $tRole = $f['role_in_event'] ?: '—';
+                    $tStart = !empty($f['start_date']) ? date('M j, Y', strtotime($f['start_date'])) : '';
                     $tDue = !empty($f['due_date']) ? date('M j, Y', strtotime($f['due_date'])) : '—';
+                    if ($tStart && $tDue !== '—' && $tStart !== $tDue) {
+                      $tDateBadge = '<span class="time-badge">📅 ' . htmlspecialchars($tStart) . ' – ' . htmlspecialchars($tDue) . '</span>';
+                    } elseif ($tDue !== '—') {
+                      $tDateBadge = '<span class="time-badge">📅 ' . htmlspecialchars($tDue) . '</span>';
+                    } elseif ($tStart) {
+                      $tDateBadge = '<span class="time-badge">📅 ' . htmlspecialchars($tStart) . '</span>';
+                    } else {
+                      $tDateBadge = '—';
+                    }
                     $tStatus = in_array($f['status'], ['Not Started', 'In Progress', 'Completed', 'Delayed']) ? $f['status'] : 'Not Started';
                   ?>
                     <tr>
@@ -1098,7 +1151,7 @@ $proposalPdfData = [
                       <td><?= $tCommittee !== '—' ? '<span class="badge badge-secondary">' . htmlspecialchars($tCommittee) . '</span>' : '—' ?></td>
                       <td><strong><?= htmlspecialchars($tPerson) ?></strong></td>
                       <td><?= htmlspecialchars($tRole) ?></td>
-                      <td><?= $tDue !== '—' ? '<span class="time-badge">📅 ' . htmlspecialchars($tDue) . '</span>' : '—' ?></td>
+                      <td><?= $tDateBadge ?></td>
                       <td><?= getTaskStatusBadge($tStatus) ?></td>
                     </tr>
                   <?php endforeach; ?>
@@ -1183,12 +1236,9 @@ $proposalPdfData = [
       <?php if (!empty($activity['evaluation_questions'])): ?>
         <div class="card">
           <div class="card-header">
-            <h2>📋 AI-Generated Evaluation Tool</h2>
+            <h2>📋 Evaluation Tool Questions</h2>
           </div>
           <div class="card-body">
-            <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; line-height: 1.4;">
-              These evaluation questions are automatically generated based on the activity objectives and KPIs. Reviewers can scan them below.
-            </div>
             <?= renderAiEvaluationQuestions($activity['evaluation_questions']) ?>
           </div>
         </div>
@@ -1229,6 +1279,138 @@ $proposalPdfData = [
           </div>
         </div>
       <?php endif; ?>
+
+      <!-- Institutional Signatories & Approval Endorsements (Revision 1) -->
+      <div class="card" id="institutional-signatories-card">
+        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <h2>✍️ Institutional Signatories &amp; Endorsements</h2>
+          <span class="badge badge-info" style="background:#e0f2fe; color:#0369a1; font-weight:700;">Official Signatory Block</span>
+        </div>
+        <div class="card-body">
+          <p style="font-size:0.83rem; color:var(--text-muted); margin-top:0; margin-bottom:16px;">
+            In compliance with institutional activity governance standards, all proponents, authors, review committee heads, and approving academic deans sign and endorse this digital proposal.
+          </p>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
+            <!-- Box 1: Proponents & Authors -->
+            <div style="border:1.5px solid #cbd5e1; border-radius:8px; padding:16px; background:var(--bg-base, #f8fafc); display:flex; flex-direction:column; justify-content:space-between;">
+              <div>
+                <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:var(--text-muted); margin-bottom:8px;">1. Project Proponents &amp; Authors</div>
+                <div style="font-weight:700; font-size:1rem; color:var(--text-main); margin-bottom:2px;">
+                  <?= htmlspecialchars($activity['faculty_name'] ?? 'Faculty Proponent') ?>
+                </div>
+                <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">
+                  Lead Proponent / Event Organizer
+                </div>
+                <?php 
+                  $activeCoAuthors = array_filter($collaborators ?? [], fn($c) => ($c['role'] ?? '') === 'co_author');
+                  if (!empty($activeCoAuthors)): 
+                ?>
+                  <div style="font-size:0.78rem; font-weight:600; color:var(--text-muted); margin-top:8px; margin-bottom:4px;">Contributing Authors:</div>
+                  <ul style="margin:0; padding-left:18px; font-size:0.8rem; color:var(--text-main);">
+                    <?php foreach ($activeCoAuthors as $ca): ?>
+                      <li><?= htmlspecialchars($ca['name']) ?> <span style="color:var(--text-muted);">(<?= htmlspecialchars($ca['department'] ?? 'Faculty') ?>)</span></li>
+                    <?php endforeach; ?>
+                  </ul>
+                <?php endif; ?>
+              </div>
+              <div style="margin-top:16px; padding-top:10px; border-top:1px dashed #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:0.75rem; color:#15803d; font-weight:700;">✓ Digitally Signed &amp; Submitted</span>
+                <span style="font-size:0.72rem; color:var(--text-muted);"><?= !empty($activity['created_at']) ? date('M j, Y', strtotime($activity['created_at'])) : '—' ?></span>
+              </div>
+            </div>
+
+            <!-- Box 2: Review Endorsement -->
+            <div style="border:1.5px solid #cbd5e1; border-radius:8px; padding:16px; background:var(--bg-base, #f8fafc); display:flex; flex-direction:column; justify-content:space-between;">
+              <div>
+                <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:var(--text-muted); margin-bottom:8px;">2. Committee Review &amp; Endorsement</div>
+                <?php
+                  $reviewerLog = null;
+                  if (!empty($history)) {
+                    foreach ($history as $h) {
+                      if (in_array(strtolower($h['action']), ['reviewed', 'endorsed', 'verified', 'approved_stage1', 'approved_stage2'])) {
+                        $reviewerLog = $h;
+                        break;
+                      }
+                    }
+                  }
+                ?>
+                <?php if ($reviewerLog): ?>
+                  <div style="font-weight:700; font-size:1rem; color:var(--text-main); margin-bottom:2px;">
+                    <?= htmlspecialchars($reviewerLog['name']) ?>
+                  </div>
+                  <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">
+                    Reviewing Committee / Organization Head
+                  </div>
+                  <div style="font-size:0.78rem; color:var(--text-muted); font-style:italic;">
+                    "<?= htmlspecialchars($reviewerLog['notes'] ?? 'Endorsed for institutional activity execution.') ?>"
+                  </div>
+                <?php else: ?>
+                  <div style="font-weight:600; font-size:0.95rem; color:var(--text-muted); margin-bottom:2px;">
+                    Student Org Head / Events Committee
+                  </div>
+                  <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">
+                    Committee Verification in Progress
+                  </div>
+                <?php endif; ?>
+              </div>
+              <div style="margin-top:16px; padding-top:10px; border-top:1px dashed #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
+                <?php if ($reviewerLog): ?>
+                  <span style="font-size:0.75rem; color:#15803d; font-weight:700;">✓ Reviewed &amp; Endorsed</span>
+                  <span style="font-size:0.72rem; color:var(--text-muted);"><?= date('M j, Y', strtotime($reviewerLog['acted_at'])) ?></span>
+                <?php else: ?>
+                  <span style="font-size:0.75rem; color:#b45309; font-weight:700;">⏳ In Review Queue</span>
+                  <span style="font-size:0.72rem; color:var(--text-muted);">Pending Review</span>
+                <?php endif; ?>
+              </div>
+            </div>
+
+            <!-- Box 3: Final Institutional Approval -->
+            <div style="border:1.5px solid #cbd5e1; border-radius:8px; padding:16px; background:var(--bg-base, #f8fafc); display:flex; flex-direction:column; justify-content:space-between;">
+              <div>
+                <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:var(--text-muted); margin-bottom:8px;">3. Final Institutional Approval</div>
+                <?php
+                  $deanLog = null;
+                  if (!empty($history)) {
+                    foreach ($history as $h) {
+                      if (strtolower($h['action']) === 'approved' || strtolower($activity['status'] ?? '') === 'approved') {
+                        $deanLog = $h;
+                        break;
+                      }
+                    }
+                  }
+                ?>
+                <?php if ($deanLog || strtolower($activity['status'] ?? '') === 'approved'): ?>
+                  <div style="font-weight:700; font-size:1rem; color:var(--text-main); margin-bottom:2px;">
+                    <?= htmlspecialchars($deanLog['name'] ?? 'Academic Head / Dean') ?>
+                  </div>
+                  <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">
+                    Academic Head / Institutional Dean
+                  </div>
+                  <div style="font-size:0.78rem; color:#15803d; font-weight:600;">
+                    Official Institutional Activity Approval Confirmed
+                  </div>
+                <?php else: ?>
+                  <div style="font-weight:600; font-size:0.95rem; color:var(--text-muted); margin-bottom:2px;">
+                    Office of the Academic Head / Dean
+                  </div>
+                  <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">
+                    Final Executive Signatory
+                  </div>
+                <?php endif; ?>
+              </div>
+              <div style="margin-top:16px; padding-top:10px; border-top:1px dashed #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
+                <?php if ($deanLog || strtolower($activity['status'] ?? '') === 'approved'): ?>
+                  <span style="font-size:0.75rem; color:#15803d; font-weight:700;">✓ Formally Approved</span>
+                  <span style="font-size:0.72rem; color:var(--text-muted);"><?= $deanLog ? date('M j, Y', strtotime($deanLog['acted_at'])) : 'Approved' ?></span>
+                <?php else: ?>
+                  <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Pending Final Approval</span>
+                  <span style="font-size:0.72rem; color:var(--text-muted);">Queue Status</span>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
     <!-- Proposal Collaborators & Contribution History (Task 14) -->
     <div class="card">
@@ -1487,7 +1669,7 @@ $proposalPdfData = [
             content: PROPOSAL_PDF_DATA.time || '—'
           },
           {
-            content: 'Source:',
+            content: 'Headed by:',
             styles: {
               fontStyle: 'bold',
               textColor: [71, 85, 105]
@@ -1589,7 +1771,7 @@ $proposalPdfData = [
             right: marginX
           },
           head: [
-            ['Date', 'Event Name', 'Venue', 'Organizer']
+            ['Date', 'Category', 'Event Name', 'Venue', 'Organizer']
           ],
           body: PROPOSAL_PDF_DATA.schedules,
           theme: 'grid',
@@ -1681,7 +1863,7 @@ $proposalPdfData = [
             right: marginX
           },
           head: [
-            ['Task Title', 'Committee', 'Assigned Member', 'Role in Event', 'Target Date', 'Status']
+            ['Task Title', 'Committee', 'Assigned Member', 'Role in Event', 'Duration / Due Date', 'Status']
           ],
           body: PROPOSAL_PDF_DATA.tasks,
           theme: 'grid',

@@ -101,7 +101,7 @@ $complianceStatusBadgeClass = match($complianceResult['overall_status'] ?? '') {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>View Activity – STI Activity System</title>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.0.7">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
 <script>
   (function() {
     try {
@@ -476,6 +476,7 @@ body, body *, h1, h2, h3, h4, h5, h6, .page-title, .card-header h2, .card-header
     <?php endif; ?>
 
     <!-- Post-Event -->
+    <?php include __DIR__ . '/../includes/phase3-post-event-details.php'; ?>
     <?php if ($postEvent || !empty($documents)): ?>
     <div class="section-title">📊 Post-Event Results & Documentation</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">

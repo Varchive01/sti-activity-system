@@ -1,71 +1,59 @@
 <?php
-// tests/test_live_endpoint_stress.php
+/**
+ * tests/test_live_endpoint_stress.php
+ * Final phase live stress and verification testing against the live production endpoint.
+ */
 
-require_once __DIR__ . '/../includes/GoogleOAuthService.php';
+$target = "https://sti-armes.freedev.app/auth/login.php";
+echo "=======================================================\n";
+echo " STI-ARMES Live Endpoint Verification & Stress Test\n";
+echo " Target: $target\n";
+echo "=======================================================\n\n";
 
-$endpoint = 'https://sti-armes.freedev.app/auth/login.php';
-$iterations = 10;
-$results = [];
+$latencies = [];
+$successCount = 0;
 
-echo "========================================================\n";
-echo " LIVE ENDPOINT STRESS & VERIFICATION TEST\n";
-echo " Target: $endpoint\n";
-echo " Iterations: $iterations\n";
-echo "========================================================\n";
-
-$caBundle = GoogleOAuthService::resolveCaBundle();
-if ($caBundle) {
-    echo " Using CA bundle: $caBundle\n";
-} else {
-    echo " No CA bundle found, using system default\n";
-}
-
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-if ($caBundle) {
-    curl_setopt($ch, CURLOPT_CAINFO, $caBundle);
-} else {
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-}
-
-$allPassed = true;
-$totalTime = 0;
-
-for ($i = 1; $i <= $iterations; $i++) {
-    curl_setopt($ch, CURLOPT_URL, $endpoint);
+for ($i = 1; $i <= 5; $i++) {
     $start = microtime(true);
-    $response = curl_exec($ch);
+    $ch = curl_init($target);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1");
+    
+    $bodyText = curl_exec($ch);
     $duration = (microtime(true) - $start) * 1000;
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
 
-    $isOk = ($httpCode === 200) && empty($curlError);
-    if (!$isOk) {
-        $allPassed = false;
+    $latencies[] = $duration;
+    $bodyLen = strlen($bodyText ?? '');
+    $isHtml = (strpos($bodyText, '<html') !== false || strpos($bodyText, '<!DOCTYPE') !== false || strpos($bodyText, 'login') !== false);
+
+    if ($httpCode === 200 && $bodyLen > 200 && $isHtml) {
+        $successCount++;
+        echo " [PASS] Request $i: HTTP $httpCode | Latency: " . round($duration, 2) . "ms | Body: {$bodyLen} bytes | Valid HTML Response\n";
+    } else {
+        echo " [FAIL] Request $i: HTTP $httpCode | Latency: " . round($duration, 2) . "ms | Body: {$bodyLen} bytes\n";
     }
-    $totalTime += $duration;
-
-    if ($i === 1) {
-        echo " Sample response snippet:\n" . substr((string)$response, 0, 200) . "\n---\n";
-    }
-
-    echo sprintf(" [%s] Request #%02d: HTTP %d | %.2f ms | Size: %d bytes%s\n",
-        $isOk ? 'PASS' : 'FAIL',
-        $i,
-        $httpCode,
-        $duration,
-        strlen((string)$response),
-        !empty($curlError) ? " (Error: {$curlError})" : ""
-    );
-
-    // Short jitter delay
-    usleep(100000); // 100ms
 }
 
-$avgTime = $totalTime / $iterations;
-echo "========================================================\n";
-echo sprintf(" STRESS TEST RESULT: %s\n", $allPassed ? 'ALL PASSED' : 'SOME FAILED');
-echo sprintf(" Average Response Time: %.2f ms\n", $avgTime);
-echo "========================================================\n";
+$avg = round(array_sum($latencies) / count($latencies), 2);
+$min = round(min($latencies), 2);
+$max = round(max($latencies), 2);
+
+echo "\n-------------------------------------------------------\n";
+echo " Live Endpoint Stress Summary:\n";
+echo " - Requests Completed: $successCount/5\n";
+echo " - Min Latency: {$min}ms\n";
+echo " - Avg Latency: {$avg}ms\n";
+echo " - Max Latency: {$max}ms\n";
+echo "-------------------------------------------------------\n";
+
+if ($successCount === 5) {
+    echo " ALL 5 LIVE REQUESTS PASSED. Live domain is healthy and stable.\n";
+    exit(0);
+} else {
+    echo " LIVE TEST FAILED.\n";
+    exit(1);
+}

@@ -62,6 +62,14 @@ if (!isset($guidelines) && $actId > 0) {
     } catch (\Throwable $e) { $guidelines = []; }
 }
 
+if (!isset($coAuthors) && $actId > 0) {
+    try {
+        $cStmt = $db->prepare("SELECT pc.*, u.name as author_name, u.email as author_email FROM proposal_collaborators pc JOIN users u ON pc.user_id = u.id WHERE pc.activity_id = ? ORDER BY pc.id ASC");
+        $cStmt->execute([$actId]);
+        $coAuthors = $cStmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) { $coAuthors = []; }
+}
+
 if (!isset($kpiData) && !isset($kpis) && $actId > 0) {
     try {
         $kpiStmt = $db->prepare("SELECT criteria, target_metric, evaluation_method, AVG(rating) as avg FROM kpi_evaluations WHERE activity_id=? GROUP BY criteria");
@@ -92,7 +100,11 @@ $printStatus = ($printStatusRaw === 'submitted') ? 'Under Review' : ucfirst(str_
 $printProponent = $activity['faculty_name'] ?? ($activity['fn'] ?? 'Faculty Proponent');
 $printDept = $activity['department'] ?? ($activity['faculty_dept'] ?? 'Academic Department');
 $printSource = ($activity['source'] ?? '') === 'student_org' ? 'Student Organization' : 'Faculty Initiated';
-$printEventDate = !empty($activity['event_date']) ? date('F j, Y', strtotime($activity['event_date'])) : 'TBA';
+$printStartDate = !empty($activity['event_date']) ? date('F j, Y', strtotime($activity['event_date'])) : 'TBA';
+$printEndDate = !empty($activity['end_date']) ? date('F j, Y', strtotime($activity['end_date'])) : $printStartDate;
+$printEventDate = ($printStartDate !== $printEndDate && $printEndDate !== 'TBA') 
+    ? "{$printStartDate} to {$printEndDate}" 
+    : $printStartDate;
 $printStartTime = !empty($activity['start_time']) ? date('h:i A', strtotime($activity['start_time'])) : '';
 $printEndTime   = !empty($activity['end_time'])   ? date('h:i A', strtotime($activity['end_time']))   : '';
 $printTimeStr   = ($printStartTime && $printEndTime) ? "{$printStartTime} – {$printEndTime}" : ($printStartTime ?: 'TBA');
@@ -513,7 +525,7 @@ $exportProposalData = [
     <span class="print-status-badge <?= $badgeCls ?>"><?= htmlspecialchars($printStatus) ?></span>
   </div>
   <div style="font-size:8pt;color:#64748b;margin-bottom:4px;">
-    Submitted by: <strong><?= htmlspecialchars($printProponent) ?></strong> (<?= htmlspecialchars($printDept) ?>) &bull; <?= htmlspecialchars($printSource) ?> &bull; Activity ID: #<?= $actId ?>
+    Submitted by: <strong><?= htmlspecialchars($printProponent) ?></strong> (<?= htmlspecialchars($printDept) ?>) &bull; Headed by: <?= htmlspecialchars($printSource) ?> &bull; Activity ID: #<?= $actId ?>
   </div>
   <div class="print-header-divider"></div>
 
@@ -529,7 +541,7 @@ $exportProposalData = [
   <div class="print-section-heading">1. Activity General Information</div>
   <table class="print-overview-table">
     <tr>
-      <td class="print-ov-label">Event Date:</td>
+      <td class="print-ov-label">Event Date(s):</td>
       <td class="print-ov-val"><?= htmlspecialchars($printEventDate) ?></td>
       <td class="print-ov-label">Lead Proponent:</td>
       <td class="print-ov-val"><?= htmlspecialchars($printProponent) ?></td>
@@ -543,7 +555,7 @@ $exportProposalData = [
     <tr>
       <td class="print-ov-label">Venue / Location:</td>
       <td class="print-ov-val"><?= htmlspecialchars($printVenue) ?></td>
-      <td class="print-ov-label">Proposal Source:</td>
+      <td class="print-ov-label">Headed by:</td>
       <td class="print-ov-val"><?= htmlspecialchars($printSource) ?></td>
     </tr>
     <tr>
@@ -612,6 +624,18 @@ $exportProposalData = [
         <div class="print-block-content"><?= htmlspecialchars($guidelines['scoring_system']) ?></div>
       </div>
     <?php endif; ?>
+    <?php if (!empty($guidelines['regular_awards'])): ?>
+      <div class="print-text-block">
+        <div class="print-block-label">Regular Awards:</div>
+        <div class="print-block-content"><?= htmlspecialchars($guidelines['regular_awards']) ?></div>
+      </div>
+    <?php endif; ?>
+    <?php if (!empty($guidelines['special_awards'])): ?>
+      <div class="print-text-block">
+        <div class="print-block-label">Special Awards:</div>
+        <div class="print-block-content"><?= htmlspecialchars($guidelines['special_awards']) ?></div>
+      </div>
+    <?php endif; ?>
   <?php endif; ?>
 
   <!-- 4. Schedule of Activities -->
@@ -668,9 +692,10 @@ $exportProposalData = [
     <table class="print-data-table">
       <thead>
         <tr>
-          <th style="width:45%;">Committee / Role Assignment</th>
-          <th style="width:35%;">Assigned Member</th>
-          <th style="width:20%;">Member Type</th>
+          <th style="width:38%;">Committee / Role Assignment</th>
+          <th style="width:30%;">Person in Charge</th>
+          <th style="width:16%;">Member Type</th>
+          <th style="width:16%;text-align:center;">Members Supervised</th>
         </tr>
       </thead>
       <tbody>
@@ -679,6 +704,7 @@ $exportProposalData = [
             <td><?= htmlspecialchars($m['role'] ?? ($m['role_name'] ?? 'Committee')) ?></td>
             <td><?= htmlspecialchars($m['assigned_person'] ?? '—') ?></td>
             <td><?= htmlspecialchars(ucfirst($m['type'] ?? 'Member')) ?></td>
+            <td style="text-align:center;"><?= (int)($m['member_count'] ?? 1) ?></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
@@ -794,16 +820,29 @@ $exportProposalData = [
 
   <!-- Official Endorsement Signatures -->
   <div class="print-signatories-wrap">
-    <div class="print-signatories-grid">
-      <div class="print-signatory-cell">
+    <div style="font-weight:700; font-size:8.5pt; text-transform:uppercase; color:#003876; border-bottom:1.5px solid #003876; padding-bottom:3px; margin-bottom:14px;">Signatories &amp; Project Author Endorsements</div>
+    <div class="print-signatories-grid" style="display:flex; flex-wrap:wrap; gap:20px; justify-content:space-between;">
+      <div class="print-signatory-cell" style="flex:1; min-width:140px; text-align:center;">
+        <div style="min-height:30px; margin-bottom:6px;"></div>
         <div class="print-signatory-name"><?= htmlspecialchars($printProponent) ?></div>
-        <div class="print-signatory-role">Prepared by / Proponent</div>
+        <div class="print-signatory-role">Project Author / Lead Proponent</div>
       </div>
-      <div class="print-signatory-cell">
+      <?php if (!empty($coAuthors)): ?>
+        <?php foreach ($coAuthors as $ca): ?>
+          <div class="print-signatory-cell" style="flex:1; min-width:140px; text-align:center;">
+            <div style="min-height:30px; margin-bottom:6px;"></div>
+            <div class="print-signatory-name"><?= htmlspecialchars($ca['author_name'] ?? 'Co-Author') ?></div>
+            <div class="print-signatory-role">Co-Proponent / Project Author</div>
+          </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
+      <div class="print-signatory-cell" style="flex:1; min-width:140px; text-align:center;">
+        <div style="min-height:30px; margin-bottom:6px;"></div>
         <div class="print-signatory-name"><?= htmlspecialchars($printDept) ?> Head</div>
         <div class="print-signatory-role">Endorsed by / Program Head</div>
       </div>
-      <div class="print-signatory-cell">
+      <div class="print-signatory-cell" style="flex:1; min-width:140px; text-align:center;">
+        <div style="min-height:30px; margin-bottom:6px;"></div>
         <div class="print-signatory-name">Academic Head / Dean</div>
         <div class="print-signatory-role">Approved by / Academic Head</div>
       </div>
@@ -947,7 +986,7 @@ $exportProposalData = [
       addHeading('1. Activity Overview');
       const ovRows = [
         [
-          { content: 'Event Date:', styles: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 26 } },
+          { content: 'Event Date(s):', styles: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 26 } },
           { content: data.event_date || '—', styles: { cellWidth: 65 } },
           { content: 'Proponent:', styles: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 26 } },
           { content: data.proponent || '—', styles: { cellWidth: 65 } }
@@ -961,7 +1000,7 @@ $exportProposalData = [
         [
           { content: 'Venue:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
           { content: data.venue || '—' },
-          { content: 'Source:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
+          { content: 'Headed by:', styles: { fontStyle: 'bold', textColor: [71, 85, 105] } },
           { content: data.source || '—' }
         ],
         [

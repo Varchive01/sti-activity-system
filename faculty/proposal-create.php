@@ -3,7 +3,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('faculty', 'program_head');
+requireRole('faculty', 'program_head', 'admin1', 'admin2');
 $user = currentUser();
 $db = getDB();
 $eligibleFacultyList = function_exists('getEligibleFacultyMembers') ? getEligibleFacultyMembers($db) : [];
@@ -12,38 +12,38 @@ $facultyUsers = $facultyUsersStmt ? $facultyUsersStmt->fetchAll(PDO::FETCH_ASSOC
 
 $facultyDepartmentGroups = [
   'THM Department' => [
-    'Mr. Aldwin D. Alminar, LPT',
-    'Ms. Andrea J. Gatbunton, LPT',
-    'Ms. Divine Grace E. Ibarrola, LPT',
-    'Ms. Mary Darlene A. Mariano, LPT',
-    'Ms. Julieta Caridad C. Cruz',
-    'Mr. Exequiel L. Magnipis',
-    'Mr. Frankie Chiu, RN, MBA'
+    'Aldwin D. Alminar',
+    'Andrea J. Gatbonton',
+    'Divine Grace E. Ibarrola',
+    'Mary Darlene A. Mariano',
+    'Julieta Caridad C. Cruz',
+    'Exequiel L. Magnipis',
+    'Frankie Chiu'
   ],
   'Information Technology Department' => [
-    'Mr. Dave Lord M. Rubaya',
-    'Ms. Michelle Carlos, MAEd, LPT',
-    'Mr. Ar-Jay C. Agbayani',
-    'Ms. Emilou G. Magnaye, LPT',
-    'Mr. John Cedrick Agapito',
-    'Mr. Jedekiah Veloso',
-    'Mr. Shintaro Lagare',
-    'Mr. Geo V. De Leon',
-    'Ms. Johainna Kristel T. Montejo',
-    'Mr. Felmar Solbita',
-    'Mr. Michael André Sayson'
+    'Dave Lord M. Rubaya',
+    'Michelle Carlos',
+    'Ar-Jay C. Agbayani',
+    'Emilou G. Magnaye',
+    'John Cedrick Agapito',
+    'Jedekiah Veloso',
+    'Shintaro Lagare',
+    'Geo V. De Leon',
+    'Johanna Kristel T. Montejo',
+    'Felmar Solbita',
+    'Michael André Sayson'
   ],
   'General Education Department' => [
-    'Mr. Tristan S. Unabia',
-    'Mr. Ian Jade C. Barangan, LPT',
-    'Mr. Eulysses Neil Patrick B. Edquilag, LPT',
-    'Mr. Gregg Anthony J. Rana',
-    'Mr. Ricky E. Manliguis, LPT',
-    'Ms. Regina Kate D. Dominguez, LPT',
-    'Mr. Benedicto A. Arnoco, LPT',
-    'Ms. Jennylyn Q. Abarra, MAEd PE, LPT',
-    'Ms. Ruby Ann G. Dasalla, LPT',
-    'Ms. Perine O. Dela Cruz, LPT'
+    'Tristan S. Unabia',
+    'Ian Jade C. Barangan',
+    'Ulysses Neil Patrick B. Edquilang',
+    'Gregg Anthony J. Rana',
+    'Ricky E. Manliguis',
+    'Regina Kate D. Dominguez',
+    'Benedicto A. Arnoco',
+    'Jennilyn Q. Abarra',
+    'Ruby Ann G. Dasalla',
+    'Perine O. Dela Cruz'
   ]
 ];
 
@@ -111,7 +111,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
   <meta name="base-url" content="<?= BASE_URL ?>">
   <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
   <title>New Proposal – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.1.0">
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/teacher-multiselect.css?v=<?= time() ?>">
   <style>
     .wizard-panel {
@@ -682,50 +682,95 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       padding: 6px 12px;
       border-radius: 6px;
     }
-    .target-participants-panel .dynamic-table {
-      background: #ffffff !important;
-      border: 1px solid #e2e8f0 !important;
-      border-radius: 8px !important;
+    .target-participants-scroll-box {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px 8px 0 0;
+      min-height: auto;
+      max-height: none;
       overflow: visible !important;
+      background: #ffffff;
+      position: relative;
     }
-    .target-participants-panel .dynamic-table table {
+    .target-participants-scroll-box::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .target-participants-scroll-box::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    .target-participants-scroll-box::-webkit-scrollbar-track {
+      background: #f8fafc;
+    }
+    .target-participants-scroll-box table {
       width: 100%;
-      border-collapse: collapse;
-      background: #ffffff !important;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: #ffffff;
+      margin: 0;
     }
-    .target-participants-panel .dynamic-table table th {
+    .target-participants-scroll-box table th {
       background: #f8fafc !important;
       color: #475569 !important;
       border-bottom: 1px solid #e2e8f0 !important;
-      font-size: 0.8rem !important;
-      font-weight: 600 !important;
-      padding: 10px 12px !important;
-      text-transform: none !important;
-      letter-spacing: normal !important;
+      font-size: 0.75rem !important;
+      font-weight: 700 !important;
+      padding: 9px 12px !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.5px !important;
+      position: sticky;
+      top: 0;
+      z-index: 5;
     }
-    .target-participants-panel .dynamic-table table td {
-      background: #ffffff !important;
-      border-bottom: 1px solid #f1f5f9 !important;
-      padding: 8px 12px !important;
+    .target-participants-scroll-box table td {
+      background: #ffffff;
+      border-bottom: 1px solid #f1f5f9;
+      padding: 6px 10px;
       vertical-align: middle;
       position: relative;
     }
-    [data-theme="dark"] .target-participants-panel .dynamic-table {
+    .target-participants-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+    [data-theme="dark"] .target-participants-scroll-box {
       background: var(--bg-card, #0F1B2E) !important;
       border-color: var(--border, #1E2D45) !important;
-      overflow: visible !important;
     }
-    [data-theme="dark"] .target-participants-panel .dynamic-table table {
+    [data-theme="dark"] .target-participants-scroll-box::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
+    [data-theme="dark"] .target-participants-scroll-box::-webkit-scrollbar-track {
+      background: #0B1524;
+    }
+    [data-theme="dark"] .target-participants-scroll-box table {
       background: var(--bg-card, #0F1B2E) !important;
     }
-    [data-theme="dark"] .target-participants-panel .dynamic-table table th {
+    [data-theme="dark"] .target-participants-scroll-box table th {
       background: var(--bg-card-elevated, #15243C) !important;
       color: var(--text-secondary, #CBD5E1) !important;
       border-bottom-color: var(--border, #1E2D45) !important;
     }
-    [data-theme="dark"] .target-participants-panel .dynamic-table table td {
+    [data-theme="dark"] .target-participants-scroll-box table td {
       background: var(--bg-card, #0F1B2E) !important;
       border-bottom-color: var(--border, #1E2D45) !important;
+    }
+    [data-theme="dark"] .target-participants-footer {
+      background: var(--bg-card-elevated, #15243C) !important;
+      border-color: var(--border, #1E2D45) !important;
+      color: var(--text-muted, #94A3B8) !important;
+    }
+    [data-theme="dark"] .part-num-badge {
+      background: #1E2D45 !important;
+      color: #94A3B8 !important;
     }
     [data-theme="dark"] .total-participants-badge {
       background: var(--bg-card-elevated, #15243C) !important;
@@ -1020,9 +1065,47 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         height: 20px !important;
       }
     }
-      .topbar-right .btn-sm {
-        padding: 4px 8px;
-        font-size: 0.72rem;
+
+    /* ── Mobile Responsive Refinements ── */
+    @media (max-width: 767.98px) {
+      #target-participants-scroll-box {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+      }
+      #target-participants-scroll-box table {
+        min-width: 620px !important;
+      }
+      .target-participants-panel .card-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+      }
+      .target-participants-controls {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        gap: 8px !important;
+      }
+      .target-participants-controls button,
+      .target-participants-controls .total-participants-badge {
+        width: 100% !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+      }
+      .ai-guidance-toolbar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+      }
+      .ai-guidance-toolbar button {
+        width: 100% !important;
+        justify-content: center !important;
+      }
+      .topbar-right {
+        gap: 6px !important;
+      }
+      .topbar-right #offlineSyncBadge {
+        display: none !important;
       }
     }
 
@@ -1388,10 +1471,10 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
   <?php include __DIR__ . '/../includes/sidebar.php'; ?>
   <div class="main-wrap">
     <header class="topbar">
-      <div class="page-title" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div class="page-title">
         <span>New Activity Proposal</span>
       </div>
-      <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+      <div class="topbar-right">
         <span id="offlineSyncBadge" class="badge" style="font-size:0.75rem;padding:5px 10px;border-radius:12px;background:#10B981;color:#fff;display:inline-flex;align-items:center;gap:5px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.1);"><span class="sync-icon">✓</span> <span class="sync-text">Synchronized</span></span>
         <a href="<?= BASE_URL ?>/faculty/dashboard.php" class="btn btn-outline btn-sm">← Back</a>
         <?php include __DIR__ . '/../includes/notification-topbar-widget.php'; ?>
@@ -1530,16 +1613,13 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           <div class="step-num">5</div>People
         </div>
         <div class="wizard-step locked" data-step="6">
-          <div class="step-num">6</div>Schedule
+          <div class="step-num">6</div>Schedule &amp; Tasks
         </div>
         <div class="wizard-step locked" data-step="7">
           <div class="step-num">7</div>Guidelines
         </div>
         <div class="wizard-step locked" data-step="8">
-          <div class="step-num">8</div>Faculty Tasks
-        </div>
-        <div class="wizard-step locked" data-step="9">
-          <div class="step-num">9</div>Evaluation & KPI
+          <div class="step-num">8</div>Evaluation &amp; KPI
         </div>
       </div>
 
@@ -1579,13 +1659,10 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Source <span class="text-danger">*</span></label>
-                  <select name="source" id="f1_source" class="form-control">
-                    <option value="">Select source...</option>
-                    <option value="student_org">Student Organization</option>
-                    <option value="faculty">Faculty</option>
-                  </select>
-                  <span class="field-error" id="e_source">Please select a source.</span>
+                  <label class="form-label">End Date of Event <span class="text-danger">*</span></label>
+                  <input type="date" name="end_date" id="f1_end_date" class="form-control" min="<?= $tomorrowManila ?>">
+                  <span class="field-error" id="e_end_date">End date is required.</span>
+                  <span class="field-error" id="e_end_date_order">End date cannot be earlier than start date.</span>
                 </div>
 
                 <div class="form-group">
@@ -1602,20 +1679,14 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Theme <span class="text-danger">*</span></label>
-                  <div class="theme-input-wrapper" style="position: relative; width: 100%;">
-                    <input type="text" name="theme" id="f1_theme" class="form-control" placeholder="e.g. Igniting Excellence, Empowering Tomorrow" style="padding-right: 42px;" aria-busy="false">
-                    <div id="themeInputSpinner" style="display: none; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; color: #0284c7; align-items: center; justify-content: center;" aria-hidden="true">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="animation: spin 0.8s linear infinite;">
-                        <circle cx="12" cy="12" r="9" stroke-opacity="0.25"></circle>
-                        <path d="M12 3a9 9 0 0 1 9 9"></path>
-                      </svg>
-                    </div>
-                  </div>
-                  <span class="field-error" id="e_theme">Theme is required.</span>
-
-                  <!-- Automatic AI Theme Status -->
-                  <div id="themeAiStatus" style="margin-top: 6px;"></div>
+                  <label class="form-label">Headed by <span class="text-danger">*</span></label>
+                  <?php $defaultSource = ($user['role'] === 'admin1') ? 'student_org' : (($user['role'] === 'admin2') ? 'faculty' : ''); ?>
+                  <select name="source" id="f1_source" class="form-control">
+                    <option value="">Select who heads the activity...</option>
+                    <option value="student_org" <?= ($defaultSource === 'student_org') ? 'selected' : '' ?>>Student Organization</option>
+                    <option value="faculty" <?= ($defaultSource === 'faculty') ? 'selected' : '' ?>>Faculty</option>
+                  </select>
+                  <span class="field-error" id="e_source">Please select who heads the activity.</span>
                 </div>
 
                 <div class="form-group">
@@ -1638,10 +1709,27 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                 </div>
 
                 <div class="form-group col-span-2">
-                  <label class="form-label">Event Poster <span class="text-danger">*</span></label>
-                  <input type="file" name="poster_file" id="f1_poster_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" required>
-                  <span class="field-error" id="e_poster_file">Event poster is required.</span>
-                  <small style="color: var(--text-muted);">Upload an image poster for this event (JPG, PNG, WEBP, GIF). Videos are not allowed.</small>
+                  <label class="form-label">Theme <span class="text-danger">*</span></label>
+                  <div class="theme-input-wrapper" style="position: relative; width: 100%;">
+                    <input type="text" name="theme" id="f1_theme" class="form-control" placeholder="e.g. Igniting Excellence, Empowering Tomorrow" style="padding-right: 42px;" aria-busy="false">
+                    <div id="themeInputSpinner" style="display: none; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; color: #0284c7; align-items: center; justify-content: center;" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="animation: spin 0.8s linear infinite;">
+                        <circle cx="12" cy="12" r="9" stroke-opacity="0.25"></circle>
+                        <path d="M12 3a9 9 0 0 1 9 9"></path>
+                      </svg>
+                    </div>
+                  </div>
+                  <span class="field-error" id="e_theme">Theme is required.</span>
+
+                  <!-- Automatic AI Theme Status -->
+                  <div id="themeAiStatus" style="margin-top: 6px;"></div>
+                </div>
+
+                <div class="form-group col-span-2">
+                  <label class="form-label">Event Poster (Optional)</label>
+                  <input type="file" name="poster_file" id="f1_poster_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif">
+                  <span class="field-error" id="e_poster_file">Invalid poster format or size exceeds limit.</span>
+                  <small style="color: var(--text-muted);">Optional: Upload an image poster for this event (JPG, PNG, WEBP, GIF). Videos are not allowed.</small>
                 </div>
               </div>
             </div>
@@ -1653,8 +1741,9 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
               <h2 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 6px;">
                 👥 Target Participants <span class="text-danger">*</span>
               </h2>
-              <div class="target-participants-controls" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <div class="target-participants-controls" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                 <button type="button" class="btn btn-outline btn-sm" id="btn-add-section" onclick="addParticipantSectionRow()" style="font-weight: 600;">+ Add Section</button>
+                <button type="button" class="btn btn-outline btn-sm" id="btn-bulk-add-sections" onclick="openBulkAddSectionsModal()" style="font-weight: 600; color: #0284c7; border-color: #7dd3fc; background: #f0f9ff;">⚡ Bulk Add Sections</button>
                 <div class="total-participants-badge" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 0.875rem; color: var(--text-main, #1e293b); background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 6px;">
                   <span>Total Target Participants:</span>
                   <span id="target-participants-total-display" style="color: var(--primary, #0284c7); font-size: 1rem; font-weight: 700;">0</span>
@@ -1665,32 +1754,32 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
               <input type="hidden" name="target_participants" id="f1_target_participants" value="0">
               <span class="field-error" id="e_target_participants" style="margin-bottom: 12px;">Target participants is required and must have at least 1 participant.</span>
 
-              <div class="dynamic-table" style="border-radius: 8px; overflow: visible;">
-                <table class="table" style="margin: 0; width: 100%; border-collapse: collapse;">
-                  <thead>
+              <div class="target-participants-scroll-box" id="target-participants-scroll-box" style="border-radius: 8px 8px 0 0; min-height: auto; max-height: none; overflow: visible !important; border: 1px solid #e2e8f0; background: #ffffff;">
+                <table class="table" style="margin: 0; width: 100%; border-collapse: separate; border-spacing: 0;">
+                  <thead style="position: sticky; top: 0; z-index: 5; background: #f8fafc;">
                     <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
-                      <th style="width: 50px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No.</th>
-                      <th style="padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Involved Subject / Section <span class="text-danger">*</span></th>
-                      <th style="width: 180px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">No. of Participants <span class="text-danger">*</span></th>
-                      <th style="min-width: 280px; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Subject Teacher(s)</th>
-                      <th style="width: 70px; text-align: center; padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: #475569;">Actions</th>
+                      <th style="width: 48px; text-align: center; padding: 9px 10px; font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase;">#</th>
+                      <th style="padding: 9px 12px; font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase;">Involved Subject / Section <span class="text-danger">*</span></th>
+                      <th style="width: 140px; padding: 9px 12px; font-size: 0.75rem; font-weight: 700; color: #475569; text-align: center; text-transform: uppercase;">Participants <span class="text-danger">*</span></th>
+                      <th style="min-width: 270px; padding: 9px 12px; font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase;">Subject Teacher(s)</th>
+                      <th style="width: 55px; text-align: center; padding: 9px 10px; font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase;">Action</th>
                     </tr>
                   </thead>
                   <tbody id="participant-sections-body">
                     <tr class="participant-row" style="border-bottom: 1px solid #f1f5f9;">
-                      <td class="part-row-num" style="text-align: center; font-weight: 600; color: #64748b; font-size: 0.85rem; padding: 10px 12px; vertical-align: middle;">
-                        1
+                      <td class="part-row-num" style="text-align: center; padding: 6px 8px; vertical-align: middle;">
+                        <span class="part-num-badge" style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; background: #f1f5f9; color: #475569; font-weight: 700; font-size: 0.78rem;">1</span>
                       </td>
-                      <td style="padding: 10px 12px;">
-                        <input type="text" name="part_section[]" class="form-control part-section-input" placeholder="e.g. BSIT 301 / Data Structures" value="">
+                      <td style="padding: 6px 10px; vertical-align: middle;">
+                        <input type="text" name="part_section[]" class="form-control part-section-input" placeholder="e.g. BSIT 301 / Data Structures" value="" style="height: 36px; font-size: 0.85rem; border-radius: 6px; padding: 4px 10px;">
                       </td>
-                      <td style="padding: 10px 12px;">
-                        <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="" oninput="updateTotalTargetParticipants()">
+                      <td style="padding: 6px 10px; vertical-align: middle; width: 140px;">
+                        <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="" oninput="updateTotalTargetParticipants()" style="height: 36px; font-size: 0.85rem; font-weight: 600; text-align: center; border-radius: 6px; padding: 4px 8px;">
                       </td>
-                      <td style="padding: 10px 12px; min-width: 280px; position: relative;">
+                      <td style="padding: 6px 10px; min-width: 270px; vertical-align: middle; position: relative;">
                         <div class="teacher-multiselect" data-row-idx="1">
                           <input type="hidden" name="part_teacher[]" class="part-teacher-input" value="">
-                          <div class="tms-control" onclick="focusTmsInput(this)">
+                          <div class="tms-control" onclick="focusTmsInput(this)" style="min-height: 36px; padding: 3px 8px; border-radius: 6px;">
                             <div class="tms-tags"></div>
                             <input type="text" class="tms-input" placeholder="Search and select faculty...">
                           </div>
@@ -1700,12 +1789,24 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                           </div>
                         </div>
                       </td>
-                      <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
-                        <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Cannot delete the only row" disabled style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1; opacity: 0.4; cursor: not-allowed;">✕</button>
+                      <td style="text-align: center; padding: 6px 8px; vertical-align: middle;">
+                        <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Cannot delete the only row" disabled style="width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; color: #ef4444; border-color: #fca5a5; line-height: 1; opacity: 0.4; cursor: not-allowed;">✕</button>
                       </td>
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              <!-- Sleek Table Footer Status Bar -->
+              <div class="target-participants-footer">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span><strong id="part-count-badge" style="color: #0f172a; font-weight: 700;">1</strong> Section(s)</span>
+                  <span style="color: #cbd5e1;">•</span>
+                  <span style="font-size: 0.78rem;">Scroll table to view all sections</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <button type="button" class="btn btn-outline btn-sm" onclick="clearAllParticipantSections()" style="font-size: 0.75rem; padding: 3px 8px; color: #dc2626; border-color: #fca5a5; line-height: 1; border-radius: 4px;">Clear All Sections</button>
+                </div>
               </div>
             </div>
           </div>
@@ -1752,15 +1853,11 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                   <span class="field-error" id="e_specific_objectives">Specific objectives are required.</span>
                 </div>
 
-                <div class="form-group col-span-2">
-                  <label class="form-label">Involved Subjects <span class="text-danger">*</span></label>
-                  <input type="text" name="involved_subjects" id="f2_involved_subjects" class="form-control" placeholder="e.g. ITE314, GE102">
-                  <span class="field-error" id="e_involved_subjects">Involved subjects are required.</span>
-                </div>
+                <input type="hidden" name="involved_subjects" id="f2_involved_subjects" value="">
 
                 <div class="form-group col-span-2">
                   <label class="form-label">Rationale <span class="text-danger">*</span></label>
-                  <textarea name="rationale" id="f2_rationale" class="form-control" rows="3" placeholder="Why is this activity necessary?"></textarea>
+                  <textarea name="rationale" id="f2_rationale" class="form-control" rows="3" placeholder="Why is this activity necessary? State the educational or institutional justification..."></textarea>
                   <span class="field-error" id="e_rationale">Rationale is required.</span>
                 </div>
               </div>
@@ -1792,21 +1889,40 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                 <table>
                   <thead>
                     <tr>
-                      <th>Item Name <span class="text-danger">*</span></th>
-                      <th>Description / Type <span class="text-danger">*</span></th>
-                      <th>Quantity <span class="text-danger">*</span></th>
-                      <th>Provider / Supplier <span class="text-danger">*</span></th>
-                      <th>Est. Cost (₱) <span class="text-danger">*</span></th>
-                      <th></th>
+                      <th style="min-width:140px;">Item Name <span class="text-danger">*</span></th>
+                      <th style="min-width:140px;">Description / Type</th>
+                      <th style="width:90px;">Quantity <span class="text-danger">*</span></th>
+                      <th style="min-width:140px;">Provider / Supplier <span class="text-danger">*</span></th>
+                      <th style="min-width:120px;">Billing Unit</th>
+                      <th style="width:110px;">Rate (₱)</th>
+                      <th style="width:120px;">Est. Cost (₱)</th>
+                      <th style="width:40px;"></th>
                     </tr>
                   </thead>
                   <tbody id="materials-body">
                     <tr>
                       <td><input type="text" name="mat_item[]" class="form-control mat-field" placeholder="e.g. Chairs"></td>
                       <td><input type="text" name="mat_desc[]" class="form-control mat-field" placeholder="Plastic monobloc"></td>
-                      <td><input type="number" name="mat_qty[]" class="form-control mat-qty" value="" min="1" placeholder="1"></td>
-                      <td><input type="text" name="mat_provider[]" class="form-control mat-field" placeholder="Supplier name"></td>
-                      <td><input type="number" name="mat_cost[]" class="form-control mat-cost" placeholder="0.00" step="0.01" min="0"></td>
+                      <td><input type="number" name="mat_qty[]" class="form-control mat-qty" value="1" min="1" placeholder="1" oninput="calculateMaterialRow(this)"></td>
+                      <td>
+                        <select name="mat_provider[]" class="form-control mat-field mat-provider-select" onchange="handleMaterialProviderChange(this)">
+                          <option value="in_house">In-House (School)</option>
+                          <option value="rental">Rental (Supplier)</option>
+                        </select>
+                      </td>
+                      <td>
+                        <select name="mat_unit[]" class="form-control mat-field mat-unit-select" onchange="calculateMaterialRow(this)" disabled style="opacity:0.6;">
+                          <option value="per_hour">Per Hour</option>
+                          <option value="per_day">Per Day</option>
+                          <option value="fixed">Fixed / Per Item</option>
+                        </select>
+                      </td>
+                      <td>
+                        <input type="number" name="mat_rate[]" class="form-control mat-rate" placeholder="0.00" step="0.01" min="0" value="0.00" disabled style="opacity:0.6;" oninput="calculateMaterialRow(this)">
+                      </td>
+                      <td>
+                        <input type="number" name="mat_cost[]" class="form-control mat-cost" placeholder="0.00" step="0.01" min="0" value="0.00" readonly style="background:var(--bg-muted, #f8fafc); font-weight:600;">
+                      </td>
                       <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
                     </tr>
                   </tbody>
@@ -1871,17 +1987,26 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           <div class="card">
             <div class="card-header">
               <h2>📄 People / Manpower</h2>
-              <button type="button" class="btn btn-outline btn-sm" onclick="addRow('manpower')">+ Add Person</button>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="addRow('manpower')">+ Add Role / Committee</button>
+                <button type="button" class="btn btn-outline btn-sm" id="btn-bulk-add-committees" onclick="openBulkAddCommitteesModal()" style="font-weight: 600; color: #0284c7; border-color: #7dd3fc; background: #f0f9ff;">⚡ Bulk Add Committees</button>
+              </div>
             </div>
             <div class="card-body">
+              <!-- Guidance Notice on Committee Delegation -->
+              <div style="margin-bottom: 14px; padding: 10px 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; font-size: 0.83rem; color: #166534; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.1rem;">💡</span>
+                <span><strong>Committee-Based Delegation:</strong> You only need to encode the Committee Lead / Person in Charge. Enter the total number of volunteers or members in <strong>Members Supervised</strong> (e.g., 1 Lead + 50 Marshals = 50 total headcount). For multiple committees, use <strong>⚡ Bulk Add Committees</strong>.</span>
+              </div>
               <div class="step-error-banner" id="err-banner-5">⚠️ Please fill in all manpower fields before continuing.</div>
               <div class="dynamic-table">
                 <table>
                   <thead>
                     <tr>
                       <th>Role / Position <span class="text-danger">*</span></th>
-                      <th>Assigned Person <span class="text-danger">*</span></th>
+                      <th>Person in Charge <span class="text-danger">*</span></th>
                       <th>Type <span class="text-danger">*</span></th>
+                      <th style="width:170px;">Members Supervised <span class="text-danger">*</span></th>
                       <th></th>
                     </tr>
                   </thead>
@@ -1906,7 +2031,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                           <option value="Sponsor(s)">Sponsor(s)</option>
                         </select>
                       </td>
-                      <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Full name" oninput="updateManpowerSummary()"></td>
+                      <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Person in Charge full name" oninput="updateManpowerSummary(); refreshEncodedOrganizerDropdowns();"></td>
                       <td>
                         <select name="mp_type[]" class="form-control" onchange="updateManpowerSummary()">
                           <option value="faculty">Faculty</option>
@@ -1914,6 +2039,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                           <option value="student">Student</option>
                         </select>
                       </td>
+                      <td><input type="number" name="mp_member_count[]" class="form-control mp-count-field" value="1" min="0" step="1" placeholder="1" oninput="updateManpowerSummary()"></td>
                       <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this); updateManpowerSummary();">✕</button></td>
                     </tr>
                   </tbody>
@@ -1927,7 +2053,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                     Manpower Summary
                   </h3>
                   <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-main); background: var(--bg-card); border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px;">
-                    Total Persons Involved: <span id="mp-summary-unique-total" style="font-weight: 700;">0</span> <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-muted);">(distinct individuals)</span>
+                    Total Manpower: <span id="mp-summary-total-headcount" style="font-weight: 700; color: #0284c7;">0</span> <span style="display:none;" id="mp-summary-unique-total">0</span> <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-muted);">(across <span id="mp-summary-lead-count">0</span> committee leads)</span>
                   </div>
                 </div>
                 <div class="dynamic-table" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; overflow-x: auto;">
@@ -1973,32 +2099,132 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           </div>
         </div>
 
-        <!-- ── STEP 6: Schedule & Program ── -->
+        <!-- ── STEP 6: Schedule & Program / Invitation ── -->
         <div class="wizard-panel" id="panel-6">
           <div class="card" style="margin-bottom: 20px;">
             <div class="card-header">
-              <h2>📄 Activity Timeline (Schedule)</h2>
-              <button type="button" class="btn btn-outline btn-sm" onclick="addRow('schedule')">+ Add Schedule</button>
+              <h2>📅 Activity Timeline &amp; Calendar Schedule</h2>
             </div>
             <div class="card-body">
-              <div class="step-error-banner" id="err-banner-6">⚠️ Please fill in all schedule and program fields before continuing.</div>
-              <div class="dynamic-table">
+              <div class="step-error-banner" id="err-banner-6">⚠️ Please fill in all schedule and program/invitation fields before continuing.</div>
+
+              <!-- Interactive Calendar Format View -->
+              <div id="schedule-calendar-view-wrap" style="margin-bottom:18px; border:1px solid var(--border, #e2e8f0); border-radius:12px; overflow:hidden; background:var(--bg-card, #ffffff); box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+                <!-- Top Navigation Bar matching the reference UI -->
+                <div style="padding:16px 20px 14px 20px; background:var(--bg-card, #ffffff); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; border-bottom:1px solid var(--border, #f1f5f9);">
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <button type="button" onclick="shiftScheduleCalendarMonth(-1)" title="Previous month" style="width:34px; height:34px; border-radius:50%; border:1px solid #e2e8f0; background:#ffffff; color:#475569; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem; line-height:1; transition:all 0.15s ease;">‹</button>
+                      <button type="button" onclick="shiftScheduleCalendarMonth(1)" title="Next month" style="width:34px; height:34px; border-radius:50%; border:1.5px solid #0284c7; background:#ffffff; color:#0284c7; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem; line-height:1; font-weight:700; transition:all 0.15s ease;">›</button>
+                    </div>
+                    <h3 id="schedule-calendar-month-label" style="font-size:1.4rem; font-weight:700; color:var(--text-main, #0f172a); margin:0; letter-spacing:-0.3px;">Month Year</h3>
+                  </div>
+
+                  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <!-- Filter Chips with Category Colored Dots -->
+                    <div style="display:flex; gap:4px; background:#f8fafc; padding:3px 4px; border-radius:24px; border:1px solid #e2e8f0; flex-wrap:wrap;">
+                      <button type="button" id="btnSchedFilterAll" class="btn btn-xs btn-primary" onclick="setScheduleCalendarFilter('all')" style="border-radius:20px; padding:3px 10px; font-size:0.75rem; font-weight:600;">All</button>
+                      <button type="button" id="btnSchedFilterPrep" class="btn btn-xs btn-outline" onclick="setScheduleCalendarFilter('prep')" style="border-radius:20px; padding:3px 10px; font-size:0.75rem; border:none; color:#92400e; font-weight:600; display:flex; align-items:center; gap:5px;">
+                        <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#f59e0b;"></span> Prep
+                      </button>
+                      <button type="button" id="btnSchedFilterMain" class="btn btn-xs btn-outline" onclick="setScheduleCalendarFilter('main')" style="border-radius:20px; padding:3px 10px; font-size:0.75rem; border:none; color:#1e40af; font-weight:600; display:flex; align-items:center; gap:5px;">
+                        <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#2563eb;"></span> Main Event
+                      </button>
+                      <button type="button" id="btnSchedFilterSub" class="btn btn-xs btn-outline" onclick="setScheduleCalendarFilter('sub')" style="border-radius:20px; padding:3px 10px; font-size:0.75rem; border:none; color:#5b21b6; font-weight:600; display:flex; align-items:center; gap:5px;">
+                        <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#8b5cf6;"></span> Sub-Event
+                      </button>
+                      <button type="button" id="btnSchedFilterTasks" class="btn btn-xs btn-outline" onclick="setScheduleCalendarFilter('tasks')" style="border-radius:20px; padding:3px 10px; font-size:0.75rem; border:none; color:#065f46; font-weight:600; display:flex; align-items:center; gap:5px;">
+                        <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#10b981;"></span> Faculty Tasks
+                      </button>
+                    </div>
+
+                    <!-- Today button & Quick Add shortcuts -->
+                    <button type="button" onclick="goToTodayCalendar()" style="border-radius:20px; padding:6px 16px; border:1px solid #cbd5e1; background:#ffffff; font-size:0.8rem; font-weight:600; color:#334155; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.04); transition:all 0.15s ease;">Today</button>
+                    <button type="button" onclick="openAddScheduleEventDialog('', 'task')" class="btn btn-outline btn-sm" style="border-radius:20px; padding:6px 14px; font-size:0.8rem; font-weight:600; display:inline-flex; align-items:center; gap:5px;">📋 + Add Faculty Task</button>
+                    <button type="button" onclick="openAddScheduleEventDialog('', 'milestone')" class="btn btn-primary btn-sm" style="border-radius:20px; padding:6px 14px; font-size:0.8rem; font-weight:600; display:inline-flex; align-items:center; gap:5px; background:#003876; border-color:#003876;">📅 + Add Schedule</button>
+                  </div>
+                </div>
+
+                <!-- Calendar Grid Container -->
+                <div id="schedule-calendar-grid" style="display:grid; grid-template-columns:repeat(7, 1fr); background:var(--bg-card, #ffffff);"></div>
+              </div>
+
+              <!-- Chronological Agenda List (Rendered dynamically below calendar) -->
+              <div id="schedule-agenda-wrap"></div>
+
+              <!-- Underlying Form Table (Hidden in Calendar Mode, Shown in Table Only Mode) -->
+              <div class="dynamic-table" id="schedule-table-wrap" style="display:none; margin-top:14px;">
                 <table>
                   <thead>
                     <tr>
                       <th>Date <span class="text-danger">*</span></th>
                       <th>Event Name <span class="text-danger">*</span></th>
                       <th>Venue <span class="text-danger">*</span></th>
-                      <th>Organizer / Responsible <span class="text-danger">*</span></th>
+                      <th>Responsible Organizer <span class="text-danger">*</span></th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody id="schedule-body">
                     <tr>
                       <td><input type="date" name="sched_date[]" class="form-control sched-field" min="<?= $tomorrowManila ?>"></td>
-                      <td><input type="text" name="sched_event[]" class="form-control sched-field" placeholder="Event name"></td>
+                      <td>
+                        <input type="text" name="sched_event[]" class="form-control sched-field" placeholder="Event name">
+                        <input type="hidden" name="sched_type[]" class="sched-type-field" value="main_event">
+                      </td>
                       <td><input type="text" name="sched_venue[]" class="form-control sched-field" placeholder="Venue"></td>
-                      <td><input type="text" name="sched_organizer[]" class="form-control sched-field" placeholder="Name"></td>
+                      <td>
+                        <select name="sched_organizer[]" class="form-control sched-field sched-organizer-select" data-initial-value="<?= htmlspecialchars($user['name'] ?? '') ?>">
+                          <option value="<?= htmlspecialchars($user['name'] ?? '') ?>"><?= htmlspecialchars($user['name'] ?? 'Select encoded individual...') ?></option>
+                        </select>
+                      </td>
+                      <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style="margin-top:10px;">
+                  <button type="button" class="btn btn-outline btn-sm" onclick="addRow('schedule')">+ Add Row</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Faculty Tasks & Role Assignments Card (Preserved in DOM for Calendar & Form Submission) -->
+          <div class="card" id="faculty-tasks-card" style="display:none;">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <h2>📋 Faculty Tasks &amp; Role Assignments</h2>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('schedule-calendar-view-wrap')?.scrollIntoView({behavior:'smooth'})" title="View all faculty tasks and deadlines on the unified calendar above">📅 View on Calendar</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="addRow('faculty-tasks')">+ Add Faculty Task</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="dynamic-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="min-width: 190px;">Assigned Faculty</th>
+                      <th>Assigned Task <span class="text-danger">*</span></th>
+                      <th>Contribution <span class="text-danger">*</span></th>
+                      <th>Role in Event <span class="text-danger">*</span></th>
+                      <th style="min-width: 130px;">Start Date</th>
+                      <th style="min-width: 130px;">Target Deadline <span class="text-danger">*</span></th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="faculty-tasks-body">
+                    <tr>
+                      <td>
+                        <select name="ft_user_id[]" class="form-control ft-user-select" onchange="syncFtName(this)">
+                          <option value="">-- Unassigned / External --</option>
+                          <?= renderFacultyTaskOptgroups($facultyDepartmentGroups, $facultyUsers) ?>
+                        </select>
+                        <input type="text" name="ft_name[]" class="form-control ft-name-field" style="margin-top: 4px; font-size: 0.8rem;" placeholder="External name (if unassigned)">
+                      </td>
+                      <td><input type="text" name="ft_task[]" class="form-control ft-field" placeholder="Assigned task"></td>
+                      <td><input type="text" name="ft_contribution[]" class="form-control ft-field" placeholder="Contribution description"></td>
+                      <td><input type="text" name="ft_role[]" class="form-control ft-field" placeholder="Role"></td>
+                      <td><input type="date" name="ft_start_date[]" class="form-control ft-date-field" title="Task Start Date"></td>
+                      <td><input type="date" name="ft_due_date[]" class="form-control ft-date-field" title="Target Deadline"></td>
                       <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
                     </tr>
                   </tbody>
@@ -2008,32 +2234,61 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           </div>
 
           <div class="card">
-            <div class="card-header">
-              <h2>📄 Program Flow</h2>
-              <button type="button" class="btn btn-outline btn-sm" onclick="addRow('program')">+ Add Segment</button>
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <h2>✉️ Program Invitation &amp; Flow</h2>
+              <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                <input type="hidden" name="invitation_mode" id="invitation_mode_input" value="create">
+                <button type="button" id="btnInvModeCreate" class="btn btn-primary btn-sm" onclick="handleInvitationModeChange('create')">✍️ Create Invitation</button>
+                <button type="button" id="btnInvModeUpload" class="btn btn-outline btn-sm" onclick="handleInvitationModeChange('upload')">📤 Upload Invitation</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="openDigitalInvitationPreview()">👁️ Preview Invitation</button>
+                <button type="button" id="btnAddProgramSegment" class="btn btn-outline btn-sm" onclick="addRow('program')">+ Add Segment</button>
+              </div>
             </div>
             <div class="card-body">
-              <div class="dynamic-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Time <span class="text-danger">*</span></th>
-                      <th>Activity / Segment <span class="text-danger">*</span></th>
-                      <th>Description <span class="text-danger">*</span></th>
-                      <th>Person In-Charge <span class="text-danger">*</span></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody id="program-body">
-                    <tr>
-                      <td><input type="time" name="prog_time[]" class="form-control prog-field"></td>
-                      <td><input type="text" name="prog_segment[]" class="form-control prog-field" placeholder="e.g. Invocation"></td>
-                      <td><input type="text" name="prog_desc[]" class="form-control prog-field" placeholder="Description"></td>
-                      <td><input type="text" name="prog_pic[]" class="form-control prog-field" placeholder="Name"></td>
-                      <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
-                    </tr>
-                  </tbody>
-                </table>
+              <!-- Mode A: Create Digital Invitation / Program Sequence -->
+              <div id="invitation-create-mode-wrap">
+                <p style="font-size:0.82rem; color:var(--text-muted, #64748b); margin:0 0 10px 0;">
+                  Build your event's program invitation schedule below, or switch to <strong>Upload Invitation</strong> if you already have a designed invitation file.
+                </p>
+                <div class="dynamic-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Time <span class="text-danger">*</span></th>
+                        <th>Activity / Segment <span class="text-danger">*</span></th>
+                        <th>Description <span class="text-danger">*</span></th>
+                        <th>Person In-Charge <span class="text-danger">*</span></th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="program-body">
+                      <tr>
+                        <td><input type="time" name="prog_time[]" class="form-control prog-field"></td>
+                        <td><input type="text" name="prog_segment[]" class="form-control prog-field" placeholder="e.g. Invocation"></td>
+                        <td><input type="text" name="prog_desc[]" class="form-control prog-field" placeholder="Description"></td>
+                        <td><input type="text" name="prog_pic[]" class="form-control prog-field" placeholder="Name"></td>
+                        <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Mode B: Upload Invitation File -->
+              <div id="invitation-upload-mode-wrap" style="display:none; padding:16px; background:var(--bg-base, #f8fafc); border:1px dashed var(--border, #cbd5e1); border-radius:10px;">
+                <label class="form-label" style="font-weight:700;">📤 Upload Official Event Invitation <span class="text-danger">*</span></label>
+                <p style="font-size:0.82rem; color:var(--text-muted, #64748b); margin:0 0 12px 0;">
+                  Upload your prepared event invitation card or program brochure (supports PNG, JPG, JPEG, WEBP, PDF).
+                </p>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <input type="file" name="invitation_file" id="invitation_file" class="form-control" accept=".png,.jpg,.jpeg,.webp,.gif,.pdf" onchange="handleInvitationFileSelect(this)" style="max-width:340px;">
+                  <span id="invitation-selected-filename" style="font-size:0.82rem; font-weight:600; color:var(--text-muted, #64748b);">No file selected</span>
+                </div>
+                <div id="invitation-upload-preview-wrap" style="display:none; margin-top:14px; padding:12px; background:var(--bg-card, #ffffff); border:1px solid var(--border, #e2e8f0); border-radius:8px; text-align:center;">
+                  <div style="font-size:0.8rem; font-weight:700; color:#15803d; margin-bottom:8px;">✓ Uploaded Invitation Preview</div>
+                  <img id="invitation-live-preview-img" src="" alt="Invitation Preview" style="display:none; max-width:100%; max-height:360px; margin:0 auto; border-radius:6px; object-fit:contain;">
+                  <iframe id="invitation-live-preview-pdf" src="" title="Invitation PDF Preview" style="display:none; width:100%; height:360px; border:none; border-radius:6px;"></iframe>
+                </div>
               </div>
             </div>
           </div>
@@ -2052,29 +2307,75 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         <div class="wizard-panel" id="panel-7">
           <div class="card">
             <div class="card-header">
-              <h2>📄 Event Guidelines</h2>
+              <h2>📄 Event Guidelines, Judging Criteria &amp; Awards</h2>
             </div>
             <div class="card-body">
               <div class="step-error-banner" id="err-banner-7">⚠️ Please fill in all guideline fields before continuing.</div>
               <div class="form-group">
                 <label class="form-label">Mechanics / Guidelines <span class="text-danger">*</span></label>
-                <textarea name="guidelines_mechanics" id="f7_mechanics" class="form-control" style="min-height:120px" placeholder="Describe event rules and procedures..."></textarea>
+                <textarea name="guidelines_mechanics" id="f7_mechanics" class="form-control" style="min-height:110px" placeholder="Describe event rules and procedures..."></textarea>
                 <span class="field-error" id="e_mechanics">Mechanics / guidelines are required.</span>
               </div>
-              <div class="form-group">
-                <label class="form-label">Criteria for Judging <span class="text-danger">*</span></label>
-                <textarea name="guidelines_criteria" id="f7_criteria" class="form-control" placeholder="List judging criteria..."></textarea>
-                <span class="field-error" id="e_criteria">Criteria for judging are required.</span>
+
+              <!-- Combined Judging Criteria & Scoring System in List Format -->
+              <div class="form-group" style="margin-top:16px; padding:16px; background:var(--bg-base, #f8fafc); border:1px solid var(--border, #e2e8f0); border-radius:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+                  <div>
+                    <label class="form-label" style="margin-bottom:2px; font-weight:700;">Combined Judging Criteria &amp; Scoring System (List Format) <span class="text-danger">*</span></label>
+                    <div style="font-size:0.78rem; color:var(--text-muted, #64748b);">Add each criterion and its corresponding percentage weight or point score in list format.</div>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span id="combined-criteria-total-badge" style="font-size:0.76rem; font-weight:700; background:#e0f2fe; color:#0369a1; padding:4px 10px; border-radius:999px;">List Format Active</span>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="addCriteriaListRow('', '')">+ Add Criterion</button>
+                  </div>
+                </div>
+                <div class="dynamic-table" style="margin-bottom:10px;">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style="width:44px; text-align:center;">No.</th>
+                        <th>Judging Criterion (List Item)</th>
+                        <th style="width:170px;">Scoring Weight / Points</th>
+                        <th style="width:44px;"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="combined-criteria-list-body"></tbody>
+                  </table>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px;">
+                  <div>
+                    <label class="form-label" style="font-size:0.78rem;">Formatted Criteria List <span class="text-danger">*</span></label>
+                    <textarea name="guidelines_criteria" id="f7_criteria" class="form-control" rows="3" placeholder="1. First criterion (40%)..."></textarea>
+                    <span class="field-error" id="e_criteria">Criteria for judging are required.</span>
+                  </div>
+                  <div>
+                    <label class="form-label" style="font-size:0.78rem;">Scoring System Breakdown <span class="text-danger">*</span></label>
+                    <textarea name="guidelines_scoring" id="f7_scoring" class="form-control" rows="3" placeholder="Describe scoring computation / breakdown..."></textarea>
+                    <span class="field-error" id="e_scoring">Scoring system is required.</span>
+                  </div>
+                </div>
               </div>
-              <div class="form-group">
-                <label class="form-label">Scoring System <span class="text-danger">*</span></label>
-                <textarea name="guidelines_scoring" id="f7_scoring" class="form-control" placeholder="Describe scoring system..."></textarea>
-                <span class="field-error" id="e_scoring">Scoring system is required.</span>
+
+              <!-- Combined Regular Awards & Special Awards -->
+              <div class="form-grid" style="margin-top:16px;">
+                <div class="form-group">
+                  <label class="form-label">Regular Awards <span style="font-size:0.78rem; font-weight:normal; color:var(--text-muted);">(Included alongside Special Awards)</span></label>
+                  <textarea name="guidelines_regular_awards" id="f7_regular_awards" class="form-control" rows="3" placeholder="e.g.&#10;1. Champion / 1st Place&#10;2. 1st Runner-Up&#10;3. 2nd Runner-Up"></textarea>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Special Awards <span class="text-danger">*</span></label>
+                  <textarea name="guidelines_awards" id="f7_awards" class="form-control" rows="3" placeholder="e.g.&#10;1. Best in Innovation&#10;2. People's Choice Award"></textarea>
+                  <span class="field-error" id="e_awards">Special awards field is required.</span>
+                </div>
               </div>
-              <div class="form-group">
-                <label class="form-label">Special Awards <span class="text-danger">*</span></label>
-                <textarea name="guidelines_awards" id="f7_awards" class="form-control" placeholder="List any special awards..."></textarea>
-                <span class="field-error" id="e_awards">Special awards field is required.</span>
+
+              <!-- Upload Section / Attachment Feature for Judging Mechanics, Scoring Systems, and Awards -->
+              <div class="form-group" style="margin-top:14px; padding:14px 16px; background:var(--bg-base, #f8fafc); border:1px dashed var(--border, #cbd5e1); border-radius:8px;">
+                <label class="form-label" style="font-weight:700;">📎 Upload Judging Mechanics, Scoring System &amp; Awards Attachment <span style="font-size:0.8rem; font-weight:normal; color:var(--text-muted);">(Optional)</span></label>
+                <p style="font-size:0.8rem; color:var(--text-muted, #64748b); margin:0 0 8px 0;">
+                  Attach official judging mechanics sheets, rubric documents, or award guidelines (PDF, DOCX, PNG, JPG).
+                </p>
+                <input type="file" name="guidelines_attachment" id="f7_guidelines_attachment" class="form-control" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp">
               </div>
             </div>
           </div>
@@ -2084,65 +2385,13 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
               <button type="button" class="btn btn-info send-to-collab-btn" onclick="handleSendToCollaborators()" style="display:none; background:#0284c7; color:#fff; border:none; padding:8px 16px; font-weight:600; border-radius:6px; cursor:pointer;">
                 Send to Collaborators
               </button>
-              <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Faculty Tasks →</button>
+              <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Evaluation &amp; KPI →</button>
             </div>
           </div>
         </div>
 
-        <!-- ── STEP 8: Faculty Tasks ── -->
+        <!-- ── STEP 8: Key Performance Indicators & Evaluation ── -->
         <div class="wizard-panel" id="panel-8">
-          <div class="card">
-            <div class="card-header">
-              <h2>📄 Faculty Tasks & Contributions</h2>
-              <button type="button" class="btn btn-outline btn-sm" onclick="addRow('faculty-tasks')">+ Add Faculty</button>
-            </div>
-            <div class="card-body">
-              <div class="step-error-banner" id="err-banner-8">⚠️ Please fill in all faculty task fields before continuing.</div>
-              <div class="dynamic-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th style="min-width: 190px;">Assigned Faculty</th>
-                      <th>Assigned Task <span class="text-danger">*</span></th>
-                      <th>Contribution <span class="text-danger">*</span></th>
-                      <th>Role in Event <span class="text-danger">*</span></th>
-                      <th style="min-width: 140px;">Target Deadline</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody id="faculty-tasks-body">
-                    <tr>
-                      <td>
-                        <select name="ft_user_id[]" class="form-control ft-user-select" onchange="syncFtName(this)">
-                          <option value="">-- Unassigned / External --</option>
-                          <?= renderFacultyTaskOptgroups($facultyDepartmentGroups, $facultyUsers) ?>
-                        </select>
-                        <input type="text" name="ft_name[]" class="form-control ft-name-field" style="margin-top: 4px; font-size: 0.8rem;" placeholder="External name (if unassigned)">
-                      </td>
-                      <td><input type="text" name="ft_task[]" class="form-control ft-field" placeholder="Assigned task"></td>
-                      <td><input type="text" name="ft_contribution[]" class="form-control ft-field" placeholder="Contribution description"></td>
-                      <td><input type="text" name="ft_role[]" class="form-control ft-field" placeholder="Role"></td>
-                      <td><input type="date" name="ft_due_date[]" class="form-control ft-date-field"></td>
-                      <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-          <div class="nav-btns">
-            <button type="button" class="btn btn-outline" onclick="prevStep()">← Back</button>
-            <div style="display:flex; gap:10px; align-items:center;">
-              <button type="button" class="btn btn-info send-to-collab-btn" onclick="handleSendToCollaborators()" style="display:none; background:#0284c7; color:#fff; border:none; padding:8px 16px; font-weight:600; border-radius:6px; cursor:pointer;">
-                Send to Collaborators
-              </button>
-              <button type="button" class="btn btn-primary" onclick="nextStep()">Next: Evaluation →</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- ── STEP 9: Key Performance Indicators & Evaluation ── -->
-        <div class="wizard-panel" id="panel-9">
           <!-- SECTION 1: Key Performance Indicators -->
           <div class="card" id="kpi-table-card">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
@@ -2206,14 +2455,14 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                 </div>
               </div>
 
-              <div class="step-error-banner" id="err-banner-9" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; background:#f8d7da; color:#842029; border:1px solid #f5c2c7; font-size:.8rem;">⚠️ Please review evaluation questions and enter a valid evaluation form link.</div>
+              <div class="step-error-banner" id="err-banner-8" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; background:#f8d7da; color:#842029; border:1px solid #f5c2c7; font-size:.8rem;">⚠️ Please review evaluation questions and enter a valid evaluation form link.</div>
               <div class="step-error-banner" id="err-banner-eval-side" style="display:none; margin-bottom:4px; padding:10px 12px; border-radius:6px; background:#f8d7da; color:#842029; border:1px solid #f5c2c7; font-size:.8rem;">⚠️ Please review and fix evaluation questions.</div>
 
               <!-- AI Generation Loading & Status -->
               <div id="evalGenStatus" style="display:none; margin-bottom:4px; padding:10px 14px; border-radius:6px; font-size:.85rem;"></div>
 
               <div class="info-alert" style="margin-bottom: 4px;">
-                These evaluation questions are automatically generated based on your activity objectives. You can customize them, add manual rating/open-ended questions, and generate the Google Form for student responses.
+                Review and customize the evaluation questions below, or click <strong>Create Google Form</strong> to generate your survey link.
               </div>
 
               <!-- Hidden JSON field -->
@@ -2280,7 +2529,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     const todayManila = <?= json_encode($todayManila) ?>;
     const tomorrowManila = <?= json_encode($tomorrowManila) ?>;
     let currentStep = 1;
-    const totalSteps = 9;
+    const totalSteps = 8;
     let maxUnlocked = 1; // highest step the user has validly completed up to
 
     // ── Floor Plan Requirement Modal & Navigation ─────────────────
@@ -2375,6 +2624,9 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       }
       document.getElementById('panel-' + n).classList.add('active');
       currentStep = n;
+      if (n === 6 && typeof renderScheduleTimelineCalendar === 'function') {
+        renderScheduleTimelineCalendar();
+      }
       if (n === 9 && typeof syncKpiSectionTables === 'function') {
         syncKpiSectionTables();
       }
@@ -2514,6 +2766,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     let isObjectivesProtected = false;
     let lastAiGeneralObjective = '';
     let lastAiSpecificObjectives = '';
+    let lastAiRationale = '';
     let lastRequestedObjTitle = '';
     let lastRequestedObjTheme = '';
     let currentObjRequestId = 0;
@@ -2567,7 +2820,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           statusEl.innerHTML = `
             <div style="display:flex;align-items:center;gap:8px;">
               <span class="spinner-border" style="width:14px;height:14px;border-width:2px;color:#0284c7;"></span>
-              <span>✨ Generating objectives with AI based on your title & theme…</span>
+              <span>✨ Generating SMART objectives &amp; rationale with AI based on your title &amp; theme…</span>
             </div>`;
           break;
 
@@ -2577,9 +2830,9 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;';
           statusEl.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-              <span>✅ SMART Objectives generated by AI.</span>
+              <span>✅ SMART Objectives &amp; Rationale generated by AI.</span>
               <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;font-weight:600;padding:0;">
-                ↻ Regenerate Objectives
+                ↻ Regenerate with AI
               </button>
             </div>`;
           break;
@@ -2589,9 +2842,9 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#fffbeb;color:#92400e;border:1px solid #fde68a;';
           statusEl.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-              <span>⚠️ Title/theme changed. Your edited objectives were preserved.</span>
+              <span>⚠️ Title/theme changed. Your edited objectives &amp; rationale were preserved.</span>
               <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;font-weight:600;padding:0;">
-                ↻ Regenerate Objectives
+                ↻ Regenerate with AI
               </button>
             </div>`;
           break;
@@ -2601,9 +2854,9 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;';
           statusEl.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-              <span>✏️ Custom objectives entered.</span>
+              <span>✏️ Custom objectives / rationale entered.</span>
               <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;font-weight:600;padding:0;">
-                ↻ Regenerate Objectives with AI
+                ↻ Regenerate with AI
               </button>
             </div>`;
           break;
@@ -2613,9 +2866,9 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           statusEl.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:0.85rem;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3;';
           statusEl.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-              <span>⚠️ Could not auto-generate objectives (${escapeHtml(errorMsg || 'service unavailable')}). You can enter them manually.</span>
+              <span>⚠️ Could not auto-generate objectives &amp; rationale (${escapeHtml(errorMsg || 'service unavailable')}). You can enter them manually.</span>
               <button type="button" onclick="forceRegenerateObjectives()" style="background:none;border:none;color:#0284c7;cursor:pointer;text-decoration:underline;font-size:0.85rem;padding:0;">
-                Retry
+                Retry with AI
               </button>
             </div>`;
           break;
@@ -2648,12 +2901,14 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     function checkManualObjectiveEdit() {
       const genEl = document.getElementById('f2_general_objectives');
       const specEl = document.getElementById('f2_specific_objectives');
+      const ratEl = document.getElementById('f2_rationale');
       if (!genEl || !specEl) return;
 
       const curGen = genEl.value.trim();
       const curSpec = specEl.value.trim();
+      const curRat = ratEl ? ratEl.value.trim() : '';
 
-      if (curGen === '' && curSpec === '') {
+      if (curGen === '' && curSpec === '' && curRat === '') {
         isObjectivesProtected = false;
         renderObjectivesStatus('WAITING');
         return;
@@ -2661,8 +2916,9 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
 
       const isGenMatch = (lastAiGeneralObjective !== '' && curGen === lastAiGeneralObjective.trim());
       const isSpecMatch = (lastAiSpecificObjectives !== '' && curSpec === lastAiSpecificObjectives.trim());
+      const isRatMatch = (!lastAiRationale || curRat === lastAiRationale.trim() || curRat === '');
 
-      if (isGenMatch && isSpecMatch) {
+      if (isGenMatch && isSpecMatch && isRatMatch) {
         isObjectivesProtected = false;
         renderObjectivesStatus('UPDATED');
       } else {
@@ -2790,14 +3046,29 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
               specEl.value = specVal;
             }
 
+            const ratEl = document.getElementById('f2_rationale');
+            const ratVal = (data.rationale || data.academic_rationale || data.justification || '').trim();
+            if (ratEl && ratVal && (!ratEl.value.trim() || forced || !isObjectivesProtected)) {
+              ratEl.value = ratVal;
+              lastAiRationale = ratVal;
+              try {
+                sessionStorage.setItem('sti_ai_rationale_' + hashStr(ratVal), '1');
+              } catch (e) {}
+              ratEl.classList.remove('is-invalid');
+              const eRat = document.getElementById('e_rationale');
+              if (eRat) eRat.style.display = 'none';
+              ratEl.dispatchEvent(new Event('input', { bubbles: true }));
+              ratEl.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
             // Dispatch input and change events so all listeners and validation recognize the new values
             genEl.dispatchEvent(new Event('input', { bubbles: true }));
             genEl.dispatchEvent(new Event('change', { bubbles: true }));
             specEl.dispatchEvent(new Event('input', { bubbles: true }));
             specEl.dispatchEvent(new Event('change', { bubbles: true }));
 
-            // Subtle green pulse on objective textareas
-            [genEl, specEl].forEach(el => {
+            // Subtle green pulse on objective & rationale textareas
+            [genEl, specEl, ratEl].filter(Boolean).forEach(el => {
               el.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
               el.style.borderColor = '#22c55e';
               el.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.2)';
@@ -3336,6 +3607,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       if (initialGen !== '' || initialSpec !== '') {
         lastAiGeneralObjective = initialGen;
         lastAiSpecificObjectives = initialSpec;
+        const ratEl = document.getElementById('f2_rationale');
+        if (ratEl) lastAiRationale = ratEl.value.trim();
         isObjectivesProtected = false;
         renderObjectivesStatus('WAITING');
       } else {
@@ -3345,6 +3618,10 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
 
       genEl.addEventListener('input', checkManualObjectiveEdit);
       specEl.addEventListener('input', checkManualObjectiveEdit);
+      const ratElInit = document.getElementById('f2_rationale');
+      if (ratElInit) {
+        ratElInit.addEventListener('input', checkManualObjectiveEdit);
+      }
     }
 
     // Expose helpers globally for cross-module integration
@@ -3401,6 +3678,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
 
       if (step === 1) {
         if (!checkEventDateField()) valid = false;
+        if (!checkEndDateField()) valid = false;
         if (!validateTimeFields(true)) valid = false;
         const fields = [{
             id: 'f1_title',
@@ -3466,7 +3744,13 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           }
         }
 
-        if (!validatePosterInput('f1_poster_file', 'e_poster_file')) valid = false;
+        const posterEl = document.getElementById('f1_poster_file');
+        if (posterEl && posterEl.files && posterEl.files.length > 0) {
+          if (!validatePosterInput('f1_poster_file', 'e_poster_file')) valid = false;
+        } else {
+          hideError('e_poster_file');
+          if (posterEl) posterEl.classList.remove('is-invalid');
+        }
       } else if (step === 2) {
         let hasEmptyRequired = false;
         let hasContentError = false;
@@ -3477,10 +3761,6 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           {
             id: 'f2_specific_objectives',
             err: 'e_specific_objectives'
-          },
-          {
-            id: 'f2_involved_subjects',
-            err: 'e_involved_subjects'
           },
           {
             id: 'f2_rationale',
@@ -3618,7 +3898,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       } else if (step === 6) {
         const schedRows = document.querySelectorAll('#schedule-body tr');
         schedRows.forEach(row => {
-          row.querySelectorAll('input.sched-field').forEach(inp => {
+          row.querySelectorAll('input.sched-field, select.sched-field').forEach(inp => {
             const v = inp.value.trim();
             if (!v) {
               inp.classList.add('is-invalid');
@@ -3634,22 +3914,63 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
             }
           });
         });
-        const progRows = document.querySelectorAll('#program-body tr');
-        progRows.forEach(row => {
-          row.querySelectorAll('input.prog-field').forEach(inp => {
-            const v = inp.value.trim();
-            if (!v) {
-              inp.classList.add('is-invalid');
-              valid = false;
-            } else if (inp.type === 'text' && hasGibberishText(v)) {
-              inp.classList.add('is-invalid');
+        const invMode = document.getElementById('invitation_mode_input')?.value || 'create';
+        const invFile = document.getElementById('invitation_file');
+        const hasInvUpload = invFile && invFile.files && invFile.files.length > 0;
+        if (invMode === 'upload') {
+          if (!hasInvUpload) {
+            if (invFile) invFile.classList.add('is-invalid');
+            valid = false;
+          } else if (invFile) {
+            invFile.classList.remove('is-invalid');
+          }
+        } else {
+          const progRows = document.querySelectorAll('#program-body tr');
+          progRows.forEach(row => {
+            row.querySelectorAll('input.prog-field').forEach(inp => {
+              const v = inp.value.trim();
+              if (!v) {
+                inp.classList.add('is-invalid');
+                valid = false;
+              } else if (inp.type === 'text' && hasGibberishText(v)) {
+                inp.classList.add('is-invalid');
+                valid = false;
+              } else {
+                inp.classList.remove('is-invalid');
+              }
+            });
+          });
+        }
+        // Validate faculty task rows only if user began filling them in or added tasks via calendar
+        const ftRows = document.querySelectorAll('#faculty-tasks-body tr');
+        ftRows.forEach(row => {
+          const tVal = (row.querySelector('input[name="ft_task[]"]')?.value || '').trim();
+          const dVal = (row.querySelector('input[name="ft_due_date[]"]')?.value || '').trim();
+          const sVal = (row.querySelector('input[name="ft_start_date[]"]')?.value || '').trim();
+          const uVal = (row.querySelector('select[name="ft_user_id[]"]')?.value || '').trim();
+          const nVal = (row.querySelector('input.ft-name-field')?.value || '').trim();
+          const hasAny = tVal || dVal || sVal || uVal || nVal;
+          if (hasAny) {
+            if (!tVal || hasGibberishText(tVal)) {
+              row.querySelector('input[name="ft_task[]"]')?.classList.add('is-invalid');
               valid = false;
             } else {
-              inp.classList.remove('is-invalid');
+              row.querySelector('input[name="ft_task[]"]')?.classList.remove('is-invalid');
             }
-          });
+            if (!dVal) {
+              row.querySelector('input[name="ft_due_date[]"]')?.classList.add('is-invalid');
+              valid = false;
+            } else {
+              row.querySelector('input[name="ft_due_date[]"]')?.classList.remove('is-invalid');
+            }
+          } else {
+            row.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+          }
         });
       } else if (step === 7) {
+        if (typeof syncCombinedCriteriaToTextareas === 'function') {
+          syncCombinedCriteriaToTextareas();
+        }
         [{
             id: 'f7_mechanics',
             err: 'e_mechanics'
@@ -3670,20 +3991,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           if (!checkField(f.id, f.err)) valid = false;
         });
       } else if (step === 8) {
-        const rows = document.querySelectorAll('#faculty-tasks-body tr');
-        rows.forEach(row => {
-          row.querySelectorAll('input.ft-field').forEach(inp => {
-            const v = inp.value.trim();
-            if (!v || hasGibberishText(v)) {
-              inp.classList.add('is-invalid');
-              valid = false;
-            } else {
-              inp.classList.remove('is-invalid');
-            }
-          });
-        });
-      } else if (step === 9) {
-        // Evaluation Tool questions validation
+        // Evaluation Tool questions validation (formerly step 9)
         const evalValid = validateEvaluationSidePanel();
         if (!evalValid) {
           valid = false;
@@ -3742,6 +4050,63 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       hideError('e_event_date');
       hideError('e_event_date_past');
       return true;
+    }
+
+    function checkEndDateField() {
+      const startEl = document.getElementById('f1_event_date');
+      const endEl = document.getElementById('f1_end_date');
+      if (!endEl) return true;
+      const startVal = startEl ? startEl.value.trim() : '';
+      let endVal = endEl.value.trim();
+
+      if (!endVal && startVal) {
+        endEl.value = startVal;
+        endVal = startVal;
+      }
+
+      if (!endVal) {
+        endEl.classList.add('is-invalid');
+        showError('e_end_date');
+        hideError('e_end_date_order');
+        return false;
+      }
+
+      if (startVal && endVal < startVal) {
+        endEl.classList.add('is-invalid');
+        hideError('e_end_date');
+        showError('e_end_date_order');
+        return false;
+      }
+
+      endEl.classList.remove('is-invalid');
+      hideError('e_end_date');
+      hideError('e_end_date_order');
+      return true;
+    }
+
+    const eventDateInput = document.getElementById('f1_event_date');
+    if (eventDateInput) {
+      eventDateInput.min = tomorrowManila;
+      ['input', 'change'].forEach(evt => {
+        eventDateInput.addEventListener(evt, () => {
+          if (eventDateInput.value) {
+            checkEventDateField();
+            checkEndDateField();
+          }
+        });
+      });
+    }
+
+    const endDateInput = document.getElementById('f1_end_date');
+    if (endDateInput) {
+      endDateInput.min = tomorrowManila;
+      ['input', 'change'].forEach(evt => {
+        endDateInput.addEventListener(evt, () => {
+          if (endDateInput.value) {
+            checkEndDateField();
+          }
+        });
+      });
     }
 
     function isGibberishToken(token) {
@@ -3923,15 +4288,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       const errEl = document.getElementById(errId);
       if (!el) return true;
 
+      // Event poster is completely optional. If no file selected, clear error and pass.
       if (!el.value || !el.files || el.files.length === 0) {
-        if (el.required) {
-          el.classList.add('is-invalid');
-          if (errEl) {
-            errEl.textContent = 'Event poster is required.';
-            errEl.classList.add('visible');
-          }
-          return false;
-        }
         el.classList.remove('is-invalid');
         if (errEl) errEl.classList.remove('visible');
         return true;
@@ -3961,7 +4319,6 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
 
       el.classList.remove('is-invalid');
       if (errEl) {
-        errEl.textContent = 'Event poster is required.';
         errEl.classList.remove('visible');
       }
       return true;
@@ -4160,7 +4517,6 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           'f1_theme': 'e_theme',
           'f2_general_objectives': 'e_general_objectives',
           'f2_specific_objectives': 'e_specific_objectives',
-          'f2_involved_subjects': 'e_involved_subjects',
           'f2_rationale': 'e_rationale',
           'f3_floor_plan_notes': 'e_floor_plan_notes',
           'f7_mechanics': 'e_mechanics',
@@ -4197,7 +4553,6 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           'f1_theme': 'e_theme',
           'f2_general_objectives': 'e_general_objectives',
           'f2_specific_objectives': 'e_specific_objectives',
-          'f2_involved_subjects': 'e_involved_subjects',
           'f2_rationale': 'e_rationale',
           'f3_floor_plan_notes': 'e_floor_plan_notes',
           'f7_mechanics': 'e_mechanics',
@@ -4407,8 +4762,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
 
       if (!evalValid) {
         e.preventDefault();
-        showStep(9);
-        alert('⚠️ Please review the AI-Generated Evaluation Tool questions in Step 9 before submitting.');
+        showStep(8);
+        alert('⚠️ Please review the AI-Generated Evaluation Tool questions in Step 8 before submitting.');
         return;
       }
 
@@ -4465,9 +4820,26 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         <tr>
           <td><input type="text" name="mat_item[]" class="form-control mat-field" placeholder="e.g. Chairs"></td>
           <td><input type="text" name="mat_desc[]" class="form-control mat-field" placeholder="Description"></td>
-          <td><input type="number" name="mat_qty[]" class="form-control mat-qty" value="" min="1" placeholder="1"></td>
-          <td><input type="text" name="mat_provider[]" class="form-control mat-field" placeholder="Supplier name"></td>
-          <td><input type="number" name="mat_cost[]" class="form-control mat-cost" placeholder="0.00" step="0.01" min="0"></td>
+          <td><input type="number" name="mat_qty[]" class="form-control mat-qty" value="1" min="1" placeholder="1" oninput="calculateMaterialRow(this)"></td>
+          <td>
+            <select name="mat_provider[]" class="form-control mat-field mat-provider-select" onchange="handleMaterialProviderChange(this)">
+              <option value="in_house">In-House (School)</option>
+              <option value="rental">Rental (Supplier)</option>
+            </select>
+          </td>
+          <td>
+            <select name="mat_unit[]" class="form-control mat-field mat-unit-select" onchange="calculateMaterialRow(this)" disabled style="opacity:0.6;">
+              <option value="per_hour">Per Hour</option>
+              <option value="per_day">Per Day</option>
+              <option value="fixed">Fixed / Per Item</option>
+            </select>
+          </td>
+          <td>
+            <input type="number" name="mat_rate[]" class="form-control mat-rate" placeholder="0.00" step="0.01" min="0" value="0.00" disabled style="opacity:0.6;" oninput="calculateMaterialRow(this)">
+          </td>
+          <td>
+            <input type="number" name="mat_cost[]" class="form-control mat-cost" placeholder="0.00" step="0.01" min="0" value="0.00" readonly style="background:var(--bg-muted, #f8fafc); font-weight:600;">
+          </td>
           <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
         </tr>`,
       program: `
@@ -4499,7 +4871,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
               <option value="Sponsor(s)">Sponsor(s)</option>
             </select>
           </td>
-          <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Full name" oninput="updateManpowerSummary()"></td>
+          <td><input type="text" name="mp_person[]" class="form-control mp-person-field" placeholder="Person in Charge full name" oninput="updateManpowerSummary(); refreshEncodedOrganizerDropdowns();"></td>
           <td>
             <select name="mp_type[]" class="form-control" onchange="updateManpowerSummary()">
               <option value="faculty">Faculty</option>
@@ -4507,14 +4879,22 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
               <option value="student">Student</option>
             </select>
           </td>
+          <td><input type="number" name="mp_member_count[]" class="form-control mp-count-field" value="1" min="0" step="1" placeholder="1" oninput="updateManpowerSummary()"></td>
           <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this); updateManpowerSummary();">✕</button></td>
         </tr>`,
       schedule: `
         <tr>
           <td><input type="date" name="sched_date[]" class="form-control sched-field" min="${tomorrowManila}"></td>
-          <td><input type="text" name="sched_event[]" class="form-control sched-field" placeholder="Event name"></td>
+          <td>
+            <input type="text" name="sched_event[]" class="form-control sched-field" placeholder="Event name">
+            <input type="hidden" name="sched_type[]" class="sched-type-field" value="main_event">
+          </td>
           <td><input type="text" name="sched_venue[]" class="form-control sched-field" placeholder="Venue"></td>
-          <td><input type="text" name="sched_organizer[]" class="form-control sched-field" placeholder="Name"></td>
+          <td>
+            <select name="sched_organizer[]" class="form-control sched-field sched-organizer-select">
+              <option value="">Select encoded individual...</option>
+            </select>
+          </td>
           <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
         </tr>`,
       'faculty-tasks': `
@@ -4529,7 +4909,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           <td><input type="text" name="ft_task[]" class="form-control ft-field" placeholder="Assigned task"></td>
           <td><input type="text" name="ft_contribution[]" class="form-control ft-field" placeholder="Contribution description"></td>
           <td><input type="text" name="ft_role[]" class="form-control ft-field" placeholder="Role"></td>
-          <td><input type="date" name="ft_due_date[]" class="form-control ft-date-field"></td>
+          <td><input type="date" name="ft_start_date[]" class="form-control ft-date-field" title="Task Start Date"></td>
+          <td><input type="date" name="ft_due_date[]" class="form-control ft-date-field" title="Target Deadline"></td>
           <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
         </tr>`,
       kpi: `
@@ -4548,7 +4929,14 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       tmp.innerHTML = rowTemplates[table];
       tbody.appendChild(tmp.firstElementChild);
       if (table === 'materials') updateTotal();
-      if (table === 'manpower') updateManpowerSummary();
+      if (table === 'manpower') {
+        updateManpowerSummary();
+        if (typeof refreshEncodedOrganizerDropdowns === 'function') refreshEncodedOrganizerDropdowns();
+      }
+      if (table === 'schedule') {
+        if (typeof refreshEncodedOrganizerDropdowns === 'function') refreshEncodedOrganizerDropdowns();
+        if (typeof renderScheduleTimelineCalendar === 'function') renderScheduleTimelineCalendar();
+      }
     }
 
     function removeRow(btn) {
@@ -4587,44 +4975,53 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       const rows = document.querySelectorAll('#manpower-body tr');
       const countsByRole = {};
       const uniquePersons = new Set();
+      let totalAssignedRows = 0;
 
-      rows.forEach((tr, index) => {
+      rows.forEach((tr) => {
         const roleSel = tr.querySelector('select[name="mp_role[]"]');
         const personInp = tr.querySelector('input[name="mp_person[]"]');
         const typeSel = tr.querySelector('select[name="mp_type[]"]');
+        const countInp = tr.querySelector('input[name="mp_member_count[]"]');
 
         const role = roleSel ? roleSel.value.trim() : '';
         const person = personInp ? personInp.value.trim() : '';
         const type = typeSel ? typeSel.value.trim().toLowerCase() : 'faculty';
+        const memberCount = Math.max(1, parseInt(countInp?.value || '1', 10) || 1);
 
-        if (!role || !person) return;
+        if (!role) return;
 
         if (!countsByRole[role]) {
           countsByRole[role] = {
-            faculty: new Set(),
-            staff: new Set(),
-            student: new Set()
+            faculty: 0,
+            staff: 0,
+            student: 0
           };
         }
 
-        const personKey = person.toLowerCase();
-        uniquePersons.add(personKey);
+        if (person) {
+          uniquePersons.add(person.toLowerCase());
+          totalAssignedRows++;
+        }
 
         if (type === 'staff') {
-          countsByRole[role].staff.add(personKey);
+          countsByRole[role].staff += memberCount;
         } else if (type === 'student') {
-          countsByRole[role].student.add(personKey);
+          countsByRole[role].student += memberCount;
         } else {
-          countsByRole[role].faculty.add(personKey);
+          countsByRole[role].faculty += memberCount;
         }
       });
 
       const presentRoles = [];
       MANPOWER_ROLES.forEach(r => {
-        if (countsByRole[r]) presentRoles.push(r);
+        if (countsByRole[r] && (countsByRole[r].faculty > 0 || countsByRole[r].staff > 0 || countsByRole[r].student > 0)) {
+          presentRoles.push(r);
+        }
       });
       Object.keys(countsByRole).forEach(r => {
-        if (!presentRoles.includes(r)) presentRoles.push(r);
+        if (!presentRoles.includes(r) && (countsByRole[r].faculty > 0 || countsByRole[r].staff > 0 || countsByRole[r].student > 0)) {
+          presentRoles.push(r);
+        }
       });
 
       summaryBody.innerHTML = '';
@@ -4644,9 +5041,9 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         `;
       } else {
         presentRoles.forEach(role => {
-          const fCount = countsByRole[role].faculty.size;
-          const sCount = countsByRole[role].staff.size;
-          const stuCount = countsByRole[role].student.size;
+          const fCount = countsByRole[role].faculty;
+          const sCount = countsByRole[role].staff;
+          const stuCount = countsByRole[role].student;
           const rTotal = fCount + sCount + stuCount;
 
           colFaculty += fCount;
@@ -4673,37 +5070,136 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       const elStu = document.getElementById('mp-sum-students');
       const elTot = document.getElementById('mp-sum-total');
       const elUnique = document.getElementById('mp-summary-unique-total');
+      const elHeadcount = document.getElementById('mp-summary-total-headcount');
+      const elLeads = document.getElementById('mp-summary-lead-count');
 
       if (elF) elF.textContent = colFaculty;
       if (elS) elS.textContent = colStaff;
       if (elStu) elStu.textContent = colStudents;
       if (elTot) elTot.textContent = colTotal;
       if (elUnique) {
-        elUnique.textContent = uniquePersons.size;
+        elUnique.textContent = colTotal;
       }
+      if (elHeadcount) elHeadcount.textContent = colTotal;
+      if (elLeads) elLeads.textContent = uniquePersons.size || totalAssignedRows;
     }
+
+    function getEventTimelineDurationHours() {
+      const s = document.getElementById('f1_start_time')?.value || '';
+      const e = document.getElementById('f1_end_time')?.value || '';
+      if (!s || !e) return 1;
+      const sParts = s.split(':');
+      const eParts = e.split(':');
+      const sMin = parseInt(sParts[0], 10) * 60 + parseInt(sParts[1], 10);
+      const eMin = parseInt(eParts[0], 10) * 60 + parseInt(eParts[1], 10);
+      let diff = (eMin - sMin) / 60;
+      if (diff <= 0) diff = 1;
+      return Math.max(1, diff);
+    }
+
+    function getEventDurationDays() {
+      const startEl = document.getElementById('f1_event_date');
+      const endEl = document.getElementById('f1_end_date');
+      if (!startEl || !endEl || !startEl.value) return 1;
+      const sDate = new Date(startEl.value);
+      const eDate = endEl.value ? new Date(endEl.value) : sDate;
+      if (isNaN(sDate.getTime()) || isNaN(eDate.getTime()) || eDate < sDate) return 1;
+      const diffTime = Math.abs(eDate - sDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      return Math.max(1, diffDays);
+    }
+
+    function handleMaterialProviderChange(selectEl) {
+      const row = selectEl.closest('tr');
+      if (!row) return;
+      const unitSelect = row.querySelector('.mat-unit-select');
+      const rateInput = row.querySelector('.mat-rate');
+      const costInput = row.querySelector('.mat-cost');
+      const isRental = (selectEl.value === 'rental');
+
+      if (unitSelect) {
+        unitSelect.disabled = !isRental;
+        unitSelect.style.opacity = isRental ? '1' : '0.6';
+      }
+      if (rateInput) {
+        rateInput.disabled = !isRental;
+        rateInput.style.opacity = isRental ? '1' : '0.6';
+        if (!isRental) rateInput.value = '0.00';
+      }
+      if (costInput && !isRental) {
+        costInput.value = '0.00';
+      }
+      calculateMaterialRow(selectEl);
+    }
+
+    function calculateMaterialRow(el) {
+      const row = el.closest('tr');
+      if (!row) return;
+      const provider = row.querySelector('.mat-provider-select')?.value || 'in_house';
+      const qty = parseFloat(row.querySelector('.mat-qty')?.value) || 0;
+      const unit = row.querySelector('.mat-unit-select')?.value || 'fixed';
+      const rate = parseFloat(row.querySelector('.mat-rate')?.value) || 0;
+      const costInput = row.querySelector('.mat-cost');
+      if (!costInput) return;
+
+      if (provider === 'in_house') {
+        costInput.value = '0.00';
+      } else {
+        let rowTotal = 0;
+        if (unit === 'per_hour') {
+          const hours = getEventTimelineDurationHours();
+          rowTotal = qty * rate * hours;
+        } else if (unit === 'per_day') {
+          const days = getEventDurationDays();
+          rowTotal = qty * rate * days;
+        } else {
+          rowTotal = qty * rate;
+        }
+        costInput.value = rowTotal.toFixed(2);
+      }
+      updateTotal();
+    }
+
+    function recalculateAllMaterials() {
+      document.querySelectorAll('#materials-body tr').forEach(row => {
+        const providerSelect = row.querySelector('.mat-provider-select');
+        if (providerSelect) calculateMaterialRow(providerSelect);
+      });
+    }
+
+    // Recalculate material rental costs if timeline or dates change
+    ['f1_start_time', 'f1_end_time', 'f1_event_date', 'f1_end_date'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('change', recalculateAllMaterials);
+      }
+    });
 
     // ── Materials Total Cost ──────────────────────────────────────────
     function updateTotal() {
       let total = 0;
       document.querySelectorAll('#materials-body tr').forEach(row => {
-        const qty = parseFloat(row.querySelector('.mat-qty')?.value) || 0;
         const cost = parseFloat(row.querySelector('.mat-cost')?.value) || 0;
-        total += qty * cost;
+        total += cost;
       });
-      document.getElementById('materials-total').textContent =
-        '₱ ' + total.toLocaleString('en-PH', {
+      const totalEl = document.getElementById('materials-total');
+      if (totalEl) {
+        totalEl.textContent = '₱ ' + total.toLocaleString('en-PH', {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2
         });
+      }
     }
 
-    // Live update on any qty/cost change inside materials
-    document.getElementById('materials-body').addEventListener('input', e => {
-      if (e.target.classList.contains('mat-qty') || e.target.classList.contains('mat-cost')) {
-        updateTotal();
-      }
-    });
+    // Live update on any qty/rate/cost change inside materials
+    const matBody = document.getElementById('materials-body');
+    if (matBody) {
+      matBody.addEventListener('input', e => {
+        if (e.target.classList.contains('mat-qty') || e.target.classList.contains('mat-rate') || e.target.classList.contains('mat-cost')) {
+          calculateMaterialRow(e.target);
+        }
+      });
+    }
 
     // ── Target Participants Section Table Functions ───────────────────
     function renumberParticipantRows() {
@@ -4712,7 +5208,11 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       const rows = tbody.querySelectorAll('tr.participant-row');
       rows.forEach((row, idx) => {
         const numCell = row.querySelector('.part-row-num');
-        if (numCell) numCell.textContent = idx + 1;
+        if (numCell) {
+          const badge = numCell.querySelector('.part-num-badge');
+          if (badge) badge.textContent = idx + 1;
+          else numCell.innerHTML = `<span class="part-num-badge" style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; background: #f1f5f9; color: #475569; font-weight: 700; font-size: 0.78rem;">${idx + 1}</span>`;
+        }
         const delBtn = row.querySelector('.btn-delete-section');
         if (delBtn) {
           if (rows.length <= 1) {
@@ -4728,6 +5228,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
           }
         }
       });
+      const countBadge = document.getElementById('part-count-badge');
+      if (countBadge) countBadge.textContent = rows.length;
     }
 
     function updateTotalTargetParticipants() {
@@ -4748,6 +5250,12 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       const hiddenInput = document.getElementById('f1_target_participants');
       if (hiddenInput) {
         hiddenInput.value = total > 0 ? total : '';
+      }
+
+      const countBadge = document.getElementById('part-count-badge');
+      if (countBadge) {
+        const rows = document.querySelectorAll('#participant-sections-body tr.participant-row');
+        countBadge.textContent = rows.length;
       }
 
       const errEl = document.getElementById('e_target_participants');
@@ -4893,19 +5401,19 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       tr.className = 'participant-row';
       tr.style.borderBottom = '1px solid #f1f5f9';
       tr.innerHTML = `
-        <td class="part-row-num" style="text-align: center; font-weight: 600; color: #64748b; font-size: 0.85rem; padding: 10px 12px; vertical-align: middle;">
-          ${newIndex}
+        <td class="part-row-num" style="text-align: center; padding: 6px 8px; vertical-align: middle;">
+          <span class="part-num-badge" style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; background: #f1f5f9; color: #475569; font-weight: 700; font-size: 0.78rem;">${newIndex}</span>
         </td>
-        <td style="padding: 10px 12px;">
-          <input type="text" name="part_section[]" class="form-control part-section-input" placeholder="e.g. BSIT 301 / Data Structures" value="${escapeHtml(section)}">
+        <td style="padding: 6px 10px; vertical-align: middle;">
+          <input type="text" name="part_section[]" class="form-control part-section-input" placeholder="e.g. BSIT 301 / Data Structures" value="${escapeHtml(section)}" style="height: 36px; font-size: 0.85rem; border-radius: 6px; padding: 4px 10px;">
         </td>
-        <td style="padding: 10px 12px;">
-          <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="${escapeHtml(count)}" oninput="updateTotalTargetParticipants()">
+        <td style="padding: 6px 10px; vertical-align: middle; width: 140px;">
+          <input type="number" name="part_count[]" class="form-control part-count-input" placeholder="0" min="0" value="${escapeHtml(count)}" oninput="updateTotalTargetParticipants()" style="height: 36px; font-size: 0.85rem; font-weight: 600; text-align: center; border-radius: 6px; padding: 4px 8px;">
         </td>
-        <td style="padding: 10px 12px; min-width: 280px; position: relative;">
+        <td style="padding: 6px 10px; min-width: 270px; vertical-align: middle; position: relative;">
           <div class="teacher-multiselect" data-row-idx="${newIndex}">
             <input type="hidden" name="part_teacher[]" class="part-teacher-input" value="${escapeHtml(teacher)}">
-            <div class="tms-control" onclick="focusTmsInput(this)">
+            <div class="tms-control" onclick="focusTmsInput(this)" style="min-height: 36px; padding: 3px 8px; border-radius: 6px;">
               <div class="tms-tags"></div>
               <input type="text" class="tms-input" placeholder="Search and select faculty...">
             </div>
@@ -4915,8 +5423,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
             </div>
           </div>
         </td>
-        <td style="text-align: center; padding: 10px 12px; vertical-align: middle;">
-          <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Delete section" style="padding: 4px 8px; color: #ef4444; border-color: #fca5a5; line-height: 1;">✕</button>
+        <td style="text-align: center; padding: 6px 8px; vertical-align: middle;">
+          <button type="button" class="btn btn-outline btn-sm btn-delete-section" onclick="removeParticipantSectionRow(this)" title="Delete section" style="width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; color: #ef4444; border-color: #fca5a5; line-height: 1;">✕</button>
         </td>
       `;
       tbody.appendChild(tr);
@@ -4942,6 +5450,55 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         updateTotalTargetParticipants();
       }
     }
+
+    async function clearAllParticipantSections() {
+      const msg = 'Are you sure you want to clear all section rows?\n\nThis will remove all currently added sections and reset the table to a single blank row.';
+      let confirmed = false;
+      if (window.STIModal && typeof window.STIModal.confirm === 'function') {
+        confirmed = await window.STIModal.confirm(msg, {
+          title: 'Clear All Sections?',
+          icon: '🗑️',
+          confirmText: 'Yes, Clear All',
+          cancelText: 'Cancel',
+          variant: 'danger'
+        });
+      } else {
+        confirmed = confirm(msg);
+      }
+      if (!confirmed) return;
+
+      const tbody = document.getElementById('participant-sections-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      if (typeof window.addParticipantSectionRow === 'function') {
+        window.addParticipantSectionRow('', '', '');
+      } else if (typeof addParticipantSectionRow === 'function') {
+        addParticipantSectionRow('', '', '');
+      }
+      if (typeof window.renumberParticipantRows === 'function') {
+        window.renumberParticipantRows();
+      } else if (typeof renumberParticipantRows === 'function') {
+        renumberParticipantRows();
+      }
+      if (typeof window.updateTotalTargetParticipants === 'function') {
+        window.updateTotalTargetParticipants();
+      } else if (typeof updateTotalTargetParticipants === 'function') {
+        updateTotalTargetParticipants();
+      }
+      if (typeof window.syncKpiSectionTables === 'function') {
+        window.syncKpiSectionTables();
+      } else if (typeof syncKpiSectionTables === 'function') {
+        syncKpiSectionTables();
+      }
+    }
+
+    // Explicitly expose on window for modal & phase 2 bulk additions
+    window.addParticipantSectionRow = addParticipantSectionRow;
+    window.removeParticipantSectionRow = removeParticipantSectionRow;
+    window.renumberParticipantRows = renumberParticipantRows;
+    window.updateTotalTargetParticipants = updateTotalTargetParticipants;
+    window.clearAllParticipantSections = clearAllParticipantSections;
+    window.syncKpiSectionTables = syncKpiSectionTables;
 
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
@@ -5632,7 +6189,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       editingIndex = questionsList.length - 1;
       renderQuestions();
       
-      const cardBody = document.querySelector('#panel-9 .card-body') || document.querySelector('.proposal-eval-side-panel .card-body');
+      const cardBody = document.querySelector('#panel-8 .card-body') || document.querySelector('.proposal-eval-side-panel .card-body');
       if (cardBody) {
         setTimeout(() => {
           cardBody.scrollTop = cardBody.scrollHeight;
@@ -6130,9 +6687,6 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         formId:           'proposalForm',
         successMessageId: 'scheduleSuccessMessage'
       });
-    }
-
-    );
     }
 
     if (typeof AIProposalGuidance !== 'undefined') {
@@ -6635,6 +7189,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       }
     });
   </script>
+  <script>window.PROPOSAL_CURRENT_USER_NAME = <?= json_encode($user['name'] ?? '') ?>;</script>
+  <?php include __DIR__ . '/../includes/phase2-proposal-enhancements.php'; ?>
 </body>
 
 </html>
