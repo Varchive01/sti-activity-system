@@ -70,6 +70,10 @@
     function clampPopoverPosition() {
       if (!panel) return;
       panel.style.transform = '';
+      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+        // Mobile/tablet uses position: fixed anchored cleanly inside the viewport
+        return;
+      }
       if (typeof window !== 'undefined' && typeof panel.getBoundingClientRect === 'function') {
         const rect = panel.getBoundingClientRect();
         if (rect && typeof rect.right === 'number') {

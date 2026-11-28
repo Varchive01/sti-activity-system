@@ -5511,34 +5511,36 @@ img, video, canvas, svg {
   }
 
   /* Mobile Topbar Notification & Profile Popover Containment */
-  .notif-dropdown {
-    position: absolute !important;
-    top: calc(100% + 8px) !important;
-    right: -42px !important;
+  .notif-dropdown,
+  #notifDropdown {
+    position: fixed !important;
+    top: 62px !important;
+    right: 10px !important;
     left: auto !important;
-    width: min(360px, calc(100vw - 20px)) !important;
+    width: min(380px, calc(100vw - 20px)) !important;
     max-width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 80px) !important;
     border-radius: var(--radius-sm, 12px) !important;
     box-shadow: 0 16px 36px rgba(10, 22, 40, 0.22) !important;
-    z-index: 1050 !important;
+    z-index: 9999 !important;
   }
 
   .notif-list {
-    max-height: min(360px, calc(100dvh - 150px)) !important;
+    max-height: min(380px, calc(100dvh - 180px)) !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
   }
 
   .topbar-profile-popover {
-    position: absolute !important;
-    top: calc(100% + 8px) !important;
-    right: 0 !important;
+    position: fixed !important;
+    top: 62px !important;
+    right: 10px !important;
     left: auto !important;
     width: min(280px, calc(100vw - 20px)) !important;
     max-width: calc(100vw - 20px) !important;
     border-radius: var(--radius-sm, 10px) !important;
     box-shadow: 0 16px 36px rgba(10, 22, 40, 0.22) !important;
-    z-index: 1050 !important;
+    z-index: 9999 !important;
   }
 
   .tpp-item {
@@ -7931,12 +7933,26 @@ html[data-theme="dark"] #aiProposalGuidanceModal .ai-applied-badge {
   html body .um-modal,
   html body .clearance-modal-box,
   html body .pe-lightbox-modal,
-  html body .event-popup,
-  html body #notifDropdown,
-  html body .notif-dropdown {
+  html body .event-popup {
     width: min(100%, calc(100vw - 20px)) !important;
     max-width: calc(100vw - 20px) !important;
     max-height: calc(100dvh - 24px) !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Notification Dropdown Fixed Viewport Positioning (Never clipped by .main-wrap or 34px parent wrapper) */
+  html body #notifDropdown,
+  html body .notif-dropdown {
+    position: fixed !important;
+    top: 62px !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: calc(100vw - 20px) !important;
+    max-width: 400px !important;
+    max-height: calc(100dvh - 80px) !important;
+    margin-left: auto !important;
+    transform: none !important;
+    z-index: 9999 !important;
     box-sizing: border-box !important;
   }
 

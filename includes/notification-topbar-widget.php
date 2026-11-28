@@ -604,20 +604,24 @@ if (!function_exists('topbarWidgetTimeAgo')) {
 }
 
 @media (max-width: 767.98px) {
-  .notif-dropdown {
-    position: absolute !important;
-    top: calc(100% + 8px) !important;
-    right: -42px !important;
-    left: auto !important;
-    width: min(360px, calc(100vw - 20px)) !important;
-    max-width: calc(100vw - 20px) !important;
+  .notif-dropdown,
+  #notifDropdown {
+    position: fixed !important;
+    top: 62px !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: calc(100vw - 20px) !important;
+    max-width: 400px !important;
+    max-height: calc(100dvh - 80px) !important;
+    margin-left: auto !important;
+    transform: none !important;
     border-radius: var(--radius-sm, 12px) !important;
     box-shadow: 0 16px 36px rgba(10, 22, 40, 0.22) !important;
-    z-index: 1050 !important;
+    z-index: 9999 !important;
   }
 
   .notif-list {
-    max-height: min(360px, calc(100dvh - 150px)) !important;
+    max-height: min(380px, calc(100dvh - 180px)) !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
   }
@@ -655,8 +659,10 @@ if (!function_exists('topbarWidgetTimeAgo')) {
 }
 
 @media (max-width: 419.98px) {
-  .notif-dropdown {
-    right: -38px !important;
+  .notif-dropdown,
+  #notifDropdown {
+    left: 8px !important;
+    right: 8px !important;
     width: calc(100vw - 16px) !important;
     max-width: calc(100vw - 16px) !important;
   }
@@ -988,7 +994,7 @@ if (!function_exists('topbarWidgetTimeAgo')) {
 </div>
 
 <!-- 5. Reusable notifications.js Script -->
-<script src="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/js/notifications.js"></script>
+<script src="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/js/notifications.js?v=1.2.2"></script>
 
 <!-- 6. Instant Resilient Topbar Notification Toggle Handler (Guarantees Mobile Responsiveness) -->
 <script>
