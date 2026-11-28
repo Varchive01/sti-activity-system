@@ -2316,6 +2316,49 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
         box-sizing: border-box !important;
         text-align: center !important;
       }
+      /* ── Manpower Summary Table Screen-Fit (Zero Sideways Scroll) ── */
+      .manpower-summary-wrap .dynamic-table {
+        overflow-x: hidden !important;
+        width: 100% !important;
+      }
+      #manpower-summary-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed !important;
+      }
+      #manpower-summary-table th,
+      #manpower-summary-table td {
+        padding: 7px 2px !important;
+        font-size: 0.70rem !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+        box-sizing: border-box !important;
+        line-height: 1.2 !important;
+      }
+      #manpower-summary-table th:nth-child(1),
+      #manpower-summary-table td:nth-child(1) {
+        width: 38% !important;
+        min-width: 0 !important;
+        text-align: left !important;
+        font-weight: 600 !important;
+      }
+      #manpower-summary-table th:nth-child(2),
+      #manpower-summary-table td:nth-child(2),
+      #manpower-summary-table th:nth-child(3),
+      #manpower-summary-table td:nth-child(3),
+      #manpower-summary-table th:nth-child(4),
+      #manpower-summary-table td:nth-child(4) {
+        width: 15% !important;
+        min-width: 0 !important;
+        text-align: center !important;
+      }
+      #manpower-summary-table th:nth-child(5),
+      #manpower-summary-table td:nth-child(5) {
+        width: 17% !important;
+        min-width: 0 !important;
+        text-align: center !important;
+        font-weight: 700 !important;
+      }
       .topbar-right {
         gap: 6px !important;
       }
