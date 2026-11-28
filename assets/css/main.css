@@ -8037,6 +8037,7 @@ html[data-theme="dark"] #aiProposalGuidanceModal .ai-applied-badge {
 
 /* Universal Media and Block Zero-Blowout Protection */
 html body img,
+img,
 html body svg:not([width]),
 html body canvas,
 html body video {
@@ -8053,6 +8054,30 @@ html body code {
 html body .card {
   max-width: 100% !important;
   box-sizing: border-box !important;
+}
+
+/* Universal Responsive Foundation Primitives & Fluid Typography */
+body {
+  font-size: clamp(0.85rem, 0.8rem + 0.25vw, 0.95rem);
+}
+
+.cards,
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+  gap: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.nav {
+  display: flex;
+}
+
+@media (max-width: 768px) {
+  .nav {
+    flex-direction: column;
+  }
 }
 
 /* ============================================================
