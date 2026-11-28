@@ -111,7 +111,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
   <meta name="base-url" content="<?= BASE_URL ?>">
   <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
   <title>New Proposal – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.3">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=<?= time() ?>">
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/teacher-multiselect.css?v=<?= time() ?>">
   <style>
     .wizard-panel {
@@ -3240,19 +3240,19 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
 
               <!-- Interactive Calendar Format View -->
               <div id="schedule-calendar-view-wrap" style="margin-bottom:18px; border:1px solid var(--border, #e2e8f0); border-radius:12px; overflow:hidden; background:var(--bg-card, #ffffff); box-shadow:0 1px 3px rgba(0,0,0,0.04);">
-                <!-- Top Navigation Bar matching the reference UI -->
-                <div style="padding:16px 20px 14px 20px; background:var(--bg-card, #ffffff); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; border-bottom:1px solid var(--border, #f1f5f9);">
-                  <div style="display:flex; align-items:center; gap:12px;">
+                <!-- Top Navigation Bar matching Google Calendar UI -->
+                <div class="sched-cal-topbar">
+                  <div class="sched-cal-topbar-nav" style="display:flex; align-items:center; gap:12px;">
                     <div style="display:flex; align-items:center; gap:6px;">
-                      <button type="button" onclick="shiftScheduleCalendarMonth(-1)" title="Previous month" style="width:34px; height:34px; border-radius:50%; border:1px solid #e2e8f0; background:#ffffff; color:#475569; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem; line-height:1; transition:all 0.15s ease;">‹</button>
-                      <button type="button" onclick="shiftScheduleCalendarMonth(1)" title="Next month" style="width:34px; height:34px; border-radius:50%; border:1.5px solid #0284c7; background:#ffffff; color:#0284c7; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem; line-height:1; font-weight:700; transition:all 0.15s ease;">›</button>
+                      <button type="button" onclick="shiftScheduleCalendarMonth(-1)" class="cal-nav-btn" title="Previous month" style="width:34px; height:34px; border-radius:50%; border:1px solid var(--border, #e2e8f0); background:var(--bg-card, #ffffff); color:var(--text-muted, #475569); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem; line-height:1; transition:all 0.15s ease;">‹</button>
+                      <button type="button" onclick="shiftScheduleCalendarMonth(1)" class="cal-nav-btn" title="Next month" style="width:34px; height:34px; border-radius:50%; border:1.5px solid var(--sti-blue, #0284c7); background:var(--bg-card, #ffffff); color:var(--sti-blue, #0284c7); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem; line-height:1; font-weight:700; transition:all 0.15s ease;">›</button>
                     </div>
-                    <h3 id="schedule-calendar-month-label" style="font-size:1.4rem; font-weight:700; color:var(--text-main, #0f172a); margin:0; letter-spacing:-0.3px;">Month Year</h3>
+                    <h3 id="schedule-calendar-month-label" class="cal-month-title" style="font-size:1.35rem; font-weight:800; color:var(--text-main, #0f172a); margin:0; letter-spacing:-0.3px;">Month Year</h3>
                   </div>
 
-                  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <div class="sched-cal-topbar-controls" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                     <!-- Filter Chips with Category Colored Dots -->
-                    <div style="display:flex; gap:4px; background:#f8fafc; padding:3px 4px; border-radius:24px; border:1px solid #e2e8f0; flex-wrap:wrap;">
+                    <div class="sched-cal-topbar-filters" style="display:flex; gap:4px; background:var(--bg-base, #f8fafc); padding:3px 4px; border-radius:24px; border:1px solid var(--border, #e2e8f0); flex-wrap:wrap;">
                       <button type="button" id="btnSchedFilterAll" class="btn btn-xs btn-primary" onclick="setScheduleCalendarFilter('all')" style="border-radius:20px; padding:3px 10px; font-size:0.75rem; font-weight:600;">All</button>
                       <button type="button" id="btnSchedFilterPrep" class="btn btn-xs btn-outline" onclick="setScheduleCalendarFilter('prep')" style="border-radius:20px; padding:3px 10px; font-size:0.75rem; border:none; color:#92400e; font-weight:600; display:flex; align-items:center; gap:5px;">
                         <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#f59e0b;"></span> Prep
@@ -3269,9 +3269,11 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                     </div>
 
                     <!-- Today button & Quick Add shortcuts -->
-                    <button type="button" onclick="goToTodayCalendar()" style="border-radius:20px; padding:6px 16px; border:1px solid #cbd5e1; background:#ffffff; font-size:0.8rem; font-weight:600; color:#334155; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.04); transition:all 0.15s ease;">Today</button>
-                    <button type="button" onclick="openAddScheduleEventDialog('', 'task')" class="btn btn-outline btn-sm" style="border-radius:20px; padding:6px 14px; font-size:0.8rem; font-weight:600; display:inline-flex; align-items:center; gap:5px;">📋 + Add Faculty Task</button>
-                    <button type="button" onclick="openAddScheduleEventDialog('', 'milestone')" class="btn btn-primary btn-sm" style="border-radius:20px; padding:6px 14px; font-size:0.8rem; font-weight:600; display:inline-flex; align-items:center; gap:5px; background:#003876; border-color:#003876;">📅 + Add Schedule</button>
+                    <div class="sched-cal-topbar-actions" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <button type="button" onclick="goToTodayCalendar()" class="cal-today-btn" style="border-radius:20px; padding:6px 16px; border:1px solid var(--border, #cbd5e1); background:var(--bg-card, #ffffff); font-size:0.8rem; font-weight:600; color:var(--text-main, #334155); cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.04); transition:all 0.15s ease;">Today</button>
+                      <button type="button" onclick="openAddScheduleEventDialog('', 'task')" class="btn btn-outline btn-sm" style="border-radius:20px; padding:6px 14px; font-size:0.8rem; font-weight:600; display:inline-flex; align-items:center; gap:5px;">📋 + Add Faculty Task</button>
+                      <button type="button" onclick="openAddScheduleEventDialog('', 'milestone')" class="btn btn-primary btn-sm" style="border-radius:20px; padding:6px 14px; font-size:0.8rem; font-weight:600; display:inline-flex; align-items:center; gap:5px; background:var(--sti-blue, #003876); border-color:var(--sti-blue, #003876);">📅 + Add Schedule</button>
+                    </div>
                   </div>
                 </div>
 
@@ -3761,8 +3763,12 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       }
       document.getElementById('panel-' + n).classList.add('active');
       currentStep = n;
-      if (n === 6 && typeof renderScheduleTimelineCalendar === 'function') {
-        renderScheduleTimelineCalendar();
+      if (n === 6) {
+        if (typeof window.renderScheduleTimelineCalendar === 'function') {
+          window.renderScheduleTimelineCalendar();
+        } else if (typeof renderScheduleTimelineCalendar === 'function') {
+          renderScheduleTimelineCalendar();
+        }
       }
       if (n === 9 && typeof syncKpiSectionTables === 'function') {
         syncKpiSectionTables();

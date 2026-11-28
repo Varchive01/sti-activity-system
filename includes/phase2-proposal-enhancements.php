@@ -232,6 +232,18 @@
 </div>
 
 <script>
+// ── Universal Safe HTML Escaper ───────────────────────────────────────────
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+window.escapeHtml = escapeHtml;
+
 // ── 1. AI-Assisted Objectives & Rationale Generator (Removes Redundancy) ────────────────
 async function generateRationaleWithAi() {
   if (typeof forceRegenerateObjectives === 'function') {
@@ -1349,6 +1361,11 @@ function renderScheduleTimelineCalendar() {
 
   const maxShow = 3;
 
+  const esc = typeof escapeHtml === 'function' ? escapeHtml : function(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  };
+
   for (let d = 1; d <= daysInMonth; d++) {
     const mm = String(scheduleCalendarMonth + 1).padStart(2, '0');
     const dd = String(d).padStart(2, '0');
@@ -1372,10 +1389,10 @@ function renderScheduleTimelineCalendar() {
 
     dayItems.slice(0, maxShow).forEach(item => {
       if (item.type === 'task') {
-        const itemTitle = (item.displayTitle || item.task || 'Faculty Task').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeFac = (item.faculty || 'Unassigned').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeRole = (item.role || 'Committee Member').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const itemJson = escapeHtml(JSON.stringify({
+        const itemTitle = (item.displayTitle || item.task || 'Faculty Task');
+        const safeFac = item.faculty || 'Unassigned';
+        const safeRole = item.role || 'Committee Member';
+        const itemJson = esc(JSON.stringify({
           title: item.task || 'Faculty Task',
           date: item.dueDate || item.startDate || iso,
           time: (item.startDate && item.dueDate && item.startDate !== item.dueDate) ? `${item.startDate} to ${item.dueDate}` : '',
@@ -1396,15 +1413,15 @@ function renderScheduleTimelineCalendar() {
         html += `<div class="sched-cal-event-pill" 
                      data-timeline-item='${itemJson}'
                      onclick="handleTimelinePillClick(this, event)" 
-                     title="Faculty Task: ${itemTitle} (${safeFac} - ${safeRole})" 
-                     style="background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0;">
+                     title="Faculty Task: ${esc(itemTitle)} (${esc(safeFac)} - ${esc(safeRole)})" 
+                     style="background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; height:22px; max-height:22px; overflow:hidden; white-space:nowrap;">
           <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#10b981; flex-shrink:0;"></span>
-          <span class="sched-cal-event-text">${itemTitle}</span>
+          <span class="sched-cal-event-text" style="overflow:hidden; white-space:nowrap; text-overflow:clip; flex:1; min-width:0; width:0;">${esc(itemTitle)}</span>
         </div>`;
       } else {
-        const safeEv = (item.event || 'Scheduled Activity').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeVen = (item.venue || 'Campus Venue').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeOrg = (item.organizer || 'Organizer').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeEv = item.event || 'Scheduled Activity';
+        const safeVen = item.venue || 'Campus Venue';
+        const safeOrg = item.organizer || 'Organizer';
 
         let pillBg = '#eff6ff';
         let pillBorder = '#bfdbfe';
@@ -1426,7 +1443,7 @@ function renderScheduleTimelineCalendar() {
           catLabel = 'Sub-Event';
         }
 
-        const itemJson = escapeHtml(JSON.stringify({
+        const itemJson = esc(JSON.stringify({
           title: item.event || 'Scheduled Activity',
           date: iso,
           venue: item.venue || 'Campus Venue',
@@ -1444,10 +1461,10 @@ function renderScheduleTimelineCalendar() {
         html += `<div class="sched-cal-event-pill" 
                      data-timeline-item='${itemJson}'
                      onclick="handleTimelinePillClick(this, event)" 
-                     title="[${catLabel}] ${safeEv} (${safeVen} - ${safeOrg})" 
-                     style="background:${pillBg}; color:${pillColor}; border:1px solid ${pillBorder};">
+                     title="[${esc(catLabel)}] ${esc(safeEv)} (${esc(safeVen)} - ${esc(safeOrg)})" 
+                     style="background:${pillBg}; color:${pillColor}; border:1px solid ${pillBorder}; height:22px; max-height:22px; overflow:hidden; white-space:nowrap;">
           <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${dotColor}; flex-shrink:0;"></span>
-          <span class="sched-cal-event-text">${safeEv}</span>
+          <span class="sched-cal-event-text" style="overflow:hidden; white-space:nowrap; text-overflow:clip; flex:1; min-width:0; width:0;">${esc(safeEv)}</span>
         </div>`;
       }
     });
@@ -1459,11 +1476,18 @@ function renderScheduleTimelineCalendar() {
     html += `</div>`;
   }
 
+  // Trailing empty cells to complete the 7-column calendar week
+  const trailing = (7 - ((firstDay + daysInMonth) % 7)) % 7;
+  for (let i = 0; i < trailing; i++) {
+    html += `<div class="schedule-cal-cell other-month" style="background:var(--bg-base, #fafafa); opacity:0.35;"></div>`;
+  }
+
   gridEl.innerHTML = html;
 
   // Re-render agenda summary below calendar
   renderScheduleAgendaList();
 }
+window.renderScheduleTimelineCalendar = renderScheduleTimelineCalendar;
 
 // ── 4. Invitation Mode ("Create Invitation" vs. "Upload Invitation") ───────
 let currentInvitationObjectUrl = null;
@@ -1899,7 +1923,7 @@ async function handleStakeholderEvaluationChange(stakeholderType) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+function initPhase2ProposalEnhancements() {
   injectStakeholderEvaluationSelector();
   refreshEncodedOrganizerDropdowns();
   hydrateCombinedCriteriaListFromTextareas();
@@ -1944,7 +1968,13 @@ document.addEventListener('DOMContentLoaded', function() {
       renderScheduleTimelineCalendar();
     }
   });
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPhase2ProposalEnhancements);
+} else {
+  initPhase2ProposalEnhancements();
+}
 // ── Bulk Add Sections & Academic Presets ────────────────────────────
 function openBulkAddSectionsModal() {
   const modal = document.getElementById('bulkAddSectionsModal');

@@ -59,9 +59,20 @@ check("phase2-proposal-enhancements.php: contains handleTimelinePillClick", str_
 check("phase2-proposal-enhancements.php: includes assets/js/gcal-popup.js", str_contains($phase2Content, 'assets/js/gcal-popup.js'));
 check("phase2-proposal-enhancements.php: uses schedule-cal-cell with fixed containment", str_contains($phase2Content, 'schedule-cal-cell'));
 check("phase2-proposal-enhancements.php: uses sched-cal-event-pill", str_contains($phase2Content, 'sched-cal-event-pill'));
+check("phase2-proposal-enhancements.php: exports window.escapeHtml", str_contains($phase2Content, 'window.escapeHtml'));
+check("phase2-proposal-enhancements.php: includes trailing cells to complete weeks", str_contains($phase2Content, 'trailing'));
+
+// 3b. Verify proposal-create.php and proposal-edit.php cache busting and showStep resilience
+$createContent = file_get_contents("$rootDir/faculty/proposal-create.php");
+$editContent = file_get_contents("$rootDir/faculty/proposal-edit.php");
+check("proposal-create.php: links main.css with dynamic cache buster", str_contains($createContent, 'main.css?v=<?= time() ?>'));
+check("proposal-edit.php: links main.css with dynamic cache buster", str_contains($editContent, 'main.css?v=<?= time() ?>'));
+check("proposal-create.php: contains sched-cal-topbar Google Calendar toolbar", str_contains($createContent, 'sched-cal-topbar'));
+check("proposal-edit.php: contains sched-cal-topbar Google Calendar toolbar", str_contains($editContent, 'sched-cal-topbar'));
 
 // 4. Verify main.css contains Google Calendar popup and fixed cell dimensions
 $cssContent = file_get_contents("$rootDir/assets/css/main.css");
+check("main.css: contains .sched-cal-topbar styles", str_contains($cssContent, '.sched-cal-topbar'));
 check("main.css: contains .gcal-event-popup with light theme background #ffffff", str_contains($cssContent, '.gcal-event-popup') && str_contains($cssContent, '#ffffff'));
 check("main.css: contains .gcal-theme-light with white background", str_contains($cssContent, '.gcal-theme-light') && str_contains($cssContent, '#ffffff'));
 check("main.css: contains [data-theme=\"dark\"] .gcal-event-popup with dark theme background #1f1f1f", str_contains($cssContent, '[data-theme="dark"] .gcal-event-popup') && str_contains($cssContent, '#1f1f1f'));

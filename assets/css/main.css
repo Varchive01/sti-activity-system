@@ -3338,6 +3338,101 @@ textarea:disabled {
   line-height: 1.2;
 }
 
+/* ── Activity Timeline & Calendar Schedule Toolbar ── */
+.sched-cal-topbar {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+  padding: 14px 18px !important;
+  background: var(--bg-card, #ffffff) !important;
+  border-bottom: 1px solid var(--border, #f1f5f9) !important;
+  box-sizing: border-box !important;
+}
+.sched-cal-topbar-nav {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+.sched-cal-topbar-controls {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+}
+.sched-cal-topbar-filters {
+  display: flex !important;
+  gap: 4px !important;
+  background: var(--bg-base, #f8fafc) !important;
+  padding: 3px 4px !important;
+  border-radius: 24px !important;
+  border: 1px solid var(--border, #e2e8f0) !important;
+  flex-wrap: wrap !important;
+}
+.sched-cal-topbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+
+@media (max-width: 768px) {
+  .sched-cal-topbar {
+    padding: 10px 12px !important;
+    gap: 10px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .sched-cal-topbar-nav {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+  .sched-cal-topbar-controls {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .sched-cal-topbar-filters {
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 4px 6px !important;
+    max-width: 100% !important;
+    scrollbar-width: none !important;
+    justify-content: flex-start !important;
+  }
+  .sched-cal-topbar-filters::-webkit-scrollbar {
+    display: none !important;
+  }
+  .sched-cal-topbar-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+  .sched-cal-topbar-actions .btn,
+  .sched-cal-topbar-actions .cal-today-btn {
+    flex: 1 1 auto !important;
+    text-align: center !important;
+    justify-content: center !important;
+    padding: 6px 10px !important;
+    font-size: 0.76rem !important;
+  }
+}
+
+[data-theme="dark"] .sched-cal-topbar {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="dark"] .sched-cal-topbar-filters {
+  background: var(--bg-card-elevated, #15243C) !important;
+  border-color: var(--border, #1E2D45) !important;
+}
+
 /* ── Google Calendar Style Floating Popup (Adaptive Light & Dark Themes) ── */
 .gcal-event-popup,
 .gcal-event-popup.gcal-theme-light,
