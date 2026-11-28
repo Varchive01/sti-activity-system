@@ -111,7 +111,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
   <meta name="base-url" content="<?= BASE_URL ?>">
   <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
   <title>New Proposal – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.1">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.2">
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/teacher-multiselect.css?v=<?= time() ?>">
   <style>
     .wizard-panel {

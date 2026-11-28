@@ -159,13 +159,14 @@ const AIProposalGuidance = (function () {
         }
         .ai-guidance-layout {
           display: grid;
-          grid-template-columns: 260px minmax(0, 1fr);
-          gap: 18px;
+          grid-template-columns: 240px minmax(0, 1fr);
+          gap: 16px;
           align-items: stretch;
           min-height: 520px;
           width: 100%;
           max-width: 100%;
           box-sizing: border-box;
+          overflow-x: hidden;
         }
         @media (max-width: 1023.98px) {
           .ai-guidance-layout {
@@ -199,6 +200,55 @@ const AIProposalGuidance = (function () {
           --aig-input-border:   #CBD5E1;
           --aig-pill-bg:        #F1F5F9;
           --aig-pill-color:     #475569;
+        }
+
+        #aiProposalGuidanceModal .modal-dialog,
+        .modal.fade#aiProposalGuidanceModal .modal-dialog,
+        div#aiProposalGuidanceModal .modal-dialog {
+          max-width: min(1480px, calc(100vw - 32px)) !important;
+          width: calc(100vw - 32px) !important;
+          margin: 1rem auto !important;
+          box-sizing: border-box !important;
+        }
+
+        #aiProposalGuidanceModal .modal-content {
+          background: var(--aig-bg-modal) !important;
+          color: var(--aig-text-main) !important;
+          border: 1px solid var(--aig-border) !important;
+          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+          width: 100% !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
+        }
+
+        #aiProposalGuidanceModal .modal-body {
+          padding: 16px !important;
+          max-height: calc(90vh - 120px) !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          box-sizing: border-box !important;
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+
+        #aiProposalGuidanceModal .ai-guidance-layout {
+          display: grid !important;
+          grid-template-columns: 240px minmax(0, 1fr) !important;
+          gap: 16px !important;
+          align-items: stretch !important;
+          min-height: 520px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+          overflow-x: hidden !important;
+        }
+
+        @media (max-width: 1023.98px) {
+          #aiProposalGuidanceModal .ai-guidance-layout {
+            grid-template-columns: minmax(0, 1fr) !important;
+            min-height: auto !important;
+          }
         }
 
         [data-theme="dark"] #aiProposalGuidanceModal,
@@ -272,10 +322,11 @@ const AIProposalGuidance = (function () {
           display: flex;
           flex-direction: column;
           min-height: 480px;
-          min-width: 0;
-          max-width: 100%;
-          overflow-x: hidden;
-          box-sizing: border-box;
+          min-width: 0 !important;
+          max-width: 100% !important;
+          width: 100% !important;
+          overflow-x: hidden !important;
+          box-sizing: border-box !important;
         }
 
         #aiProposalGuidanceModal .ai-context-title-box {
@@ -326,10 +377,15 @@ const AIProposalGuidance = (function () {
           border: 1px solid var(--aig-border) !important;
           color: var(--aig-text-main) !important;
           border-radius: 10px;
-          padding: 16px;
+          padding: 14px 16px;
           margin-bottom: 14px;
           box-shadow: 0 1px 4px rgba(0,0,0,0.06);
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
+          min-width: 0 !important;
+          max-width: 100% !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+          overflow-x: hidden !important;
         }
 
         #aiProposalGuidanceModal .ai-card-item:hover {
@@ -351,6 +407,9 @@ const AIProposalGuidance = (function () {
           margin-bottom: 12px;
           padding-bottom: 10px;
           border-bottom: 1px solid var(--aig-border) !important;
+          min-width: 0;
+          width: 100%;
+          box-sizing: border-box;
         }
 
         #aiProposalGuidanceModal .ai-card-title {
@@ -382,31 +441,33 @@ const AIProposalGuidance = (function () {
           width: 100% !important;
           max-width: 100% !important;
           min-width: 0 !important;
-          table-layout: auto;
-          font-size: 0.78rem;
-          border-collapse: collapse;
+          table-layout: auto !important;
+          font-size: 0.76rem !important;
+          border-collapse: collapse !important;
+          box-sizing: border-box !important;
         }
 
         #aiProposalGuidanceModal .ai-preview-table th {
           background: var(--aig-table-th-bg) !important;
           color: var(--aig-text-main) !important;
           border-bottom: 1px solid var(--aig-table-border) !important;
-          padding: 6px 6px;
-          font-weight: 700;
-          font-size: 0.72rem;
+          padding: 6px 5px !important;
+          font-weight: 700 !important;
+          font-size: 0.72rem !important;
           white-space: normal !important;
-          word-break: break-word;
-          line-height: 1.25;
+          word-break: break-word !important;
+          line-height: 1.25 !important;
         }
 
         #aiProposalGuidanceModal .ai-preview-table td {
           color: var(--aig-text-main) !important;
           border-bottom: 1px solid var(--aig-table-td-border) !important;
-          padding: 6px 6px;
+          padding: 6px 5px !important;
           white-space: normal !important;
-          word-break: break-word;
-          overflow-wrap: break-word;
-          vertical-align: top;
+          word-break: break-word !important;
+          overflow-wrap: break-word !important;
+          vertical-align: middle !important;
+          font-size: 0.74rem !important;
         }
 
         #aiProposalGuidanceModal .ai-person-pill {
@@ -616,8 +677,8 @@ const AIProposalGuidance = (function () {
       modal.style.padding = '16px';
 
       modal.innerHTML = `
-        <div class="modal-dialog modal-dialog-centered" style="margin: 1rem auto; max-width: min(1320px, calc(100vw - 28px)); width: 100%;">
-          <div class="modal-content" style="border-radius: 14px; overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; max-width: 100%; box-sizing: border-box;">
+        <div class="modal-dialog modal-dialog-centered" style="margin: 1rem auto; max-width: min(1480px, calc(100vw - 32px)) !important; width: calc(100vw - 32px) !important; box-sizing: border-box !important;">
+          <div class="modal-content" style="border-radius: 14px; overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; max-width: 100%; width: 100%; box-sizing: border-box;">
             
             <!-- Modal Header -->
             <div class="modal-header" style="padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
@@ -636,7 +697,7 @@ const AIProposalGuidance = (function () {
             </div>
 
             <!-- Modal Body (Two-Panel Layout) -->
-            <div class="modal-body" style="padding: 18px; max-height: calc(90vh - 120px); overflow-y: auto; overflow-x: hidden; box-sizing: border-box;">
+            <div class="modal-body" style="padding: 16px; max-height: calc(90vh - 120px); overflow-y: auto; overflow-x: hidden !important; box-sizing: border-box; width: 100%; max-width: 100%;">
               <div class="ai-guidance-layout">
 
                 <!-- ── LEFT PANEL: Generate Proposal Content ── -->
@@ -690,8 +751,8 @@ const AIProposalGuidance = (function () {
                 <div class="ai-guidance-right-panel">
                   
                   <!-- Right Panel Toolbar -->
-                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--aig-border, #E2E8F0); margin-bottom: 16px;">
-                    <div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--aig-border, #E2E8F0); margin-bottom: 14px; min-width: 0; width: 100%; box-sizing: border-box;">
+                    <div style="min-width: 0; flex: 1 1 200px;">
                       <h6 class="ai-text-main" style="font-size: 0.95rem; font-weight: 800; margin: 0 0 2px 0;">
                         AI Suggestions for Your Proposal
                       </h6>
@@ -701,21 +762,21 @@ const AIProposalGuidance = (function () {
                     </div>
 
                     <!-- Action Controls -->
-                    <div id="aiRightPanelActions" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap;">
-                      <button type="button" class="btn btn-outline btn-sm ai-btn-action" onclick="AIProposalGuidance.generateSections(true)" style="display: inline-flex; align-items: center; gap: 5px;">
+                    <div id="aiRightPanelActions" style="display: none; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
+                      <button type="button" class="btn btn-outline btn-sm ai-btn-action" onclick="AIProposalGuidance.generateSections(true)" style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.74rem; padding: 4px 10px; white-space: nowrap;">
                         <span>🔄</span> Regenerate
                       </button>
-                      <button type="button" id="btnApplySelected" class="btn btn-outline btn-sm ai-btn-action" onclick="AIProposalGuidance.applySelected()" style="border-color: #0284C7; color: #0284C7;">
+                      <button type="button" id="btnApplySelected" class="btn btn-outline btn-sm ai-btn-action" onclick="AIProposalGuidance.applySelected()" style="border-color: #0284C7; color: #0284C7; font-size: 0.74rem; padding: 4px 10px; white-space: nowrap;">
                         Apply Selected (0)
                       </button>
-                      <button type="button" class="btn btn-primary btn-sm" onclick="AIProposalGuidance.applyAll()" style="font-size: 0.76rem; padding: 5px 14px; font-weight: 700; border-radius: 6px; background: #0284C7; border: none; color: #FFFFFF;">
-                        ✓ Apply All Suggestions
+                      <button type="button" class="btn btn-primary btn-sm" onclick="AIProposalGuidance.applyAll()" style="font-size: 0.74rem; padding: 4px 12px; font-weight: 700; border-radius: 6px; background: #0284C7; border: none; color: #FFFFFF; white-space: nowrap;">
+                        ✓ Apply All
                       </button>
                     </div>
                   </div>
 
                   <!-- Dynamic Suggestions Content Container -->
-                  <div id="aiSuggestionsContainer" style="flex: 1 1 auto; overflow-y: auto; max-height: calc(88vh - 220px); padding-right: 4px;">
+                  <div id="aiSuggestionsContainer" style="flex: 1 1 auto; overflow-y: auto; max-height: calc(88vh - 220px); padding-right: 4px; min-width: 0; width: 100%; box-sizing: border-box;">
                     <!-- Rendered by renderSuggestions() -->
                   </div>
 
@@ -1155,35 +1216,35 @@ const AIProposalGuidance = (function () {
           const rawProv = String(m.provider || '').toLowerCase().trim();
           const isRental = rawProv === 'rental' || rawProv.includes('rental') || rawProv.includes('supplier') || rawProv.includes('external') || rawProv.includes('vendor') || (parseFloat(m.rate || m.cost || 0) > 0 && !rawProv.includes('in_house') && !rawProv.includes('school') && !rawProv.includes('internal'));
           const provBadge = isRental 
-            ? '<span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">Rental (Supplier)</span>'
-            : '<span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">In-House (School)</span>';
-          const unitLabel = m.unit === 'per_hour' ? 'Per Hour' : (m.unit === 'per_day' ? 'Per Day' : 'Fixed / Item');
+            ? '<span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:0.70rem; font-weight:600; background:#fef3c7; color:#92400e; border:1px solid #fde68a; white-space:nowrap;">Rental (Supplier)</span>'
+            : '<span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:0.70rem; font-weight:600; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; white-space:nowrap;">In-House (School)</span>';
+          const unitLabel = m.unit === 'per_hour' ? 'Per Hr' : (m.unit === 'per_day' ? 'Per Day' : 'Fixed');
           const rateVal = isRental ? `₱${parseFloat(m.rate !== undefined ? m.rate : (m.cost || 0)).toFixed(2)}` : '<span class="ai-text-muted">—</span>';
           const costVal = isRental ? `₱${parseFloat(m.cost !== undefined ? m.cost : ((parseFloat(m.rate) || 0) * (parseInt(m.qty, 10) || 1))).toFixed(2)}` : '₱0.00';
           return `
             <tr>
-              <td style="font-weight:600;">${escapeHtml(m.item || '')}</td>
-              <td class="ai-text-muted">${escapeHtml(m.desc || '—')}</td>
-              <td style="text-align:center;">${m.qty || 1}</td>
-              <td>${provBadge}</td>
-              <td class="ai-text-muted" style="font-size:0.78rem;">${isRental ? unitLabel : '—'}</td>
-              <td style="text-align:right;">${rateVal}</td>
-              <td style="text-align:right; font-weight:600;">${costVal}</td>
+              <td style="font-weight:600; min-width:110px; word-break:break-word;">${escapeHtml(m.item || '')}</td>
+              <td class="ai-text-muted" style="min-width:130px; word-break:break-word;">${escapeHtml(m.desc || '—')}</td>
+              <td style="text-align:center; width:45px;">${m.qty || 1}</td>
+              <td style="min-width:115px;">${provBadge}</td>
+              <td class="ai-text-muted" style="font-size:0.74rem; text-align:center; width:65px;">${isRental ? unitLabel : '—'}</td>
+              <td style="text-align:right; width:75px; white-space:nowrap;">${rateVal}</td>
+              <td style="text-align:right; font-weight:600; width:80px; white-space:nowrap;">${costVal}</td>
             </tr>
           `;
         }).join('');
         return `
-          <div style="overflow-x:auto;">
+          <div style="width:100%; max-width:100%; overflow-x:hidden; box-sizing:border-box;">
             <table class="ai-preview-table">
               <thead>
                 <tr>
-                  <th>Item</th>
-                  <th>Description</th>
-                  <th style="text-align:center;">Qty</th>
-                  <th>Provider / Supplier</th>
-                  <th>Billing Unit</th>
-                  <th style="text-align:right;">Rate</th>
-                  <th style="text-align:right;">Est. Cost</th>
+                  <th style="min-width:110px;">Item</th>
+                  <th style="min-width:130px;">Description</th>
+                  <th style="text-align:center; width:45px;">Qty</th>
+                  <th style="min-width:115px;">Provider / Supplier</th>
+                  <th style="text-align:center; width:65px;">Billing Unit</th>
+                  <th style="text-align:right; width:75px;">Rate</th>
+                  <th style="text-align:right; width:80px;">Est. Cost</th>
                 </tr>
               </thead>
               <tbody>${matRows}</tbody>

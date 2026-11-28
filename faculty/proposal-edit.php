@@ -262,7 +262,7 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
   <meta name="base-url" content="<?= BASE_URL ?>">
   <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
   <title>Edit Proposal – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.1">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.2">
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/teacher-multiselect.css?v=<?= time() ?>">
   <style>
     .wizard-panel { display: none }

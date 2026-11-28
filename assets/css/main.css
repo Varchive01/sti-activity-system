@@ -7176,13 +7176,14 @@ body.dark-mode #aiProposalGuidanceModal {
 }
 
 #aiProposalGuidanceModal .ai-guidance-layout {
-  display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  gap: 18px;
-  align-items: stretch;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
+  display: grid !important;
+  grid-template-columns: 240px minmax(0, 1fr) !important;
+  gap: 16px !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
 }
 
 @media (max-width: 1023.98px) {
@@ -7192,15 +7193,34 @@ body.dark-mode #aiProposalGuidanceModal {
   }
 }
 
-#aiProposalGuidanceModal .modal-dialog {
-  max-width: min(1320px, calc(100vw - 28px)) !important;
-  width: 100% !important;
+#aiProposalGuidanceModal .modal-dialog,
+.modal.fade#aiProposalGuidanceModal .modal-dialog,
+div#aiProposalGuidanceModal .modal-dialog {
+  max-width: min(1480px, calc(100vw - 32px)) !important;
+  width: calc(100vw - 32px) !important;
+  margin: 1rem auto !important;
   box-sizing: border-box !important;
 }
 
+#aiProposalGuidanceModal .modal-content {
+  background: var(--aig-bg-modal) !important;
+  color: var(--aig-text-main) !important;
+  border: 1px solid var(--aig-border) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
 #aiProposalGuidanceModal .modal-body {
+  padding: 16px !important;
+  max-height: calc(90vh - 120px) !important;
+  overflow-y: auto !important;
   overflow-x: hidden !important;
   box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
 #aiProposalGuidanceModal .ai-guidance-left-panel {
@@ -7227,10 +7247,11 @@ body.dark-mode #aiProposalGuidanceModal {
   display: flex;
   flex-direction: column;
   min-height: 480px;
-  min-width: 0;
-  max-width: 100%;
-  overflow-x: hidden;
-  box-sizing: border-box;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
 }
 
 #aiProposalGuidanceModal .ai-context-title-box {
@@ -7281,10 +7302,15 @@ body.dark-mode #aiProposalGuidanceModal {
   border: 1px solid var(--aig-border) !important;
   color: var(--aig-text-main) !important;
   border-radius: 10px;
-  padding: 16px;
+  padding: 14px 16px;
   margin-bottom: 14px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
 }
 
 #aiProposalGuidanceModal .ai-card-item:hover {
@@ -7306,6 +7332,9 @@ body.dark-mode #aiProposalGuidanceModal {
   margin-bottom: 12px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--aig-border) !important;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 #aiProposalGuidanceModal .ai-card-title {
@@ -7337,31 +7366,33 @@ body.dark-mode #aiProposalGuidanceModal {
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
-  table-layout: auto;
-  font-size: 0.78rem;
-  border-collapse: collapse;
+  table-layout: auto !important;
+  font-size: 0.76rem !important;
+  border-collapse: collapse !important;
+  box-sizing: border-box !important;
 }
 
 #aiProposalGuidanceModal .ai-preview-table th {
   background: var(--aig-table-th-bg) !important;
   color: var(--aig-text-main) !important;
   border-bottom: 1px solid var(--aig-table-border) !important;
-  padding: 6px 6px;
-  font-weight: 700;
-  font-size: 0.72rem;
+  padding: 6px 5px !important;
+  font-weight: 700 !important;
+  font-size: 0.72rem !important;
   white-space: normal !important;
-  word-break: break-word;
-  line-height: 1.25;
+  word-break: break-word !important;
+  line-height: 1.25 !important;
 }
 
 #aiProposalGuidanceModal .ai-preview-table td {
   color: var(--aig-text-main) !important;
   border-bottom: 1px solid var(--aig-table-td-border) !important;
-  padding: 6px 6px;
+  padding: 6px 5px !important;
   white-space: normal !important;
-  word-break: break-word;
-  overflow-wrap: break-word;
-  vertical-align: top;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  vertical-align: middle !important;
+  font-size: 0.74rem !important;
 }
 
 #aiProposalGuidanceModal .ai-person-pill {
