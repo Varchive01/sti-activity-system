@@ -7175,16 +7175,47 @@ body.dark-mode #aiProposalGuidanceModal {
   color: var(--aig-text-muted) !important;
 }
 
+#aiProposalGuidanceModal .ai-guidance-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1023.98px) {
+  #aiProposalGuidanceModal .ai-guidance-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    min-height: auto !important;
+  }
+}
+
+#aiProposalGuidanceModal .modal-dialog {
+  max-width: min(1320px, calc(100vw - 28px)) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+#aiProposalGuidanceModal .modal-body {
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+
 #aiProposalGuidanceModal .ai-guidance-left-panel {
   background: var(--aig-bg-panel-left) !important;
   border: 1.5px solid var(--aig-border) !important;
   color: var(--aig-text-main) !important;
   border-radius: 12px;
-  padding: 18px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 #aiProposalGuidanceModal .ai-guidance-right-panel {
@@ -7192,10 +7223,14 @@ body.dark-mode #aiProposalGuidanceModal {
   border: 1.5px solid var(--aig-border) !important;
   color: var(--aig-text-main) !important;
   border-radius: 12px;
-  padding: 18px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   min-height: 480px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 #aiProposalGuidanceModal .ai-context-title-box {
@@ -7266,6 +7301,8 @@ body.dark-mode #aiProposalGuidanceModal {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 12px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--aig-border) !important;
@@ -7284,6 +7321,8 @@ body.dark-mode #aiProposalGuidanceModal {
   border-radius: 6px;
   padding: 10px 12px;
   line-height: 1.45;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 #aiProposalGuidanceModal .ai-label-header {
@@ -7295,8 +7334,11 @@ body.dark-mode #aiProposalGuidanceModal {
 }
 
 #aiProposalGuidanceModal .ai-preview-table {
-  width: 100%;
-  font-size: 0.80rem;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  table-layout: auto;
+  font-size: 0.78rem;
   border-collapse: collapse;
 }
 
@@ -7304,14 +7346,22 @@ body.dark-mode #aiProposalGuidanceModal {
   background: var(--aig-table-th-bg) !important;
   color: var(--aig-text-main) !important;
   border-bottom: 1px solid var(--aig-table-border) !important;
-  padding: 6px 8px;
+  padding: 6px 6px;
   font-weight: 700;
+  font-size: 0.72rem;
+  white-space: normal !important;
+  word-break: break-word;
+  line-height: 1.25;
 }
 
 #aiProposalGuidanceModal .ai-preview-table td {
   color: var(--aig-text-main) !important;
   border-bottom: 1px solid var(--aig-table-td-border) !important;
-  padding: 6px 8px;
+  padding: 6px 6px;
+  white-space: normal !important;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  vertical-align: top;
 }
 
 #aiProposalGuidanceModal .ai-person-pill {

@@ -159,14 +159,17 @@ const AIProposalGuidance = (function () {
         }
         .ai-guidance-layout {
           display: grid;
-          grid-template-columns: 310px 1fr;
-          gap: 20px;
+          grid-template-columns: 260px minmax(0, 1fr);
+          gap: 18px;
           align-items: stretch;
-          min-height: 540px;
+          min-height: 520px;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
-        @media (max-width: 860px) {
+        @media (max-width: 1023.98px) {
           .ai-guidance-layout {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(0, 1fr);
             min-height: auto;
           }
         }
@@ -250,11 +253,14 @@ const AIProposalGuidance = (function () {
           border: 1.5px solid var(--aig-border) !important;
           color: var(--aig-text-main) !important;
           border-radius: 12px;
-          padding: 18px;
+          padding: 16px;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          gap: 16px;
+          gap: 14px;
+          min-width: 0;
+          max-width: 100%;
+          box-sizing: border-box;
         }
 
         #aiProposalGuidanceModal .ai-guidance-right-panel {
@@ -262,10 +268,14 @@ const AIProposalGuidance = (function () {
           border: 1.5px solid var(--aig-border) !important;
           color: var(--aig-text-main) !important;
           border-radius: 12px;
-          padding: 18px;
+          padding: 16px;
           display: flex;
           flex-direction: column;
           min-height: 480px;
+          min-width: 0;
+          max-width: 100%;
+          overflow-x: hidden;
+          box-sizing: border-box;
         }
 
         #aiProposalGuidanceModal .ai-context-title-box {
@@ -336,6 +346,8 @@ const AIProposalGuidance = (function () {
           display: flex;
           justify-content: space-between;
           align-items: center;
+          flex-wrap: wrap;
+          gap: 8px;
           margin-bottom: 12px;
           padding-bottom: 10px;
           border-bottom: 1px solid var(--aig-border) !important;
@@ -354,6 +366,8 @@ const AIProposalGuidance = (function () {
           border-radius: 6px;
           padding: 10px 12px;
           line-height: 1.45;
+          word-break: break-word;
+          overflow-wrap: anywhere;
         }
 
         #aiProposalGuidanceModal .ai-label-header {
@@ -365,8 +379,11 @@ const AIProposalGuidance = (function () {
         }
 
         #aiProposalGuidanceModal .ai-preview-table {
-          width: 100%;
-          font-size: 0.80rem;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          table-layout: auto;
+          font-size: 0.78rem;
           border-collapse: collapse;
         }
 
@@ -374,14 +391,22 @@ const AIProposalGuidance = (function () {
           background: var(--aig-table-th-bg) !important;
           color: var(--aig-text-main) !important;
           border-bottom: 1px solid var(--aig-table-border) !important;
-          padding: 6px 8px;
+          padding: 6px 6px;
           font-weight: 700;
+          font-size: 0.72rem;
+          white-space: normal !important;
+          word-break: break-word;
+          line-height: 1.25;
         }
 
         #aiProposalGuidanceModal .ai-preview-table td {
           color: var(--aig-text-main) !important;
           border-bottom: 1px solid var(--aig-table-td-border) !important;
-          padding: 6px 8px;
+          padding: 6px 6px;
+          white-space: normal !important;
+          word-break: break-word;
+          overflow-wrap: break-word;
+          vertical-align: top;
         }
 
         #aiProposalGuidanceModal .ai-person-pill {
@@ -591,14 +616,14 @@ const AIProposalGuidance = (function () {
       modal.style.padding = '16px';
 
       modal.innerHTML = `
-        <div class="modal-dialog modal-dialog-centered" style="margin: 1.5rem auto; max-width: 1140px; width: 100%;">
-          <div class="modal-content" style="border-radius: 14px; overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif;">
+        <div class="modal-dialog modal-dialog-centered" style="margin: 1rem auto; max-width: min(1320px, calc(100vw - 28px)); width: 100%;">
+          <div class="modal-content" style="border-radius: 14px; overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; max-width: 100%; box-sizing: border-box;">
             
             <!-- Modal Header -->
             <div class="modal-header" style="padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 1.4rem;">✨</span>
-                <div>
+              <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                <span style="font-size: 1.4rem; flex-shrink: 0;">✨</span>
+                <div style="min-width: 0;">
                   <h5 class="ai-text-main" style="margin: 0; font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em;">
                     AI Proposal Guidance
                   </h5>
@@ -607,11 +632,11 @@ const AIProposalGuidance = (function () {
                   </span>
                 </div>
               </div>
-              <button type="button" onclick="AIProposalGuidance.closeModal()" aria-label="Close" class="ai-text-muted" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; padding: 2px 8px; border-radius: 6px; line-height: 1;">&times;</button>
+              <button type="button" onclick="AIProposalGuidance.closeModal()" aria-label="Close" class="ai-text-muted" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; padding: 2px 8px; border-radius: 6px; line-height: 1; flex-shrink: 0;">&times;</button>
             </div>
 
             <!-- Modal Body (Two-Panel Layout) -->
-            <div class="modal-body" style="padding: 20px; max-height: calc(88vh - 120px); overflow-y: auto;">
+            <div class="modal-body" style="padding: 18px; max-height: calc(90vh - 120px); overflow-y: auto; overflow-x: hidden; box-sizing: border-box;">
               <div class="ai-guidance-layout">
 
                 <!-- ── LEFT PANEL: Generate Proposal Content ── -->
