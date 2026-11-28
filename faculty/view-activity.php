@@ -2121,6 +2121,16 @@ label, input, button, select, textarea {
               banner.textContent = 'Please select a valid .csv file to import.';
               return;
             }
+            const selectedCsvName = fileInput.files[0].name || '';
+            if (!selectedCsvName.toLowerCase().endsWith('.csv')) {
+              fileInput.value = '';
+              banner.style.display = 'block';
+              banner.style.background = 'rgba(220,38,38,0.1)';
+              banner.style.border = '1px solid rgba(220,38,38,0.3)';
+              banner.style.color = 'var(--danger, #dc2626)';
+              banner.textContent = '⚠️ Invalid file type: "' + selectedCsvName + '" is not a CSV file. Please upload a .csv file only.';
+              return;
+            }
 
             btn.disabled = true;
             btn.textContent = 'Importing...';

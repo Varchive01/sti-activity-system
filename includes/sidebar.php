@@ -791,3 +791,4 @@ if (!function_exists('sidebarIcon')) {
     }
   })();
 </script>
+<script src="<?= defined('BASE_URL') ? BASE_URL : '' ?>/assets/js/file-upload-validator.js?v=1.0.0"></script>
