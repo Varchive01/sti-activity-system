@@ -171,7 +171,7 @@ $exportProposalData = [
     }, $schedules ?? []),
     'program' => array_map(function ($p) {
         return [
-            $p['time_slot'] ?? '—',
+            formatStandardTimeSlot($p['time_slot'] ?? '—'),
             trim(($p['segment'] ?? '') . ' ' . ($p['description'] ?? '')),
             $p['person_ic'] ?? ($p['person_in_charge'] ?? 'Unassigned')
         ];
@@ -677,7 +677,7 @@ $exportProposalData = [
       <tbody>
         <?php foreach ($program as $p): ?>
           <tr>
-            <td><?= htmlspecialchars($p['time_slot'] ?? '—') ?></td>
+            <td><?= htmlspecialchars(formatStandardTimeSlot($p['time_slot'] ?? '—')) ?></td>
             <td><?= htmlspecialchars(trim(($p['segment'] ?? '') . ' ' . ($p['description'] ?? ''))) ?></td>
             <td><?= htmlspecialchars($p['person_ic'] ?? ($p['person_in_charge'] ?? 'Unassigned')) ?></td>
           </tr>

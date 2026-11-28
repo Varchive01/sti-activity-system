@@ -989,7 +989,7 @@ label, input, button, select, textarea {
       <div class="info-grid" style="margin-bottom:14px;">
         <div class="info-block"><div class="lbl">Event Title</div><div class="val"><?= htmlspecialchars($activity['title']) ?></div></div>
         <div class="info-block"><div class="lbl">Event Date(s)</div><div class="val"><?= ($activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—') . (!empty($activity['end_date']) && $activity['end_date'] !== $activity['event_date'] ? ' to ' . date('F j, Y', strtotime($activity['end_date'])) : '') ?></div></div>
-        <div class="info-block"><div class="lbl">Time</div><div class="val"><?= $activity['start_time'] ? date('g:i A', strtotime($activity['start_time'])) : '—' ?> – <?= $activity['end_time'] ? date('g:i A', strtotime($activity['end_time'])) : '—' ?></div></div>
+        <div class="info-block"><div class="lbl">Time</div><div class="val"><?= formatStandardTimeRange($activity['start_time'] ?? null, $activity['end_time'] ?? null) ?></div></div>
         <div class="info-block"><div class="lbl">Venue</div><div class="val"><?= htmlspecialchars($activity['venue'] ?? '—') ?></div></div>
         <div class="info-block"><div class="lbl">Venue Address</div><div class="val"><?= htmlspecialchars($activity['venue_address'] ?? '—') ?></div></div>
         <div class="info-block"><div class="lbl">Target Participants</div><div class="val"><?= number_format($activity['target_participants']) ?></div></div>
@@ -1228,7 +1228,7 @@ label, input, button, select, textarea {
             <tbody>
               <?php foreach ($prog as $p): ?>
               <tr>
-                <td><span class="badge badge-outline"><?= $p['time_slot'] ? date('g:i A', strtotime($p['time_slot'])) : '—' ?></span></td>
+                <td><span class="badge badge-outline"><?= htmlspecialchars(formatStandardTimeSlot($p['time_slot'] ?? '')) ?></span></td>
                 <td><strong style="color:var(--text-main); font-weight:600;"><?= htmlspecialchars($p['segment']) ?></strong></td>
                 <td style="color:var(--text-muted);"><?= htmlspecialchars($p['description'] ?? '—') ?></td>
                 <td><?= htmlspecialchars($p['person_ic'] ?? '—') ?></td>

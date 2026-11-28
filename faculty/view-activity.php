@@ -735,7 +735,7 @@ label, input, button, select, textarea {
         <div class="info-grid" style="margin-bottom: 16px;">
           <?php foreach([
             'Date'=>$activity['event_date']?date('F j, Y',strtotime($activity['event_date'])):'—',
-            'Time'=>($activity['start_time']??'—').' – '.($activity['end_time']??'—'),
+            'Time'=>formatStandardTimeRange($activity['start_time']??null, $activity['end_time']??null),
             'Venue'=>$activity['venue']??'—',
             'Theme'=>$activity['theme']??'—',
             'Target Participants'=>number_format($activity['target_participants']),
@@ -882,7 +882,7 @@ label, input, button, select, textarea {
             <tbody>
               <?php foreach($program as $p): ?>
               <tr>
-                <td><span class="time-badge">⏱ <?= htmlspecialchars($p['time_slot']) ?></span></td>
+                <td><span class="time-badge">⏱ <?= htmlspecialchars(formatStandardTimeSlot($p['time_slot'] ?? '')) ?></span></td>
                 <td><strong style="color:var(--text-main); font-weight:600;"><?= htmlspecialchars($p['segment']) ?></strong></td>
                 <td style="color:var(--text-muted);"><?= htmlspecialchars($p['description']??'—') ?></td>
                 <td><?= htmlspecialchars($p['person_ic']??'—') ?></td>

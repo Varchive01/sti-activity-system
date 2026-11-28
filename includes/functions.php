@@ -4536,3 +4536,57 @@ function hasValidFloorPlanContent(?array $floorplan, ?array $activity = null): b
     return false;
 }
 
+/**
+ * Formats a time string into standard 12-hour AM/PM format (e.g. "8:00 AM", "1:30 PM").
+ * Accepts standard MySQL time (HH:MM:SS, HH:MM) or datetime strings.
+ * Preserves empty / placeholder strings ("—", "N/A", "TBD", "TBA").
+ */
+function formatStandardTime(?string $timeStr): string {
+    $clean = trim((string)($timeStr ?? ''));
+    if ($clean === '' || $clean === '—' || $clean === '–' || $clean === 'N/A' || $clean === 'TBD' || $clean === 'TBA') {
+        return '—';
+    }
+    $ts = strtotime($clean);
+    return ($ts !== false) ? date('g:i A', $ts) : $clean;
+}
+
+/**
+ * Formats a start and optional end time into standard 12-hour range (e.g. "1:00 PM – 5:00 PM").
+ */
+function formatStandardTimeRange(?string $startTime, ?string $endTime = null, string $separator = ' – '): string {
+    $st = formatStandardTime($startTime);
+    $et = formatStandardTime($endTime);
+    if ($st !== '—' && $et !== '—') {
+        return "{$st}{$separator}{$et}";
+    }
+    if ($st !== '—') {
+        return $st;
+    }
+    if ($et !== '—') {
+        return $et;
+    }
+    return '—';
+}
+
+/**
+ * Formats a program time slot string which may be a single time ("13:00") or a range ("13:00 - 15:00").
+ */
+function formatStandardTimeSlot(?string $timeSlot): string {
+    $clean = trim((string)($timeSlot ?? ''));
+    if ($clean === '' || $clean === '—' || $clean === '–' || $clean === 'N/A' || $clean === 'TBD' || $clean === 'TBA') {
+        return '—';
+    }
+    // Check if it's a range separated by dash or 'to'
+    if (preg_match('/^(.*?)\s*(\-|–|\bto\b)\s*(.*)$/i', $clean, $m)) {
+        $st = formatStandardTime($m[1]);
+        $et = formatStandardTime($m[3]);
+        if ($st !== '—' && $et !== '—') {
+            return "{$st} – {$et}";
+        }
+        if ($st !== '—') return $st;
+        if ($et !== '—') return $et;
+    }
+    return formatStandardTime($clean);
+}
+
+

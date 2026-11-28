@@ -182,7 +182,7 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
     <div class="info-grid">
       <?php foreach([
         'Date'=>$activity['event_date']?date('F j, Y',strtotime($activity['event_date'])):'—',
-        'Time'=>($activity['start_time']??'—').' – '.($activity['end_time']??'—'),
+        'Time'=>formatStandardTimeRange($activity['start_time']??null, $activity['end_time']??null),
         'Venue'=>$activity['venue']??'—',
         'Theme'=>$activity['theme']??'—',
         'Target Participants'=>number_format($activity['target_participants']),
@@ -270,7 +270,7 @@ if (in_array($activity['status'], ['submitted', 'under_review', 'resubmitted']))
     <div class="table-wrap" style="margin-bottom:24px;">
       <table><thead><tr><th>Time</th><th>Segment</th><th>Description</th><th>Person In-Charge</th></tr></thead>
       <tbody><?php foreach($program as $p): ?>
-      <tr><td><?= $p['time_slot'] ?></td><td><strong><?= htmlspecialchars($p['segment']) ?></strong></td><td><?= htmlspecialchars($p['description']??'') ?></td><td><?= htmlspecialchars($p['person_ic']??'') ?></td></tr>
+      <tr><td><?= htmlspecialchars(formatStandardTimeSlot($p['time_slot'] ?? '')) ?></td><td><strong><?= htmlspecialchars($p['segment']) ?></strong></td><td><?= htmlspecialchars($p['description']??'') ?></td><td><?= htmlspecialchars($p['person_ic']??'') ?></td></tr>
       <?php endforeach; ?></tbody></table>
     </div>
     <?php endif; ?>

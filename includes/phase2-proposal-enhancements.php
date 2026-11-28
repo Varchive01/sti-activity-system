@@ -1526,6 +1526,31 @@ function handleInvitationFileSelect(input) {
   }
 }
 
+function formatTime12h(timeStr) {
+  if (!timeStr) return '';
+  const clean = String(timeStr).trim();
+  if (!clean || clean === 'N/A' || clean === '—' || clean === '–' || clean === 'TBA' || clean === 'TBD') return '';
+  if (/(AM|PM)$/i.test(clean)) return clean;
+  const parts = clean.split(':');
+  if (parts.length < 2) return clean;
+  let hours = parseInt(parts[0], 10);
+  if (isNaN(hours)) return clean;
+  const minutes = parts[1].slice(0, 2);
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${hours}:${minutes} ${ampm}`;
+}
+
+function formatTimeRange12h(st, et) {
+  const s = formatTime12h(st);
+  const e = formatTime12h(et);
+  if (s && e) return `${s} – ${e}`;
+  if (s) return s;
+  if (e) return e;
+  return 'TBA';
+}
+
 function openDigitalInvitationPreview() {
   const modal = document.getElementById('digitalInvitationPreviewModal');
   const body = document.getElementById('digitalInvitationPreviewBody');
@@ -1548,7 +1573,7 @@ function openDigitalInvitationPreview() {
     const p = (tr.querySelector('[name="prog_pic[]"]')?.value || '').trim();
     if (!s && !d) return;
     progRowsHtml += `<tr style="border-bottom:1px solid #e2e8f0;">
-      <td style="padding:8px 10px; font-weight:700; color:#003876; white-space:nowrap;">${t || '—'}</td>
+      <td style="padding:8px 10px; font-weight:700; color:#003876; white-space:nowrap;">${formatTime12h(t) || '—'}</td>
       <td style="padding:8px 10px;"><strong>${s}</strong>${d ? `<div style="font-size:0.78rem; color:#64748b;">${d}</div>` : ''}</td>
       <td style="padding:8px 10px; font-size:0.82rem; color:#334155;">${p || '—'}</td>
     </tr>`;
@@ -1565,7 +1590,7 @@ function openDigitalInvitationPreview() {
       ${theme ? `<p style="font-size:0.9rem; font-style:italic; color:#475569; margin:0 0 16px 0;">"${theme}"</p>` : ''}
       <div style="display:flex; justify-content:center; gap:16px; flex-wrap:wrap; font-size:0.84rem; background:#f8fafc; padding:10px 16px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:18px;">
         <div>📅 <strong>Date:</strong> ${dateDisplay}</div>
-        <div>⏰ <strong>Time:</strong> ${startTime || 'TBA'}${endTime ? ' – ' + endTime : ''}</div>
+        <div>⏰ <strong>Time:</strong> ${formatTimeRange12h(startTime, endTime)}</div>
         <div>📍 <strong>Venue:</strong> ${venue}</div>
       </div>
       <div style="text-align:left;">

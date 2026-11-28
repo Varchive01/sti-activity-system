@@ -420,7 +420,7 @@ $roleTitle = ($role === 'admin1') ? 'Admin 1 — Student Org Head' : (($role ===
                 <?= $activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—' ?>
               </div>
               <small style="color:var(--text-muted);font-size:0.76rem;">
-                <?= htmlspecialchars($activity['start_time'] ?? '') ?><?= !empty($activity['end_time']) ? ' – ' . htmlspecialchars($activity['end_time']) : '' ?>
+                <?= htmlspecialchars(formatStandardTimeRange($activity['start_time'] ?? null, $activity['end_time'] ?? null)) ?>
               </small>
             </div>
             <div class="info-tile">

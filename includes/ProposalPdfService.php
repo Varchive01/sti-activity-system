@@ -92,7 +92,7 @@ class ProposalPdfService
             $pWidths  = [110, 240, 182];
             $pRows    = [];
             foreach ($prog as $p) {
-                $ts  = trim($p['time_slot'] ?? '—');
+                $ts  = formatStandardTimeSlot($p['time_slot'] ?? '—');
                 $seg = trim(($p['segment'] ?? '') . ' ' . ($p['description'] ?? ''));
                 $pic = trim($p['person_ic'] ?? ($p['person_in_charge'] ?? 'Unassigned'));
                 $pRows[] = [$ts, $seg, $pic];

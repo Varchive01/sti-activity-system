@@ -620,7 +620,7 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
       <div class="info-grid" style="margin-bottom:14px;">
         <div class="info-block"><div class="lbl">Event Title</div><div class="val"><?= htmlspecialchars($activity['title']) ?></div></div>
         <div class="info-block"><div class="lbl">Event Date(s)</div><div class="val"><?= ($activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—') . (!empty($activity['end_date']) && $activity['end_date'] !== $activity['event_date'] ? ' to ' . date('F j, Y', strtotime($activity['end_date'])) : '') ?></div></div>
-        <div class="info-block"><div class="lbl">Time</div><div class="val"><?= $activity['start_time'] ? date('g:i A', strtotime($activity['start_time'])) : '—' ?> – <?= $activity['end_time'] ? date('g:i A', strtotime($activity['end_time'])) : '—' ?></div></div>
+        <div class="info-block"><div class="lbl">Time</div><div class="val"><?= formatStandardTimeRange($activity['start_time'] ?? null, $activity['end_time'] ?? null) ?></div></div>
         <div class="info-block"><div class="lbl">Venue</div><div class="val"><?= htmlspecialchars($activity['venue'] ?? '—') ?></div></div>
         <div class="info-block"><div class="lbl">Venue Address</div><div class="val"><?= htmlspecialchars($activity['venue_address'] ?? '—') ?></div></div>
         <div class="info-block"><div class="lbl">Target Participants</div><div class="val"><?= number_format($activity['target_participants']) ?></div></div>
@@ -810,7 +810,7 @@ $totalBudget = array_sum(array_column($mats, 'est_cost'));
         <div class="table-wrap">
         <table style="width:100%;"><thead><tr><th>Time</th><th>Segment</th><th>Description</th><th>Person In-Charge</th></tr></thead>
         <tbody><?php foreach ($prog as $p): ?>
-          <tr><td><?= $p['time_slot'] ? date('g:i A', strtotime($p['time_slot'])) : '—' ?></td><td><strong><?= htmlspecialchars($p['segment']) ?></strong></td><td><?= htmlspecialchars($p['description']??'') ?></td><td><?= htmlspecialchars($p['person_ic']??'') ?></td></tr>
+          <tr><td><?= htmlspecialchars(formatStandardTimeSlot($p['time_slot'] ?? '')) ?></td><td><strong><?= htmlspecialchars($p['segment']) ?></strong></td><td><?= htmlspecialchars($p['description']??'') ?></td><td><?= htmlspecialchars($p['person_ic']??'') ?></td></tr>
         <?php endforeach; ?></tbody></table>
         </div>
       <?php endif; ?>

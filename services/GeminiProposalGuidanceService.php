@@ -933,6 +933,17 @@ PROMPT;
                 unset($m);
             }
 
+            // Normalize schedule items to standard 12-hour format (e.g. "8:30 AM", "1:00 PM")
+            if (isset($parsed['schedule']) && is_array($parsed['schedule'])) {
+                foreach ($parsed['schedule'] as &$schItem) {
+                    if (!is_array($schItem) || empty($schItem['time'])) continue;
+                    $schItem['time'] = function_exists('formatStandardTimeSlot')
+                        ? formatStandardTimeSlot($schItem['time'])
+                        : ((strtotime((string)$schItem['time']) !== false) ? date('g:i A', strtotime((string)$schItem['time'])) : $schItem['time']);
+                }
+                unset($schItem);
+            }
+
             // Strictly filter returned suggestions to only requested sections
             $filtered = [];
             foreach ($sections as $sec) {
@@ -1022,12 +1033,12 @@ PROMPT;
                     ['role' => 'Medic', 'person' => 'Campus Health Clinic Personnel', 'type' => 'Staff']
                 ],
                 'schedule' => [
-                    ['time' => $startTime, 'segment' => 'Participant Ingress & Registration', 'desc' => 'Participant QR check-in and activity kit distribution at ' . $venue, 'pic' => 'Registration Committee'],
-                    ['time' => date('H:i', strtotime($startTime . ' +30 minutes')), 'segment' => 'Opening Ceremonies', 'desc' => 'National Anthem, STI Hymn, and Invocation', 'pic' => 'Emcee'],
-                    ['time' => date('H:i', strtotime($startTime . ' +45 minutes')), 'segment' => 'Welcome Address & Orientation', 'desc' => "Briefing on event themes and expectations: {$theme}", 'pic' => 'Program Head / Dean'],
-                    ['time' => date('H:i', strtotime($startTime . ' +60 minutes')), 'segment' => 'Keynote Presentation & Core Workshop', 'desc' => "Interactive session covering principal topics and hands-on case studies for {$title}", 'pic' => 'Resource Speaker'],
-                    ['time' => date('H:i', strtotime($endTime . ' -45 minutes')), 'segment' => 'Open Forum & Synthesis', 'desc' => 'Q&A session and reflection on key takeaways', 'pic' => 'Moderator'],
-                    ['time' => date('H:i', strtotime($endTime . ' -15 minutes')), 'segment' => 'Awarding & Evaluation', 'desc' => 'Presentation of certificates and digital QR evaluation survey', 'pic' => 'Documentation Lead']
+                    ['time' => (function_exists('formatStandardTime') ? formatStandardTime($startTime) : date('g:i A', strtotime($startTime))), 'segment' => 'Participant Ingress & Registration', 'desc' => 'Participant QR check-in and activity kit distribution at ' . $venue, 'pic' => 'Registration Committee'],
+                    ['time' => date('g:i A', strtotime($startTime . ' +30 minutes')), 'segment' => 'Opening Ceremonies', 'desc' => 'National Anthem, STI Hymn, and Invocation', 'pic' => 'Emcee'],
+                    ['time' => date('g:i A', strtotime($startTime . ' +45 minutes')), 'segment' => 'Welcome Address & Orientation', 'desc' => "Briefing on event themes and expectations: {$theme}", 'pic' => 'Program Head / Dean'],
+                    ['time' => date('g:i A', strtotime($startTime . ' +60 minutes')), 'segment' => 'Keynote Presentation & Core Workshop', 'desc' => "Interactive session covering principal topics and hands-on case studies for {$title}", 'pic' => 'Resource Speaker'],
+                    ['time' => date('g:i A', strtotime($endTime . ' -45 minutes')), 'segment' => 'Open Forum & Synthesis', 'desc' => 'Q&A session and reflection on key takeaways', 'pic' => 'Moderator'],
+                    ['time' => date('g:i A', strtotime($endTime . ' -15 minutes')), 'segment' => 'Awarding & Evaluation', 'desc' => 'Presentation of certificates and digital QR evaluation survey', 'pic' => 'Documentation Lead']
                 ],
                 'guidelines' => [
                     'mechanics' => "1. All {$participants} registered students must wear their valid STI ID and prescribed uniform/attire.\n2. Participants are required to attend all scheduled segments at {$venue} and actively participate in group discussions.\n3. Mobile devices must remain on silent mode throughout all speaker sessions.\n4. Accomplishing the digital evaluation survey is a prerequisite for certificate issuance.",

@@ -93,7 +93,7 @@ $proposalPdfData = [
   'proponent' => $activity['faculty_name'] ?? 'Faculty Proponent',
   'source' => ucfirst(str_replace('_', ' ', $activity['source'] ?? '')),
   'event_date' => $activity['event_date'] ? date('F j, Y', strtotime($activity['event_date'])) : '—',
-  'time' => (($activity['start_time'] ?? '—') . ' – ' . ($activity['end_time'] ?? '—')),
+  'time' => formatStandardTimeRange($activity['start_time'] ?? null, $activity['end_time'] ?? null),
   'venue' => $activity['venue'] ?? '—',
   'theme' => $activity['theme'] ?? '—',
   'target_participants' => number_format((int)($activity['target_participants'] ?? 0)) . ' participants',
@@ -135,7 +135,7 @@ $proposalPdfData = [
   }, $schedules),
   'program' => array_map(function ($p) {
     return [
-      $p['time_slot'] ?? '',
+      formatStandardTimeSlot($p['time_slot'] ?? ''),
       $p['segment'] ?? '',
       $p['description'] ?? '—',
       $p['person_ic'] ?? '—'
@@ -739,7 +739,7 @@ $proposalPdfData = [
               foreach (
                 [
                   'Date' => $dateDisplay,
-                  'Time' => ($activity['start_time'] ?? '—') . ' – ' . ($activity['end_time'] ?? '—'),
+                  'Time' => formatStandardTimeRange($activity['start_time'] ?? null, $activity['end_time'] ?? null),
                   'Venue' => $activity['venue'] ?? '—',
                   'Theme' => $activity['theme'] ?? '—',
                   'Headed by' => ucfirst(str_replace('_', ' ', $activity['source'])),
@@ -1050,7 +1050,7 @@ $proposalPdfData = [
                   <tbody>
                     <?php foreach ($program as $p): ?>
                       <tr>
-                        <td><span class="time-badge">⏱ <?= htmlspecialchars($p['time_slot']) ?></span></td>
+                        <td><span class="time-badge">⏱ <?= htmlspecialchars(formatStandardTimeSlot($p['time_slot'] ?? '')) ?></span></td>
                         <td><strong style="color:var(--text-main); font-weight:600;"><?= htmlspecialchars($p['segment']) ?></strong></td>
                         <td style="color:var(--text-muted);"><?= htmlspecialchars($p['description'] ?? '—') ?></td>
                         <td><?= htmlspecialchars($p['person_ic'] ?? '—') ?></td>

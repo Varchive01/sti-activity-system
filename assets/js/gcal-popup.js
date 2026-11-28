@@ -21,6 +21,37 @@
       .replace(/'/g, '&#039;');
   }
 
+  function formatStandardTime(timeStr) {
+    if (!timeStr) return '';
+    const clean = String(timeStr).trim();
+    if (!clean || clean === 'N/A' || clean === '—' || clean === '–') return '';
+    if (/(AM|PM)$/i.test(clean)) return clean;
+    const parts = clean.split(':');
+    if (parts.length < 2) return clean;
+    let hours = parseInt(parts[0], 10);
+    if (isNaN(hours)) return clean;
+    const minutes = parts[1].slice(0, 2);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${hours}:${minutes} ${ampm}`;
+  }
+
+  function formatStandardTimeSlot(timeSlot) {
+    if (!timeSlot) return '';
+    const clean = String(timeSlot).trim();
+    if (!clean || clean === '—' || clean === '–' || clean === 'N/A') return '';
+    const match = clean.match(/^(.*?)\s*(\-|–|\bto\b)\s*(.*)$/i);
+    if (match) {
+      const st = formatStandardTime(match[1]);
+      const et = formatStandardTime(match[3]);
+      if (st && et) return `${st} – ${et}`;
+      if (st) return st;
+      if (et) return et;
+    }
+    return formatStandardTime(clean);
+  }
+
   function createPopupElement() {
     let el = document.getElementById('gcalEventPopup');
     if (el) return el;
@@ -272,8 +303,9 @@
     const timeRow = popup.querySelector('#gcalPopupTimeRow');
     const timeText = popup.querySelector('#gcalPopupTimeText');
     if (timeRow && timeText) {
-      if (data.time && data.time.trim() && data.time !== '—' && data.time !== '–') {
-        timeText.textContent = data.time;
+      const formattedTime = formatStandardTimeSlot(data.time);
+      if (formattedTime && formattedTime.trim() && formattedTime !== '—' && formattedTime !== '–') {
+        timeText.textContent = formattedTime;
         timeRow.style.display = 'flex';
       } else {
         timeRow.style.display = 'none';

@@ -616,8 +616,8 @@ window.ScheduleConflictUI = (function () {
     const confTitle = conf.title || 'Approved Activity';
     const confDate = formatDate(conf.event_date) || conf.event_date || 'N/A';
     const confTime = (conf.start_time && conf.end_time)
-      ? (conf.start_time + ' – ' + conf.end_time)
-      : (conf.start_time || 'N/A');
+      ? (formatTime12h(conf.start_time) + ' – ' + formatTime12h(conf.end_time))
+      : (formatTime12h(conf.start_time) || 'N/A');
     const confVenue = conf.venue || 'N/A';
 
     const propDate = formatDate(proposed?.date) || proposed?.date || 'N/A';
@@ -804,9 +804,14 @@ window.ScheduleConflictUI = (function () {
 
   function formatTime12h(timeStr) {
     if (!timeStr) return '';
-    const parts = timeStr.split(':');
+    const clean = String(timeStr).trim();
+    if (!clean || clean === 'N/A' || clean === '—' || clean === '–') return '';
+    if (/(AM|PM)$/i.test(clean)) return clean;
+    const parts = clean.split(':');
+    if (parts.length < 2) return clean;
     let hours = parseInt(parts[0], 10);
-    const minutes = parts[1];
+    if (isNaN(hours)) return clean;
+    const minutes = parts[1].slice(0, 2);
     const ampm = hours >= 12 ? 'PM' : 'AM';
     hours = hours % 12;
     hours = hours ? hours : 12; // 0 should be 12

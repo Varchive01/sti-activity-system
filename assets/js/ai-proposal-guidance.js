@@ -136,6 +136,36 @@ const AIProposalGuidance = (function () {
       .replace(/'/g, '&#039;');
   }
 
+  function formatStandardTime(timeStr) {
+    if (!timeStr) return '';
+    const clean = String(timeStr).trim();
+    if (!clean || clean === 'N/A' || clean === '—' || clean === '–') return '';
+    if (/(AM|PM)$/i.test(clean)) return clean;
+    const parts = clean.split(':');
+    if (parts.length < 2) return clean;
+    let hours = parseInt(parts[0], 10);
+    if (isNaN(hours)) return clean;
+    const minutes = parts[1].slice(0, 2);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${hours}:${minutes} ${ampm}`;
+  }
+
+  function convertTo24h(timeStr) {
+    if (!timeStr) return '';
+    const clean = String(timeStr).trim();
+    if (!clean) return '';
+    const match = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if (!match) return clean;
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2];
+    const ampm = match[3] ? match[3].toUpperCase() : null;
+    if (ampm === 'PM' && hours < 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+    return `${String(hours).padStart(2, '0')}:${minutes}`;
+  }
+
   function ensureModalDom() {
     if (_modalEl) return;
 
@@ -1926,7 +1956,7 @@ const AIProposalGuidance = (function () {
         if (!Array.isArray(data)) return '';
         let schRows = data.map(s => `
           <div class="ai-schedule-row">
-            <span style="font-weight:700; color:#0284C7; min-width:55px;">${escapeHtml(s.time)}</span>
+            <span style="font-weight:700; color:#0284C7; min-width:55px;">${escapeHtml(formatStandardTime(s.time))}</span>
             <div style="flex:1;">
               <strong>${escapeHtml(s.segment)}</strong>
               <span class="ai-text-muted" style="margin-left:4px;">— ${escapeHtml(s.desc || '')}</span>
@@ -2103,7 +2133,7 @@ const AIProposalGuidance = (function () {
         const schList = Array.isArray(data) ? data : [];
         let schEditRows = schList.map((s) => `
           <tr class="edit-schedule-row">
-            <td style="width:90px;"><input type="text" class="form-control edit-sch-time" style="font-size:0.8rem;" value="${escapeHtml(s.time || '')}" placeholder="08:30"></td>
+            <td style="width:90px;"><input type="text" class="form-control edit-sch-time" style="font-size:0.8rem;" value="${escapeHtml(formatStandardTime(s.time) || '')}" placeholder="8:30 AM"></td>
             <td><input type="text" class="form-control edit-sch-segment" style="font-size:0.8rem;" value="${escapeHtml(s.segment || '')}" placeholder="Segment name"></td>
             <td><input type="text" class="form-control edit-sch-desc" style="font-size:0.8rem;" value="${escapeHtml(s.desc || '')}" placeholder="Description"></td>
             <td style="width:130px;"><input type="text" class="form-control edit-sch-pic" style="font-size:0.8rem;" value="${escapeHtml(s.pic || '')}" placeholder="In-charge"></td>
@@ -2417,7 +2447,7 @@ const AIProposalGuidance = (function () {
       case 'schedule':
         tr.className = 'edit-schedule-row';
         tr.innerHTML = `
-          <td style="width:90px;"><input type="text" class="form-control edit-sch-time" style="font-size:0.8rem;" placeholder="09:00"></td>
+          <td style="width:90px;"><input type="text" class="form-control edit-sch-time" style="font-size:0.8rem;" placeholder="8:30 AM"></td>
           <td><input type="text" class="form-control edit-sch-segment" style="font-size:0.8rem;" placeholder="Segment name"></td>
           <td><input type="text" class="form-control edit-sch-desc" style="font-size:0.8rem;" placeholder="Description"></td>
           <td style="width:130px;"><input type="text" class="form-control edit-sch-pic" style="font-size:0.8rem;" placeholder="In-charge"></td>
@@ -2707,7 +2737,7 @@ const AIProposalGuidance = (function () {
               data.forEach((s) => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                  <td><input type="time" name="prog_time[]" class="form-control prog-field" value="${escapeHtml(s.time || '09:00')}"></td>
+                  <td><input type="time" name="prog_time[]" class="form-control prog-field" value="${escapeHtml(convertTo24h(s.time) || '09:00')}"></td>
                   <td><input type="text" name="prog_segment[]" class="form-control prog-field" placeholder="Segment" value="${escapeHtml(s.segment || '')}"></td>
                   <td><input type="text" name="prog_desc[]" class="form-control prog-field" placeholder="Description" value="${escapeHtml(s.desc || '')}"></td>
                   <td><input type="text" name="prog_pic[]" class="form-control prog-field" placeholder="Name" value="${escapeHtml(s.pic || '')}"></td>
