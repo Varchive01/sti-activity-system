@@ -2160,7 +2160,7 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
               <?php if ($s2Flagged): ?>
                 <div class="reviewer-comment-banner"><span class="rc-icon">⚠️</span><div><span class="rc-label">Reviewer Comment</span><?= htmlspecialchars($s2Comment) ?></div></div>
               <?php endif; ?>
-              <div class="dynamic-table">
+              <div class="dynamic-table materials-table">
                 <table>
                   <thead>
                     <tr>

@@ -2002,7 +2002,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
             </div>
             <div class="card-body">
               <div class="step-error-banner" id="err-banner-3">⚠️ Please fill in all material fields before continuing.</div>
-              <div class="dynamic-table">
+              <div class="dynamic-table materials-table">
                 <table>
                   <thead>
                     <tr>
