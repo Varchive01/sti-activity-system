@@ -3290,17 +3290,17 @@ textarea:disabled {
   line-height: 1.2;
 }
 
-/* ── Google Calendar Style Floating Popup ── */
+/* ── Google Calendar Style Floating Popup (Adaptive Light & Dark Themes) ── */
 .gcal-event-popup {
   position: fixed;
   z-index: 99999;
   width: 380px;
   max-width: calc(100vw - 24px);
-  background: #1f1f1f; /* Google Calendar Dark Charcoal Theme */
-  color: #e8eaed;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #ffffff; /* Crisp White Card in Light Mode */
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
   border-radius: 20px;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 8px 24px 6px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 16px 32px -4px rgba(0, 0, 0, 0.14);
   padding: 16px 20px 20px 20px;
   box-sizing: border-box;
   font-family: inherit;
@@ -3338,8 +3338,9 @@ textarea:disabled {
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #e8eaed;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
 }
 
 .gcal-popup-actions-top {
@@ -3352,7 +3353,7 @@ textarea:disabled {
 .gcal-action-btn {
   background: transparent;
   border: none;
-  color: #9aa0a6;
+  color: #64748b;
   cursor: pointer;
   width: 34px;
   height: 34px;
@@ -3364,13 +3365,13 @@ textarea:disabled {
 }
 
 .gcal-action-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
 .gcal-action-delete:hover {
-  background: rgba(239, 68, 68, 0.2);
-  color: #f87171;
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .gcal-popup-header {
@@ -3397,9 +3398,9 @@ textarea:disabled {
 .gcal-popup-title {
   margin: 0 0 4px 0;
   font-size: 1.25rem;
-  font-weight: 500;
+  font-weight: 700;
   line-height: 1.3;
-  color: #ffffff;
+  color: #0f172a;
   word-break: break-word;
   white-space: normal;
 }
@@ -3407,8 +3408,8 @@ textarea:disabled {
 .gcal-popup-subtitle {
   margin: 0;
   font-size: 0.88rem;
-  font-weight: 400;
-  color: #9aa0a6;
+  font-weight: 500;
+  color: #64748b;
   line-height: 1.35;
 }
 
@@ -3428,14 +3429,14 @@ textarea:disabled {
   gap: 14px;
   font-size: 0.88rem;
   line-height: 1.4;
-  color: #e8eaed;
+  color: #334155;
 }
 
 .gcal-row-icon {
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  color: #9aa0a6;
+  color: #64748b;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3450,18 +3451,18 @@ textarea:disabled {
 }
 
 .gcal-row-primary {
-  color: #e8eaed;
+  color: #1e293b;
   font-weight: 400;
 }
 
 .gcal-row-desc {
   font-size: 0.84rem;
-  color: #bdc1c6;
+  color: #334155;
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   padding: 8px 10px;
   border-radius: 8px;
   margin-top: 2px;
@@ -3471,7 +3472,7 @@ textarea:disabled {
   display: flex;
   gap: 8px;
   padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid #f1f5f9;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -3501,33 +3502,219 @@ textarea:disabled {
 }
 
 .gcal-btn-secondary {
+  background: #f8fafc;
+  color: #334155 !important;
+  border: 1px solid #cbd5e1;
+}
+
+.gcal-btn-secondary:hover {
+  background: #f1f5f9;
+  color: #0f172a !important;
+  border-color: #94a3b8;
+}
+
+.gcal-btn-danger {
+  background: #fee2e2;
+  color: #dc2626 !important;
+  border: 1px solid #fecaca;
+}
+
+.gcal-btn-danger:hover {
+  background: #fecaca;
+  color: #b91c1c !important;
+}
+
+.gcal-btn-ghost {
+  background: transparent;
+  color: #64748b !important;
+  margin-left: auto;
+}
+
+.gcal-btn-ghost:hover {
+  background: #f1f5f9;
+  color: #0f172a !important;
+}
+
+/* ── Dark Mode Overrides for Floating Popup ── */
+[data-theme="dark"] .gcal-event-popup,
+html[data-theme="dark"] .gcal-event-popup {
+  background: #1f1f1f; /* Google Calendar Dark Charcoal Theme */
+  color: #e8eaed;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 8px 24px 6px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="dark"] .gcal-popup-status-chip,
+html[data-theme="dark"] .gcal-popup-status-chip {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8eaed;
+  border: none;
+}
+
+[data-theme="dark"] .gcal-action-btn,
+html[data-theme="dark"] .gcal-action-btn {
+  color: #9aa0a6;
+}
+
+[data-theme="dark"] .gcal-action-btn:hover,
+html[data-theme="dark"] .gcal-action-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+[data-theme="dark"] .gcal-action-delete:hover,
+html[data-theme="dark"] .gcal-action-delete:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+[data-theme="dark"] .gcal-popup-title,
+html[data-theme="dark"] .gcal-popup-title {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+[data-theme="dark"] .gcal-popup-subtitle,
+html[data-theme="dark"] .gcal-popup-subtitle {
+  color: #9aa0a6;
+}
+
+[data-theme="dark"] .gcal-popup-row,
+html[data-theme="dark"] .gcal-popup-row {
+  color: #e8eaed;
+}
+
+[data-theme="dark"] .gcal-row-icon,
+html[data-theme="dark"] .gcal-row-icon {
+  color: #9aa0a6;
+}
+
+[data-theme="dark"] .gcal-row-primary,
+html[data-theme="dark"] .gcal-row-primary {
+  color: #e8eaed;
+}
+
+[data-theme="dark"] .gcal-row-desc,
+html[data-theme="dark"] .gcal-row-desc {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #bdc1c6;
+}
+
+[data-theme="dark"] .gcal-popup-footer,
+html[data-theme="dark"] .gcal-popup-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .gcal-btn-secondary,
+html[data-theme="dark"] .gcal-btn-secondary {
   background: rgba(255, 255, 255, 0.12);
   color: #f8fafc !important;
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
-.gcal-btn-secondary:hover {
+[data-theme="dark"] .gcal-btn-secondary:hover,
+html[data-theme="dark"] .gcal-btn-secondary:hover {
   background: rgba(255, 255, 255, 0.2);
+  color: #ffffff !important;
 }
 
-.gcal-btn-danger {
+[data-theme="dark"] .gcal-btn-danger,
+html[data-theme="dark"] .gcal-btn-danger {
   background: rgba(239, 68, 68, 0.18);
   color: #fca5a5 !important;
   border: 1px solid rgba(239, 68, 68, 0.35);
 }
 
-.gcal-btn-danger:hover {
+[data-theme="dark"] .gcal-btn-danger:hover,
+html[data-theme="dark"] .gcal-btn-danger:hover {
   background: rgba(239, 68, 68, 0.3);
+  color: #ef4444 !important;
 }
 
-.gcal-btn-ghost {
-  background: transparent;
+[data-theme="dark"] .gcal-btn-ghost,
+html[data-theme="dark"] .gcal-btn-ghost {
   color: #94a3b8 !important;
-  margin-left: auto;
 }
 
-.gcal-btn-ghost:hover {
+[data-theme="dark"] .gcal-btn-ghost:hover,
+html[data-theme="dark"] .gcal-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
   color: #ffffff !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .gcal-event-popup {
+    background: #1f1f1f;
+    color: #e8eaed;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 8px 24px 6px rgba(0, 0, 0, 0.45);
+  }
+  html:not([data-theme="light"]) .gcal-popup-status-chip {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e8eaed;
+    border: none;
+  }
+  html:not([data-theme="light"]) .gcal-action-btn {
+    color: #9aa0a6;
+  }
+  html:not([data-theme="light"]) .gcal-action-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+  }
+  html:not([data-theme="light"]) .gcal-action-delete:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+  }
+  html:not([data-theme="light"]) .gcal-popup-title {
+    color: #ffffff;
+    font-weight: 500;
+  }
+  html:not([data-theme="light"]) .gcal-popup-subtitle {
+    color: #9aa0a6;
+  }
+  html:not([data-theme="light"]) .gcal-popup-row {
+    color: #e8eaed;
+  }
+  html:not([data-theme="light"]) .gcal-row-icon {
+    color: #9aa0a6;
+  }
+  html:not([data-theme="light"]) .gcal-row-primary {
+    color: #e8eaed;
+  }
+  html:not([data-theme="light"]) .gcal-row-desc {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #bdc1c6;
+  }
+  html:not([data-theme="light"]) .gcal-popup-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  html:not([data-theme="light"]) .gcal-btn-secondary {
+    background: rgba(255, 255, 255, 0.12);
+    color: #f8fafc !important;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+  html:not([data-theme="light"]) .gcal-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff !important;
+  }
+  html:not([data-theme="light"]) .gcal-btn-danger {
+    background: rgba(239, 68, 68, 0.18);
+    color: #fca5a5 !important;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+  }
+  html:not([data-theme="light"]) .gcal-btn-danger:hover {
+    background: rgba(239, 68, 68, 0.3);
+    color: #ef4444 !important;
+  }
+  html:not([data-theme="light"]) .gcal-btn-ghost {
+    color: #94a3b8 !important;
+  }
+  html:not([data-theme="light"]) .gcal-btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff !important;
+  }
 }
 .cal-more:hover {
   background: #F3F4F6;

@@ -262,8 +262,8 @@
       if (data.status) {
         statusChip.style.display = 'inline-block';
         statusChip.textContent = data.status;
-        statusChip.style.background = data.statusBg || 'rgba(255, 255, 255, 0.12)';
-        statusChip.style.color = data.statusColor || '#ffffff';
+        statusChip.style.background = data.statusBg || '';
+        statusChip.style.color = data.statusColor || '';
       } else {
         statusChip.style.display = 'none';
       }

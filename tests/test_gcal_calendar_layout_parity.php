@@ -60,7 +60,8 @@ check("phase2-proposal-enhancements.php: uses sched-cal-event-pill", str_contain
 
 // 4. Verify main.css contains Google Calendar popup and fixed cell dimensions
 $cssContent = file_get_contents("$rootDir/assets/css/main.css");
-check("main.css: contains .gcal-event-popup with dark theme background #1f1f1f", str_contains($cssContent, '.gcal-event-popup') && str_contains($cssContent, '#1f1f1f'));
+check("main.css: contains .gcal-event-popup with light theme background #ffffff", str_contains($cssContent, '.gcal-event-popup') && str_contains($cssContent, '#ffffff'));
+check("main.css: contains [data-theme=\"dark\"] .gcal-event-popup with dark theme background #1f1f1f", str_contains($cssContent, '[data-theme="dark"] .gcal-event-popup') && str_contains($cssContent, '#1f1f1f'));
 check("main.css: contains fixed grid-auto-rows for .cal-grid", str_contains($cssContent, 'grid-auto-rows: 116px;'));
 check("main.css: contains text-overflow: clip to prevent ellipses from distorting cells", str_contains($cssContent, 'text-overflow: clip'));
 check("main.css: contains minmax(0, 1fr) for calendar column zero-expansion", str_contains($cssContent, 'grid-template-columns: repeat(7, minmax(0, 1fr))'));
