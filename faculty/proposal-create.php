@@ -1675,15 +1675,15 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       <?php endif; ?>
 
       <!-- Active Collaborators Staging Banner (visible when collaborators workflow is chosen) -->
-      <div id="collabActiveHeaderBar" style="display:none; margin-bottom:16px; background:rgba(2, 132, 199, 0.08); border:1px solid #bae6fd; border-left:4px solid #0284c7; border-radius:8px; padding:12px 16px; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-        <div style="display:flex; align-items:center; gap:8px;">
+      <div id="collabActiveHeaderBar" class="collab-proposal-banner" style="display:none; margin-bottom:16px; background:rgba(2, 132, 199, 0.08); border:1px solid #bae6fd; border-left:4px solid #0284c7; border-radius:8px; padding:12px 16px; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <div class="collab-banner-left" style="display:flex; align-items:center; gap:8px;">
           <span style="font-size:1.1rem;">👥</span>
           <div>
             <strong style="color:#0369a1; font-size:0.9rem;">Collaborative Proposal Session:</strong>
             <span id="collabHeaderSummary" style="font-size:0.85rem; color:#334155;">1 Owner, 0 Collaborators</span>
           </div>
         </div>
-        <div style="display:flex; gap:8px; align-items:center;">
+        <div class="collab-banner-actions" style="display:flex; gap:8px; align-items:center;">
           <button type="button" class="btn btn-outline btn-sm" onclick="openCollaboratorsModal()" style="font-size:0.8rem; padding:4px 12px; background:#fff;">
             ⚙️ Manage Collaborators
           </button>

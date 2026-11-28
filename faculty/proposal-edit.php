@@ -1794,9 +1794,9 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
       </div>
 
       <!-- Collaborative Proposal Banner (Task 14) -->
-      <div class="card mb-4" id="collaborativeProposalBanner" style="border: 1px solid var(--border); border-left: 4px solid var(--sti-blue); background: var(--bg-card); padding: 14px 18px; border-radius: 8px; margin-bottom: 20px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <div class="card mb-4 collab-proposal-banner" id="collaborativeProposalBanner" style="border: 1px solid var(--border); border-left: 4px solid var(--sti-blue); background: var(--bg-card); padding: 14px 18px; border-radius: 8px; margin-bottom: 20px;">
+        <div class="collab-banner-content" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <div class="collab-banner-left" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
             <div style="display:flex; align-items:center; gap:6px;">
               <span style="font-size:1.25rem;">👥</span>
               <strong style="font-size:0.95rem; color:var(--text-main);">Collaborative Proposal:</strong>
@@ -1810,7 +1810,7 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
               <?php endforeach; ?>
             </div>
           </div>
-          <div style="display:flex; gap:8px; align-items:center;">
+          <div class="collab-banner-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <?php if ($isOwner): ?>
               <button type="button" class="btn btn-outline btn-sm" onclick="openCollaboratorsModal()" style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; padding:6px 12px; font-weight:600;">
                 <span>➕</span> Manage Collaborators

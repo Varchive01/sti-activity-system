@@ -8385,6 +8385,68 @@ body {
   }
 }
 
+/* ── Collaborative Proposal Banner Universal Responsiveness ── */
+.collab-proposal-banner,
+#collaborativeProposalBanner,
+#collabActiveHeaderBar {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 767.98px) {
+  .collab-proposal-banner .collab-banner-content,
+  #collaborativeProposalBanner > div,
+  #collabActiveHeaderBar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .collab-proposal-banner .collab-banner-left,
+  #collaborativeProposalBanner .collab-banner-left {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  #collaboratorsPillsContainer {
+    width: 100% !important;
+  }
+  #collaboratorsPillsContainer .badge {
+    max-width: 100% !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    text-align: left !important;
+  }
+  .collab-proposal-banner .collab-banner-actions,
+  #collaborativeProposalBanner .collab-banner-actions,
+  #collaborativeProposalBanner > div > div:last-child,
+  #collabActiveHeaderBar > div:last-child {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+  .collab-proposal-banner .collab-banner-actions button,
+  .collab-proposal-banner .collab-banner-actions .btn,
+  .collab-proposal-banner .collab-banner-actions .badge,
+  #collaborativeProposalBanner .collab-banner-actions button,
+  #collaborativeProposalBanner .collab-banner-actions .btn,
+  #collaborativeProposalBanner .collab-banner-actions .badge,
+  #collaborativeProposalBanner > div > div:last-child button,
+  #collaborativeProposalBanner > div > div:last-child .btn,
+  #collaborativeProposalBanner > div > div:last-child .badge,
+  #collabActiveHeaderBar button,
+  #collabActiveHeaderBar .btn {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center !important;
+    padding: 8px 14px !important;
+    box-sizing: border-box !important;
+  }
+}
+
 /* ── Proposal Multi-Step Navigation Buttons (.nav-btns) ── */
 .nav-btns {
   display: flex;
