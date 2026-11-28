@@ -243,6 +243,20 @@
     const popup = createPopupElement();
     activePopupEl = popup;
 
+    // 0. Explicit Theme Synchronization (White card in Light Mode, Dark Charcoal in Dark Mode)
+    const isDark = (document.documentElement && document.documentElement.getAttribute('data-theme') === 'dark') ||
+                   (document.body && document.body.getAttribute('data-theme') === 'dark') ||
+                   (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem('sti-theme') === 'dark');
+    if (isDark) {
+      popup.setAttribute('data-theme', 'dark');
+      popup.classList.add('gcal-theme-dark');
+      popup.classList.remove('gcal-theme-light');
+    } else {
+      popup.setAttribute('data-theme', 'light');
+      popup.classList.add('gcal-theme-light');
+      popup.classList.remove('gcal-theme-dark');
+    }
+
     // 1. Title (untruncated, complete title)
     const titleEl = popup.querySelector('#gcalPopupTitle');
     if (titleEl) {
