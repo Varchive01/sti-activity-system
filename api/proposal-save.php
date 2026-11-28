@@ -165,6 +165,16 @@ if ($action === 'submit') {
     if (!empty($venue) && !empty($eventDate) && !empty($startTime) && !empty($endTime)) {
         $conflictCheck = checkScheduleConflict($venue, $eventDate, $startTime, $endTime);
         if (!empty($conflictCheck['conflict'])) {
+            if ($isAjax) {
+                http_response_code(422);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'success' => false,
+                    'error_code' => 'schedule_conflict',
+                    'error' => 'Schedule conflict detected for venue ' . ($venue ?? '') . ' at selected time.'
+                ]);
+                exit;
+            }
             header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=conflict");
             exit;
         }
@@ -209,6 +219,16 @@ if (!empty($_FILES['poster_file']['name'])) {
 
 if (!empty($_FILES['floor_plan_file']['name'])) {
     if (!isValidFloorPlanFile($_FILES['floor_plan_file'])) {
+        if ($isAjax) {
+            http_response_code(422);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => false,
+                'error_code' => 'invalid_floor_plan_format',
+                'error' => 'Invalid floor plan file format.'
+            ]);
+            exit;
+        }
         header("Location: " . BASE_URL . "/faculty/proposal-create.php?error=invalid_floor_plan_format");
         exit;
     }

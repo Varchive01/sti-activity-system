@@ -2536,6 +2536,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     function openFloorPlanRequirementModal() {
       const modal = document.getElementById('floorPlanRequirementModal');
       if (!modal) return;
+      modal.removeAttribute('aria-hidden');
+      modal.setAttribute('aria-modal', 'true');
       const curChoice = document.getElementById('floor_plan_required')?.value || 'yes';
       const btnYes = document.getElementById('btnFpModalYes');
       const btnNo = document.getElementById('btnFpModalNo');
@@ -2553,8 +2555,13 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     function closeFloorPlanRequirementModal() {
       const modal = document.getElementById('floorPlanRequirementModal');
       if (modal) {
+        if (document.activeElement && modal.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
         modal.style.display = 'none';
         modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.removeAttribute('aria-modal');
       }
     }
 
@@ -6239,6 +6246,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     function openPreviewModal() {
       const modal = document.getElementById('previewModal');
       if (!modal) return;
+      modal.removeAttribute('aria-hidden');
+      modal.setAttribute('aria-modal', 'true');
       modal.style.display = 'block';
       modal.classList.add('show');
       
@@ -6285,8 +6294,13 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     function closePreviewModal() {
       const modal = document.getElementById('previewModal');
       if (modal) {
+        if (document.activeElement && modal.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
         modal.style.display = 'none';
         modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.removeAttribute('aria-modal');
       }
     }
 
@@ -6879,6 +6893,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       if (!urlParams.has('skip_collab') && !urlParams.has('error')) {
         const promptModal = document.getElementById('initCollabPromptModal');
         if (promptModal) {
+          promptModal.removeAttribute('aria-hidden');
+          promptModal.setAttribute('aria-modal', 'true');
           promptModal.style.display = 'block';
           promptModal.classList.add('show');
         }
@@ -6888,8 +6904,13 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     function handleInitCollabChoice(wantsCollaborators) {
       const promptModal = document.getElementById('initCollabPromptModal');
       if (promptModal) {
+        if (document.activeElement && promptModal.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
         promptModal.style.display = 'none';
         promptModal.classList.remove('show');
+        promptModal.setAttribute('aria-hidden', 'true');
+        promptModal.removeAttribute('aria-modal');
       }
 
       if (wantsCollaborators) {
@@ -6913,6 +6934,8 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     function openCollaboratorsModal() {
       const modal = document.getElementById('collaboratorsModal');
       if (!modal) return;
+      modal.removeAttribute('aria-hidden');
+      modal.setAttribute('aria-modal', 'true');
       modal.style.display = 'block';
       modal.classList.add('show');
       loadCollaborators();
@@ -6922,8 +6945,13 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     function closeCollaboratorsModal() {
       const modal = document.getElementById('collaboratorsModal');
       if (modal) {
+        if (document.activeElement && modal.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
         modal.style.display = 'none';
         modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.removeAttribute('aria-modal');
       }
     }
 

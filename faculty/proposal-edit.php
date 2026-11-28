@@ -2948,6 +2948,8 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
     function openFloorPlanRequirementModal() {
       const modal = document.getElementById('floorPlanRequirementModal');
       if (!modal) return;
+      modal.removeAttribute('aria-hidden');
+      modal.setAttribute('aria-modal', 'true');
       const curChoice = document.getElementById('floor_plan_required')?.value || 'yes';
       const btnYes = document.getElementById('btnFpModalYes');
       const btnNo = document.getElementById('btnFpModalNo');
@@ -2965,8 +2967,13 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
     function closeFloorPlanRequirementModal() {
       const modal = document.getElementById('floorPlanRequirementModal');
       if (modal) {
+        if (document.activeElement && modal.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
         modal.style.display = 'none';
         modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.removeAttribute('aria-modal');
       }
     }
 
@@ -5722,6 +5729,8 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
     function openPreviewModal() {
       const modal = document.getElementById('previewModal');
       if (!modal) return;
+      modal.removeAttribute('aria-hidden');
+      modal.setAttribute('aria-modal', 'true');
       modal.style.display = 'block';
       modal.classList.add('show');
       
@@ -5768,8 +5777,13 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
     function closePreviewModal() {
       const modal = document.getElementById('previewModal');
       if (modal) {
+        if (document.activeElement && modal.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
         modal.style.display = 'none';
         modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.removeAttribute('aria-modal');
       }
     }
 
@@ -7286,6 +7300,8 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
     function openCollaboratorsModal() {
       const modal = document.getElementById('collaboratorsModal');
       if (!modal) return;
+      modal.removeAttribute('aria-hidden');
+      modal.setAttribute('aria-modal', 'true');
       modal.style.display = 'block';
       modal.classList.add('show');
       loadCollaborators();
@@ -7297,14 +7313,21 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
     function closeCollaboratorsModal() {
       const modal = document.getElementById('collaboratorsModal');
       if (modal) {
+        if (document.activeElement && modal.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
         modal.style.display = 'none';
         modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.removeAttribute('aria-modal');
       }
     }
 
     function openContributionHistoryModal() {
       const modal = document.getElementById('contributionHistoryModal');
       if (!modal) return;
+      modal.removeAttribute('aria-hidden');
+      modal.setAttribute('aria-modal', 'true');
       modal.style.display = 'block';
       modal.classList.add('show');
       loadContributionHistory();
@@ -7313,8 +7336,13 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
     function closeContributionHistoryModal() {
       const modal = document.getElementById('contributionHistoryModal');
       if (modal) {
+        if (document.activeElement && modal.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
         modal.style.display = 'none';
         modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.removeAttribute('aria-modal');
       }
     }
 

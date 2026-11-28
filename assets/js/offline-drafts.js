@@ -740,9 +740,33 @@
         return false;
       }
 
+      // Check if response was redirected to another page (e.g. login or edit page)
+      if (resp.redirected) {
+        console.warn('[OfflineDrafts] Sync received redirect to:', resp.url);
+        draft.sync_status = 'saved_locally';
+        draft.sync_error = 'Server redirected request. Draft saved locally.';
+        draft.last_sync_attempt = new Date().toISOString();
+        await putDraft(draft).catch(() => {});
+        if (isFormForThisDraft) {
+          updateStatusUI('saved_locally', 'Server redirected. Saved locally.');
+        }
+        return false;
+      }
+
+      // Safely read response text and parse JSON without crashing on HTML
+      const rawText = await resp.text().catch(() => '');
+      let parsedJson = null;
+      try {
+        if (rawText && (rawText.trim().startsWith('{') || rawText.trim().startsWith('['))) {
+          parsedJson = JSON.parse(rawText);
+        }
+      } catch (jsonErr) {
+        console.warn('[OfflineDrafts] Non-JSON payload received during sync:', jsonErr);
+      }
+
       if (resp.ok) {
-        const result = await resp.json();
-        if (result.success) {
+        if (parsedJson && parsedJson.success) {
+          const result = parsedJson;
           const newServerId = parseInt(result.activity_id, 10);
           const wasNewDraft = (!draft.server_id || draft.local_id === 'draft_new_active');
 
@@ -823,10 +847,23 @@
           }
           return true;
         }
+
+        // resp.ok is true, but body is either HTML or parsedJson.success is not true
+        if (!parsedJson) {
+          console.warn('[OfflineDrafts] Received HTML or non-JSON 200 OK from server. Keeping draft saved locally.');
+          draft.sync_status = 'saved_locally';
+          draft.sync_error = 'Non-JSON server response. Saved locally.';
+          draft.last_sync_attempt = new Date().toISOString();
+          await putDraft(draft).catch(() => {});
+          if (isFormForThisDraft) {
+            updateStatusUI('saved_locally', 'Server response was non-JSON. Saved locally.');
+          }
+          return false;
+        }
       }
 
       // Non-ok response
-      const errResult = await resp.json().catch(() => ({}));
+      const errResult = parsedJson || {};
       console.warn('[OfflineDrafts] Server response not ok:', resp.status, errResult);
 
       // If the activity was deleted from the server (404) or user lost permission (403), purge the orphaned draft
@@ -896,6 +933,13 @@
 
         // Automatically sync drafts that are pending, saved locally, or previously failed
         if (['pending_sync', 'saved_locally', 'sync_failed'].includes(d.sync_status)) {
+          // Cooldown / Backoff: if sync failed or was saved locally less than 45 seconds ago, wait before retrying
+          if (d.last_sync_attempt && ['saved_locally', 'sync_failed'].includes(d.sync_status)) {
+            const elapsed = Date.now() - new Date(d.last_sync_attempt).getTime();
+            if (elapsed < 45000) {
+              continue; // Skip this round to prevent aggressive request spamming
+            }
+          }
           await syncDraft(d);
         }
       }
