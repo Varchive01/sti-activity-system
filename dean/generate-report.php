@@ -2390,6 +2390,7 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
     <div class="card no-print" style="margin-top:20px;">
       <div class="card-header"><h2>⚠️ Events Needing Attention (KPI &lt; 2.5)</h2></div>
       <div class="card-body" style="padding:0;">
+        <div class="table-wrap">
         <table>
           <thead><tr><th>Activity</th><th>KPI</th><th>Attendance Rate</th><th>Recommendations</th></tr></thead>
           <tbody>
@@ -2408,6 +2409,7 @@ $bodyTheme = $themeMap[$user['role']] ?? 'theme-dean';
           <?php endforeach; ?>
           </tbody>
         </table>
+        </div>
       </div>
     </div>
     <?php endif; ?>

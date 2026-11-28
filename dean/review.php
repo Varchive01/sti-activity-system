@@ -764,10 +764,12 @@ label, input, button, select, textarea {
 
     <?php renderSectionHeader('materials', '💰 Materials & Budget', $stagedComments); ?>
       <?php if (!empty($mats)): ?>
+        <div class="table-wrap">
         <table style="width:100%;"><thead><tr><th>Item</th><th>Description</th><th>Qty</th><th>Provider</th><th>Est. Cost</th></tr></thead>
         <tbody><?php foreach ($mats as $m): ?>
           <tr><td><?= htmlspecialchars($m['item_name']) ?></td><td><?= htmlspecialchars($m['description']??'') ?></td><td><?= $m['quantity'] ?></td><td><?= htmlspecialchars($m['provider']??'') ?></td><td>₱<?= number_format($m['est_cost'],2) ?></td></tr>
         <?php endforeach; ?></tbody></table>
+        </div>
         <div class="budget-total">Grand Total: ₱<?= number_format($totalBudget,2) ?></div>
       <?php else: ?><p class="text-muted">No materials listed.</p><?php endif; ?>
 
@@ -851,10 +853,12 @@ label, input, button, select, textarea {
 
     <?php renderSectionHeader('people', '👥 People & Manpower', $stagedComments); ?>
       <?php if (!empty($mp)): ?>
+        <div class="table-wrap">
         <table style="width:100%;"><thead><tr><th>Role</th><th>Person in Charge</th><th>Type</th><th style="text-align:center;">Members Supervised</th></tr></thead>
         <tbody><?php foreach ($mp as $m): ?>
           <tr><td><?= htmlspecialchars($m['role']) ?></td><td><?= htmlspecialchars($m['assigned_person']??'—') ?></td><td><span class="badge badge-secondary"><?= ucfirst($m['type']) ?></span></td><td style="text-align:center; font-weight:600;"><?= (int)($m['member_count'] ?? 1) ?></td></tr>
         <?php endforeach; ?></tbody></table>
+        </div>
       <?php else: ?><p class="text-muted">No manpower assigned.</p><?php endif; ?>
     <?php renderSectionClose('people', $stagedComments, $id); ?>
 
@@ -865,17 +869,21 @@ label, input, button, select, textarea {
         </div>
       <?php endif; ?>
       <?php if (!empty($scheds)): ?>
+        <div class="table-wrap">
         <table style="width:100%;"><thead><tr><th>Date</th><th>Event</th><th>Venue</th><th>Organizer</th></tr></thead>
         <tbody><?php foreach ($scheds as $s): ?>
           <tr><td><?= $s['sched_date'] ? date('M j, Y', strtotime($s['sched_date'])) : '—' ?></td><td><?= htmlspecialchars($s['event_name']) ?></td><td><?= htmlspecialchars($s['venue']??'—') ?></td><td><?= htmlspecialchars($s['organizer']??'—') ?></td></tr>
         <?php endforeach; ?></tbody></table>
+        </div>
       <?php else: ?><p class="text-muted">No schedule entries.</p><?php endif; ?>
       <?php if (!empty($prog)): ?>
         <div class="sl" style="margin-top:18px;">Program Sequence</div>
+        <div class="table-wrap">
         <table style="width:100%;"><thead><tr><th>Time</th><th>Segment</th><th>Description</th><th>Person In-Charge</th></tr></thead>
         <tbody><?php foreach ($prog as $p): ?>
           <tr><td><?= $p['time_slot'] ? date('g:i A', strtotime($p['time_slot'])) : '—' ?></td><td><strong><?= htmlspecialchars($p['segment']) ?></strong></td><td><?= htmlspecialchars($p['description']??'') ?></td><td><?= htmlspecialchars($p['person_ic']??'') ?></td></tr>
         <?php endforeach; ?></tbody></table>
+        </div>
       <?php endif; ?>
     <?php renderSectionClose('schedule', $stagedComments, $id); ?>
 
@@ -898,19 +906,23 @@ label, input, button, select, textarea {
 
     <?php renderSectionHeader('faculty_tasks', '📋 Faculty Tasks & Responsibilities', $stagedComments); ?>
       <?php if (!empty($ftasks)): ?>
+        <div class="table-wrap">
         <table style="width:100%;"><thead><tr><th>Faculty Name</th><th>Assigned Task</th><th>Contribution</th><th>Role in Event</th></tr></thead>
         <tbody><?php foreach ($ftasks as $f): ?>
           <tr><td><?= htmlspecialchars($f['faculty_name']) ?></td><td><?= htmlspecialchars($f['assigned_task']??'') ?></td><td><?= htmlspecialchars($f['contribution_desc']??'') ?></td><td><?= htmlspecialchars($f['role_in_event']??'') ?></td></tr>
         <?php endforeach; ?></tbody></table>
+        </div>
       <?php else: ?><p class="text-muted">No faculty tasks assigned.</p><?php endif; ?>
     <?php renderSectionClose('faculty_tasks', $stagedComments, $id); ?>
 
     <?php renderSectionHeader('kpi', '📊 KPI & Evaluation', $stagedComments); ?>
       <?php if (!empty($kpis)): ?>
+        <div class="table-wrap">
         <table style="width:100%;"><thead><tr><th>Indicator</th><th>Target Metric</th><th>Evaluation Method</th></tr></thead>
         <tbody><?php foreach ($kpis as $k): ?>
           <tr><td><?= htmlspecialchars($k['indicator']??'') ?></td><td><?= htmlspecialchars($k['target_metric']??'') ?></td><td><?= htmlspecialchars($k['evaluation_method']??'') ?></td></tr>
         <?php endforeach; ?></tbody></table>
+        </div>
       <?php else: ?><p class="text-muted">No KPI criteria defined.</p><?php endif; ?>
       <?php if (!empty($activity['evaluation_method'])): ?>
         <div class="sl" style="margin-top:14px;">Google Form Link</div>
@@ -929,10 +941,12 @@ label, input, button, select, textarea {
     <div class="review-section">
       <div class="review-section-header"><h2>🕓 Approval History</h2></div>
       <div class="review-section-body" style="padding:0;">
+        <div class="table-wrap">
         <table><thead><tr><th>Reviewer</th><th>Action</th><th>Notes</th><th>Date</th></tr></thead>
         <tbody><?php foreach ($history as $h): ?>
           <tr><td><?= htmlspecialchars($h['name']) ?></td><td><?= getStatusBadge($h['action']) ?></td><td><?= htmlspecialchars($h['notes']??'—') ?></td><td><?= date('M j, Y g:i A', strtotime($h['acted_at'])) ?></td></tr>
         <?php endforeach; ?></tbody></table>
+        </div>
       </div>
     </div>
     <?php endif; ?>
