@@ -49,6 +49,7 @@ foreach ($calendarFiles as $f) {
     check("$f: mb_strimwidth is completely removed", !str_contains($content, 'mb_strimwidth'));
     check("$f: includes assets/js/gcal-popup.js", str_contains($content, 'assets/js/gcal-popup.js'));
     check("$f: contains handleCalendarEventClick handler", str_contains($content, 'handleCalendarEventClick'));
+    check("$f: contains cal-main-col container for unconstrained zero-expansion", str_contains($content, 'cal-main-col'));
     check("$f: retrieves full proposal fields (description, start_time, end_time, etc.)", str_contains($content, 'a.description') && str_contains($content, 'a.start_time'));
 }
 

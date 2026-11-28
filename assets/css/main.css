@@ -3084,15 +3084,29 @@ textarea:disabled {
 
 /* ── 3. Calendar ── */
 .cal-layout {
-  display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: 24px;
-  align-items: start;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 280px !important;
+  gap: 24px !important;
+  align-items: start !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
 }
-@media (max-width: 992px) {
+@media (max-width: 1200px) {
   .cal-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) !important;
   }
+  .cal-sidebar {
+    margin-top: 16px !important;
+  }
+}
+.cal-main-col,
+.cal-layout > div:first-child {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
 }
 .cal-toolbar {
   display: flex;
@@ -3307,6 +3321,7 @@ textarea:disabled {
   white-space: nowrap !important;
   text-overflow: clip !important; /* Clean clip without ellipses (...) to protect fixed calendar grid */
   display: block !important;
+  width: 0 !important;
   min-width: 0 !important;
   max-width: 100% !important;
   flex: 1 !important;

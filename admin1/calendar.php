@@ -123,7 +123,7 @@ $todayYear  = (int)date('Y');
       <div class="cal-layout">
 
         <!-- Main Calendar -->
-        <div>
+        <div class="cal-main-col">
           <!-- Toolbar -->
           <div class="cal-toolbar">
             <div class="cal-nav">
