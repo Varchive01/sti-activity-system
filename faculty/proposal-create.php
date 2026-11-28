@@ -1192,6 +1192,170 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         border: 1px solid var(--border, #cbd5e1) !important;
         margin-top: 4px !important;
       }
+      /* ── Materials Table Universal Mobile Responsiveness (Zero Sideways Scroll) ── */
+      .materials-table,
+      .dynamic-table:has(#materials-body) {
+        overflow: visible !important;
+        overflow-x: hidden !important;
+        border: none !important;
+        background: transparent !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      .materials-table table,
+      .dynamic-table:has(#materials-body) table {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        border: none !important;
+      }
+      .materials-table thead,
+      .dynamic-table:has(#materials-body) thead {
+        display: none !important;
+      }
+      #materials-body {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+        width: 100% !important;
+      }
+      #materials-body tr {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr 38px !important;
+        gap: 8px !important;
+        padding: 12px !important;
+        background: var(--bg-card, #ffffff) !important;
+        border: 1px solid var(--border, #cbd5e1) !important;
+        border-radius: 10px !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+        position: relative !important;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.03) !important;
+      }
+      #materials-body td {
+        display: block !important;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+      }
+      #materials-body td:nth-child(1) {
+        grid-column: 1 / 3 !important;
+        grid-row: 1 !important;
+      }
+      #materials-body td:nth-child(1)::before {
+        content: "Item Name *";
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--text-muted, #64748b);
+        display: block;
+        margin-bottom: 2px;
+      }
+      #materials-body td:nth-child(8) {
+        grid-column: 3 !important;
+        grid-row: 1 !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: flex-end !important;
+      }
+      #materials-body td:nth-child(8) button {
+        width: 36px !important;
+        height: 36px !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      #materials-body td:nth-child(2) {
+        grid-column: 1 / -1 !important;
+        grid-row: 2 !important;
+      }
+      #materials-body td:nth-child(2)::before {
+        content: "Description / Type";
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--text-muted, #64748b);
+        display: block;
+        margin-bottom: 2px;
+      }
+      #materials-body td:nth-child(4) {
+        grid-column: 1 / 3 !important;
+        grid-row: 3 !important;
+      }
+      #materials-body td:nth-child(4)::before {
+        content: "Provider / Supplier *";
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--text-muted, #64748b);
+        display: block;
+        margin-bottom: 2px;
+      }
+      #materials-body td:nth-child(3) {
+        grid-column: 3 !important;
+        grid-row: 3 !important;
+      }
+      #materials-body td:nth-child(3)::before {
+        content: "Qty *";
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--text-muted, #64748b);
+        display: block;
+        margin-bottom: 2px;
+      }
+      #materials-body td:nth-child(5) {
+        grid-column: 1 !important;
+        grid-row: 4 !important;
+      }
+      #materials-body td:nth-child(5)::before {
+        content: "Billing Unit";
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--text-muted, #64748b);
+        display: block;
+        margin-bottom: 2px;
+      }
+      #materials-body td:nth-child(6) {
+        grid-column: 2 !important;
+        grid-row: 4 !important;
+      }
+      #materials-body td:nth-child(6)::before {
+        content: "Rate (₱)";
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--text-muted, #64748b);
+        display: block;
+        margin-bottom: 2px;
+      }
+      #materials-body td:nth-child(7) {
+        grid-column: 3 !important;
+        grid-row: 4 !important;
+      }
+      #materials-body td:nth-child(7)::before {
+        content: "Est. Cost (₱)";
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--text-muted, #64748b);
+        display: block;
+        margin-bottom: 2px;
+      }
+      [data-theme="dark"] #materials-body tr {
+        background: var(--bg-card, #0F1B2E) !important;
+        border-color: var(--border, #1E2D45) !important;
+      }
+      .materials-total-row {
+        justify-content: space-between !important;
+        padding: 10px 14px !important;
+        background: var(--bg-card, #ffffff) !important;
+        border: 1px solid var(--border, #cbd5e1) !important;
+        border-radius: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      [data-theme="dark"] .materials-total-row {
+        background: var(--bg-card, #0F1B2E) !important;
+        border-color: var(--border, #1E2D45) !important;
+      }
       .target-participants-panel .card-header {
         flex-direction: column !important;
         align-items: stretch !important;
