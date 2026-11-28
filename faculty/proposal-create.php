@@ -992,17 +992,67 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         grid-column: span 1 !important;
       }
       .wizard-steps {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
         gap: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+        border-radius: var(--radius, 12px) !important;
+        border: 1px solid var(--border) !important;
+        background: var(--bg-card) !important;
+        box-sizing: border-box !important;
+        scrollbar-width: none !important;
+      }
+      .wizard-steps::-webkit-scrollbar {
+        display: none !important;
       }
       .wizard-step {
-        min-width: 68px !important;
-        padding: 8px 4px !important;
-        font-size: 0.65rem !important;
+        flex: none !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        padding: 8px 2px !important;
+        font-size: 0.62rem !important;
+        line-height: 1.15 !important;
+        text-align: center !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 3px !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        border-right: 1px solid var(--border) !important;
+        border-bottom: 1px solid var(--border) !important;
+        box-sizing: border-box !important;
+        border-radius: 0 !important;
+      }
+      .wizard-step:nth-child(4n) {
+        border-right: none !important;
+      }
+      .wizard-step:nth-child(n+5) {
+        border-bottom: none !important;
+      }
+      .wizard-step:nth-child(1) {
+        border-top-left-radius: calc(var(--radius, 12px) - 1px) !important;
+      }
+      .wizard-step:nth-child(4) {
+        border-top-right-radius: calc(var(--radius, 12px) - 1px) !important;
+      }
+      .wizard-step:nth-child(5) {
+        border-bottom-left-radius: calc(var(--radius, 12px) - 1px) !important;
+      }
+      .wizard-step:nth-child(8) {
+        border-bottom-right-radius: calc(var(--radius, 12px) - 1px) !important;
       }
       .wizard-step .step-num {
-        width: 22px !important;
-        height: 22px !important;
+        width: 20px !important;
+        height: 20px !important;
         font-size: 0.65rem !important;
+        margin-bottom: 1px !important;
       }
       .proposal-layout-grid {
         grid-template-columns: 1fr !important;
@@ -1069,11 +1119,78 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
     /* ── Mobile Responsive Refinements ── */
     @media (max-width: 767.98px) {
       #target-participants-scroll-box {
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
+        overflow: visible !important;
+        border: none !important;
+        background: transparent !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
       }
       #target-participants-scroll-box table {
-        min-width: 620px !important;
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        border: none !important;
+      }
+      #target-participants-scroll-box thead {
+        display: none !important;
+      }
+      #target-participants-scroll-box tbody {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+        width: 100% !important;
+      }
+      #target-participants-scroll-box tr.participant-row {
+        display: grid !important;
+        grid-template-columns: 28px 1fr 75px 32px !important;
+        grid-template-areas:
+          "num sec cnt del"
+          "tch tch tch tch" !important;
+        gap: 8px !important;
+        align-items: center !important;
+        padding: 12px !important;
+        background: var(--bg-card, #ffffff) !important;
+        border: 1px solid var(--border, #cbd5e1) !important;
+        border-radius: 8px !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+      }
+      #target-participants-scroll-box td {
+        display: block !important;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+      }
+      #target-participants-scroll-box td.part-row-num {
+        grid-area: num !important;
+      }
+      #target-participants-scroll-box td:nth-child(2) {
+        grid-area: sec !important;
+      }
+      #target-participants-scroll-box td:nth-child(3) {
+        grid-area: cnt !important;
+        width: auto !important;
+      }
+      #target-participants-scroll-box td:nth-child(4) {
+        grid-area: tch !important;
+        min-width: 0 !important;
+        width: 100% !important;
+      }
+      #target-participants-scroll-box td:nth-child(5) {
+        grid-area: del !important;
+        text-align: right !important;
+        width: auto !important;
+      }
+      [data-theme="dark"] #target-participants-scroll-box tr.participant-row {
+        background: var(--bg-card, #0F1B2E) !important;
+        border-color: var(--border, #1E2D45) !important;
+      }
+      .target-participants-footer {
+        border-radius: 8px !important;
+        border: 1px solid var(--border, #cbd5e1) !important;
+        margin-top: 4px !important;
       }
       .target-participants-panel .card-header {
         flex-direction: column !important;
@@ -1754,7 +1871,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
               <input type="hidden" name="target_participants" id="f1_target_participants" value="0">
               <span class="field-error" id="e_target_participants" style="margin-bottom: 12px;">Target participants is required and must have at least 1 participant.</span>
 
-              <div class="target-participants-scroll-box" id="target-participants-scroll-box" style="border-radius: 8px 8px 0 0; min-height: auto; max-height: none; overflow: visible !important; border: 1px solid #e2e8f0; background: #ffffff;">
+              <div class="target-participants-scroll-box" id="target-participants-scroll-box" style="border-radius: 8px 8px 0 0; min-height: auto; max-height: none; border: 1px solid #e2e8f0; background: #ffffff;">
                 <table class="table" style="margin: 0; width: 100%; border-collapse: separate; border-spacing: 0;">
                   <thead style="position: sticky; top: 0; z-index: 5; background: #f8fafc;">
                     <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
