@@ -32,7 +32,7 @@ if ($nextMonth > 12) {
 }
 
 $events = $db->prepare("
-    SELECT a.id, a.title, a.event_date, a.status, a.venue, a.source, u.name as faculty_name
+    SELECT a.id, a.title, a.event_date, a.end_date, a.start_time, a.end_time, a.status, a.venue, a.source, a.description, a.faculty_id, u.name as faculty_name
     FROM activities a JOIN users u ON a.faculty_id=u.id
     WHERE a.status IN ('pending_final_approval', 'approved', 'completed') AND MONTH(a.event_date)=? AND YEAR(a.event_date)=?
     ORDER BY a.event_date
@@ -415,20 +415,45 @@ $todayYear  = (int)date('Y');
               <div class="cal-cell <?= $isToday ? 'today' : '' ?>" id="cell-<?= $day ?>">
                 <div class="day-num"><?= $day ?></div>
                 <?php foreach (array_slice($dayEvents, 0, $maxShow) as $ev):
-                  $cfg   = $statusConfig[$ev['status']] ?? ['color' => '#6B7280', 'bg' => '#F3F4F6'];
-                  $venue = htmlspecialchars($ev['venue'] ?? '');
-                  $date  = date('F j, Y', strtotime($ev['event_date']));
-                  $organizer = htmlspecialchars($ev['faculty_name'] ?? '');
+                  $cfg              = $statusConfig[$ev['status']] ?? ['color' => '#6B7280', 'bg' => '#F3F4F6'];
+                  $dateFormatted    = date('F j, Y', strtotime($ev['event_date']));
+                  $endDateFormatted = (!empty($ev['end_date']) && $ev['end_date'] !== $ev['event_date']) ? date('F j, Y', strtotime($ev['end_date'])) : '';
+                  $timeFormatted    = '';
+                  if (!empty($ev['start_time'])) {
+                    $timeFormatted = date('g:i A', strtotime($ev['start_time']));
+                    if (!empty($ev['end_time'])) {
+                      $timeFormatted .= ' – ' . date('g:i A', strtotime($ev['end_time']));
+                    }
+                  }
+                  $eventJson = htmlspecialchars(json_encode([
+                    'id'            => (int)$ev['id'],
+                    'title'         => $ev['title'],
+                    'date'          => $dateFormatted,
+                    'endDate'       => $endDateFormatted,
+                    'time'          => $timeFormatted,
+                    'venue'         => $ev['venue'] ?? 'Campus Venue',
+                    'status'        => $statusConfig[$ev['status']]['label'] ?? ucfirst($ev['status']),
+                    'statusColor'   => $cfg['color'],
+                    'statusBg'      => $cfg['bg'],
+                    'category'      => ucfirst(str_replace('_', ' ', $ev['source'] ?? 'Institutional Activity')),
+                    'categoryColor' => $cfg['color'],
+                    'categoryBg'    => $cfg['bg'],
+                    'proponent'     => $ev['faculty_name'] ?? 'Faculty Proponent',
+                    'visibility'    => 'STI College',
+                    'description'   => $ev['description'] ?? '',
+                    'viewUrl'       => BASE_URL . '/dean/view-activity.php?id=' . (int)$ev['id']
+                  ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8');
                 ?>
                   <div class="cal-event"
                     style="background:<?= $cfg['bg'] ?>;color:<?= $cfg['color'] ?>;"
-                    onclick="showPopup(event, <?= $ev['id'] ?>, '<?= addslashes(htmlspecialchars($ev['title'])) ?>', '<?= $date ?>', '<?= $venue ?>', '<?= $cfg['color'] ?>', '<?= $cfg['bg'] ?>', '<?= addslashes($statusConfig[$ev['status']]['label'] ?? $ev['status']) ?>', '<?= addslashes($organizer) ?>')">
+                    data-event='<?= $eventJson ?>'
+                    onclick="handleCalendarEventClick(this, event)">
                     <div class="cal-event-dot" style="background:<?= $cfg['color'] ?>"></div>
-                    <span class="cal-event-text"><?= htmlspecialchars(mb_strimwidth($ev['title'], 0, 20, '…')) ?></span>
+                    <span class="cal-event-text"><?= htmlspecialchars($ev['title']) ?></span>
                   </div>
                 <?php endforeach; ?>
                 <?php if ($extra > 0): ?>
-                  <div class="cal-more">+<?= $extra ?> more</div>
+                  <div class="cal-more" onclick="event.stopPropagation();">+<?= $extra ?> more</div>
                 <?php endif; ?>
               </div>
             <?php endfor; ?>
@@ -565,13 +590,21 @@ $todayYear  = (int)date('Y');
       activePopup = null;
     }
 
-    document.addEventListener('click', e => {
-      if (activePopup && !activePopup.contains(e.target)) closePopup();
-    });
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closePopup();
-    });
+    function handleCalendarEventClick(el, e) {
+      if (e) e.stopPropagation();
+      const raw = el.getAttribute('data-event');
+      if (!raw) return;
+      try {
+        const data = JSON.parse(raw);
+        if (typeof openGCalPopup === 'function') {
+          openGCalPopup(el, data);
+        }
+      } catch (err) {
+        console.error('Error opening event details:', err);
+      }
+    }
   </script>
+  <script src="<?= BASE_URL ?>/assets/js/gcal-popup.js"></script>
 </body>
 
 </html>

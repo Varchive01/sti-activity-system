@@ -28,6 +28,7 @@ $filesToCheck = [
     'faculty/calendar.php',
     'admin1/calendar.php',
     'admin2/calendar.php',
+    'dean/calendar.php',
     'faculty/proposal-create.php',
     'faculty/proposal-edit.php',
     'includes/phase2-proposal-enhancements.php'
@@ -42,7 +43,7 @@ foreach ($filesToCheck as $f) {
 }
 
 // 2. Verify mb_strimwidth with ellipses is removed from calendar files
-$calendarFiles = ['faculty/calendar.php', 'admin1/calendar.php', 'admin2/calendar.php'];
+$calendarFiles = ['faculty/calendar.php', 'admin1/calendar.php', 'admin2/calendar.php', 'dean/calendar.php'];
 foreach ($calendarFiles as $f) {
     $content = file_get_contents("$rootDir/$f");
     check("$f: mb_strimwidth is completely removed", !str_contains($content, 'mb_strimwidth'));
@@ -62,9 +63,9 @@ check("phase2-proposal-enhancements.php: uses sched-cal-event-pill", str_contain
 $cssContent = file_get_contents("$rootDir/assets/css/main.css");
 check("main.css: contains .gcal-event-popup with light theme background #ffffff", str_contains($cssContent, '.gcal-event-popup') && str_contains($cssContent, '#ffffff'));
 check("main.css: contains [data-theme=\"dark\"] .gcal-event-popup with dark theme background #1f1f1f", str_contains($cssContent, '[data-theme="dark"] .gcal-event-popup') && str_contains($cssContent, '#1f1f1f'));
-check("main.css: contains fixed grid-auto-rows for .cal-grid", str_contains($cssContent, 'grid-auto-rows: 116px;'));
+check("main.css: contains fixed grid-auto-rows for .cal-grid", str_contains($cssContent, 'grid-auto-rows: 116px'));
 check("main.css: contains text-overflow: clip to prevent ellipses from distorting cells", str_contains($cssContent, 'text-overflow: clip'));
-check("main.css: contains minmax(0, 1fr) for calendar column zero-expansion", str_contains($cssContent, 'grid-template-columns: repeat(7, minmax(0, 1fr))'));
+check("main.css: contains calc(100% / 7) for calendar column zero-expansion", str_contains($cssContent, 'grid-template-columns: repeat(7, calc(100% / 7))'));
 check("main.css: contains mobile containment without horizontal scroll blowout", str_contains($cssContent, '#schedule-calendar-grid') && str_contains($cssContent, 'grid-auto-rows: 88px !important;'));
 
 // 5. Verify gcal-popup.js exists and has all required methods

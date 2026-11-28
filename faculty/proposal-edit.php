@@ -3546,7 +3546,7 @@ $s8SelectStyle = $s8Editable ? '' : 'style="pointer-events: none; background:var
                 </div>
 
                 <!-- Calendar Grid Container -->
-                <div id="schedule-calendar-grid" style="display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); background:var(--bg-card, #ffffff);"></div>
+                <div id="schedule-calendar-grid" class="schedule-calendar-grid"></div>
               </div>
 
               <!-- Chronological Agenda List (Rendered dynamically below calendar) -->

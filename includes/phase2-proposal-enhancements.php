@@ -1357,18 +1357,17 @@ function renderScheduleTimelineCalendar() {
     const isToday = (iso === todayIso);
     const dayItems = itemsByDate[iso] || [];
 
-    const cellBorder = 'border-right: 1px solid var(--border, #f1f5f9); border-bottom: 1px solid var(--border, #f1f5f9);';
     const cellBg = isToday
       ? 'background: #ffffff;'
-      : (isInEventRange ? 'background: rgba(2, 132, 199, 0.04);' : 'background: var(--bg-card, #ffffff);');
+      : (isInEventRange ? 'background: rgba(2, 132, 199, 0.04);' : '');
 
-    html += `<div class="schedule-cal-cell ${isInEventRange ? 'event-range' : ''} ${isToday ? 'today' : ''}" style="${cellBg} ${cellBorder}" onclick="openAddScheduleEventDialog('${iso}')" title="Click to schedule on ${iso}">
+    html += `<div class="schedule-cal-cell ${isInEventRange ? 'event-range' : ''} ${isToday ? 'today' : ''}" ${cellBg ? `style="${cellBg}"` : ''} onclick="openAddScheduleEventDialog('${iso}')" title="Click to schedule on ${iso}">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px; flex-shrink:0;">
         ${isToday 
           ? `<span class="day-num" style="background:#0284c7; color:#ffffff; font-weight:700;">${d}</span>` 
           : `<span class="day-num" style="font-weight:${isInEventRange || dayItems.length ? '700' : '500'}; color:${isInEventRange ? '#0284c7' : 'var(--text-main, #334155)'};">${d}</span>`
         }
-        ${isInEventRange ? '<span style="font-size:0.6rem; background:#0284c7; color:#fff; padding:1px 5px; border-radius:4px; font-weight:700; flex-shrink:0;">Event Day</span>' : ''}
+        ${isInEventRange ? '<span class="sched-event-day-badge" title="Scheduled Event Day">Event</span>' : ''}
       </div>`;
 
     dayItems.slice(0, maxShow).forEach(item => {
