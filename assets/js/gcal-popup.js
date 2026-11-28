@@ -66,24 +66,23 @@
     el.innerHTML = `
       <div class="gcal-popup-topbar">
         <div class="gcal-popup-badge-wrap">
-          <span class="gcal-popup-badge" id="gcalPopupBadge">Event</span>
           <span class="gcal-popup-status-chip" id="gcalPopupStatusChip" style="display:none;"></span>
         </div>
         <div class="gcal-popup-actions-top">
-          <button type="button" class="gcal-action-btn" id="gcalPopupEditTopBtn" title="Edit Event" style="display:none;" aria-label="Edit">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
-              <path d="M12 20h9"/>
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          <button type="button" class="gcal-action-btn gcal-action-edit" id="gcalPopupEditTopBtn" title="Edit Event" style="display:none;" aria-label="Edit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
           </button>
           <button type="button" class="gcal-action-btn gcal-action-delete" id="gcalPopupDeleteTopBtn" title="Delete Event" style="display:none;" aria-label="Delete">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
               <polyline points="3 6 5 6 21 6"/>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
             </svg>
           </button>
           <button type="button" class="gcal-action-btn gcal-action-close" id="gcalPopupCloseBtn" title="Close (Esc)" aria-label="Close">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
@@ -92,54 +91,34 @@
       </div>
 
       <div class="gcal-popup-header">
-        <div class="gcal-popup-color-bar" id="gcalPopupColorBar"></div>
-        <h3 class="gcal-popup-title" id="gcalPopupTitle"></h3>
+        <div class="gcal-popup-color-marker" id="gcalPopupColorMarker"></div>
+        <div class="gcal-popup-header-content">
+          <h3 class="gcal-popup-title" id="gcalPopupTitle"></h3>
+          <div class="gcal-popup-subtitle" id="gcalPopupSubtitle"></div>
+        </div>
       </div>
 
       <div class="gcal-popup-body">
-        <div class="gcal-popup-row" id="gcalPopupDateRow">
+        <div class="gcal-popup-row" id="gcalPopupDescRow" style="display:none;">
           <div class="gcal-row-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-              <line x1="16" y1="2" x2="16" y2="6"/>
-              <line x1="8" y1="2" x2="8" y2="6"/>
-              <line x1="3" y1="10" x2="21" y2="10"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="15" y2="18"/>
             </svg>
           </div>
           <div class="gcal-row-content">
-            <span class="gcal-row-primary" id="gcalPopupDateText"></span>
-          </div>
-        </div>
-
-        <div class="gcal-popup-row" id="gcalPopupTimeRow" style="display:none;">
-          <div class="gcal-row-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-          </div>
-          <div class="gcal-row-content">
-            <span class="gcal-row-primary" id="gcalPopupTimeText"></span>
-          </div>
-        </div>
-
-        <div class="gcal-popup-row" id="gcalPopupVenueRow">
-          <div class="gcal-row-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-              <circle cx="12" cy="10" r="3"/>
-            </svg>
-          </div>
-          <div class="gcal-row-content">
-            <span class="gcal-row-primary" id="gcalPopupVenueText"></span>
+            <span class="gcal-row-primary" id="gcalPopupDescText"></span>
           </div>
         </div>
 
         <div class="gcal-popup-row" id="gcalPopupCategoryRow">
           <div class="gcal-row-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-              <line x1="7" y1="7" x2="7.01" y2="7"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
             </svg>
           </div>
           <div class="gcal-row-content">
@@ -149,9 +128,9 @@
 
         <div class="gcal-popup-row" id="gcalPopupVisibilityRow">
           <div class="gcal-row-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
           </div>
           <div class="gcal-row-content">
@@ -159,17 +138,27 @@
           </div>
         </div>
 
-        <div class="gcal-popup-row" id="gcalPopupDescRow" style="display:none;">
+        <div class="gcal-popup-row" id="gcalPopupVenueRow">
           <div class="gcal-row-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
             </svg>
           </div>
           <div class="gcal-row-content">
-            <div class="gcal-row-desc" id="gcalPopupDescText"></div>
+            <span class="gcal-row-primary" id="gcalPopupVenueText"></span>
+          </div>
+        </div>
+
+        <div class="gcal-popup-row" id="gcalPopupProponentRow">
+          <div class="gcal-row-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
+          <div class="gcal-row-content">
+            <span class="gcal-row-primary" id="gcalPopupProponentText"></span>
           </div>
         </div>
       </div>
@@ -260,21 +249,13 @@
       titleEl.textContent = data.title || 'Untitled Event';
     }
 
-    // 2. Color Bar & Badges
-    const colorBar = popup.querySelector('#gcalPopupColorBar');
-    const badge = popup.querySelector('#gcalPopupBadge');
+    // 2. Color Marker & Status
+    const colorMarker = popup.querySelector('#gcalPopupColorMarker');
     const statusChip = popup.querySelector('#gcalPopupStatusChip');
-    const primaryColor = data.color || data.categoryColor || '#0284c7';
+    const primaryColor = data.color || data.categoryColor || '#22c55e';
 
-    if (colorBar) {
-      colorBar.style.background = primaryColor;
-    }
-
-    if (badge) {
-      badge.textContent = data.category || 'Event';
-      badge.style.borderColor = primaryColor;
-      badge.style.color = '#ffffff';
-      badge.style.background = data.categoryBg || 'rgba(255, 255, 255, 0.1)';
+    if (colorMarker) {
+      colorMarker.style.background = primaryColor;
     }
 
     if (statusChip) {
@@ -288,65 +269,85 @@
       }
     }
 
-    // 3. Date
-    const dateRow = popup.querySelector('#gcalPopupDateRow');
-    const dateText = popup.querySelector('#gcalPopupDateText');
-    if (dateText) {
-      let dateStr = data.date || '';
-      if (data.endDate && data.endDate !== data.date) {
-        dateStr += ` – ${data.endDate}`;
-      }
-      dateText.textContent = dateStr || 'Date TBD';
-    }
+    // 3. Subtitle (Formatted Date & Time underneath title: e.g. "Tuesday, December 8 · 8:00 AM – 12:00 PM")
+    const subtitleEl = popup.querySelector('#gcalPopupSubtitle');
+    if (subtitleEl) {
+      let formattedDate = data.date || '';
+      try {
+        if (data.date && !data.date.includes('to') && !data.date.includes('–')) {
+          const dObj = new Date(data.date);
+          if (!isNaN(dObj.getTime())) {
+            formattedDate = dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+          }
+        }
+      } catch (e) {}
 
-    // 4. Time
-    const timeRow = popup.querySelector('#gcalPopupTimeRow');
-    const timeText = popup.querySelector('#gcalPopupTimeText');
-    if (timeRow && timeText) {
+      if (data.endDate && data.endDate !== data.date) {
+        formattedDate += ` – ${data.endDate}`;
+      }
+
       const formattedTime = formatStandardTimeSlot(data.time);
       if (formattedTime && formattedTime.trim() && formattedTime !== '—' && formattedTime !== '–') {
-        timeText.textContent = formattedTime;
-        timeRow.style.display = 'flex';
+        subtitleEl.textContent = `${formattedDate} · ${formattedTime}`;
       } else {
-        timeRow.style.display = 'none';
+        subtitleEl.textContent = formattedDate || 'Date TBD';
       }
     }
 
-    // 5. Venue / Location
-    const venueRow = popup.querySelector('#gcalPopupVenueRow');
-    const venueText = popup.querySelector('#gcalPopupVenueText');
-    if (venueText) {
-      venueText.textContent = data.venue || 'Venue TBD';
-    }
-
-    // 6. Category
-    const catRow = popup.querySelector('#gcalPopupCategoryRow');
-    const catText = popup.querySelector('#gcalPopupCategoryText');
-    if (catText) {
-      catText.textContent = data.category || 'General Activity';
-    }
-
-    // 7. Proponent / Visibility
-    const visRow = popup.querySelector('#gcalPopupVisibilityRow');
-    const visText = popup.querySelector('#gcalPopupVisibilityText');
-    if (visText) {
-      const visParts = [];
-      if (data.proponent) visParts.push(data.proponent);
-      if (data.visibility) visParts.push(data.visibility);
-      if (data.organizer && data.organizer !== data.proponent) visParts.push(`Org: ${data.organizer}`);
-      visText.textContent = visParts.join(' • ') || 'STI College';
-    }
-
-    // 8. Description / Notes
+    // 4. Description / Details (Row 1)
     const descRow = popup.querySelector('#gcalPopupDescRow');
     const descText = popup.querySelector('#gcalPopupDescText');
+    const descContent = (data.description || data.contribution || data.notes || '').trim();
     if (descRow && descText) {
-      const descContent = (data.description || data.contribution || data.notes || '').trim();
       if (descContent) {
         descText.textContent = descContent;
         descRow.style.display = 'flex';
       } else {
         descRow.style.display = 'none';
+      }
+    }
+
+    // 5. Category / Calendar Source (Row 2)
+    const catRow = popup.querySelector('#gcalPopupCategoryRow');
+    const catText = popup.querySelector('#gcalPopupCategoryText');
+    if (catRow && catText) {
+      const catVal = data.category || 'General Activity';
+      catText.textContent = catVal;
+      catRow.style.display = 'flex';
+    }
+
+    // 6. Visibility (Row 3)
+    const visRow = popup.querySelector('#gcalPopupVisibilityRow');
+    const visText = popup.querySelector('#gcalPopupVisibilityText');
+    if (visRow && visText) {
+      const visVal = data.visibility || 'Public (STI College)';
+      visText.textContent = visVal;
+      visRow.style.display = 'flex';
+    }
+
+    // 7. Venue / Location (Row 4)
+    const venueRow = popup.querySelector('#gcalPopupVenueRow');
+    const venueText = popup.querySelector('#gcalPopupVenueText');
+    if (venueRow && venueText) {
+      const venVal = (data.venue || '').trim();
+      if (venVal && venVal !== '—') {
+        venueText.textContent = venVal;
+        venueRow.style.display = 'flex';
+      } else {
+        venueRow.style.display = 'none';
+      }
+    }
+
+    // 8. Proponent / Assigned Person (Row 5)
+    const propRow = popup.querySelector('#gcalPopupProponentRow');
+    const propText = popup.querySelector('#gcalPopupProponentText');
+    if (propRow && propText) {
+      const propVal = (data.proponent || data.organizer || '').trim();
+      if (propVal && propVal !== '—' && propVal !== 'STI College') {
+        propText.textContent = propVal;
+        propRow.style.display = 'flex';
+      } else {
+        propRow.style.display = 'none';
       }
     }
 

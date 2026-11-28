@@ -3160,7 +3160,7 @@ textarea:disabled {
 }
 .cal-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   grid-auto-rows: 116px;
   width: 100%;
   table-layout: fixed;
@@ -3294,14 +3294,14 @@ textarea:disabled {
 .gcal-event-popup {
   position: fixed;
   z-index: 99999;
-  width: 340px;
+  width: 380px;
   max-width: calc(100vw - 24px);
-  background: #1e293b; /* Premium Dark Navy */
-  color: #f8fafc;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 14px;
-  box-shadow: 0 20px 30px -8px rgba(0, 0, 0, 0.65), 0 8px 16px -4px rgba(0, 0, 0, 0.45);
-  padding: 16px 18px;
+  background: #1f1f1f; /* Google Calendar Dark Charcoal Theme */
+  color: #e8eaed;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 8px 24px 6px rgba(0, 0, 0, 0.45);
+  padding: 16px 20px 20px 20px;
   box-sizing: border-box;
   font-family: inherit;
   animation: gcalPopupFadeIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
@@ -3322,7 +3322,8 @@ textarea:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
+  min-height: 32px;
 }
 
 .gcal-popup-badge-wrap {
@@ -3332,47 +3333,39 @@ textarea:disabled {
   flex-wrap: wrap;
 }
 
-.gcal-popup-badge {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #e2e8f0;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
 .gcal-popup-status-chip {
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8eaed;
 }
 
 .gcal-popup-actions-top {
   display: flex;
   align-items: center;
   gap: 4px;
+  margin-left: auto;
 }
 
 .gcal-action-btn {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: #9aa0a6;
   cursor: pointer;
-  padding: 5px;
-  border-radius: 6px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .gcal-action-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
 }
 
 .gcal-action-delete:hover {
@@ -3383,35 +3376,48 @@ textarea:disabled {
 .gcal-popup-header {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 14px;
+  margin-bottom: 16px;
 }
 
-.gcal-popup-color-bar {
-  width: 4px;
-  min-height: 22px;
+.gcal-popup-color-marker {
+  width: 14px;
+  height: 14px;
   border-radius: 4px;
-  background: #38bdf8;
+  background: #22c55e;
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 5px;
+}
+
+.gcal-popup-header-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .gcal-popup-title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1.35;
+  margin: 0 0 4px 0;
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.3;
   color: #ffffff;
   word-break: break-word;
   white-space: normal;
 }
 
+.gcal-popup-subtitle {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 400;
+  color: #9aa0a6;
+  line-height: 1.35;
+}
+
 .gcal-popup-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 14px;
-  max-height: 260px;
+  gap: 12px;
+  margin-bottom: 16px;
+  max-height: 280px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -3419,16 +3425,17 @@ textarea:disabled {
 .gcal-popup-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  font-size: 0.8rem;
+  gap: 14px;
+  font-size: 0.88rem;
   line-height: 1.4;
-  color: #cbd5e1;
+  color: #e8eaed;
 }
 
 .gcal-row-icon {
   flex-shrink: 0;
-  width: 18px;
-  color: #94a3b8;
+  width: 20px;
+  height: 20px;
+  color: #9aa0a6;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3439,32 +3446,34 @@ textarea:disabled {
   flex: 1;
   min-width: 0;
   word-break: break-word;
+  font-weight: 400;
 }
 
 .gcal-row-primary {
-  color: #f1f5f9;
-  font-weight: 500;
+  color: #e8eaed;
+  font-weight: 400;
 }
 
 .gcal-row-desc {
-  font-size: 0.76rem;
-  color: #94a3b8;
-  line-height: 1.4;
+  font-size: 0.84rem;
+  color: #bdc1c6;
+  line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
   margin-top: 2px;
 }
 
 .gcal-popup-footer {
   display: flex;
   gap: 8px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .gcal-btn {
@@ -5419,7 +5428,7 @@ img, video, canvas, svg {
     min-width: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
-    grid-template-columns: repeat(7, 1fr) !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
     grid-auto-rows: 88px !important;
   }
   .cal-cell,
@@ -5493,7 +5502,7 @@ img, video, canvas, svg {
     min-width: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
-    grid-template-columns: repeat(7, 1fr) !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
     grid-auto-rows: 80px !important;
   }
   .cal-day-name,

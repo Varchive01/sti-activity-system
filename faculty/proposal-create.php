@@ -3276,7 +3276,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
                 </div>
 
                 <!-- Calendar Grid Container -->
-                <div id="schedule-calendar-grid" style="display:grid; grid-template-columns:repeat(7, 1fr); background:var(--bg-card, #ffffff);"></div>
+                <div id="schedule-calendar-grid" style="display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); background:var(--bg-card, #ffffff);"></div>
               </div>
 
               <!-- Chronological Agenda List (Rendered dynamically below calendar) -->
