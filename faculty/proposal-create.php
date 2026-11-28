@@ -111,7 +111,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
   <meta name="base-url" content="<?= BASE_URL ?>">
   <meta name="current-user" data-id="<?= (int)$user['id'] ?>" data-role="<?= htmlspecialchars($user['role']) ?>" data-dept="<?= htmlspecialchars($user['dept'] ?? '') ?>">
   <title>New Proposal – STI Activity System</title>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.2">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css?v=1.2.3">
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/teacher-multiselect.css?v=<?= time() ?>">
   <style>
     .wizard-panel {
@@ -333,7 +333,7 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
       border-right: 1px solid var(--border) !important;
       transition: background-color 0.2s ease, color 0.2s ease;
       white-space: nowrap;
-      flex: 1 0 auto;
+      flex: 1 1 0 !important;
       min-width: 72px;
       margin: 0 !important;
       padding: 12px 10px;

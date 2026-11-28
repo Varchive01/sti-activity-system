@@ -202,13 +202,23 @@ const AIProposalGuidance = (function () {
           --aig-pill-color:     #475569;
         }
 
+        /* ── Modal Dialog: Compact standard width by default, expands ONLY with results ── */
         #aiProposalGuidanceModal .modal-dialog,
         .modal.fade#aiProposalGuidanceModal .modal-dialog,
         div#aiProposalGuidanceModal .modal-dialog {
-          max-width: min(1480px, calc(100vw - 32px)) !important;
-          width: calc(100vw - 32px) !important;
+          max-width: min(920px, calc(100vw - 32px)) !important;
+          width: min(920px, calc(100vw - 32px)) !important;
           margin: 1rem auto !important;
           box-sizing: border-box !important;
+          transition: max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1), width 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+
+        /* Expanded wide width ONLY when suggestions/results are actively shown */
+        #aiProposalGuidanceModal.has-results .modal-dialog,
+        .modal.fade#aiProposalGuidanceModal.has-results .modal-dialog,
+        div#aiProposalGuidanceModal.has-results .modal-dialog {
+          max-width: min(1480px, calc(100vw - 32px)) !important;
+          width: calc(100vw - 32px) !important;
         }
 
         #aiProposalGuidanceModal .modal-content {
@@ -677,7 +687,7 @@ const AIProposalGuidance = (function () {
       modal.style.padding = '16px';
 
       modal.innerHTML = `
-        <div class="modal-dialog modal-dialog-centered" style="margin: 1rem auto; max-width: min(1480px, calc(100vw - 32px)) !important; width: calc(100vw - 32px) !important; box-sizing: border-box !important;">
+        <div class="modal-dialog modal-dialog-centered" style="margin: 1rem auto; box-sizing: border-box !important;">
           <div class="modal-content" style="border-radius: 14px; overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; max-width: 100%; width: 100%; box-sizing: border-box;">
             
             <!-- Modal Header -->
@@ -847,6 +857,7 @@ const AIProposalGuidance = (function () {
   }
 
   function showEmptyState() {
+    if (_modalEl) _modalEl.classList.remove('has-results');
     const container = document.getElementById('aiSuggestionsContainer');
     const actions = document.getElementById('aiRightPanelActions');
     const status = document.getElementById('aiSuggestionsStatus');
@@ -871,6 +882,7 @@ const AIProposalGuidance = (function () {
   }
 
   function showLoadingState() {
+    if (_modalEl) _modalEl.classList.remove('has-results');
     const container = document.getElementById('aiSuggestionsContainer');
     const actions = document.getElementById('aiRightPanelActions');
     const status = document.getElementById('aiSuggestionsStatus');
@@ -1013,6 +1025,7 @@ const AIProposalGuidance = (function () {
     if (!_modalEl) return;
     _modalEl.style.display = 'none';
     _modalEl.classList.remove('show');
+    _modalEl.classList.remove('has-results');
     document.body.style.overflow = '';
   }
 
@@ -1159,6 +1172,7 @@ const AIProposalGuidance = (function () {
       return;
     }
 
+    if (_modalEl) _modalEl.classList.add('has-results');
     if (actions) actions.style.display = 'flex';
     if (status) status.textContent = `${availableKeys.length} section(s) ready for review and application.`;
     updateApplySelectedButton();

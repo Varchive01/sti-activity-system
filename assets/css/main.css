@@ -7193,13 +7193,23 @@ body.dark-mode #aiProposalGuidanceModal {
   }
 }
 
+/* ── AI Modal: Compact standard width by default (Empty & Loading states) ── */
 #aiProposalGuidanceModal .modal-dialog,
 .modal.fade#aiProposalGuidanceModal .modal-dialog,
 div#aiProposalGuidanceModal .modal-dialog {
-  max-width: min(1480px, calc(100vw - 32px)) !important;
-  width: calc(100vw - 32px) !important;
+  max-width: min(920px, calc(100vw - 32px)) !important;
+  width: min(920px, calc(100vw - 32px)) !important;
   margin: 1rem auto !important;
   box-sizing: border-box !important;
+  transition: max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1), width 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* ── AI Modal: Expanded wide width ONLY when suggestions/results are actively shown ── */
+#aiProposalGuidanceModal.has-results .modal-dialog,
+.modal.fade#aiProposalGuidanceModal.has-results .modal-dialog,
+div#aiProposalGuidanceModal.has-results .modal-dialog {
+  max-width: min(1480px, calc(100vw - 32px)) !important;
+  width: calc(100vw - 32px) !important;
 }
 
 #aiProposalGuidanceModal .modal-content {
@@ -8197,9 +8207,16 @@ body {
 
 .wizard-step {
   scroll-snap-align: start;
-  flex: 0 0 auto !important;
-  min-width: 82px;
+  flex: 1 1 0 !important;
+  min-width: 76px;
   box-sizing: border-box !important;
+}
+
+@media (max-width: 767.98px) {
+  .wizard-step {
+    flex: 0 0 auto !important;
+    min-width: 82px !important;
+  }
 }
 
 /* ── Target Participants Scroll Box Universal Containment ── */
