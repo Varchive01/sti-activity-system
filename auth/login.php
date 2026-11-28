@@ -347,12 +347,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       display: flex;
       align-items: center;
       justify-content: center;
+      z-index: 2;
     }
 
     .form-control {
       width: 100%;
       height: 42px;
-      padding: 8px 14px 8px 36px;
+      padding: 8px 14px 8px 38px !important;
       font-family: inherit;
       font-size: 0.90rem;
       color: #1e293b;
@@ -369,8 +370,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.15);
     }
 
-    .password-input-wrapper .form-control {
-      padding-right: 40px;
+    .input-wrapper .form-control,
+    .auth-card .input-wrapper .form-control {
+      padding-left: 38px !important;
+    }
+
+    .password-input-wrapper .form-control,
+    .auth-card .password-input-wrapper .form-control {
+      padding-left: 38px !important;
+      padding-right: 42px !important;
     }
 
     .btn-toggle-password {

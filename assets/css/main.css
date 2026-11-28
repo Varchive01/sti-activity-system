@@ -4389,6 +4389,18 @@ textarea:disabled {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.auth-card .input-wrapper .form-control,
+.input-wrapper .form-control {
+  padding-left: 38px !important;
+}
+
+.auth-card .password-input-wrapper .form-control,
+.auth-card .input-wrapper.password-input-wrapper .form-control,
+.password-input-wrapper .form-control {
+  padding-left: 38px !important;
+  padding-right: 42px !important;
+}
+
 .auth-card .form-control:focus {
   border-color: var(--sti-blue, #0072CE);
   box-shadow: 0 0 0 3px rgba(0, 114, 206, 0.15);
