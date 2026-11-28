@@ -1340,12 +1340,14 @@ function renderScheduleTimelineCalendar() {
   let html = '';
   const dayHeaders = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
   dayHeaders.forEach(dh => {
-    html += `<div style="padding:10px 4px; text-align:center; font-size:0.75rem; font-weight:700; color:var(--text-muted, #64748b); letter-spacing:0.5px; background:var(--bg-card, #ffffff); border-bottom:1px solid var(--border, #f1f5f9);">${dh}</div>`;
+    html += `<div class="schedule-cal-day-header">${dh}</div>`;
   });
 
   for (let i = 0; i < firstDay; i++) {
-    html += `<div style="min-height:105px; background:var(--bg-base, #fafafa); opacity:0.35; border-bottom:1px solid var(--border, #f1f5f9); border-right:1px solid var(--border, #f1f5f9);"></div>`;
+    html += `<div class="schedule-cal-cell" style="background:var(--bg-base, #fafafa); opacity:0.35;"></div>`;
   }
+
+  const maxShow = 3;
 
   for (let d = 1; d <= daysInMonth; d++) {
     const mm = String(scheduleCalendarMonth + 1).padStart(2, '0');
@@ -1360,30 +1362,50 @@ function renderScheduleTimelineCalendar() {
       ? 'background: #ffffff;'
       : (isInEventRange ? 'background: rgba(2, 132, 199, 0.04);' : 'background: var(--bg-card, #ffffff);');
 
-    html += `<div style="min-height:105px; padding:8px 6px; display:flex; flex-direction:column; gap:4px; cursor:pointer; transition:all 0.15s ease; ${cellBg} ${cellBorder}" onclick="openAddScheduleEventDialog('${iso}')" title="Click to schedule on ${iso}">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+    html += `<div class="schedule-cal-cell ${isInEventRange ? 'event-range' : ''} ${isToday ? 'today' : ''}" style="${cellBg} ${cellBorder}" onclick="openAddScheduleEventDialog('${iso}')" title="Click to schedule on ${iso}">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px; flex-shrink:0;">
         ${isToday 
-          ? `<span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:#0284c7; color:#ffffff; font-weight:700; font-size:0.78rem; box-shadow:0 2px 4px rgba(2, 132, 199, 0.35);">${d}</span>` 
-          : `<span style="font-size:0.82rem; font-weight:${isInEventRange || dayItems.length ? '700' : '500'}; color:${isInEventRange ? '#0284c7' : 'var(--text-main, #334155)'}; padding-left:2px;">${d}</span>`
+          ? `<span class="day-num" style="background:#0284c7; color:#ffffff; font-weight:700;">${d}</span>` 
+          : `<span class="day-num" style="font-weight:${isInEventRange || dayItems.length ? '700' : '500'}; color:${isInEventRange ? '#0284c7' : 'var(--text-main, #334155)'};">${d}</span>`
         }
-        ${isInEventRange ? '<span style="font-size:0.6rem; background:#0284c7; color:#fff; padding:1px 5px; border-radius:4px; font-weight:700;">Event Day</span>' : ''}
+        ${isInEventRange ? '<span style="font-size:0.6rem; background:#0284c7; color:#fff; padding:1px 5px; border-radius:4px; font-weight:700; flex-shrink:0;">Event Day</span>' : ''}
       </div>`;
 
-    dayItems.forEach(item => {
+    dayItems.slice(0, maxShow).forEach(item => {
       if (item.type === 'task') {
-        const itemTitle = (item.displayTitle || item.task).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeFac = item.faculty.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeRole = item.role.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        html += `<div onclick="event.stopPropagation(); editFacultyTaskFromCalendar(${item.rowIndex})" 
+        const itemTitle = (item.displayTitle || item.task || 'Faculty Task').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeFac = (item.faculty || 'Unassigned').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeRole = (item.role || 'Committee Member').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const itemJson = escapeHtml(JSON.stringify({
+          title: item.task || 'Faculty Task',
+          date: item.dueDate || item.startDate || iso,
+          time: (item.startDate && item.dueDate && item.startDate !== item.dueDate) ? `${item.startDate} to ${item.dueDate}` : '',
+          category: 'Faculty Task',
+          categoryColor: '#10b981',
+          categoryBg: '#ecfdf5',
+          status: 'Assigned',
+          statusColor: '#065f46',
+          statusBg: '#a7f3d0',
+          venue: 'Campus',
+          proponent: item.faculty || 'Faculty Member',
+          visibility: item.role || 'Task Assignment',
+          description: item.contribution || '',
+          rowIndex: item.rowIndex,
+          itemType: 'task'
+        }));
+
+        html += `<div class="sched-cal-event-pill" 
+                     data-timeline-item='${itemJson}'
+                     onclick="handleTimelinePillClick(this, event)" 
                      title="Faculty Task: ${itemTitle} (${safeFac} - ${safeRole})" 
-                     style="display:flex; align-items:center; gap:6px; font-size:0.72rem; font-weight:600; background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; border-radius:6px; padding:3px 7px; line-height:1.25; cursor:pointer; margin-top:2px; box-shadow:0 1px 2px rgba(0,0,0,0.04); overflow:hidden;">
+                     style="background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0;">
           <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#10b981; flex-shrink:0;"></span>
-          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${itemTitle}</span>
+          <span class="sched-cal-event-text">${itemTitle}</span>
         </div>`;
       } else {
-        const safeEv = item.event.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeVen = item.venue.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeOrg = item.organizer.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeEv = (item.event || 'Scheduled Activity').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeVen = (item.venue || 'Campus Venue').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeOrg = (item.organizer || 'Organizer').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
         let pillBg = '#eff6ff';
         let pillBorder = '#bfdbfe';
@@ -1405,14 +1427,35 @@ function renderScheduleTimelineCalendar() {
           catLabel = 'Sub-Event';
         }
 
-        html += `<div onclick="event.stopPropagation(); editScheduleEventFromCalendar(${item.rowIndex})" 
+        const itemJson = escapeHtml(JSON.stringify({
+          title: item.event || 'Scheduled Activity',
+          date: iso,
+          venue: item.venue || 'Campus Venue',
+          category: catLabel,
+          categoryColor: dotColor,
+          categoryBg: pillBg,
+          organizer: item.organizer || 'Organizer',
+          proponent: item.organizer || 'Activity Proponent',
+          visibility: 'Campus / Department',
+          description: '',
+          rowIndex: item.rowIndex,
+          itemType: 'event'
+        }));
+
+        html += `<div class="sched-cal-event-pill" 
+                     data-timeline-item='${itemJson}'
+                     onclick="handleTimelinePillClick(this, event)" 
                      title="[${catLabel}] ${safeEv} (${safeVen} - ${safeOrg})" 
-                     style="display:flex; align-items:center; gap:6px; font-size:0.72rem; font-weight:600; background:${pillBg}; color:${pillColor}; border:1px solid ${pillBorder}; border-radius:6px; padding:3px 7px; line-height:1.25; cursor:pointer; margin-top:2px; box-shadow:0 1px 2px rgba(0,0,0,0.04); overflow:hidden;">
+                     style="background:${pillBg}; color:${pillColor}; border:1px solid ${pillBorder};">
           <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${dotColor}; flex-shrink:0;"></span>
-          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${safeEv}</span>
+          <span class="sched-cal-event-text">${safeEv}</span>
         </div>`;
       }
     });
+
+    if (dayItems.length > maxShow) {
+      html += `<div class="cal-more" onclick="event.stopPropagation();">+${dayItems.length - maxShow} more</div>`;
+    }
 
     html += `</div>`;
   }
@@ -2385,6 +2428,36 @@ function processBulkAddCommittees() {
   }
 }
 
+function handleTimelinePillClick(el, e) {
+  if (e) e.stopPropagation();
+  const raw = el.getAttribute('data-timeline-item');
+  if (!raw) return;
+  try {
+    const data = JSON.parse(raw);
+    if (data.itemType === 'task') {
+      data.onEdit = function() {
+        editFacultyTaskFromCalendar(data.rowIndex);
+      };
+      data.onDelete = function() {
+        deleteFacultyTaskDirect(data.rowIndex);
+      };
+    } else {
+      data.onEdit = function() {
+        editScheduleEventFromCalendar(data.rowIndex);
+      };
+      data.onDelete = function() {
+        deleteScheduleEventDirect(data.rowIndex);
+      };
+    }
+    if (typeof openGCalPopup === 'function') {
+      openGCalPopup(el, data);
+    }
+  } catch (err) {
+    console.error('Error opening timeline event details:', err);
+  }
+}
+
+window.handleTimelinePillClick = handleTimelinePillClick;
 window.openBulkAddCommitteesModal = openBulkAddCommitteesModal;
 window.closeBulkAddCommitteesModal = closeBulkAddCommitteesModal;
 window.filterBulkRoles = filterBulkRoles;
@@ -2408,3 +2481,5 @@ window.syncSchedModalTaskName = syncSchedModalTaskName;
 window.shiftScheduleCalendarMonth = shiftScheduleCalendarMonth;
 window.renderScheduleTimelineCalendar = renderScheduleTimelineCalendar;
 </script>
+<!-- Unified Google Calendar Floating Popup Script for Proposal Pages -->
+<script src="<?= BASE_URL ?>/assets/js/gcal-popup.js?v=<?= time() ?>"></script>

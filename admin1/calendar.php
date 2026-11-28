@@ -32,7 +32,7 @@ if ($nextMonth > 12) {
 }
 
 $events = $db->prepare("
-    SELECT a.id, a.title, a.event_date, a.status, a.venue, a.source, u.name as faculty_name
+    SELECT a.id, a.title, a.event_date, a.end_date, a.start_time, a.end_time, a.status, a.venue, a.source, a.description, a.target_participants, a.faculty_id, u.name as faculty_name
     FROM activities a JOIN users u ON a.faculty_id=u.id
     WHERE (a.source = 'student_org' OR u.role = 'program_head') AND a.status != 'draft' AND MONTH(a.event_date)=? AND YEAR(a.event_date)=?
     ORDER BY a.event_date
@@ -152,20 +152,49 @@ $todayYear  = (int)date('Y');
               <div class="cal-cell <?= $isToday ? 'today' : '' ?>" id="cell-<?= $day ?>">
                 <div class="day-num"><?= $day ?></div>
                 <?php foreach (array_slice($dayEvents, 0, $maxShow) as $ev):
-                  $cfg   = $statusConfig[$ev['status']] ?? ['color' => '#6B7280', 'bg' => '#F3F4F6'];
-                  $venue = htmlspecialchars($ev['venue'] ?? '');
-                  $date  = date('F j, Y', strtotime($ev['event_date']));
-                  $organizer = htmlspecialchars($ev['faculty_name'] ?? '');
+                  $cfg              = $statusConfig[$ev['status']] ?? ['color' => '#6B7280', 'bg' => '#F3F4F6'];
+                  $dateFormatted    = date('F j, Y', strtotime($ev['event_date']));
+                  $endDateFormatted = (!empty($ev['end_date']) && $ev['end_date'] !== $ev['event_date']) ? date('F j, Y', strtotime($ev['end_date'])) : '';
+                  $timeFormatted    = '';
+                  if (!empty($ev['start_time'])) {
+                    $timeFormatted = date('g:i A', strtotime($ev['start_time']));
+                    if (!empty($ev['end_time'])) {
+                      $timeFormatted .= ' – ' . date('g:i A', strtotime($ev['end_time']));
+                    }
+                  }
+                  $canEdit   = in_array($ev['status'], ['draft', 'submitted', 'returned_for_revision']) && canUserAccessActivity((int)$ev['id'], 'modify', $user['id'], $user['role'], $user['dept']);
+                  $canDelete = ($ev['faculty_id'] == $user['id'] && in_array($ev['status'], ['draft', 'returned_for_revision']));
+                  $eventJson = htmlspecialchars(json_encode([
+                    'id'            => (int)$ev['id'],
+                    'title'         => $ev['title'],
+                    'date'          => $dateFormatted,
+                    'endDate'       => $endDateFormatted,
+                    'time'          => $timeFormatted,
+                    'venue'         => $ev['venue'] ?? 'Campus Venue',
+                    'status'        => $statusConfig[$ev['status']]['label'] ?? ucfirst($ev['status']),
+                    'statusColor'   => $cfg['color'],
+                    'statusBg'      => $cfg['bg'],
+                    'category'      => ucfirst(str_replace('_', ' ', $ev['source'] ?? 'Student Org Activity')),
+                    'categoryColor' => $cfg['color'],
+                    'categoryBg'    => $cfg['bg'],
+                    'proponent'     => $ev['faculty_name'] ?? 'Student Org Lead',
+                    'visibility'    => 'STI College',
+                    'description'   => $ev['description'] ?? '',
+                    'viewUrl'       => BASE_URL . '/admin1/view-activity.php?id=' . (int)$ev['id'],
+                    'editUrl'       => $canEdit ? BASE_URL . '/admin1/proposal-edit.php?id=' . (int)$ev['id'] : null,
+                    'canDelete'     => $canDelete
+                  ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8');
                 ?>
                   <div class="cal-event"
                     style="background:<?= $cfg['bg'] ?>;color:<?= $cfg['color'] ?>;"
-                    onclick="showPopup(event, <?= $ev['id'] ?>, '<?= addslashes(htmlspecialchars($ev['title'])) ?>', '<?= $date ?>', '<?= $venue ?>', '<?= $cfg['color'] ?>', '<?= $cfg['bg'] ?>', '<?= addslashes($statusConfig[$ev['status']]['label'] ?? $ev['status']) ?>', '<?= addslashes($organizer) ?>')">
+                    data-event='<?= $eventJson ?>'
+                    onclick="handleCalendarEventClick(this, event)">
                     <div class="cal-event-dot" style="background:<?= $cfg['color'] ?>"></div>
-                    <span class="cal-event-text"><?= htmlspecialchars(mb_strimwidth($ev['title'], 0, 20, '…')) ?></span>
+                    <span class="cal-event-text"><?= htmlspecialchars($ev['title']) ?></span>
                   </div>
                 <?php endforeach; ?>
                 <?php if ($extra > 0): ?>
-                  <div class="cal-more">+<?= $extra ?> more</div>
+                  <div class="cal-more" onclick="event.stopPropagation();">+<?= $extra ?> more</div>
                 <?php endif; ?>
               </div>
             <?php endfor; ?>
@@ -230,86 +259,40 @@ $todayYear  = (int)date('Y');
     </div>
   </div>
 
-  <!-- Event Popup -->
-  <div class="event-popup" id="eventPopup">
-    <div class="event-popup-header">
-      <div class="event-popup-title" id="popupTitle"></div>
-      <button class="event-popup-close" onclick="closePopup()">✕</button>
-    </div>
-    <div style="margin-bottom:10px;">
-      <span class="status-chip" id="popupStatus" style="font-size:.7rem;"></span>
-    </div>
-    <div class="event-popup-row">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-      <span id="popupDate"></span>
-    </div>
-    <div class="event-popup-row" id="popupVenueRow">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-      <span id="popupVenue"></span>
-    </div>
-    <div class="event-popup-actions">
-      <a href="#" id="popupReviewBtn" class="popup-btn primary">Review Status</a>
-      <a href="#" id="popupViewBtn" class="popup-btn ghost">View Details</a>
-      <button class="popup-btn ghost" onclick="closePopup()">Close</button>
-    </div>
-  </div>
-
+  <!-- Unified Google Calendar Floating Popup Script -->
+  <script src="<?= BASE_URL ?>/assets/js/gcal-popup.js?v=<?= time() ?>"></script>
   <script>
     const BASE_URL = '<?= BASE_URL ?>';
-    let activePopup = null;
 
-    function showPopup(e, id, title, date, venue, color, bg, status, organizer) {
-      e.stopPropagation();
-      const popup = document.getElementById('eventPopup');
-
-      document.getElementById('popupTitle').textContent = title;
-      document.getElementById('popupDate').textContent = date + (organizer ? ' · ' + organizer : '');
-      document.getElementById('popupStatus').textContent = status;
-      document.getElementById('popupStatus').style.background = bg;
-      document.getElementById('popupStatus').style.color = color;
-      document.getElementById('popupReviewBtn').href = BASE_URL + '/admin1/review.php?id=' + id;
-      document.getElementById('popupViewBtn').href = BASE_URL + '/admin1/view-activity.php?id=' + id;
-
-      const venueRow = document.getElementById('popupVenueRow');
-      document.getElementById('popupVenue').textContent = venue || 'Venue TBD';
-      venueRow.style.display = 'flex';
-
-      // Position popup (responsive viewport protection)
-      if (window.innerWidth <= 600) {
-        popup.style.left = '50%';
-        popup.style.top = '50%';
-        popup.style.transform = 'translate(-50%, -50%)';
-      } else {
-        popup.style.transform = '';
-        const x = e.clientX,
-          y = e.clientY;
-        const pw = 280,
-          ph = 200;
-        const vw = window.innerWidth,
-          vh = window.innerHeight;
-        popup.style.left = (x + pw + 10 > vw ? Math.max(10, x - pw - 10) : x + 10) + 'px';
-        popup.style.top = (y + ph > vh ? Math.max(10, vh - ph - 10) : y) + 'px';
+    function handleCalendarEventClick(el, e) {
+      if (e) e.stopPropagation();
+      const raw = el.getAttribute('data-event');
+      if (!raw) return;
+      try {
+        const data = JSON.parse(raw);
+        if (data.canDelete) {
+          data.onDelete = function() {
+            fetch(BASE_URL + '/api/proposal-delete.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: data.id })
+            })
+            .then(r => r.json())
+            .then(res => {
+              if (res.success) {
+                window.location.reload();
+              } else {
+                alert(res.error || 'Failed to delete proposal.');
+              }
+            })
+            .catch(() => alert('Network error deleting proposal.'));
+          };
+        }
+        openGCalPopup(el, data);
+      } catch (err) {
+        console.error('Error opening event details:', err);
       }
-      popup.classList.add('open');
-      activePopup = popup;
     }
-
-    function closePopup() {
-      document.getElementById('eventPopup').classList.remove('open');
-      activePopup = null;
-    }
-
-    document.addEventListener('click', e => {
-      if (activePopup && !activePopup.contains(e.target)) closePopup();
-    });
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closePopup();
-    });
   </script>
 </body>
 </html>
