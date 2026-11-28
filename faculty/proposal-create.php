@@ -1398,6 +1398,639 @@ if (!isset($_SESSION['temp_collaborators'][$sessionToken]) || !is_array($_SESSIO
         width: 100% !important;
         justify-content: center !important;
       }
+      /* ── AI Proposal Guidance Modal Universal Mobile Card Responsiveness ── */
+      #aiProposalGuidanceModal #aiRightPanelActions {
+        display: flex !important;
+        width: 100% !important;
+        justify-content: stretch !important;
+        gap: 6px !important;
+        margin-top: 8px !important;
+      }
+      #aiProposalGuidanceModal #aiRightPanelActions button {
+        flex: 1 1 auto !important;
+        text-align: center !important;
+        justify-content: center !important;
+        padding: 6px 8px !important;
+        font-size: 0.72rem !important;
+      }
+      #aiProposalGuidanceModal .form-control {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        min-width: 0 !important;
+      }
+
+      /* Materials Preview Mobile Cards */
+      #aiProposalGuidanceModal #ai_preview_table_materials thead {
+        display: none !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials,
+      #aiProposalGuidanceModal #ai_preview_table_materials tbody {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        width: 100% !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials tbody tr {
+        display: grid !important;
+        grid-template-columns: repeat(12, 1fr) !important;
+        gap: 6px 8px !important;
+        padding: 10px 12px !important;
+        background: var(--aig-bg-subtle, #f8fafc) !important;
+        border: 1px solid var(--aig-border, #e2e8f0) !important;
+        border-radius: 8px !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+      }
+      [data-theme="dark"] #aiProposalGuidanceModal #ai_preview_table_materials tbody tr {
+        background: var(--aig-card-bg, #15243C) !important;
+        border-color: var(--aig-border, #1E2D45) !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials td {
+        display: block !important;
+        padding: 0 !important;
+        border: none !important;
+        min-width: 0 !important;
+        width: auto !important;
+        background: transparent !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials td:nth-child(1) {
+        grid-column: 1 / 9 !important;
+        grid-row: 1 !important;
+        font-size: 0.85rem !important;
+        font-weight: 700 !important;
+        color: var(--aig-text-main) !important;
+        line-height: 1.3 !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials td:nth-child(7) {
+        grid-column: 9 / 13 !important;
+        grid-row: 1 !important;
+        text-align: right !important;
+        font-size: 0.85rem !important;
+        font-weight: 700 !important;
+        color: #0284C7 !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials td:nth-child(2) {
+        grid-column: 1 / 13 !important;
+        grid-row: 2 !important;
+        font-size: 0.76rem !important;
+        color: var(--aig-text-muted) !important;
+        line-height: 1.35 !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials td:nth-child(4) {
+        grid-column: 1 / 8 !important;
+        grid-row: 3 !important;
+        display: flex !important;
+        align-items: center !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials td:nth-child(3) {
+        grid-column: 8 / 13 !important;
+        grid-row: 3 !important;
+        text-align: right !important;
+        font-size: 0.78rem !important;
+        font-weight: 600 !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: center !important;
+        gap: 4px !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials td:nth-child(3)::before {
+        content: "Qty: " !important;
+        font-size: 0.72rem !important;
+        color: var(--aig-text-muted) !important;
+        font-weight: 500 !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials td:nth-child(5) {
+        grid-column: 1 / 7 !important;
+        grid-row: 4 !important;
+        font-size: 0.74rem !important;
+        color: var(--aig-text-muted) !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials td:nth-child(5)::before {
+        content: "Unit: " !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials td:nth-child(6) {
+        grid-column: 7 / 13 !important;
+        grid-row: 4 !important;
+        text-align: right !important;
+        font-size: 0.74rem !important;
+        color: var(--aig-text-muted) !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: center !important;
+        gap: 4px !important;
+      }
+      #aiProposalGuidanceModal #ai_preview_table_materials td:nth-child(6)::before {
+        content: "Rate: " !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+      }
+
+      /* Schedule Edit Mobile Cards */
+      #aiProposalGuidanceModal #edit_table_schedule thead {
+        display: none !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule,
+      #aiProposalGuidanceModal #edit_table_schedule tbody {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        width: 100% !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule tr.edit-schedule-row {
+        display: grid !important;
+        grid-template-columns: repeat(12, 1fr) !important;
+        gap: 8px !important;
+        padding: 12px !important;
+        background: var(--aig-bg-subtle, #f8fafc) !important;
+        border: 1px solid var(--aig-border, #e2e8f0) !important;
+        border-radius: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      [data-theme="dark"] #aiProposalGuidanceModal #edit_table_schedule tr.edit-schedule-row {
+        background: var(--aig-card-bg, #15243C) !important;
+        border-color: var(--aig-border, #1E2D45) !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule td {
+        display: block !important;
+        padding: 0 !important;
+        border: none !important;
+        min-width: 0 !important;
+        width: auto !important;
+        background: transparent !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule td:nth-child(1) {
+        grid-column: 1 / 10 !important;
+        grid-row: 1 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule td:nth-child(1)::before {
+        content: "Time" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule td:nth-child(5) {
+        grid-column: 10 / 13 !important;
+        grid-row: 1 !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: flex-end !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule td:nth-child(5) button {
+        width: 32px !important;
+        height: 32px !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule td:nth-child(2) {
+        grid-column: 1 / 13 !important;
+        grid-row: 2 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule td:nth-child(2)::before {
+        content: "Program Segment *" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule td:nth-child(3) {
+        grid-column: 1 / 13 !important;
+        grid-row: 3 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule td:nth-child(3)::before {
+        content: "Description" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule td:nth-child(4) {
+        grid-column: 1 / 13 !important;
+        grid-row: 4 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_schedule td:nth-child(4)::before {
+        content: "In-Charge (PIC)" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+
+      /* Materials Edit Mobile Cards */
+      #aiProposalGuidanceModal #edit_table_materials thead {
+        display: none !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials,
+      #aiProposalGuidanceModal #edit_table_materials tbody {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        width: 100% !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials tr.edit-mat-row {
+        display: grid !important;
+        grid-template-columns: repeat(12, 1fr) !important;
+        gap: 8px !important;
+        padding: 12px !important;
+        background: var(--aig-bg-subtle, #f8fafc) !important;
+        border: 1px solid var(--aig-border, #e2e8f0) !important;
+        border-radius: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      [data-theme="dark"] #aiProposalGuidanceModal #edit_table_materials tr.edit-mat-row {
+        background: var(--aig-card-bg, #15243C) !important;
+        border-color: var(--aig-border, #1E2D45) !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td {
+        display: block !important;
+        padding: 0 !important;
+        border: none !important;
+        min-width: 0 !important;
+        width: auto !important;
+        background: transparent !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(1) {
+        grid-column: 1 / 10 !important;
+        grid-row: 1 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(1)::before {
+        content: "Item Name *" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(8) {
+        grid-column: 10 / 13 !important;
+        grid-row: 1 !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: flex-end !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(8) button {
+        width: 32px !important;
+        height: 32px !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(2) {
+        grid-column: 1 / 13 !important;
+        grid-row: 2 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(2)::before {
+        content: "Description" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(4) {
+        grid-column: 1 / 9 !important;
+        grid-row: 3 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(4)::before {
+        content: "Provider / Supplier *" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(3) {
+        grid-column: 9 / 13 !important;
+        grid-row: 3 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(3)::before {
+        content: "Qty *" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(5) {
+        grid-column: 1 / 13 !important;
+        grid-row: 4 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(5)::before {
+        content: "Billing Unit" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(6) {
+        grid-column: 1 / 7 !important;
+        grid-row: 5 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(6)::before {
+        content: "Rate (₱)" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(7) {
+        grid-column: 7 / 13 !important;
+        grid-row: 5 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_materials td:nth-child(7)::before {
+        content: "Est. Cost (₱)" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+
+      /* People Edit Mobile Cards */
+      #aiProposalGuidanceModal #edit_table_people thead {
+        display: none !important;
+      }
+      #aiProposalGuidanceModal #edit_table_people,
+      #aiProposalGuidanceModal #edit_table_people tbody {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        width: 100% !important;
+      }
+      #aiProposalGuidanceModal #edit_table_people tr.edit-people-row {
+        display: grid !important;
+        grid-template-columns: repeat(12, 1fr) !important;
+        gap: 8px !important;
+        padding: 12px !important;
+        background: var(--aig-bg-subtle, #f8fafc) !important;
+        border: 1px solid var(--aig-border, #e2e8f0) !important;
+        border-radius: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      [data-theme="dark"] #aiProposalGuidanceModal #edit_table_people tr.edit-people-row {
+        background: var(--aig-card-bg, #15243C) !important;
+        border-color: var(--aig-border, #1E2D45) !important;
+      }
+      #aiProposalGuidanceModal #edit_table_people td {
+        display: block !important;
+        padding: 0 !important;
+        border: none !important;
+        min-width: 0 !important;
+        width: auto !important;
+        background: transparent !important;
+      }
+      #aiProposalGuidanceModal #edit_table_people td:nth-child(1) {
+        grid-column: 1 / 10 !important;
+        grid-row: 1 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_people td:nth-child(1)::before {
+        content: "Role *" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_people td:nth-child(4) {
+        grid-column: 10 / 13 !important;
+        grid-row: 1 !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: flex-end !important;
+      }
+      #aiProposalGuidanceModal #edit_table_people td:nth-child(4) button {
+        width: 32px !important;
+        height: 32px !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      #aiProposalGuidanceModal #edit_table_people td:nth-child(2) {
+        grid-column: 1 / 8 !important;
+        grid-row: 2 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_people td:nth-child(2)::before {
+        content: "Assigned Person *" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_people td:nth-child(3) {
+        grid-column: 8 / 13 !important;
+        grid-row: 2 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_people td:nth-child(3)::before {
+        content: "Type" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+
+      /* Faculty Tasks Edit Mobile Cards */
+      #aiProposalGuidanceModal #edit_table_faculty_tasks thead {
+        display: none !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks,
+      #aiProposalGuidanceModal #edit_table_faculty_tasks tbody {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        width: 100% !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks tr.edit-ft-row {
+        display: grid !important;
+        grid-template-columns: repeat(12, 1fr) !important;
+        gap: 8px !important;
+        padding: 12px !important;
+        background: var(--aig-bg-subtle, #f8fafc) !important;
+        border: 1px solid var(--aig-border, #e2e8f0) !important;
+        border-radius: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      [data-theme="dark"] #aiProposalGuidanceModal #edit_table_faculty_tasks tr.edit-ft-row {
+        background: var(--aig-card-bg, #15243C) !important;
+        border-color: var(--aig-border, #1E2D45) !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks td {
+        display: block !important;
+        padding: 0 !important;
+        border: none !important;
+        min-width: 0 !important;
+        width: auto !important;
+        background: transparent !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks td:nth-child(1) {
+        grid-column: 1 / 10 !important;
+        grid-row: 1 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks td:nth-child(1)::before {
+        content: "Specific Task *" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks td:nth-child(5) {
+        grid-column: 10 / 13 !important;
+        grid-row: 1 !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: flex-end !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks td:nth-child(5) button {
+        width: 32px !important;
+        height: 32px !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks td:nth-child(2) {
+        grid-column: 1 / 13 !important;
+        grid-row: 2 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks td:nth-child(2)::before {
+        content: "Contribution / Deliverable" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks td:nth-child(3) {
+        grid-column: 1 / 7 !important;
+        grid-row: 3 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks td:nth-child(3)::before {
+        content: "Faculty Role" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks td:nth-child(4) {
+        grid-column: 7 / 13 !important;
+        grid-row: 3 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_faculty_tasks td:nth-child(4)::before {
+        content: "Due Date" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+
+      /* Evaluation KPI Edit Mobile Cards */
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi thead {
+        display: none !important;
+      }
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi,
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi tbody {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        width: 100% !important;
+      }
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi tr.edit-kpi-row {
+        display: grid !important;
+        grid-template-columns: repeat(12, 1fr) !important;
+        gap: 8px !important;
+        padding: 12px !important;
+        background: var(--aig-bg-subtle, #f8fafc) !important;
+        border: 1px solid var(--aig-border, #e2e8f0) !important;
+        border-radius: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      [data-theme="dark"] #aiProposalGuidanceModal #edit_table_evaluation_kpi tr.edit-kpi-row {
+        background: var(--aig-card-bg, #15243C) !important;
+        border-color: var(--aig-border, #1E2D45) !important;
+      }
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi td {
+        display: block !important;
+        padding: 0 !important;
+        border: none !important;
+        min-width: 0 !important;
+        width: auto !important;
+        background: transparent !important;
+      }
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi td:nth-child(1) {
+        grid-column: 1 / 10 !important;
+        grid-row: 1 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi td:nth-child(1)::before {
+        content: "Evaluation Indicator *" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi td:nth-child(4) {
+        grid-column: 10 / 13 !important;
+        grid-row: 1 !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: flex-end !important;
+      }
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi td:nth-child(4) button {
+        width: 32px !important;
+        height: 32px !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi td:nth-child(2) {
+        grid-column: 1 / 13 !important;
+        grid-row: 2 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi td:nth-child(2)::before {
+        content: "Measurable Target *" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi td:nth-child(3) {
+        grid-column: 1 / 13 !important;
+        grid-row: 3 !important;
+      }
+      #aiProposalGuidanceModal #edit_table_evaluation_kpi td:nth-child(3)::before {
+        content: "Evaluation Method" !important;
+        font-size: 0.70rem !important;
+        font-weight: 600 !important;
+        color: var(--aig-text-muted) !important;
+        display: block !important;
+        margin-bottom: 2px !important;
+      }
       .topbar-right {
         gap: 6px !important;
       }
